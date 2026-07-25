@@ -1,0 +1,106 @@
+[
+  {
+    "id": 1, "vendor": "Vrishty Enterprises", "vendorGst": "09ABSPG3380Q1ZT",
+    "invoice": "2026-27/966", "date": "16 Jun", "dateFull": "16-Jun-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 28285.44, "gstTotal": 1414.28, "roundOff": 0.28, "grandTotal": 29700.00,
+    "otherCharges": [], "scanUrl": "/scans/1.jpg",
+    "items": [
+      {"name": "Lime Seasoning 24*500g", "hsn": "21039040", "qty": 192, "uom": "pcs", "price": 147.32, "net": 28285.44, "taxRate": "5%", "gst": 1414.28, "gross": 29700.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 2, "vendor": "Shrejal Impex Pvt. Ltd.", "vendorGst": "07AAQCS0455A1ZJ",
+    "invoice": "526A-00729", "date": "10 Jul", "dateFull": "10-Jul-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 69900.00, "gstTotal": 0.00, "roundOff": 0.00, "grandTotal": 69900.00,
+    "otherCharges": [], "note": "Bill of Supply — unbranded rice is Nil-rated, so GST is 0.", "scanUrl": "/scans/2.jpg",
+    "items": [
+      {"name": "Alidada Mini Mogra Rice 30Kg", "hsn": "10064000", "qty": 15, "uom": "Qntl", "price": 3550.00, "net": 53250.00, "taxRate": "NIL", "gst": 0.00, "gross": 53250.00, "uploaded": false},
+      {"name": "Alidada Tibar Rice 30Kg", "hsn": "10064000", "qty": 3, "uom": "Qntl", "price": 5550.00, "net": 16650.00, "taxRate": "NIL", "gst": 0.00, "gross": 16650.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 3, "vendor": "Zomato Hyperpure Pvt Ltd", "vendorGst": "09AAACZ8867B1ZY",
+    "invoice": "ZBSUP27-00125622", "date": "13 Jul", "dateFull": "13-Jul-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 1860.00, "gstTotal": 0.00, "roundOff": 0.00, "grandTotal": 1860.00,
+    "otherCharges": [], "scanUrl": "/scans/3.jpg",
+    "items": [
+      {"name": "Banana Yellow, 1 Kg", "hsn": "08039010", "qty": 10, "uom": "Count", "price": 75.00, "net": 750.00, "taxRate": "0%", "gst": 0.00, "gross": 750.00, "uploaded": false},
+      {"name": "Button Mushroom, 200 gm", "hsn": "07095100", "qty": 30, "uom": "Pack", "price": 37.00, "net": 1110.00, "taxRate": "0%", "gst": 0.00, "gross": 1110.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 4, "vendor": "Wonder Packagings", "vendorGst": "07AGBPK4902G1ZR",
+    "invoice": "GST-454/2026-27", "date": "03 Jul", "dateFull": "03-Jul-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 69773.75, "gstTotal": 12559.28, "roundOff": -0.03, "grandTotal": 82333.00,
+    "otherCharges": [], "scanUrl": "/scans/4.jpg",
+    "items": [
+      {"name": "360mm Plain Heat Packing Roll", "hsn": "39239090", "qty": 279.095, "uom": "Kgs", "price": 250.00, "net": 69773.75, "taxRate": "18%", "gst": 12559.28, "gross": 82333.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 5, "vendor": "Maa Pet Pvt. Ltd.", "vendorGst": "09AACCM6909M1ZZ",
+    "invoice": "2019", "date": "14 Jul", "dateFull": "14-Jul-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 4131.00, "gstTotal": 743.58, "roundOff": 0.42, "grandTotal": 4875.00,
+    "otherCharges": [{"label": "EPR Processing Charge", "amount": 81.00}], "scanUrl": "/scans/5.jpg",
+    "items": [
+      {"name": "MT-019 (1200Ml) CNTNR WHT+FZN", "hsn": "39239090", "qty": 900, "uom": "NOS", "price": 4.500, "net": 4050.00, "taxRate": "18%", "gst": 743.58, "gross": 4875.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 6, "vendor": "Mahalaxmi Flexible Packaging", "vendorGst": "09AJFPM6693R1Z3",
+    "invoice": "MFP/T/26-27/0623", "date": "15 Jun", "dateFull": "15-Jun-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 114559.80, "gstTotal": 20620.76, "roundOff": 0.44, "grandTotal": 135181.00,
+    "otherCharges": [], "scanUrl": "/scans/6.jpg",
+    "items": [
+      {"name": "Nutribox Paper 750 ML Flat Bowl white", "hsn": "48239090", "qty": 23494, "uom": "Pcs", "price": 3.90, "net": 91626.60, "taxRate": "18%", "gst": 16492.79, "gross": 108119.39, "uploaded": false},
+      {"name": "Nutribox Paper 250 ML Container white", "hsn": "48239090", "qty": 7908, "uom": "Pcs", "price": 2.90, "net": 22933.20, "taxRate": "18%", "gst": 4127.98, "gross": 27061.18, "uploaded": false}
+    ]
+  },
+  {
+    "id": 7, "vendor": "Calpro Food Essentials Pvt. Ltd.", "vendorGst": "07AAACC5508L1ZO",
+    "invoice": "CFE/GST/341", "date": "15 Jun", "dateFull": "15-Jun-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 10000.00, "gstTotal": 500.00, "roundOff": 0.00, "grandTotal": 10500.00,
+    "otherCharges": [], "scanUrl": "/scans/7.jpg",
+    "items": [
+      {"name": "Cellugel- FP 90", "hsn": "19012000", "qty": 25, "uom": "kgs", "price": 400.00, "net": 10000.00, "taxRate": "5%", "gst": 500.00, "gross": 10500.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 8, "vendor": "Express Engineers & Spares Pvt Ltd", "vendorGst": "09AACCE0124E1Z9",
+    "invoice": "GZB/26-27/277", "date": "02 Jul", "dateFull": "02-Jul-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 70000.00, "gstTotal": 12600.00, "roundOff": 0.00, "grandTotal": 82600.00,
+    "otherCharges": [], "note": "Lump-sum equipment hire — no per-unit qty/price on the bill.", "scanUrl": "/scans/8.jpg",
+    "items": [
+      {"name": "320 KVA DG Set (CPCB IV) Hire Charges (4 Jul–3 Aug 2026)", "hsn": "997319", "qty": 1, "uom": "lump-sum", "price": null, "net": 70000.00, "taxRate": "18%", "gst": 12600.00, "gross": 82600.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 9, "vendor": "Pal Enterprises", "vendorGst": "09BJPPS8503K1ZF",
+    "invoice": "PE/26-27/318", "date": "01 Jul", "dateFull": "01-Jul-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 8600.00, "gstTotal": 1548.00, "roundOff": 0.00, "grandTotal": 10148.00,
+    "otherCharges": [], "scanUrl": "/scans/9.jpg",
+    "items": [
+      {"name": "A4 Paper Centurey 75 GSM", "hsn": "4802", "qty": 40, "uom": "Rim", "price": 215.00, "net": 8600.00, "taxRate": "18%", "gst": 1548.00, "gross": 10148.00, "uploaded": false}
+    ]
+  },
+  {
+    "id": 10, "vendor": "Pack Care India P Ltd", "vendorGst": "09AACCP6789Q2Z9",
+    "invoice": "695", "date": "20 Jul", "dateFull": "20-Jul-2026",
+    "buyer": "Allsure Services Pvt Ltd", "buyerGst": "09AANCA9064A1ZL",
+    "taxable": 23903.00, "gstTotal": 1195.16, "roundOff": -0.16, "grandTotal": 25098.00,
+    "otherCharges": [], "note": "Handwritten on bill: only 1 item physically received (627 pcs).", "scanUrl": "/scans/10.jpg",
+    "items": [
+      {"name": "Corrugated Boxs 267x267x247MM 5PLY", "hsn": "48191010", "qty": 208, "uom": "Pcs", "price": 27.50, "net": 5720.00, "taxRate": "5%", "gst": 286.00, "gross": 6006.00, "uploaded": false},
+      {"name": "Corrugated Boxs 15.5x11.5x6.75\" 5PLY", "hsn": "48191010", "qty": 627, "uom": "Pcs", "price": 29.00, "net": 18183.00, "taxRate": "5%", "gst": 909.15, "gross": 19092.15, "uploaded": false}
+    ]
+  }
+]
