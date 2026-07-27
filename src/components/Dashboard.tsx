@@ -153,7 +153,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
         {/* Top bar */}
         <div className="topbar">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="brandlogo" src="/logo.png" alt="Nutriobox" />
+          <img className="brandlogo" src="/logo.png" alt="Sukhna Foods" />
           <span className="brand-div">Operations Dashboard</span>
           <div className="search">
             <Icon n="search" />
