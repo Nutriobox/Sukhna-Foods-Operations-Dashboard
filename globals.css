@@ -131,14 +131,10 @@
   .vsub{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .c-inv{width:158px;flex:none;font-size:13px;color:var(--ink-2);font-weight:500}
   .c-inv .cap{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;display:block;font-weight:600}
-  .c-items{width:120px;flex:none;display:flex;align-items:center;justify-content:center;gap:8px}
-  .c-verify{width:170px;flex:none;display:flex;align-items:center;justify-content:center}
-  .c-amt{width:120px;flex:none;text-align:right;font-weight:700;font-size:14px;color:var(--ink)}
-  .c-act{width:300px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px}
-  .upcol{display:flex;flex-direction:column;align-items:center;gap:4px}
-  .upfrac{font-size:10.5px;font-weight:700;letter-spacing:.02em;color:var(--brand-ink);background:var(--brand-soft);
-          border:1px solid #c7ecdd;border-radius:6px;padding:2px 7px;white-space:nowrap}
-  .c-date{width:78px;flex:none;text-align:left;color:var(--muted);font-size:12.5px}
+  .c-items{width:96px;flex:none;display:flex;align-items:center;gap:8px}
+  .c-amt{width:126px;flex:none;text-align:right;font-weight:700;font-size:14px;color:var(--ink)}
+  .c-act{width:310px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px}
+  .c-date{width:74px;flex:none;text-align:right;color:var(--muted);font-size:12.5px}
 
   .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px 3px 7px;border-radius:20px;letter-spacing:.01em}
   .pill svg{width:12px;height:12px;stroke-width:2.4}
