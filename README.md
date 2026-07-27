@@ -1,7 +1,7 @@
-# Nutriobox · Operations Dashboard
+# Sukhna Foods · Operations Dashboard
 
 Invoice operations console for **Sukhna Foods / Nutriobox**.
-Target URL: **https://operationsdashboard.sukhnafoods.com**
+Live URL: **https://sukhna-foods-operations-dashboard.vercel.app**
 
 Scanned bills arrive by email → get auto-extracted → are validated by three
 offline checks → and land in a Gmail-style inbox where each bill can be reviewed,
@@ -123,7 +123,7 @@ Cron + a mail API like Postmark/SendGrid inbound, or a Supabase Edge Function).
 ## Project structure
 
 ```
-sukhna-ops-dashboard/
+operationsdashboard/
 ├─ src/
 │  ├─ app/
 │  │  ├─ page.tsx            # renders the dashboard (seed data initially)
