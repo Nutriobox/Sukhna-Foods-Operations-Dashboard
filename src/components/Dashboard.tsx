@@ -182,8 +182,8 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
               <div className="val">{kpis.err}</div><div className="sub">a check failed</div>
             </div>
             <div className="kpi">
-              <div className="top"><span className="lbl">Total value</span><span className="ic ic-brand"><Icon n="rupee" size={17} /></span></div>
-              <div className="val">{inrShort(kpis.value)}</div><div className="sub">across {kpis.total} bills</div>
+              <div className="top"><span className="lbl">Total Uploaded</span><span className="ic ic-brand"><Icon n="upload" size={17} /></span></div>
+              <div className="val">{kpis.up}</div><div className="sub">of {kpis.total} bills to Pact</div>
             </div>
           </div>
 
@@ -201,12 +201,13 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
               <div className="ghost" onClick={() => ping("Mailbox synced — no new bills")}><Icon n="refresh" size={15} /> Refresh</div>
             </div>
             <div className="thead">
+              <span className="c-date">Date</span>
               <span className="c-v">Vendor</span>
               <span className="c-inv">Invoice</span>
-              <span className="c-items">Items</span>
+              <span className="c-items">Number of items</span>
+              <span className="c-verify">Bill uploaded verification</span>
               <span className="c-amt">Amount</span>
               <span className="c-act">Actions</span>
-              <span className="c-date">Date</span>
             </div>
             <div id="list">
               {visible.length === 0 && <div className="empty">No bills in this view.</div>}
@@ -215,6 +216,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                 const up = allUploaded(b);
                 return (
                   <div key={b.id} className={"row" + (b.voided ? " voided" : "")} onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) openModal(b.id); }}>
+                    <span className="c-date">{b.date}</span>
                     <span className="c-v">
                       <span className="mono" style={{ background: MC[(b.id - 1) % MC.length] }}>{initials(b.vendor)}</span>
                       <span className="vmeta">
@@ -223,8 +225,8 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                       </span>
                     </span>
                     <span className="c-inv">{b.invoice}</span>
-                    <span className="c-items">
-                      <span className="itcount">{b.items.length}</span>
+                    <span className="c-items"><span className="itcount">{b.items.length}</span></span>
+                    <span className="c-verify">
                       {b.voided
                         ? <span className="pill void"><Icon n="lock" size={12} />{up ? "Uploaded" : "Voided"}</span>
                         : v.status === "OK"
@@ -241,7 +243,6 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                       <button className="btn btn-ghost" onClick={(e) => { e.stopPropagation(); openModal(b.id); }}><Icon n="eye" size={14} />View</button>
                       <button className="btn btn-void" disabled={b.voided} onClick={(e) => { e.stopPropagation(); voidBill(b.id); }}><Icon n="ban" size={14} />Void</button>
                     </span>
-                    <span className="c-date">{b.date}</span>
                   </div>
                 );
               })}
