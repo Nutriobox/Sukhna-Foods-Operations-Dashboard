@@ -1,40 +1,45 @@
 // PACT item-master matching (offline simulation).
-// This mirrors how a real PACT integration would resolve a bill line against
-// the PACT product catalogue and unit master. Swap CATALOG / UNIT_MASTER for the
-// live PACT API response when it's available — the matching logic stays the same.
+// Mirrors how a real PACT integration resolves a bill line against the PACT
+// product catalogue + unit master. Swap CATALOG / UNIT_MASTER for the live PACT
+// API response when available — the matching logic stays the same.
 
-export type PactProduct = { name: string; units: string[] };
+export type PactProduct = {
+  name: string;
+  units: string[];
+  printUom: string;  // Packaging size UOM (the "print"/packaging UOM)
+  packSize: string;  // Packing size (e.g. "24 x 500 g")
+  l1Uom: string;     // Level-1 UOM
+};
 
-// A representative slice of a PACT item master.
+// A representative slice of a PACT item master (with packaging attributes).
 export const CATALOG: PactProduct[] = [
-  { name: "Lime Seasoning 500 g", units: ["Pcs", "Pack"] },
-  { name: "Alidada Mini Mogra Rice 30 Kg", units: ["Bag", "Qntl", "Kg"] },
-  { name: "Alidada Tibar Rice 30 Kg", units: ["Bag", "Qntl", "Kg"] },
-  { name: "Banana Yellow", units: ["Kg", "Pcs"] },
-  { name: "Button Mushroom 200 g", units: ["Pack", "Pcs", "Kg"] },
-  { name: "Heat Sealing Packing Roll 360 mm", units: ["Roll", "Pcs"] },
-  { name: "Food Container 1200 ml White", units: ["Pcs", "Box", "Nos"] },
-  { name: "Paper Flat Bowl 750 ml White", units: ["Pcs", "Box", "Nos"] },
-  { name: "Paper Container 250 ml White", units: ["Pcs", "Box", "Nos"] },
-  { name: "Cellulose Gel FP 90", units: ["Pcs", "Box"] },
-  { name: "A4 Copier Paper 75 GSM", units: ["Ream", "Pack", "Box"] },
-  { name: "Corrugated Box 5 Ply", units: ["Pcs", "Box", "Nos"] },
-  { name: "Aluminium Foil Container", units: ["Pcs", "Box"] },
-  { name: "Packaging Tape", units: ["Pcs", "Box"] },
-  { name: "Tissue Paper Roll", units: ["Roll", "Pack"] },
-  { name: "Cling Film Roll", units: ["Roll", "Pcs"] },
-  { name: "Refined Oil 15 L", units: ["Tin", "Litre"] },
-  { name: "Paneer", units: ["Kg", "Pcs"] },
-  { name: "Basmati Rice", units: ["Kg", "Bag", "Qntl"] },
-  { name: "Sugar", units: ["Kg", "Bag", "Qntl"] },
-  { name: "Tomato", units: ["Kg", "Crate"] },
-  { name: "Onion", units: ["Kg", "Bag"] },
-  { name: "Green Chilli", units: ["Kg", "Pcs"] },
-  { name: "DG Set Hire Charges", units: [] }, // a service line — no stockable unit
+  { name: "Lime Seasoning 500 g", units: ["Pcs", "Pack"], printUom: "Box", packSize: "24 x 500 g", l1Uom: "Case" },
+  { name: "Alidada Mini Mogra Rice 30 Kg", units: ["Bag", "Qntl", "Kg"], printUom: "Bag", packSize: "30 Kg", l1Uom: "Bag" },
+  { name: "Alidada Tibar Rice 30 Kg", units: ["Bag", "Qntl", "Kg"], printUom: "Bag", packSize: "30 Kg", l1Uom: "Bag" },
+  { name: "Banana Yellow", units: ["Kg", "Pcs"], printUom: "Crate", packSize: "1 Kg", l1Uom: "Crate" },
+  { name: "Button Mushroom 200 g", units: ["Pack", "Pcs", "Kg"], printUom: "Box", packSize: "200 g x 24", l1Uom: "Case" },
+  { name: "Heat Sealing Packing Roll 360 mm", units: ["Roll", "Pcs"], printUom: "Roll", packSize: "360 mm", l1Uom: "Carton" },
+  { name: "Food Container 1200 ml White", units: ["Pcs", "Box", "Nos"], printUom: "Box", packSize: "300 pcs", l1Uom: "Case" },
+  { name: "Paper Flat Bowl 750 ml White", units: ["Pcs", "Box", "Nos"], printUom: "Box", packSize: "500 pcs", l1Uom: "Case" },
+  { name: "Paper Container 250 ml White", units: ["Pcs", "Box", "Nos"], printUom: "Box", packSize: "1000 pcs", l1Uom: "Case" },
+  { name: "Cellulose Gel FP 90", units: ["Pcs", "Box"], printUom: "Box", packSize: "90 pcs", l1Uom: "Carton" },
+  { name: "A4 Copier Paper 75 GSM", units: ["Ream", "Pack", "Box"], printUom: "Box", packSize: "500 sheets", l1Uom: "Carton" },
+  { name: "Corrugated Box 5 Ply", units: ["Pcs", "Box", "Nos"], printUom: "Bundle", packSize: "5 Ply", l1Uom: "Bundle" },
+  { name: "Aluminium Foil Container", units: ["Pcs", "Box"], printUom: "Box", packSize: "500 pcs", l1Uom: "Case" },
+  { name: "Packaging Tape", units: ["Pcs", "Box"], printUom: "Box", packSize: "65 m", l1Uom: "Carton" },
+  { name: "Tissue Paper Roll", units: ["Roll", "Pack"], printUom: "Pack", packSize: "100 pulls", l1Uom: "Carton" },
+  { name: "Cling Film Roll", units: ["Roll", "Pcs"], printUom: "Box", packSize: "300 m", l1Uom: "Carton" },
+  { name: "Refined Oil 15 L", units: ["Tin", "Litre"], printUom: "Tin", packSize: "15 L", l1Uom: "Tin" },
+  { name: "Paneer", units: ["Kg", "Pcs"], printUom: "Pack", packSize: "1 Kg", l1Uom: "Crate" },
+  { name: "Basmati Rice", units: ["Kg", "Bag", "Qntl"], printUom: "Bag", packSize: "25 Kg", l1Uom: "Bag" },
+  { name: "Sugar", units: ["Kg", "Bag", "Qntl"], printUom: "Bag", packSize: "50 Kg", l1Uom: "Bag" },
+  { name: "Tomato", units: ["Kg", "Crate"], printUom: "Crate", packSize: "10 Kg", l1Uom: "Crate" },
+  { name: "Onion", units: ["Kg", "Bag"], printUom: "Bag", packSize: "25 Kg", l1Uom: "Bag" },
+  { name: "Green Chilli", units: ["Kg", "Pcs"], printUom: "Bag", packSize: "5 Kg", l1Uom: "Bag" },
+  { name: "DG Set Hire Charges", units: [], printUom: "—", packSize: "—", l1Uom: "—" }, // service line
 ];
 
-// The canonical PACT unit master. A bill unit only "matches" if it normalises
-// into one of these.
+// Canonical PACT unit master — a bill unit only "matches" if it normalises here.
 export const UNIT_MASTER = ["Pcs", "Kg", "Qntl", "Nos", "Pack", "Box", "Bag", "Ream", "Roll", "Tin", "Litre", "Gram", "Crate"] as const;
 
 const UNIT_ALIASES: Record<string, string> = {
@@ -63,19 +68,19 @@ export function matchUnit(raw: string | null | undefined): string | null {
 const tokenize = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((t) => t.length > 1);
 
-// Best-matching PACT product for a bill line name (always returns something).
-export function matchProduct(name: string): { name: string; score: number } {
+// Best-matching PACT product for a bill line name (always returns one).
+export function matchProduct(name: string): { product: PactProduct; score: number } {
   const q = tokenize(name);
-  if (!q.length) return { name: CATALOG[0].name, score: 0 };
-  let best = CATALOG[0].name;
+  if (!q.length) return { product: CATALOG[0], score: 0 };
+  let best = CATALOG[0];
   let bestScore = 0;
   for (const p of CATALOG) {
     const t = tokenize(p.name);
     const inter = q.filter((w) => t.includes(w)).length;
     const score = inter / Math.min(q.length, t.length || 1);
-    if (score > bestScore) { bestScore = score; best = p.name; }
+    if (score > bestScore) { bestScore = score; best = p; }
   }
-  return { name: best, score: Math.max(0, Math.min(1, bestScore)) };
+  return { product: best, score: Math.max(0, Math.min(1, bestScore)) };
 }
 
 export type PactLine = {
@@ -86,22 +91,28 @@ export type PactLine = {
   uom: string | null;   // PACT stock UOM (same source/logic as unit)
   qty: number | null;   // purchase quantity (null when unit unmatched)
   rate: number | null;  // purchase rate from bill
+  printUom: string;     // Packaging size UOM (from product master)
+  packSize: string;     // Packing size (from product master, editable)
+  l1Uom: string;        // L1 UOM (from product master)
   matched: boolean;     // unit & uom both resolved
 };
 
 // Resolve one bill item into its PACT entry shape.
 export function resolveLine(it: { name: string; uom: string; qty: number; price: number | null }): PactLine {
-  const p = matchProduct(it.name);
+  const { product, score } = matchProduct(it.name);
   const unit = matchUnit(it.uom);
   const matched = unit !== null;
   return {
     billName: it.name,
-    product: p.name,
-    confidence: Math.round(p.score * 100),
+    product: product.name,
+    confidence: Math.round(score * 100),
     unit,
     uom: unit,
     qty: matched ? it.qty : null,
     rate: it.price,
+    printUom: product.printUom,
+    packSize: product.packSize,
+    l1Uom: product.l1Uom,
     matched,
   };
 }
