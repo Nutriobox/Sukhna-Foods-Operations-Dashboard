@@ -1,62 +1,54 @@
-// PACT item-master matching (offline simulation).
-// Mirrors how a real PACT integration resolves a bill line against the PACT
-// product catalogue + unit master. Swap CATALOG / UNIT_MASTER for the live PACT
-// API response when available — the matching logic stays the same.
+// PACT item-master matching against the REAL product master
+// (src/lib/pact-catalog.json, generated from Product Master Report.xlsx).
+// Each product carries its packaging levels: L1 (base) unit, the Default Print
+// UOM (packaging size UOM), a packing size, and its allowed units.
+
+import catalog from "./pact-catalog.json";
 
 export type PactProduct = {
   name: string;
-  units: string[];
-  printUom: string;  // Packaging size UOM (the "print"/packaging UOM)
-  packSize: string;  // Packing size (e.g. "24 x 500 g")
-  l1Uom: string;     // Level-1 UOM
+  units: string[];   // allowed units (L1/L2/L3) from the master
+  printUom: string;  // Packaging size UOM (Default Barcode Print UOM)
+  packSize: string;  // Packing size (base qty per print unit)
+  l1Uom: string;     // Level-1 (base) UOM
 };
 
-// A representative slice of a PACT item master (with packaging attributes).
-export const CATALOG: PactProduct[] = [
-  { name: "Lime Seasoning 500 g", units: ["Pcs", "Pack"], printUom: "Box", packSize: "24 x 500 g", l1Uom: "Case" },
-  { name: "Alidada Mini Mogra Rice 30 Kg", units: ["Bag", "Qntl", "Kg"], printUom: "Bag", packSize: "30 Kg", l1Uom: "Bag" },
-  { name: "Alidada Tibar Rice 30 Kg", units: ["Bag", "Qntl", "Kg"], printUom: "Bag", packSize: "30 Kg", l1Uom: "Bag" },
-  { name: "Banana Yellow", units: ["Kg", "Pcs"], printUom: "Crate", packSize: "1 Kg", l1Uom: "Crate" },
-  { name: "Button Mushroom 200 g", units: ["Pack", "Pcs", "Kg"], printUom: "Box", packSize: "200 g x 24", l1Uom: "Case" },
-  { name: "Heat Sealing Packing Roll 360 mm", units: ["Roll", "Pcs"], printUom: "Roll", packSize: "360 mm", l1Uom: "Carton" },
-  { name: "Food Container 1200 ml White", units: ["Pcs", "Box", "Nos"], printUom: "Box", packSize: "300 pcs", l1Uom: "Case" },
-  { name: "Paper Flat Bowl 750 ml White", units: ["Pcs", "Box", "Nos"], printUom: "Box", packSize: "500 pcs", l1Uom: "Case" },
-  { name: "Paper Container 250 ml White", units: ["Pcs", "Box", "Nos"], printUom: "Box", packSize: "1000 pcs", l1Uom: "Case" },
-  { name: "Cellulose Gel FP 90", units: ["Pcs", "Box"], printUom: "Box", packSize: "90 pcs", l1Uom: "Carton" },
-  { name: "A4 Copier Paper 75 GSM", units: ["Ream", "Pack", "Box"], printUom: "Box", packSize: "500 sheets", l1Uom: "Carton" },
-  { name: "Corrugated Box 5 Ply", units: ["Pcs", "Box", "Nos"], printUom: "Bundle", packSize: "5 Ply", l1Uom: "Bundle" },
-  { name: "Aluminium Foil Container", units: ["Pcs", "Box"], printUom: "Box", packSize: "500 pcs", l1Uom: "Case" },
-  { name: "Packaging Tape", units: ["Pcs", "Box"], printUom: "Box", packSize: "65 m", l1Uom: "Carton" },
-  { name: "Tissue Paper Roll", units: ["Roll", "Pack"], printUom: "Pack", packSize: "100 pulls", l1Uom: "Carton" },
-  { name: "Cling Film Roll", units: ["Roll", "Pcs"], printUom: "Box", packSize: "300 m", l1Uom: "Carton" },
-  { name: "Refined Oil 15 L", units: ["Tin", "Litre"], printUom: "Tin", packSize: "15 L", l1Uom: "Tin" },
-  { name: "Paneer", units: ["Kg", "Pcs"], printUom: "Pack", packSize: "1 Kg", l1Uom: "Crate" },
-  { name: "Basmati Rice", units: ["Kg", "Bag", "Qntl"], printUom: "Bag", packSize: "25 Kg", l1Uom: "Bag" },
-  { name: "Sugar", units: ["Kg", "Bag", "Qntl"], printUom: "Bag", packSize: "50 Kg", l1Uom: "Bag" },
-  { name: "Tomato", units: ["Kg", "Crate"], printUom: "Crate", packSize: "10 Kg", l1Uom: "Crate" },
-  { name: "Onion", units: ["Kg", "Bag"], printUom: "Bag", packSize: "25 Kg", l1Uom: "Bag" },
-  { name: "Green Chilli", units: ["Kg", "Pcs"], printUom: "Bag", packSize: "5 Kg", l1Uom: "Bag" },
-  { name: "DG Set Hire Charges", units: [], printUom: "—", packSize: "—", l1Uom: "—" }, // service line
-];
+export const CATALOG = catalog as PactProduct[];
 
-// Canonical PACT unit master — a bill unit only "matches" if it normalises here.
-export const UNIT_MASTER = ["Pcs", "Kg", "Qntl", "Nos", "Pack", "Box", "Bag", "Ream", "Roll", "Tin", "Litre", "Gram", "Crate"] as const;
+const tokenize = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((t) => t.length > 1);
 
+// Precompute tokens once for fast fuzzy matching over the whole master.
+const CAT_TOKENS: string[][] = CATALOG.map((p) => tokenize(p.name));
+
+// Bill-unit → canonical PACT unit. null means "not a recognised PACT unit".
 const UNIT_ALIASES: Record<string, string> = {
-  pcs: "Pcs", pc: "Pcs", piece: "Pcs", pieces: "Pcs", pces: "Pcs",
+  gms: "Gram", gm: "Gram", gram: "Gram", grams: "Gram", gs: "Gram",
   kg: "Kg", kgs: "Kg", kilogram: "Kg", kgm: "Kg", kilo: "Kg",
   qntl: "Qntl", quintal: "Qntl", qtl: "Qntl",
-  nos: "Nos", no: "Nos", number: "Nos", count: "Nos", unit: "Nos",
-  pack: "Pack", packet: "Pack", pkt: "Pack", pkts: "Pack", packs: "Pack",
-  box: "Box", boxes: "Box", ctn: "Box", carton: "Box", cartons: "Box",
+  nos: "Nos", no: "Nos", number: "Nos", count: "Nos", unit: "Nos", pair: "Pair",
+  pcs: "Pcs", pc: "Pcs", piece: "Pcs", pieces: "Pcs", pces: "Pcs",
+  ml: "ML", mls: "ML",
+  ltr: "Litre", ltrs: "Litre", litre: "Litre", liter: "Litre", l: "Litre", lt: "Litre", lts: "Litre",
+  pkt: "Pack", pkts: "Pack", packet: "Pack", pack: "Pack", packs: "Pack",
+  box: "Box", boxes: "Box",
+  carton: "Carton", cartons: "Carton", ctn: "Carton",
+  container: "Container", cont: "Container",
+  bottle: "Bottle", btl: "Bottle",
+  can: "Can", cans: "Can",
+  tin: "Tin", tins: "Tin",
+  bundle: "Bundle", bdl: "Bundle",
+  bunch: "Bunch", bunches: "Bunch",
+  roll: "Roll", rolls: "Roll",
+  crate: "Crate", crates: "Crate",
   bag: "Bag", bags: "Bag", sack: "Bag",
   ream: "Ream", rim: "Ream", rm: "Ream", reams: "Ream",
-  roll: "Roll", rolls: "Roll",
-  tin: "Tin", tins: "Tin",
-  litre: "Litre", liter: "Litre", ltr: "Litre", l: "Litre", lt: "Litre",
-  gram: "Gram", g: "Gram", gm: "Gram", grams: "Gram", gms: "Gram",
-  crate: "Crate", crates: "Crate",
+  jar: "Jar", jars: "Jar",
+  dozen: "Dozen", dzn: "Dozen",
 };
+
+// The canonical PACT unit master (what a bill unit must resolve into).
+export const UNIT_MASTER = Array.from(new Set(Object.values(UNIT_ALIASES)));
 
 // Normalise a bill's unit string to a PACT unit, or null if it can't be matched.
 export function matchUnit(raw: string | null | undefined): string | null {
@@ -65,22 +57,21 @@ export function matchUnit(raw: string | null | undefined): string | null {
   return UNIT_ALIASES[key] ?? null;
 }
 
-const tokenize = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((t) => t.length > 1);
-
 // Best-matching PACT product for a bill line name (always returns one).
 export function matchProduct(name: string): { product: PactProduct; score: number } {
   const q = tokenize(name);
-  if (!q.length) return { product: CATALOG[0], score: 0 };
-  let best = CATALOG[0];
+  if (!q.length || !CATALOG.length) return { product: CATALOG[0], score: 0 };
+  let bestIdx = 0;
   let bestScore = 0;
-  for (const p of CATALOG) {
-    const t = tokenize(p.name);
-    const inter = q.filter((w) => t.includes(w)).length;
-    const score = inter / Math.min(q.length, t.length || 1);
-    if (score > bestScore) { bestScore = score; best = p; }
+  for (let i = 0; i < CATALOG.length; i++) {
+    const t = CAT_TOKENS[i];
+    if (!t.length) continue;
+    let inter = 0;
+    for (const w of q) if (t.includes(w)) inter++;
+    const score = inter / Math.min(q.length, t.length);
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
   }
-  return { product: best, score: Math.max(0, Math.min(1, bestScore)) };
+  return { product: CATALOG[bestIdx], score: Math.max(0, Math.min(1, bestScore)) };
 }
 
 export type PactLine = {
