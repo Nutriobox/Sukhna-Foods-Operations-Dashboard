@@ -435,19 +435,12 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                   </div>
                 </div>
 
-                {/* Product line — all product-master fields in one row */}
-                <div className="pgrid7">
+                {/* Product line — purchase fields */}
+                <div className="pgrid">
                   <div className="pf"><span className="pk">Product Name</span><span className="pv" title={l.product}>{l.product}</span></div>
                   <div className="pf"><span className="pk">Purchase Unit</span>{l.unit ? <span className="pv">{l.unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}</div>
                   <div className="pf"><span className="pk">Purchase Quantity</span>{l.qty != null ? <span className="pv tnum">{l.qty}</span> : <span className="pv bad">Requires unit</span>}</div>
                   <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{l.rate != null ? "₹" + inr(l.rate) : "—"}</span></div>
-                  <div className="pf"><span className="pk">Packaging size UOM</span><span className="pv">{l.printUom}</span></div>
-                  <div className="pf"><span className="pk">Packing size{editing[i] && !done ? <span className="pedit"> · manual</span> : ""}</span>
-                    {editing[i] && !done
-                      ? <input className="pnuminp" value={packSize[i]} onChange={(e) => setPackSize((p) => ({ ...p, [i]: e.target.value }))} />
-                      : <span className="pv">{packSize[i]}</span>}
-                  </div>
-                  <div className="pf"><span className="pk">L1 UOM</span><span className="pv">{l.l1Uom}</span></div>
                 </div>
 
                 {/* Manufacturing batches (splittable) */}
@@ -456,7 +449,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                   <button className="psplit" disabled={done || !l.matched} onClick={() => split(i)} title={l.matched ? "Duplicate this batch row" : "Unit must match PACT"}><Icon n="copy" size={12} />Split</button>
                 </div>
                 {bs.map((bt, bi) => (
-                  <div className="pbatch" key={bi}>
+                  <div className="pbatch6" key={bi}>
                     <div className="pf"><span className="pk">Manufactured Date</span>
                       <input type="date" className="pdate" value={bt.mfg} disabled={done} onChange={(e) => setBatch(i, bi, { mfg: e.target.value })} />
                     </div>
@@ -464,7 +457,18 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                       <input type="number" min={0} className="pnuminp tnum" value={bt.qty} disabled={done} onChange={(e) => setBatch(i, bi, { qty: e.target.value === "" ? "" : Number(e.target.value) })} />
                     </div>
                     <div className="pf"><span className="pk">UOM</span>{l.uom ? <span className="pv">{l.uom}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}</div>
-                    <div className="pf pbrm">{bs.length > 1 && !done && <button className="pxbtn" title="Remove this batch" onClick={() => removeBatch(i, bi)}><Icon n="x" size={12} /></button>}</div>
+                    {bi === 0 ? (<>
+                      <div className="pf"><span className="pk">Packaging size UOM</span><span className="pv">{l.printUom}</span></div>
+                      <div className="pf"><span className="pk">Packing size{editing[i] && !done ? <span className="pedit"> · manual</span> : ""}</span>
+                        {editing[i] && !done
+                          ? <input className="pnuminp" value={packSize[i]} onChange={(e) => setPackSize((p) => ({ ...p, [i]: e.target.value }))} />
+                          : <span className="pv">{packSize[i]}</span>}
+                      </div>
+                      <div className="pf"><span className="pk">L1 UOM</span><span className="pv">{l.l1Uom}</span></div>
+                    </>) : (<>
+                      <div className="pf" /><div className="pf" />
+                      <div className="pf pbrm">{!done && <button className="pxbtn" title="Remove this batch" onClick={() => removeBatch(i, bi)}><Icon n="x" size={12} /></button>}</div>
+                    </>)}
                   </div>
                 ))}
 
