@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Bill } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
+import { resolveLine, type PactLine } from "@/lib/pact";
 import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
@@ -47,6 +48,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [filter, setFilter] = useState<"all" | "ok" | "err" | "up">("all");
   const [search, setSearch] = useState("");
   const [modalId, setModalId] = useState<number | null>(null);
+  const [pactId, setPactId] = useState<number | null>(null);
   const [modalTab, setModalTab] = useState<"scan" | "data">("scan");
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
 
@@ -146,6 +148,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   });
 
   const active = modalId != null ? bills.find((b) => b.id === modalId) || null : null;
+  const pactActive = pactId != null ? bills.find((b) => b.id === pactId) || null : null;
 
   return (
     <div className="app">
@@ -241,7 +244,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                         : <span className="upcol">
                             {v.status !== "OK"
                               ? <button className="btn btn-primary" disabled title="All 3 checks must pass before upload"><Icon n="upload" size={14} />Upload to Pact</button>
-                              : <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); uploadAll(b.id); }}><Icon n="upload" size={14} />Upload to Pact</button>}
+                              : <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); setPactId(b.id); }}><Icon n="upload" size={14} />Upload to Pact</button>}
                             {b.items.length > 1 && <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>}
                           </span>}
                       <button className="btn btn-ghost" onClick={(e) => { e.stopPropagation(); openModal(b.id); }}><Icon n="eye" size={14} />View</button>
@@ -260,7 +263,10 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       </div>
 
       {/* Modal */}
-      {active && <BillDetail b={active} tab={modalTab} setTab={setModalTab} onClose={() => setModalId(null)} uploadItem={uploadItem} uploadAll={uploadAll} voidBill={voidBill} downloadTxt={downloadTxt} />}
+      {active && <BillDetail b={active} tab={modalTab} setTab={setModalTab} onClose={() => setModalId(null)} uploadItem={uploadItem} openPact={(id) => { setModalId(null); setPactId(id); }} voidBill={voidBill} downloadTxt={downloadTxt} />}
+
+      {/* PACT upload form */}
+      {pactActive && <PactUpload b={pactActive} onClose={() => setPactId(null)} onConfirm={() => { uploadAll(pactActive.id); setPactId(null); }} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -270,9 +276,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   function openModal(id: number) { setModalTab("scan"); setModalId(id); }
 }
 
-function BillDetail({ b, tab, setTab, onClose, uploadItem, uploadAll, voidBill, downloadTxt }: {
+function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, downloadTxt }: {
   b: Bill; tab: "scan" | "data"; setTab: (t: "scan" | "data") => void; onClose: () => void;
-  uploadItem: (id: number, i: number) => void; uploadAll: (id: number) => void; voidBill: (id: number) => void; downloadTxt: (id: number) => void;
+  uploadItem: (id: number, i: number) => void; openPact: (id: number) => void; voidBill: (id: number) => void; downloadTxt: (id: number) => void;
 }) {
   const v = validate(b);
   const up = allUploaded(b);
@@ -364,8 +370,86 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, uploadAll, voidBill, 
             ? <button className="btn btn-done" style={{ padding: "10px 15px" }}><Icon n="check" size={14} />{up ? "Uploaded" : "Voided"}</button>
             : v.status !== "OK"
               ? <button className="btn btn-primary" disabled style={{ padding: "10px 15px" }} title="All 3 checks must pass"><Icon n="upload" size={14} />Upload all to Pact</button>
-              : <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={() => uploadAll(b.id)}><Icon n="upload" size={14} />Upload all to Pact</button>}
+              : <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={() => openPact(b.id)}><Icon n="upload" size={14} />Upload all to Pact</button>}
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PactUpload({ b, onClose, onConfirm }: { b: Bill; onClose: () => void; onConfirm: () => void }) {
+  const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
+  const today = new Date().toISOString().slice(0, 10);
+  const [mfg, setMfg] = useState<Record<number, string>>(() =>
+    Object.fromEntries(b.items.map((_, i) => [i, today]))
+  );
+
+  const unmatched = lines.filter((l) => !l.matched).length;
+  const datesReady = lines.every((_, i) => !!mfg[i]);
+  const canConfirm = unmatched === 0 && datesReady;
+
+  const fmtDate = (iso: string) =>
+    iso ? new Date(iso + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "";
+
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal">
+        <div className="phead">
+          <span className="pbadge"><Icon n="upload" size={15} /></span>
+          <div className="pttl">
+            <h2>Upload to PACT</h2>
+            <div className="sub">{b.vendor} · Invoice {b.invoice} · {lines.length} line item{lines.length > 1 ? "s" : ""} matched against PACT item master</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+
+        <div className="pbody">
+          {lines.map((l, i) => (
+            <div key={i} className={"pcard" + (l.matched ? "" : " err")}>
+              <div className="pcard-top">
+                <span className="pnum">{i + 1}</span>
+                <div className="pprod">
+                  <div className="pname">{l.product}
+                    {l.matched
+                      ? <span className="pmatch ok"><Icon n="check" size={11} />PACT match{l.confidence ? ` · ${l.confidence}%` : ""}</span>
+                      : <span className="pmatch bad"><Icon n="alert" size={11} />Unit not in PACT</span>}
+                  </div>
+                  <div className="pfrom">from bill: {l.billName}</div>
+                </div>
+              </div>
+
+              <div className="pgrid">
+                <div className="pf"><span className="pk">Product Name</span><span className="pv">{l.product}</span></div>
+                <div className="pf"><span className="pk">Purchase Unit</span>{l.unit ? <span className="pv">{l.unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}</div>
+                <div className="pf"><span className="pk">Purchase Quantity</span>{l.qty != null ? <span className="pv tnum">{l.qty}</span> : <span className="pv bad">Requires matched unit</span>}</div>
+                <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{l.rate != null ? "₹" + inr(l.rate) : "—"}</span></div>
+                <div className="pf"><span className="pk">Manufactured Date</span>
+                  <input type="date" className="pdate" value={mfg[i] || ""} onChange={(e) => setMfg((m) => ({ ...m, [i]: e.target.value }))} />
+                </div>
+                <div className="pf"><span className="pk">Quantity / Mfg Date</span><span className="pv tnum">{l.qty != null ? `${l.qty} · ${fmtDate(mfg[i])}` : "—"}</span></div>
+                <div className="pf"><span className="pk">UOM</span>{l.uom ? <span className="pv">{l.uom}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}</div>
+              </div>
+
+              {!l.matched && <div className="perr"><Icon n="alert" size={14} />Unit / UOM "{l.billName ? b.items[i].uom : ""}" could not be matched in PACT — this line blocks the upload.</div>}
+            </div>
+          ))}
+        </div>
+
+        <div className="pfoot">
+          <span className={"pstatus " + (unmatched > 0 ? "bad" : datesReady ? "ok" : "warn")}>
+            {unmatched > 0
+              ? <><Icon n="alert" size={16} />{unmatched} item{unmatched > 1 ? "s" : ""} not matched — upload blocked</>
+              : datesReady
+                ? <><Icon n="shield" size={16} />All items matched · ready to push</>
+                : <><Icon n="alert" size={16} />Select a manufactured date for every item</>}
+          </span>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled={!canConfirm}
+            title={canConfirm ? "" : "Every item must match PACT and have a manufactured date"}
+            onClick={() => { if (canConfirm) onConfirm(); }}>
+            <Icon n="upload" size={14} />Confirm &amp; Push to PACT
+          </button>
         </div>
       </div>
     </div>
