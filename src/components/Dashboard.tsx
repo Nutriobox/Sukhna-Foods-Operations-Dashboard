@@ -407,9 +407,18 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
   const setBatch = (i: number, bi: number, patch: Partial<Batch>) =>
     setBatches((m) => ({ ...m, [i]: m[i].map((x, k) => (k === bi ? { ...x, ...patch } : x)) }));
   const split = (i: number) =>
-    setBatches((m) => ({ ...m, [i]: [...m[i], { ...m[i][m[i].length - 1] }] }));
+    setBatches((m) => {
+      const cur = m[i];
+      // First split (1 -> 2) zeroes the original row too, so all rows start at 0 for manual entry.
+      const base = cur.length === 1 ? cur.map((x) => ({ ...x, qty: 0 })) : cur;
+      return { ...m, [i]: [...base, { ...cur[cur.length - 1], qty: 0 }] };
+    });
   const removeBatch = (i: number, bi: number) =>
-    setBatches((m) => ({ ...m, [i]: m[i].filter((_, k) => k !== bi) }));
+    setBatches((m) => {
+      const next = m[i].filter((_, k) => k !== bi);
+      // Back down to a single batch -> restore the original bill quantity.
+      return { ...m, [i]: next.length === 1 ? next.map((x) => ({ ...x, qty: lines[i].qty ?? 0 })) : next };
+    });
   const pickProduct = (i: number, name: string) => {
     setSelProduct((s) => ({ ...s, [i]: name }));
     const np = productByName(name);
