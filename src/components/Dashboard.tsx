@@ -385,7 +385,23 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
   );
 }
 
-type Batch = { mfg: string; qty: number | "" };
+type Batch = { id: number; mfg: string; qty: number | "" };
+
+// Exact unit conversion (not ML) within a single measurement family.
+const WEIGHT_G: Record<string, number> = { mg: 0.001, g: 1, gm: 1, gms: 1, gram: 1, grams: 1, kg: 1000, kgs: 1000, kilogram: 1000, kilograms: 1000, qtl: 100000, qntl: 100000, quintal: 100000, quintals: 100000, ton: 1000000, tonne: 1000000, tonnes: 1000000, mt: 1000000 };
+const VOLUME_ML: Record<string, number> = { ml: 1, l: 1000, ltr: 1000, ltrs: 1000, litre: 1000, liter: 1000, litres: 1000, liters: 1000, kl: 1000000 };
+function unitFactor(from: string, to: string): number | null {
+  const nf = (from || "").toLowerCase().trim().replace(/\.$/, "");
+  const nt = (to || "").toLowerCase().trim().replace(/\.$/, "");
+  if (!nf || !nt) return null;
+  if (nf === nt) return 1;
+  for (const map of [WEIGHT_G, VOLUME_ML]) {
+    if (map[nf] != null && map[nt] != null) return map[nf] / map[nt];
+  }
+  return null;
+}
+const fmtQty = (n: number) => Number(n.toFixed(3)).toLocaleString("en-IN");
+
 function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void }) {
   const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
   const cands = useMemo(() => b.items.map((_, i) => candidates(lines[i].billName)), [b]);
@@ -393,43 +409,57 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
   const today = new Date().toISOString().slice(0, 10);
 
   const [batches, setBatches] = useState<Record<number, Batch[]>>(() =>
-    Object.fromEntries(b.items.map((_, i) => [i, [{ mfg: today, qty: lines[i].qty ?? 0 }]]))
+    Object.fromEntries(b.items.map((_, i) => [i, [{ id: 0, mfg: today, qty: 0 }]]))
   );
   const [editing, setEditing] = useState<Record<number, boolean>>({});
+  const [stampOK, setStampOK] = useState(false);
   const [selProduct, setSelProduct] = useState<Record<number, string>>(() =>
     Object.fromEntries(b.items.map((_, i) => [i, lines[i].product])));
   const [selUnit, setSelUnit] = useState<Record<number, string>>(() =>
     Object.fromEntries(b.items.map((_, i) => [i, lines[i].unit || ""])));
-  const [selLevel, setSelLevel] = useState<Record<number, string>>(() =>
-    Object.fromEntries(b.items.map((_, i) => [i, lines[i].printLevel || ""])));
-  const [packEdit, setPackEdit] = useState<Record<number, string | undefined>>({});
+  // Packaging level + manual packing size are per batch row, keyed `${i}:${batchId}`.
+  const [selLevel, setSelLevel] = useState<Record<string, string>>({});
+  const [packEdit, setPackEdit] = useState<Record<string, string | undefined>>({});
 
   const setBatch = (i: number, bi: number, patch: Partial<Batch>) =>
     setBatches((m) => ({ ...m, [i]: m[i].map((x, k) => (k === bi ? { ...x, ...patch } : x)) }));
-  const split = (i: number) =>
+  const split = (i: number) => {
+    const cur = batches[i] || [];
+    if (!cur.length) return;
+    const nid = Math.max(-1, ...cur.map((x) => x.id)) + 1;
+    const lastId = cur[cur.length - 1].id;
+    // New row inherits the source row's per-row packaging selections.
+    setSelLevel((s) => (s[`${i}:${lastId}`] !== undefined ? { ...s, [`${i}:${nid}`]: s[`${i}:${lastId}`] } : s));
+    setPackEdit((s) => (s[`${i}:${lastId}`] !== undefined ? { ...s, [`${i}:${nid}`]: s[`${i}:${lastId}`] } : s));
     setBatches((m) => {
-      const cur = m[i];
+      const c = m[i];
       // First split (1 -> 2) zeroes the original row too, so all rows start at 0 for manual entry.
-      const base = cur.length === 1 ? cur.map((x) => ({ ...x, qty: 0 })) : cur;
-      return { ...m, [i]: [...base, { ...cur[cur.length - 1], qty: 0 }] };
+      const base = c.length === 1 ? c.map((x) => ({ ...x, qty: 0 as number | "" })) : c;
+      return { ...m, [i]: [...base, { ...c[c.length - 1], id: nid, qty: 0 }] };
     });
+  };
   const removeBatch = (i: number, bi: number) =>
-    setBatches((m) => {
-      const next = m[i].filter((_, k) => k !== bi);
-      // Back down to a single batch -> restore the original bill quantity.
-      return { ...m, [i]: next.length === 1 ? next.map((x) => ({ ...x, qty: lines[i].qty ?? 0 })) : next };
-    });
+    setBatches((m) => ({ ...m, [i]: m[i].filter((_, k) => k !== bi) }));
   const pickProduct = (i: number, name: string) => {
     setSelProduct((s) => ({ ...s, [i]: name }));
-    const np = productByName(name);
-    setSelLevel((s) => ({ ...s, [i]: np?.printLevel || Object.keys(np?.levels || {})[0] || "" }));
-    setPackEdit((s) => ({ ...s, [i]: undefined }));
+    // Reset this item's per-row packaging so it re-derives from the new product.
+    setSelLevel((s) => { const c = { ...s }; Object.keys(c).forEach((k) => { if (k.startsWith(`${i}:`)) delete c[k]; }); return c; });
+    setPackEdit((s) => { const c = { ...s }; Object.keys(c).forEach((k) => { if (k.startsWith(`${i}:`)) delete c[k]; }); return c; });
   };
 
   const unmatched = b.items.filter((_, i) => !selUnit[i]).length;
   const datesReady = Object.values(batches).every((arr) => arr.every((bt) => !!bt.mfg));
   const allUp = b.items.every((it) => it.uploaded);
-  const canConfirm = unmatched === 0 && datesReady && !allUp;
+  const qtyAllOK = b.items.every((itm, i2) => {
+    const bs2 = batches[i2] || [];
+    if (bs2.length <= 1) return true;
+    const q = lines[i2].qty;
+    const f2 = unitFactor(itm.uom, selUnit[i2] || "");
+    const dq = q != null ? q * (f2 ?? 1) : null;
+    const sum2 = bs2.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
+    return dq != null && Math.abs(sum2 - dq) < 0.0001;
+  });
+  const canConfirm = unmatched === 0 && datesReady && !allUp && qtyAllOK && stampOK;
 
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -451,6 +481,13 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
           <div className="pmi"><span className="pmk">Delivery date</span><span className="pmv">{(b as any).deliveryDate || "—"}</span></div>
         </div>
 
+        <div className={"pstamp" + (stampOK ? " ok" : "")}>
+          <label className="pstamp-lbl"><input type="checkbox" checked={stampOK} onChange={(e) => setStampOK(e.target.checked)} /> Stamp verified — <b>Gate No.</b> &amp; <b>Store checked</b> present on the bill</label>
+          {stampOK
+            ? <span className="pstamp-ok"><Icon n="check" size={13} />Verified</span>
+            : <span className="pstamp-err"><Icon n="alert" size={13} />Upload blocked until the bill stamp is verified</span>}
+        </div>
+
         <div className="pbody">
           {lines.map((l, i) => {
             const it = b.items[i];
@@ -459,14 +496,15 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
             const bs = batches[i] || [];
             const prod = productByName(selProduct[i]) || matchProduct(l.billName).product;
             const levelKeys = Object.keys(prod.levels);
-            const level = prod.levels[selLevel[i]] ? selLevel[i] : (prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || ""));
-            const lvl = prod.levels[level];
-            const printUom = lvl ? lvl.u : "—";
-            const packNum = lvl && lvl.s != null ? String(lvl.s) : "—";
-            const packVal = packEdit[i] !== undefined ? (packEdit[i] || "—") : packNum;
             const l1Uom = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
             const unit = selUnit[i] || "";
             const matched = !!unit;
+            const factor = unitFactor(it.uom, unit);
+            const dispQty = l.qty != null ? l.qty * (factor ?? 1) : null;
+            const dispRate = l.rate != null ? l.rate / (factor ?? 1) : null;
+            const splitMode = bs.length > 1;
+            const batchSum = bs.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
+            const qtyOK = !splitMode || (dispQty != null && Math.abs(batchSum - dispQty) < 0.0001);
             const prodOpts = ed ? allNames : (cands[i].map((c) => c.name).includes(selProduct[i]) ? cands[i].map((c) => c.name) : [selProduct[i], ...cands[i].map((c) => c.name)]);
             return (
               <div key={i} className={"pcard" + (matched ? "" : " err") + (done ? " done" : "")}>
@@ -499,8 +537,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                         </select>
                       : (unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>)}
                   </div>
-                  <div className="pf"><span className="pk">Purchase Quantity</span>{l.qty != null ? <span className="pv tnum">{l.qty}</span> : <span className="pv bad">Requires unit</span>}</div>
-                  <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{l.rate != null ? "₹" + inr(l.rate) : "—"}</span></div>
+                  <div className="pf"><span className="pk">Purchase Quantity{factor != null && factor !== 1 ? <span className="pedit"> · {it.uom}→{unit}</span> : ""}</span>{dispQty != null ? <span className="pv tnum">{fmtQty(dispQty)}</span> : <span className="pv bad">Requires unit</span>}</div>
+                  <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{dispRate != null ? "₹" + inr(dispRate) : "—"}</span></div>
                 </div>
 
                 {/* Manufacturing batches (Split on the right) */}
@@ -509,35 +547,42 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                   <button className="psplit" disabled={done || !matched} onClick={() => split(i)} title={matched ? "Duplicate this batch row" : "Pick a purchase unit first"}><Icon n="copy" size={12} />Split</button>
                 </div>
                 {bs.map((bt, bi) => {
-                  const qtyEditable = bs.length > 1 && !done;
+                  const qtyEditable = splitMode && !done;
+                  const rk = `${i}:${bt.id}`;
+                  const rLevel = prod.levels[selLevel[rk]] ? selLevel[rk] : (prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || ""));
+                  const rLvl = prod.levels[rLevel];
+                  const rPrintUom = rLvl ? rLvl.u : "—";
+                  const rPackNum = rLvl && rLvl.s != null ? String(rLvl.s) : "—";
+                  const rPackVal = packEdit[rk] !== undefined ? (packEdit[rk] || "—") : rPackNum;
                   return (
-                    <div className="pbatch6" key={bi}>
+                    <div className="pbatch6" key={bt.id}>
                       <div className="pf"><span className="pk">Manufactured Date</span>
                         <input type="date" className="pdate" value={bt.mfg} disabled={done} onChange={(e) => setBatch(i, bi, { mfg: e.target.value })} />
                       </div>
                       <div className="pf"><span className="pk">Quantity / Mfg Date</span>
                         {qtyEditable
                           ? <input type="number" min={0} className="pnuminp tnum" value={bt.qty} onChange={(e) => setBatch(i, bi, { qty: e.target.value === "" ? "" : Number(e.target.value) })} />
-                          : <span className="pv tnum">{bt.qty}</span>}
+                          : <span className="pv tnum">{splitMode ? bt.qty : fmtQty(dispQty ?? 0)}</span>}
                       </div>
                       <div className="pf"><span className="pk">UOM</span>{unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />—</span>}</div>
                       <div className="pf"><span className="pk">Packaging size UOM{ed ? <span className="pedit"> · level</span> : ""}</span>
                         {ed
-                          ? <select className="psel" value={level} onChange={(e) => { setSelLevel((s) => ({ ...s, [i]: e.target.value })); setPackEdit((s) => ({ ...s, [i]: undefined })); }}>
+                          ? <select className="psel" value={rLevel} onChange={(e) => { const v = e.target.value; setSelLevel((s) => ({ ...s, [rk]: v })); setPackEdit((s) => ({ ...s, [rk]: undefined })); }}>
                               {levelKeys.map((k) => <option key={k} value={k}>{k} · {prod.levels[k].u}</option>)}
                             </select>
-                          : <span className="pv">{printUom}</span>}
+                          : <span className="pv">{rPrintUom}</span>}
                       </div>
                       <div className="pf"><span className="pk">Packing size{ed ? <span className="pedit"> · manual</span> : ""}</span>
                         {ed
-                          ? <input type="number" min={0} className="pnuminp tnum" value={packEdit[i] !== undefined ? packEdit[i] : packNum} onChange={(e) => setPackEdit((s) => ({ ...s, [i]: e.target.value }))} />
-                          : <span className="pv tnum">{packVal}</span>}
+                          ? <input type="number" min={0} className="pnuminp tnum" value={packEdit[rk] !== undefined ? packEdit[rk] : rPackNum} onChange={(e) => { const v = e.target.value; setPackEdit((s) => ({ ...s, [rk]: v })); }} />
+                          : <span className="pv tnum">{rPackVal}</span>}
                       </div>
                       <div className="pf"><span className="pk">L1 UOM</span><span className="pv">{l1Uom}</span></div>
-                      <div className="pf pbrm">{bs.length > 1 && !done && <button className="pxbtn" title="Remove this batch" onClick={() => removeBatch(i, bi)}><Icon n="x" size={12} /></button>}</div>
+                      <div className="pf pbrm">{splitMode && !done && <button className="pxbtn" title="Remove this batch" onClick={() => removeBatch(i, bi)}><Icon n="x" size={12} /></button>}</div>
                     </div>
                   );
                 })}
+                {splitMode && !qtyOK && <div className="perr"><Icon n="alert" size={14} />Batch quantities add up to {fmtQty(batchSum)} {unit}, but purchase quantity is {fmtQty(dispQty ?? 0)} {unit}. They must match before upload.</div>}
 
                 {!matched && <div className="perr"><Icon n="alert" size={14} />No purchase unit matched for "{b.items[i].uom}" — click Edit to pick one from the master. Upload is blocked until then.</div>}
 
@@ -552,14 +597,18 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
         </div>
 
         <div className="pfoot">
-          <span className={"pstatus " + (unmatched > 0 ? "bad" : allUp ? "ok" : datesReady ? "ok" : "warn")}>
+          <span className={"pstatus " + (unmatched > 0 || !qtyAllOK || (!allUp && !stampOK) ? "bad" : allUp ? "ok" : datesReady ? "ok" : "warn")}>
             {unmatched > 0
               ? <><Icon n="alert" size={16} />{unmatched} item{unmatched > 1 ? "s" : ""} not matched — upload blocked</>
               : allUp
                 ? <><Icon n="check" size={16} />All items uploaded</>
-                : datesReady
-                  ? <><Icon n="shield" size={16} />All items matched · ready to push</>
-                  : <><Icon n="alert" size={16} />Select a manufactured date for every batch</>}
+                : !datesReady
+                  ? <><Icon n="alert" size={16} />Select a manufactured date for every batch</>
+                  : !qtyAllOK
+                    ? <><Icon n="alert" size={16} />Split quantities must equal the purchase quantity</>
+                    : !stampOK
+                      ? <><Icon n="alert" size={16} />Verify the bill stamp (Gate No. + Store checked) to enable upload</>
+                      : <><Icon n="shield" size={16} />All items matched · ready to push</>}
           </span>
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled={!canConfirm}

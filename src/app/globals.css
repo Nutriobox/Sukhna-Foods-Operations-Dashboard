@@ -263,6 +263,15 @@
   .pmi{display:flex;flex-direction:column;gap:2px;min-width:120px}
   .pmk{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
   .pmv{font-size:13.5px;font-weight:700;color:var(--ink)}
+  .pstamp{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:11px 24px;border-bottom:1px solid var(--border);background:#fff7ed}
+  .pstamp.ok{background:#f0fdf4}
+  .pstamp-lbl{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer}
+  .pstamp-lbl input{width:16px;height:16px;accent-color:var(--brand);cursor:pointer}
+  .pstamp-ok{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--brand)}
+  .pstamp-ok svg{stroke:var(--brand)}
+  .pstamp-err{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:#b45309}
+  .pstamp-err svg{stroke:#b45309}
+
 
 
   .pcard{border:1px solid var(--border);border-radius:14px;background:#fff;padding:15px 16px;box-shadow:var(--sh-sm);animation:pactcard .3s ease-out both}
