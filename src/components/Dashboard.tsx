@@ -504,15 +504,15 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                           : <span className="pv tnum">{bt.qty}</span>}
                       </div>
                       <div className="pf"><span className="pk">UOM</span>{unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />—</span>}</div>
-                      <div className="pf"><span className="pk">Packaging size UOM{ed && bi === 0 ? <span className="pedit"> · level</span> : ""}</span>
-                        {ed && bi === 0
+                      <div className="pf"><span className="pk">Packaging size UOM{ed ? <span className="pedit"> · level</span> : ""}</span>
+                        {ed
                           ? <select className="psel" value={level} onChange={(e) => { setSelLevel((s) => ({ ...s, [i]: e.target.value })); setPackEdit((s) => ({ ...s, [i]: undefined })); }}>
                               {levelKeys.map((k) => <option key={k} value={k}>{k} · {prod.levels[k].u}</option>)}
                             </select>
                           : <span className="pv">{printUom}</span>}
                       </div>
-                      <div className="pf"><span className="pk">Packing size{ed && bi === 0 ? <span className="pedit"> · manual</span> : ""}</span>
-                        {ed && bi === 0
+                      <div className="pf"><span className="pk">Packing size{ed ? <span className="pedit"> · manual</span> : ""}</span>
+                        {ed
                           ? <input type="number" min={0} className="pnuminp tnum" value={packEdit[i] !== undefined ? packEdit[i] : packNum} onChange={(e) => setPackEdit((s) => ({ ...s, [i]: e.target.value }))} />
                           : <span className="pv tnum">{packVal}</span>}
                       </div>
