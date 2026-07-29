@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Bill } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
-import { resolveLine, type PactLine } from "@/lib/pact";
+import { resolveLine, candidates, productByName, matchProduct, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
 import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
@@ -49,6 +49,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [search, setSearch] = useState("");
   const [modalId, setModalId] = useState<number | null>(null);
   const [pactId, setPactId] = useState<number | null>(null);
+  const [pmOpen, setPmOpen] = useState(false);
   const [modalTab, setModalTab] = useState<"scan" | "data">("scan");
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
 
@@ -163,6 +164,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
             <input placeholder="Search vendor or invoice number…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <div className="spacer" />
+          <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
+          <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
+          <div className="spacer" />
           <div className="mailpill"><Icon n="mail" size={15} /> mis@nutriobox.com</div>
           <div className="sync"><span className="pulse" /> Synced just now</div>
           <button className="iconbtn"><span className="badge">{kpis.err}</span><Icon n="bell" size={17} /></button>
@@ -267,6 +271,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
 
       {/* PACT upload form */}
       {pactActive && <PactUpload b={pactActive} onClose={() => setPactId(null)} uploadItem={uploadItem} onConfirm={() => { uploadAll(pactActive.id); setPactId(null); }} />}
+
+      {/* Product master list */}
+      {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -381,14 +388,20 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
 type Batch = { mfg: string; qty: number | "" };
 function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void }) {
   const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
+  const cands = useMemo(() => b.items.map((_, i) => candidates(lines[i].billName)), [b]);
+  const allNames = useMemo(() => CATALOG.map((p) => p.name), []);
   const today = new Date().toISOString().slice(0, 10);
+
   const [batches, setBatches] = useState<Record<number, Batch[]>>(() =>
     Object.fromEntries(b.items.map((_, i) => [i, [{ mfg: today, qty: lines[i].qty ?? 0 }]]))
   );
   const [editing, setEditing] = useState<Record<number, boolean>>({});
-  const [packSize, setPackSize] = useState<Record<number, string>>(() =>
-    Object.fromEntries(b.items.map((_, i) => [i, lines[i].packSize]))
-  );
+  const [selProduct, setSelProduct] = useState<Record<number, string>>(() =>
+    Object.fromEntries(b.items.map((_, i) => [i, lines[i].product])));
+  const [selUnit, setSelUnit] = useState<Record<number, string>>(() =>
+    Object.fromEntries(b.items.map((_, i) => [i, lines[i].unit || ""])));
+  const [selLevel, setSelLevel] = useState<Record<number, string>>(() =>
+    Object.fromEntries(b.items.map((_, i) => [i, lines[i].printLevel || ""])));
 
   const setBatch = (i: number, bi: number, patch: Partial<Batch>) =>
     setBatches((m) => ({ ...m, [i]: m[i].map((x, k) => (k === bi ? { ...x, ...patch } : x)) }));
@@ -396,8 +409,13 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
     setBatches((m) => ({ ...m, [i]: [...m[i], { ...m[i][m[i].length - 1] }] }));
   const removeBatch = (i: number, bi: number) =>
     setBatches((m) => ({ ...m, [i]: m[i].filter((_, k) => k !== bi) }));
+  const pickProduct = (i: number, name: string) => {
+    setSelProduct((s) => ({ ...s, [i]: name }));
+    const np = productByName(name);
+    setSelLevel((s) => ({ ...s, [i]: np?.printLevel || Object.keys(np?.levels || {})[0] || "" }));
+  };
 
-  const unmatched = lines.filter((l) => !l.matched).length;
+  const unmatched = b.items.filter((_, i) => !selUnit[i]).length;
   const datesReady = Object.values(batches).every((arr) => arr.every((bt) => !!bt.mfg));
   const allUp = b.items.every((it) => it.uploaded);
   const canConfirm = unmatched === 0 && datesReady && !allUp;
@@ -418,18 +436,29 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
           {lines.map((l, i) => {
             const it = b.items[i];
             const done = it.uploaded;
+            const ed = !!editing[i] && !done;
             const bs = batches[i] || [];
+            const prod = productByName(selProduct[i]) || matchProduct(l.billName).product;
+            const levelKeys = Object.keys(prod.levels);
+            const level = prod.levels[selLevel[i]] ? selLevel[i] : (prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || ""));
+            const lvl = prod.levels[level];
+            const printUom = lvl ? lvl.u : "—";
+            const packNum = lvl && lvl.s != null ? String(lvl.s) : "—";
+            const l1Uom = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
+            const unit = selUnit[i] || "";
+            const matched = !!unit;
+            const prodOpts = ed ? allNames : (cands[i].map((c) => c.name).includes(selProduct[i]) ? cands[i].map((c) => c.name) : [selProduct[i], ...cands[i].map((c) => c.name)]);
             return (
-              <div key={i} className={"pcard" + (l.matched ? "" : " err") + (done ? " done" : "")}>
+              <div key={i} className={"pcard" + (matched ? "" : " err") + (done ? " done" : "")}>
                 <div className="pcard-top">
                   <span className="pnum">{i + 1}</span>
                   <div className="pprod">
-                    <div className="pname">{l.product}
+                    <div className="pname">{selProduct[i]}
                       {done
                         ? <span className="pmatch ok"><Icon n="check" size={11} />Uploaded to PACT</span>
-                        : l.matched
+                        : matched
                           ? <span className="pmatch ok"><Icon n="check" size={11} />PACT match{l.confidence ? ` · ${l.confidence}%` : ""}</span>
-                          : <span className="pmatch bad"><Icon n="alert" size={11} />Unit not in PACT</span>}
+                          : <span className="pmatch bad"><Icon n="alert" size={11} />Unit not matched</span>}
                     </div>
                     <div className="pfrom">from bill: {l.billName}</div>
                   </div>
@@ -437,45 +466,63 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
 
                 {/* Product line — purchase fields */}
                 <div className="pgrid">
-                  <div className="pf"><span className="pk">Product Name</span><span className="pv" title={l.product}>{l.product}</span></div>
-                  <div className="pf"><span className="pk">Purchase Unit</span>{l.unit ? <span className="pv">{l.unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}</div>
+                  <div className="pf"><span className="pk">Product Name{ed ? <span className="pedit"> · full master</span> : ""}</span>
+                    <select className="psel" disabled={done} value={selProduct[i]} onChange={(e) => pickProduct(i, e.target.value)}>
+                      {prodOpts.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div className="pf"><span className="pk">Purchase Unit</span>
+                    {ed
+                      ? <select className="psel" value={unit} onChange={(e) => setSelUnit((s) => ({ ...s, [i]: e.target.value }))}>
+                          <option value="">— select —</option>
+                          {ALL_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      : (unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>)}
+                  </div>
                   <div className="pf"><span className="pk">Purchase Quantity</span>{l.qty != null ? <span className="pv tnum">{l.qty}</span> : <span className="pv bad">Requires unit</span>}</div>
                   <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{l.rate != null ? "₹" + inr(l.rate) : "—"}</span></div>
                 </div>
 
-                {/* Manufacturing batches (splittable) */}
+                {/* Manufacturing batches (Split on the right) */}
                 <div className="pbatchbar">
                   <span className="pbl">Manufacturing batch{bs.length > 1 ? "es" : ""}</span>
-                  <button className="psplit" disabled={done || !l.matched} onClick={() => split(i)} title={l.matched ? "Duplicate this batch row" : "Unit must match PACT"}><Icon n="copy" size={12} />Split</button>
+                  <button className="psplit" disabled={done || !matched} onClick={() => split(i)} title={matched ? "Duplicate this batch row" : "Pick a purchase unit first"}><Icon n="copy" size={12} />Split</button>
                 </div>
-                {bs.map((bt, bi) => (
-                  <div className="pbatch6" key={bi}>
-                    <div className="pf"><span className="pk">Manufactured Date</span>
-                      <input type="date" className="pdate" value={bt.mfg} disabled={done} onChange={(e) => setBatch(i, bi, { mfg: e.target.value })} />
+                {bs.map((bt, bi) => {
+                  const qtyEditable = bs.length > 1 && !done;
+                  return (
+                    <div className="pbatch6" key={bi}>
+                      <div className="pf"><span className="pk">Manufactured Date</span>
+                        <input type="date" className="pdate" value={bt.mfg} disabled={done} onChange={(e) => setBatch(i, bi, { mfg: e.target.value })} />
+                      </div>
+                      <div className="pf"><span className="pk">Quantity / Mfg Date</span>
+                        {qtyEditable
+                          ? <input type="number" min={0} className="pnuminp tnum" value={bt.qty} onChange={(e) => setBatch(i, bi, { qty: e.target.value === "" ? "" : Number(e.target.value) })} />
+                          : <span className="pv tnum">{bt.qty}</span>}
+                      </div>
+                      <div className="pf"><span className="pk">UOM</span>{unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />—</span>}</div>
+                      <div className="pf"><span className="pk">Packaging size UOM{ed && bi === 0 ? <span className="pedit"> · level</span> : ""}</span>
+                        {ed && bi === 0
+                          ? <select className="psel" value={level} onChange={(e) => setSelLevel((s) => ({ ...s, [i]: e.target.value }))}>
+                              {levelKeys.map((k) => <option key={k} value={k}>{k} · {prod.levels[k].u}</option>)}
+                            </select>
+                          : <span className="pv">{printUom}</span>}
+                      </div>
+                      <div className="pf"><span className="pk">Packing size</span><span className="pv tnum">{packNum}</span></div>
+                      <div className="pf"><span className="pk">L1 UOM</span><span className="pv">{l1Uom}</span></div>
+                      <div className="pf pbrm">{bs.length > 1 && !done && <button className="pxbtn" title="Remove this batch" onClick={() => removeBatch(i, bi)}><Icon n="x" size={12} /></button>}</div>
                     </div>
-                    <div className="pf"><span className="pk">Quantity / Mfg Date</span>
-                      <input type="number" min={0} className="pnuminp tnum" value={bt.qty} disabled={done} onChange={(e) => setBatch(i, bi, { qty: e.target.value === "" ? "" : Number(e.target.value) })} />
-                    </div>
-                    <div className="pf"><span className="pk">UOM</span>{l.uom ? <span className="pv">{l.uom}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}</div>
-                    <div className="pf"><span className="pk">Packaging size UOM</span><span className="pv">{l.printUom}</span></div>
-                    <div className="pf"><span className="pk">Packing size{editing[i] && !done ? <span className="pedit"> · manual</span> : ""}</span>
-                      {editing[i] && !done
-                        ? <input className="pnuminp" value={packSize[i]} onChange={(e) => setPackSize((p) => ({ ...p, [i]: e.target.value }))} />
-                        : <span className="pv">{packSize[i]}</span>}
-                    </div>
-                    <div className="pf"><span className="pk">L1 UOM</span><span className="pv">{l.l1Uom}</span></div>
-                    <div className="pf pbrm">{bs.length > 1 && !done && <button className="pxbtn" title="Remove this batch" onClick={() => removeBatch(i, bi)}><Icon n="x" size={12} /></button>}</div>
-                  </div>
-                ))}
+                  );
+                })}
 
-                {!l.matched && <div className="perr"><Icon n="alert" size={14} />Unit / UOM "{b.items[i].uom}" could not be matched in PACT — this line blocks the upload.</div>}
+                {!matched && <div className="perr"><Icon n="alert" size={14} />No purchase unit matched for "{b.items[i].uom}" — click Edit to pick one from the master. Upload is blocked until then.</div>}
 
-                {/* Per-item actions */}
-                <div className="pcard-foot">
+                {/* Per-item actions — centred */}
+                <div className="pcard-foot center">
                   <button className="pmini" disabled={done} onClick={() => setEditing((s) => ({ ...s, [i]: !s[i] }))}><Icon n="edit" size={12} />{editing[i] ? "Done" : "Edit"}</button>
                   {done
                     ? <span className="up-done"><Icon n="check" size={12} />Uploaded</span>
-                    : <button className="pmini up" disabled={!l.matched} title={l.matched ? "Upload just this item to PACT" : "Unit must match PACT"} onClick={() => uploadItem(b.id, i)}><Icon n="upload" size={12} />Upload</button>}
+                    : <button className="pmini up" disabled={!matched} title={matched ? "Upload just this item to PACT" : "Pick a purchase unit first"} onClick={() => uploadItem(b.id, i)}><Icon n="upload" size={12} />Upload</button>}
                 </div>
               </div>
             );
@@ -494,10 +541,62 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
           </span>
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled={!canConfirm}
-            title={canConfirm ? "" : "Every item must match PACT and have a manufactured date"}
+            title={canConfirm ? "" : "Every item must have a purchase unit and a manufactured date"}
             onClick={() => { if (canConfirm) onConfirm(); }}>
             <Icon n="upload" size={14} />Confirm &amp; Push to PACT
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductMaster({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const ql = q.trim().toLowerCase();
+  const rows = useMemo(() => {
+    const list = ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql)) : CATALOG;
+    return list.slice(0, 300);
+  }, [ql]);
+  const total = ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql)).length : CATALOG.length;
+  const lvlTxt = (p: (typeof CATALOG)[number]) =>
+    (["L1", "L2", "L3"] as const).filter((k) => p.levels[k]).map((k) => `${k}:${p.levels[k].u}${p.levels[k].s != null ? ` (${p.levels[k].s})` : ""}`).join("  ");
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal">
+        <div className="phead">
+          <span className="pbadge"><Icon n="file" size={15} /></span>
+          <div className="pttl">
+            <h2>PACT Product Master</h2>
+            <div className="sub">{CATALOG.length.toLocaleString("en-IN")} products · L1 base / L2 / L3 packaging levels</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        <div className="pmsearch">
+          <Icon n="search" size={15} />
+          <input placeholder="Search product name…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+          <span className="pmcount">{rows.length === total ? total : `${rows.length} of ${total}`} shown</span>
+        </div>
+        <div className="pmbody">
+          <table className="pmtable">
+            <thead><tr><th>#</th><th>Product Name</th><th>Purchase Units</th><th>Print level</th><th>Packaging levels</th></tr></thead>
+            <tbody>
+              {rows.map((p, i) => (
+                <tr key={p.name + i}>
+                  <td className="n">{i + 1}</td>
+                  <td className="nm">{p.name}</td>
+                  <td>{p.units.join(", ") || "—"}</td>
+                  <td>{p.printLevel || "—"}</td>
+                  <td className="lv">{lvlTxt(p) || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {total > rows.length && <div className="pmmore">Showing first {rows.length}. Refine your search to see the rest.</div>}
+        </div>
+        <div className="pfoot">
+          <span className="pstatus ok"><Icon n="shield" size={16} />Read-only view · reupload to refresh from source</span>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
