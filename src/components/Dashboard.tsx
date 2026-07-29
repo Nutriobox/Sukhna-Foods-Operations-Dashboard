@@ -402,6 +402,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
     Object.fromEntries(b.items.map((_, i) => [i, lines[i].unit || ""])));
   const [selLevel, setSelLevel] = useState<Record<number, string>>(() =>
     Object.fromEntries(b.items.map((_, i) => [i, lines[i].printLevel || ""])));
+  const [packEdit, setPackEdit] = useState<Record<number, string | undefined>>({});
 
   const setBatch = (i: number, bi: number, patch: Partial<Batch>) =>
     setBatches((m) => ({ ...m, [i]: m[i].map((x, k) => (k === bi ? { ...x, ...patch } : x)) }));
@@ -413,6 +414,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
     setSelProduct((s) => ({ ...s, [i]: name }));
     const np = productByName(name);
     setSelLevel((s) => ({ ...s, [i]: np?.printLevel || Object.keys(np?.levels || {})[0] || "" }));
+    setPackEdit((s) => ({ ...s, [i]: undefined }));
   };
 
   const unmatched = b.items.filter((_, i) => !selUnit[i]).length;
@@ -444,6 +446,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
             const lvl = prod.levels[level];
             const printUom = lvl ? lvl.u : "—";
             const packNum = lvl && lvl.s != null ? String(lvl.s) : "—";
+            const packVal = packEdit[i] !== undefined ? (packEdit[i] || "—") : packNum;
             const l1Uom = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
             const unit = selUnit[i] || "";
             const matched = !!unit;
@@ -475,7 +478,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                     {ed
                       ? <select className="psel" value={unit} onChange={(e) => setSelUnit((s) => ({ ...s, [i]: e.target.value }))}>
                           <option value="">— select —</option>
-                          {ALL_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                          {(prod.units.length ? prod.units : ALL_UNITS).map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
                       : (unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>)}
                   </div>
@@ -503,12 +506,16 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                       <div className="pf"><span className="pk">UOM</span>{unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />—</span>}</div>
                       <div className="pf"><span className="pk">Packaging size UOM{ed && bi === 0 ? <span className="pedit"> · level</span> : ""}</span>
                         {ed && bi === 0
-                          ? <select className="psel" value={level} onChange={(e) => setSelLevel((s) => ({ ...s, [i]: e.target.value }))}>
+                          ? <select className="psel" value={level} onChange={(e) => { setSelLevel((s) => ({ ...s, [i]: e.target.value })); setPackEdit((s) => ({ ...s, [i]: undefined })); }}>
                               {levelKeys.map((k) => <option key={k} value={k}>{k} · {prod.levels[k].u}</option>)}
                             </select>
                           : <span className="pv">{printUom}</span>}
                       </div>
-                      <div className="pf"><span className="pk">Packing size</span><span className="pv tnum">{packNum}</span></div>
+                      <div className="pf"><span className="pk">Packing size{ed && bi === 0 ? <span className="pedit"> · manual</span> : ""}</span>
+                        {ed && bi === 0
+                          ? <input type="number" min={0} className="pnuminp tnum" value={packEdit[i] !== undefined ? packEdit[i] : packNum} onChange={(e) => setPackEdit((s) => ({ ...s, [i]: e.target.value }))} />
+                          : <span className="pv tnum">{packVal}</span>}
+                      </div>
                       <div className="pf"><span className="pk">L1 UOM</span><span className="pv">{l1Uom}</span></div>
                       <div className="pf pbrm">{bs.length > 1 && !done && <button className="pxbtn" title="Remove this batch" onClick={() => removeBatch(i, bi)}><Icon n="x" size={12} /></button>}</div>
                     </div>
@@ -517,12 +524,10 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
 
                 {!matched && <div className="perr"><Icon n="alert" size={14} />No purchase unit matched for "{b.items[i].uom}" — click Edit to pick one from the master. Upload is blocked until then.</div>}
 
-                {/* Per-item actions — centred */}
+                {/* Per-item action — Edit (centred) */}
                 <div className="pcard-foot center">
                   <button className="pmini" disabled={done} onClick={() => setEditing((s) => ({ ...s, [i]: !s[i] }))}><Icon n="edit" size={12} />{editing[i] ? "Done" : "Edit"}</button>
-                  {done
-                    ? <span className="up-done"><Icon n="check" size={12} />Uploaded</span>
-                    : <button className="pmini up" disabled={!matched} title={matched ? "Upload just this item to PACT" : "Pick a purchase unit first"} onClick={() => uploadItem(b.id, i)}><Icon n="upload" size={12} />Upload</button>}
+                  {done && <span className="up-done"><Icon n="check" size={12} />Uploaded</span>}
                 </div>
               </div>
             );
