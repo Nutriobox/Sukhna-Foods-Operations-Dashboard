@@ -429,9 +429,17 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
           <span className="pbadge"><Icon n="upload" size={15} /></span>
           <div className="pttl">
             <h2>Upload to PACT</h2>
-            <div className="sub">{b.vendor} · Invoice {b.invoice} · {lines.length} line item{lines.length > 1 ? "s" : ""} matched against PACT item master</div>
+            <div className="sub">{lines.length} line item{lines.length > 1 ? "s" : ""} matched against PACT item master</div>
           </div>
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+
+        <div className="pmeta">
+          <div className="pmi"><span className="pmk">Party name</span><span className="pmv">{b.vendor}</span></div>
+          <div className="pmi"><span className="pmk">Party GST</span><span className="pmv tnum">{b.vendorGst}</span></div>
+          <div className="pmi"><span className="pmk">Bill number</span><span className="pmv">{b.invoice}</span></div>
+          <div className="pmi"><span className="pmk">Bill date</span><span className="pmv">{b.dateFull}</span></div>
+          <div className="pmi"><span className="pmk">Delivery date</span><span className="pmv">{(b as any).deliveryDate || "—"}</span></div>
         </div>
 
         <div className="pbody">

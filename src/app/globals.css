@@ -259,6 +259,11 @@
   .pttl h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.01em}
   .pttl .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
   .pbody{padding:18px 24px;overflow:auto;display:flex;flex-direction:column;gap:14px;background:var(--surface-2)}
+  .pmeta{display:flex;flex-wrap:wrap;gap:10px 26px;padding:14px 24px;border-bottom:1px solid var(--border);background:#fff}
+  .pmi{display:flex;flex-direction:column;gap:2px;min-width:120px}
+  .pmk{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+  .pmv{font-size:13.5px;font-weight:700;color:var(--ink)}
+
 
   .pcard{border:1px solid var(--border);border-radius:14px;background:#fff;padding:15px 16px;box-shadow:var(--sh-sm);animation:pactcard .3s ease-out both}
   .pcard.err{border-color:#f6c9d5;background:#fffafb}
