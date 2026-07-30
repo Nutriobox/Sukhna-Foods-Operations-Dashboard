@@ -16,6 +16,11 @@ export const maxDuration = 30;
 
 let RESOLVED_MODEL: string | null = null;
 
+function verOf(name: string): number {
+  const m = (name || "").match(/gemini-(\d+(?:\.\d+)?)/i);
+  return m ? parseFloat(m[1]) : 0;
+}
+
 async function resolveModel(key: string): Promise<string> {
   if (process.env.GEMINI_VISION_MODEL) return process.env.GEMINI_VISION_MODEL;
   if (RESOLVED_MODEL) return RESOLVED_MODEL;
@@ -26,21 +31,18 @@ async function resolveModel(key: string): Promise<string> {
     if (r.ok) {
       const d = await r.json();
       const models: Array<{ name?: string; supportedGenerationMethods?: string[] }> = d?.models || [];
-      const usable = models.filter(
-        (m) =>
-          (m.supportedGenerationMethods || []).includes("generateContent") &&
-          /gemini/i.test(m.name || "") &&
-          !/embedding|aqa|imagen|tts|audio|image-generation/i.test(m.name || "")
-      );
-      const flash = usable.filter((m) => /flash/i.test(m.name || ""));
-      const pick =
-        flash.find((m) => !/lite|preview|exp|thinking/i.test(m.name || "")) ||
-        flash[0] ||
-        usable[0];
-      if (pick?.name) {
-        RESOLVED_MODEL = pick.name.replace(/^models\//, "");
-        return RESOLVED_MODEL;
-      }
+      // Stable flash vision models only (exclude lite/preview/image/tts/etc.), newest version first.
+      const flash = models
+        .filter(
+          (m) =>
+            (m.supportedGenerationMethods || []).includes("generateContent") &&
+            /flash/i.test(m.name || "") &&
+            !/lite|preview|exp|thinking|image|tts|audio|latest/i.test(m.name || "")
+        )
+        .sort((a, b) => verOf(b.name || "") - verOf(a.name || ""));
+      const pick = flash[0]?.name || "models/gemini-flash-latest";
+      RESOLVED_MODEL = pick.replace(/^models\//, "");
+      return RESOLVED_MODEL;
     }
   } catch {
     // fall through
@@ -62,23 +64,8 @@ export async function POST(req: Request) {
   if (!key) return NextResponse.json({ ok: false, reason: "not_configured" });
 
   const body = await req.json().catch(() => null);
-
-  // Debug: POST { "list": true } to see which models this key can use.
-  if (body?.list) {
-    try {
-      const lr = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", { headers: { "x-goog-api-key": key } });
-      const ld = await lr.json();
-      const models = (ld?.models || [])
-        .filter((m: { supportedGenerationMethods?: string[] }) => (m.supportedGenerationMethods || []).includes("generateContent"))
-        .map((m: { name?: string }) => m.name);
-      return NextResponse.json({ ok: lr.ok, models });
-    } catch (e) {
-      return NextResponse.json({ ok: false, detail: String(e).slice(0, 200) });
-    }
-  }
   const imageUrl: string | undefined = body?.imageUrl;
   if (!imageUrl) return NextResponse.json({ ok: false, reason: "no_scan" });
-  const modelOverride: string | undefined = body?.model;
 
   let abs = imageUrl;
   if (!/^https?:\/\//i.test(abs)) {
@@ -98,7 +85,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "scan_fetch_failed", detail: String(e).slice(0, 200) });
   }
 
-  const model = modelOverride || (await resolveModel(key));
+  const model = await resolveModel(key);
 
   const prompt =
     'This is a scanned Indian purchase / tax invoice. It usually carries hand-applied rubber INK STAMPS — ' +
