@@ -51,6 +51,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pactId, setPactId] = useState<number | null>(null);
   const [pmOpen, setPmOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
+  const [printId, setPrintId] = useState<number | null>(null);
   const [stampVer, setStampVer] = useState<Record<string, StampCheck & { status: "checking" | "done" }>>({});
   const [modalTab, setModalTab] = useState<"scan" | "data">("scan");
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
@@ -176,6 +177,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
 
   const active = modalId != null ? bills.find((b) => b.id === modalId) || null : null;
   const pactActive = pactId != null ? bills.find((b) => b.id === pactId) || null : null;
+  const printActive = printId != null ? bills.find((b) => b.id === printId) || null : null;
 
   return (
     <div className="app">
@@ -281,10 +283,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                             })()}
                             {b.items.length > 1 && <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>}
                           </span>}
-                      {!b.voided && <span className="printcol">
-                        <button className="btn btn-print" onClick={(e) => { e.stopPropagation(); setPrintedIds((prev) => new Set(prev).add(b.id)); ping("Sticker print queued — will print on PACT once the integration is connected."); }} title="Print PACT stickers (activates after PACT integration)"><Icon n="printer" size={14} />Print</button>
-                        {printedIds.has(b.id) && <span className="printed-badge"><Icon n="check" size={11} />Printed</span>}
-                      </span>}
+                      {!b.voided && (printedIds.has(b.id)
+                        ? <button className="btn btn-printed" disabled title="Labels already printed for this bill"><Icon n="check" size={14} />Printed</button>
+                        : <button className="btn btn-print" onClick={(e) => { e.stopPropagation(); setPrintId(b.id); }} title="Print PACT stickers"><Icon n="printer" size={14} />Print</button>)}
                       <button className="btn btn-ghost" onClick={(e) => { e.stopPropagation(); openModal(b.id); }}><Icon n="eye" size={14} />View</button>
                       <button className="btn btn-void" disabled={b.voided} onClick={(e) => { e.stopPropagation(); voidBill(b.id); }}><Icon n="ban" size={14} />Void</button>
                     </span>
@@ -307,6 +308,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {pactActive && <PactUpload b={pactActive} onClose={() => setPactId(null)} uploadItem={uploadItem} onConfirm={() => { uploadAll(pactActive.id); setPactId(null); }} />}
 
       {/* Product master list */}
+      {/* Print labels popup */}
+      {printActive && <PrintLabel b={printActive} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
+
       {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
 
       {/* Toast */}
@@ -737,6 +741,59 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
             onClick={() => { if (canConfirm) onConfirm(); }}>
             <Icon n="upload" size={14} />Confirm &amp; Push to PACT
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; onPrinted: (id: number) => void }) {
+  const lines = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
+  const [counts, setCounts] = useState<Record<number, number | "">>(() =>
+    Object.fromEntries(b.items.map((it, i) => [i, it.qty])));
+  const totalLabels = b.items.reduce((a, _it, i) => a + (typeof counts[i] === "number" ? (counts[i] as number) : 0), 0);
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal" style={{ maxWidth: 960 }}>
+        <div className="phead">
+          <span className="pbadge" style={{ background: "#3b82f6", boxShadow: "0 6px 16px rgba(59,130,246,.4)" }}><Icon n="printer" size={15} /></span>
+          <div className="pttl">
+            <h2>Print PACT labels</h2>
+            <div className="sub">{b.vendor} · Invoice {b.invoice} · {b.items.length} product{b.items.length > 1 ? "s" : ""}</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        <div className="pbody">
+          <table className="lbltbl">
+            <thead><tr><th>Product Name</th><th>Purchase Unit</th><th>Purchase Qty</th><th>Packaging Size UOM</th><th>Packaging Size</th><th>L1 UOM</th><th>No. of Labels</th></tr></thead>
+            <tbody>
+              {lines.map((l, i) => {
+                const prod = productByName(l.product) || matchProduct(l.billName).product;
+                const levelKeys = Object.keys(prod.levels);
+                const level = prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || "");
+                const lvl = prod.levels[level];
+                const pkgUom = lvl ? lvl.u : "—";
+                const pkgSize = lvl && lvl.s != null ? String(lvl.s) : "—";
+                const l1 = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
+                return (
+                  <tr key={i}>
+                    <td className="nm">{l.product}</td>
+                    <td>{l.unit || b.items[i].uom}</td>
+                    <td className="tnum">{b.items[i].qty}</td>
+                    <td>{pkgUom}</td>
+                    <td className="tnum">{pkgSize}</td>
+                    <td>{l1}</td>
+                    <td><input type="number" min={0} className="pnuminp tnum" style={{ width: 84 }} value={counts[i]} onChange={(e) => setCounts((c) => ({ ...c, [i]: e.target.value === "" ? "" : Number(e.target.value) }))} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="pfoot">
+          <span className="pstatus ok"><Icon n="printer" size={16} />{totalLabels} label{totalLabels === 1 ? "" : "s"} across {b.items.length} product{b.items.length > 1 ? "s" : ""}</span>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-print" style={{ padding: "10px 15px" }} onClick={() => onPrinted(b.id)}><Icon n="printer" size={14} />Print labels</button>
         </div>
       </div>
     </div>

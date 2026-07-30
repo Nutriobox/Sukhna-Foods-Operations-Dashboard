@@ -141,6 +141,13 @@
   .btn-print{background:#3b82f6;color:#fff;border:1px solid #3b82f6}
   .btn-print:hover{background:#2f74e8;border-color:#2f74e8}
   .btn-print svg{stroke:#fff}
+  .btn-printed{background:#eef2f7;color:#64748b;border:1px solid var(--border);cursor:default}
+  .btn-printed svg{stroke:#64748b}
+  .lbltbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .lbltbl thead th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .lbltbl tbody td{padding:9px 10px;border-bottom:1px solid var(--border-2);color:var(--ink);vertical-align:middle}
+  .lbltbl tbody td.nm{font-weight:600;max-width:280px}
+  .lbltbl tbody tr:last-child td{border-bottom:none}
   .printed-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#2563eb;background:#eff6ff;padding:2px 8px;border-radius:999px}
   .printed-badge svg{stroke:#2563eb;width:11px;height:11px}
   .upfrac{font-size:10.5px;font-weight:700;letter-spacing:.02em;color:var(--brand-ink);background:var(--brand-soft);
