@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 
 /**
- * Stamp verification (Phase-2 vision helper).
- * POSTs { imageUrl } — the scanned bill image — to an AI vision model and
+ * Stamp verification (Phase-2 vision helper) — Google Gemini.
+ * POSTs { imageUrl } — the scanned bill image — to a Gemini vision model and
  * reports whether the inward "Gate No." stamp and the "MIS Entry" stamp are
- * present on the page. The UI uses this to auto-tick the stamp gate.
+ * present. The UI uses this to auto-tick the stamp gate.
  *
- * Requires ANTHROPIC_API_KEY in the environment (set it in Vercel -> Settings ->
- * Environment Variables). Optional STAMP_VISION_MODEL overrides the model.
- * When the key is absent the route returns { ok:false, reason:"not_configured" }
- * and the dashboard falls back to the manual checkbox.
+ * Requires GEMINI_API_KEY (or GOOGLE_API_KEY) in the environment — set it in
+ * Vercel -> Settings -> Environment Variables. Optional GEMINI_VISION_MODEL
+ * overrides the model (default "gemini-2.0-flash"). When the key is absent the
+ * route returns { ok:false, reason:"not_configured" } and the dashboard falls
+ * back to the manual checkbox.
  */
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const MODEL = process.env.STAMP_VISION_MODEL || "claude-3-5-sonnet-20241022";
+const MODEL = process.env.GEMINI_VISION_MODEL || "gemini-2.0-flash";
 
 function mediaType(url: string, ct: string | null): string {
   if (ct && ct.startsWith("image/")) return ct.split(";")[0].trim();
@@ -27,7 +28,7 @@ function mediaType(url: string, ct: string | null): string {
 }
 
 export async function POST(req: Request) {
-  const key = process.env.ANTHROPIC_API_KEY;
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) return NextResponse.json({ ok: false, reason: "not_configured" });
 
   const body = await req.json().catch(() => null);
@@ -45,12 +46,12 @@ export async function POST(req: Request) {
   let mt: string;
   try {
     const imgRes = await fetch(abs);
-    if (!imgRes.ok) return NextResponse.json({ ok: false, reason: "scan_fetch_failed" });
+    if (!imgRes.ok) return NextResponse.json({ ok: false, reason: "scan_fetch_failed", detail: "HTTP " + imgRes.status + " for " + abs });
     const buf = Buffer.from(await imgRes.arrayBuffer());
     b64 = buf.toString("base64");
     mt = mediaType(abs, imgRes.headers.get("content-type"));
-  } catch {
-    return NextResponse.json({ ok: false, reason: "scan_fetch_failed" });
+  } catch (e) {
+    return NextResponse.json({ ok: false, reason: "scan_fetch_failed", detail: String(e).slice(0, 200) });
   }
 
   const prompt =
@@ -60,36 +61,32 @@ export async function POST(req: Request) {
     '(often diagonal, with Sr. No / Date / Sign lines and a company address).\n' +
     '2. "misEntry": an "MIS ENTRY" stamp (with S.No / Date / Sign lines) — the store/MIS received stamp.\n' +
     'A printed table header or the invoice body text does NOT count — only an actual rubber-stamp impression counts. ' +
-    'Respond with STRICT JSON only and nothing else: {"gateNo": true|false, "misEntry": true|false}';
+    'Respond with STRICT JSON only: {"gateNo": true|false, "misEntry": true|false}';
 
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 200,
-        messages: [
+        contents: [
           {
             role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: mt, data: b64 } },
-              { type: "text", text: prompt },
+            parts: [
+              { inline_data: { mime_type: mt, data: b64 } },
+              { text: prompt },
             ],
           },
         ],
+        generationConfig: { temperature: 0, maxOutputTokens: 200, responseMimeType: "application/json" },
       }),
     });
     if (!r.ok) {
       const t = await r.text().catch(() => "");
-      return NextResponse.json({ ok: false, reason: "vision_error", detail: t.slice(0, 300) });
+      return NextResponse.json({ ok: false, reason: "vision_error", detail: ("HTTP " + r.status + " " + t).slice(0, 300) });
     }
     const data = await r.json();
-    const text: string = (data?.content || []).map((c: { text?: string }) => c?.text || "").join("");
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    const text: string = parts.map((p: { text?: string }) => p?.text || "").join("");
     const m = text.match(/\{[\s\S]*\}/);
     const parsed = m ? JSON.parse(m[0]) : {};
     const gateNo = !!parsed.gateNo;

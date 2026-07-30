@@ -417,7 +417,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
   );
   const [editing, setEditing] = useState<Record<number, boolean>>({});
   const [stampOK, setStampOK] = useState(false);
-  const [stampInfo, setStampInfo] = useState<{ status: "idle" | "checking" | "done" | "error" | "unconfigured" | "noscan"; gateNo?: boolean; misEntry?: boolean }>({ status: "idle" });
+  const [stampInfo, setStampInfo] = useState<{ status: "idle" | "checking" | "done" | "error" | "unconfigured" | "noscan"; gateNo?: boolean; misEntry?: boolean; detail?: string }>({ status: "idle" });
 
   // Auto-detect the Gate No. + MIS Entry stamps on the scan when the modal opens.
   useEffect(() => {
@@ -437,7 +437,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
           setStampInfo({ status: "done", gateNo: res.gateNo, misEntry: res.misEntry });
           setStampOK(res.verified);
         } else {
-          setStampInfo({ status: d?.reason === "not_configured" ? "unconfigured" : "error" });
+          setStampInfo({ status: d?.reason === "not_configured" ? "unconfigured" : "error", detail: d?.detail || d?.reason });
         }
       })
       .catch(() => { if (alive) setStampInfo({ status: "error" }); });
@@ -517,9 +517,9 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
             ? <span className="pstamp-chk"><Icon n="refresh" size={13} />Auto-checking scan…</span>
             : stampOK
               ? <span className="pstamp-ok"><Icon n="check" size={13} />{stampInfo.status === "done" ? "Auto-detected on scan" : "Verified"}</span>
-              : <span className="pstamp-err"><Icon n="alert" size={13} />{
+              : <span className="pstamp-err" title={stampInfo.detail || ""}><Icon n="alert" size={13} />{
                   stampInfo.status === "done" ? `Stamps not detected (Gate No. ${stampInfo.gateNo ? "✓" : "✗"} · MIS Entry ${stampInfo.misEntry ? "✓" : "✗"}) — verify manually`
-                  : stampInfo.status === "unconfigured" ? "Auto-check off (set ANTHROPIC_API_KEY) — verify manually"
+                  : stampInfo.status === "unconfigured" ? "Auto-check off (set GEMINI_API_KEY) — verify manually"
                   : stampInfo.status === "error" ? "Auto-check failed — verify manually"
                   : stampInfo.status === "noscan" ? "No scan on file — verify manually"
                   : "Upload blocked until the bill stamp is verified"
