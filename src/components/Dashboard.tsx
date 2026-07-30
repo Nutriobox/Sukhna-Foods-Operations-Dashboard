@@ -774,12 +774,17 @@ function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; o
     const packYnum = lvl && lvl.s != null ? lvl.s : null;
     const l1 = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "");
     // X = total material in L1 = qty x (unit -> L1 rate); Y = packing size; labels = ceil(X/Y).
-    const convToL1 = convFactor(prod, it.uom, l1);
-    const totalL1 = convToL1 != null ? it.qty * convToL1 : null;
-    const ok = totalL1 != null && packYnum != null && packYnum > 0;
-    const purchaseQty = ok ? (totalL1 as number) / (packYnum as number) : null;   // packages
+    // A row is printable only when its Purchase Unit is an actual PACT master
+    // unit (same REVIEW test as the Upload-to-PACT modal). If the unit is in
+    // review (e.g. Qntl, not a PACT unit) the whole row is blanked out.
+    const unit = l.unit;
+    const masterUnit = unit ? prod.units.find((u) => canonUnit(u) === canonUnit(unit)) : undefined;
+    const convToL1 = unit ? convFactor(prod, it.uom, l1) : null;
+    const ok = !!masterUnit && packYnum != null && packYnum > 0 && convToL1 != null;
+    // X = total material in L1 = Purchase Qty x (unit -> L1); Y = packing size; labels = ceil(X/Y).
+    const totalL1 = ok ? it.qty * (convToL1 as number) : null;
     const labels = ok ? Math.ceil((totalL1 as number) / (packYnum as number)) : null;
-    return { product: l.product, ok, purchaseUnit: pkgUom, purchaseQty, pkgUom, pkgSize: packYnum != null ? String(packYnum) : "", l1, labels };
+    return { product: l.product, ok, purchaseUnit: ok ? (masterUnit as string) : "", purchaseQty: ok ? it.qty : null, pkgUom, pkgSize: packYnum != null ? String(packYnum) : "", l1, labels };
   }), [b]);
   const anyReview = rows.some((r) => !r.ok);
   const [counts, setCounts] = useState<Record<number, number | "">>(() =>
