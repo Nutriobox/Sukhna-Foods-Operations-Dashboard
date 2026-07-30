@@ -6,17 +6,47 @@ import { NextResponse } from "next/server";
  * reports whether the inward "Gate No." stamp and the "MIS Entry" stamp are
  * present. The UI uses this to auto-tick the stamp gate.
  *
- * Requires GEMINI_API_KEY (or GOOGLE_API_KEY) in the environment — set it in
- * Vercel -> Settings -> Environment Variables. Optional GEMINI_VISION_MODEL
- * overrides the model (default "gemini-2.0-flash"). When the key is absent the
- * route returns { ok:false, reason:"not_configured" } and the dashboard falls
- * back to the manual checkbox.
+ * Requires GEMINI_API_KEY (or GOOGLE_API_KEY). Optional GEMINI_VISION_MODEL
+ * pins a specific model; otherwise the route auto-discovers a current
+ * vision-capable model from the account (so it survives model renames).
  */
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const MODEL = process.env.GEMINI_VISION_MODEL || "gemini-2.0-flash";
+let RESOLVED_MODEL: string | null = null;
+
+async function resolveModel(key: string): Promise<string> {
+  if (process.env.GEMINI_VISION_MODEL) return process.env.GEMINI_VISION_MODEL;
+  if (RESOLVED_MODEL) return RESOLVED_MODEL;
+  try {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", {
+      headers: { "x-goog-api-key": key },
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const models: Array<{ name?: string; supportedGenerationMethods?: string[] }> = d?.models || [];
+      const usable = models.filter(
+        (m) =>
+          (m.supportedGenerationMethods || []).includes("generateContent") &&
+          /gemini/i.test(m.name || "") &&
+          !/embedding|aqa|imagen|tts|audio|image-generation/i.test(m.name || "")
+      );
+      const flash = usable.filter((m) => /flash/i.test(m.name || ""));
+      const pick =
+        flash.find((m) => !/lite|preview|exp|thinking/i.test(m.name || "")) ||
+        flash[0] ||
+        usable[0];
+      if (pick?.name) {
+        RESOLVED_MODEL = pick.name.replace(/^models\//, "");
+        return RESOLVED_MODEL;
+      }
+    }
+  } catch {
+    // fall through
+  }
+  return "gemini-flash-latest";
+}
 
 function mediaType(url: string, ct: string | null): string {
   if (ct && ct.startsWith("image/")) return ct.split(";")[0].trim();
@@ -35,7 +65,6 @@ export async function POST(req: Request) {
   const imageUrl: string | undefined = body?.imageUrl;
   if (!imageUrl) return NextResponse.json({ ok: false, reason: "no_scan" });
 
-  // Resolve to an absolute URL the server can fetch.
   let abs = imageUrl;
   if (!/^https?:\/\//i.test(abs)) {
     const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
@@ -54,6 +83,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "scan_fetch_failed", detail: String(e).slice(0, 200) });
   }
 
+  const model = await resolveModel(key);
+
   const prompt =
     'You are verifying a scanned purchase invoice for an inward-goods gate check. ' +
     'Examine the ink stamps on the page and report whether each of these is present:\n' +
@@ -64,25 +95,19 @@ export async function POST(req: Request) {
     'Respond with STRICT JSON only: {"gateNo": true|false, "misEntry": true|false}';
 
   try {
-    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent", {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         contents: [
-          {
-            role: "user",
-            parts: [
-              { inline_data: { mime_type: mt, data: b64 } },
-              { text: prompt },
-            ],
-          },
+          { role: "user", parts: [{ inline_data: { mime_type: mt, data: b64 } }, { text: prompt }] },
         ],
         generationConfig: { temperature: 0, maxOutputTokens: 200, responseMimeType: "application/json" },
       }),
     });
     if (!r.ok) {
       const t = await r.text().catch(() => "");
-      return NextResponse.json({ ok: false, reason: "vision_error", detail: ("HTTP " + r.status + " " + t).slice(0, 300) });
+      return NextResponse.json({ ok: false, reason: "vision_error", model, detail: ("model=" + model + " HTTP " + r.status + " " + t).slice(0, 300) });
     }
     const data = await r.json();
     const parts = data?.candidates?.[0]?.content?.parts || [];
@@ -91,8 +116,8 @@ export async function POST(req: Request) {
     const parsed = m ? JSON.parse(m[0]) : {};
     const gateNo = !!parsed.gateNo;
     const misEntry = !!parsed.misEntry;
-    return NextResponse.json({ ok: true, gateNo, misEntry, verified: gateNo && misEntry });
+    return NextResponse.json({ ok: true, model, gateNo, misEntry, verified: gateNo && misEntry });
   } catch (e) {
-    return NextResponse.json({ ok: false, reason: "vision_error", detail: String(e).slice(0, 300) });
+    return NextResponse.json({ ok: false, reason: "vision_error", model, detail: String(e).slice(0, 300) });
   }
 }
