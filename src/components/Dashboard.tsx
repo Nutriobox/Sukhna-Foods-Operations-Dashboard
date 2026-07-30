@@ -688,7 +688,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                           {(prod.units.length ? prod.units : ALL_UNITS).map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
                       : unit
-                        ? (unitInMaster ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />{unit} · not a PACT unit</span>)
+                        ? <span className="pv">{unit}</span>
                         : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}
                   </div>
                   <div className="pf"><span className="pk">Purchase Quantity{factor != null && factor !== 1 ? <span className="pedit"> · {it.uom}→{unit}</span> : ""}</span>{dispQty != null ? <span className="pv tnum">{fmtQty(dispQty)}</span> : <span className="pv bad">Requires unit</span>}</div>
