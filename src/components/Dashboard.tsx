@@ -748,10 +748,25 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
 }
 
 function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; onPrinted: (id: number) => void }) {
-  const lines = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
+  // Per-item label data, with the invoice qty auto-converted into the PACT
+  // packaging unit (same convFactor logic as the Upload to PACT modal).
+  const rows = useMemo(() => b.items.map((it) => {
+    const l = resolveLine(it);
+    const prod = productByName(l.product) || matchProduct(l.billName).product;
+    const levelKeys = Object.keys(prod.levels);
+    const level = prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || "");
+    const lvl = prod.levels[level];
+    const pkgUom = lvl ? lvl.u : "—";
+    const pkgSize = lvl && lvl.s != null ? String(lvl.s) : "—";
+    const l1 = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
+    const factor = pkgUom !== "—" ? convFactor(prod, it.uom, pkgUom) : null;
+    const purchaseUnit = factor != null ? pkgUom : (l.unit || it.uom);
+    const purchaseQty = factor != null ? it.qty * factor : it.qty;
+    return { product: l.product, purchaseUnit, purchaseQty, pkgUom, pkgSize, l1 };
+  }), [b]);
   const [counts, setCounts] = useState<Record<number, number | "">>(() =>
-    Object.fromEntries(b.items.map((it, i) => [i, it.qty])));
-  const totalLabels = b.items.reduce((a, _it, i) => a + (typeof counts[i] === "number" ? (counts[i] as number) : 0), 0);
+    Object.fromEntries(rows.map((r, i) => [i, Math.max(0, Math.round(r.purchaseQty))])));
+  const totalLabels = rows.reduce((a, _r, i) => a + (typeof counts[i] === "number" ? (counts[i] as number) : 0), 0);
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="pmodal" style={{ maxWidth: 960 }}>
@@ -765,28 +780,19 @@ function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; o
         </div>
         <div className="pbody">
           <table className="lbltbl">
-            <thead><tr><th>Product Name</th><th>Purchase Unit</th><th>Purchase Qty</th><th>Packaging Size UOM</th><th>Packaging Size</th><th>L1 UOM</th><th>No. of Labels</th></tr></thead>
+            <thead><tr><th className="div">Product Name</th><th>Purchase Unit</th><th className="div">Purchase Qty</th><th>Packaging Size UOM</th><th>Packaging Size</th><th className="div">L1 UOM</th><th>No. of Labels</th></tr></thead>
             <tbody>
-              {lines.map((l, i) => {
-                const prod = productByName(l.product) || matchProduct(l.billName).product;
-                const levelKeys = Object.keys(prod.levels);
-                const level = prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || "");
-                const lvl = prod.levels[level];
-                const pkgUom = lvl ? lvl.u : "—";
-                const pkgSize = lvl && lvl.s != null ? String(lvl.s) : "—";
-                const l1 = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
-                return (
-                  <tr key={i}>
-                    <td className="nm">{l.product}</td>
-                    <td>{l.unit || b.items[i].uom}</td>
-                    <td className="tnum">{b.items[i].qty}</td>
-                    <td>{pkgUom}</td>
-                    <td className="tnum">{pkgSize}</td>
-                    <td>{l1}</td>
-                    <td><input type="number" min={0} className="pnuminp tnum" style={{ width: 84 }} value={counts[i]} onChange={(e) => setCounts((c) => ({ ...c, [i]: e.target.value === "" ? "" : Number(e.target.value) }))} /></td>
-                  </tr>
-                );
-              })}
+              {rows.map((r, i) => (
+                <tr key={i}>
+                  <td className="nm div">{r.product}</td>
+                  <td>{r.purchaseUnit}</td>
+                  <td className="tnum div">{fmtQty(r.purchaseQty)}</td>
+                  <td>{r.pkgUom}</td>
+                  <td className="tnum">{r.pkgSize}</td>
+                  <td className="div">{r.l1}</td>
+                  <td><input type="number" min={0} className="pnuminp tnum" style={{ width: 84 }} value={counts[i]} onChange={(e) => setCounts((c) => ({ ...c, [i]: e.target.value === "" ? "" : Number(e.target.value) }))} /></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
