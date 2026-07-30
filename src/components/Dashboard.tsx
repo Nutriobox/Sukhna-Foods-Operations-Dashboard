@@ -390,14 +390,41 @@ type Batch = { id: number; mfg: string; qty: number | "" };
 // Exact unit conversion (not ML) within a single measurement family.
 const WEIGHT_G: Record<string, number> = { mg: 0.001, g: 1, gm: 1, gms: 1, gram: 1, grams: 1, kg: 1000, kgs: 1000, kilogram: 1000, kilograms: 1000, qtl: 100000, qntl: 100000, quintal: 100000, quintals: 100000, ton: 1000000, tonne: 1000000, tonnes: 1000000, mt: 1000000 };
 const VOLUME_ML: Record<string, number> = { ml: 1, l: 1000, ltr: 1000, ltrs: 1000, litre: 1000, liter: 1000, litres: 1000, liters: 1000, kl: 1000000 };
-function unitFactor(from: string, to: string): number | null {
-  const nf = (from || "").toLowerCase().trim().replace(/\.$/, "");
-  const nt = (to || "").toLowerCase().trim().replace(/\.$/, "");
+function normU(u: string): string {
+  return (u || "").toLowerCase().trim().replace(/\.$/, "");
+}
+function stdGrams(u: string): { g: number; fam: string } | null {
+  const n = normU(u);
+  if (WEIGHT_G[n] != null) return { g: WEIGHT_G[n], fam: "w" };
+  if (VOLUME_ML[n] != null) return { g: VOLUME_ML[n], fam: "v" };
+  return null;
+}
+type LevelMap = Record<string, { u: string; s: number | null }>;
+// Size of one `unit` in the product's base measure (grams/ml). Standard units resolve
+// directly; product-specific packaging units (e.g. "Bags") resolve via the master's
+// packaging level size — e.g. L3 Bags = 30000 base units.
+function unitGrams(prod: { levels: LevelMap }, u: string): { g: number; fam: string } | null {
+  const std = stdGrams(u);
+  if (std) return std;
+  const l1 = prod.levels?.L1;
+  const baseStd = l1 ? stdGrams(l1.u) : null;
+  if (!baseStd) return null;
+  const n = normU(u);
+  for (const k of ["L1", "L2", "L3"]) {
+    const lv = prod.levels?.[k];
+    if (lv && normU(lv.u) === n && lv.s != null) return { g: lv.s * baseStd.g, fam: baseStd.fam };
+  }
+  return null;
+}
+// Multiply an invoice quantity in `from` units by this to get `to` units (rate divides).
+function convFactor(prod: { levels: LevelMap }, from: string, to: string): number | null {
+  const nf = normU(from);
+  const nt = normU(to);
   if (!nf || !nt) return null;
   if (nf === nt) return 1;
-  for (const map of [WEIGHT_G, VOLUME_ML]) {
-    if (map[nf] != null && map[nt] != null) return map[nf] / map[nt];
-  }
+  const a = unitGrams(prod, from);
+  const b = unitGrams(prod, to);
+  if (a && b && a.fam === b.fam && b.g) return a.g / b.g;
   return null;
 }
 const fmtQty = (n: number) => Number(n.toFixed(3)).toLocaleString("en-IN");
@@ -484,7 +511,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
     const bs2 = batches[i2] || [];
     if (bs2.length <= 1) return true;
     const q = lines[i2].qty;
-    const f2 = unitFactor(itm.uom, selUnit[i2] || "");
+    const prod2 = productByName(selProduct[i2]) || matchProduct(lines[i2].billName).product;
+    const f2 = convFactor(prod2, itm.uom, selUnit[i2] || "");
     const dq = q != null ? q * (f2 ?? 1) : null;
     const sum2 = bs2.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
     return dq != null && Math.abs(sum2 - dq) < 0.0001;
@@ -538,7 +566,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
             const l1Uom = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
             const unit = selUnit[i] || "";
             const matched = !!unit;
-            const factor = unitFactor(it.uom, unit);
+            const factor = convFactor(prod, it.uom, unit);
             const dispQty = l.qty != null ? l.qty * (factor ?? 1) : null;
             const dispRate = l.rate != null ? l.rate / (factor ?? 1) : null;
             const splitMode = bs.length > 1;
