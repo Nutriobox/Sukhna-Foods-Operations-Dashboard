@@ -64,6 +64,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const imageUrl: string | undefined = body?.imageUrl;
   if (!imageUrl) return NextResponse.json({ ok: false, reason: "no_scan" });
+  const modelOverride: string | undefined = body?.model;
 
   let abs = imageUrl;
   if (!/^https?:\/\//i.test(abs)) {
@@ -83,16 +84,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "scan_fetch_failed", detail: String(e).slice(0, 200) });
   }
 
-  const model = await resolveModel(key);
+  const model = modelOverride || (await resolveModel(key));
 
   const prompt =
-    'You are verifying a scanned purchase invoice for an inward-goods gate check. ' +
-    'Examine the ink stamps on the page and report whether each of these is present:\n' +
-    '1. "gateNo": an inward gate-entry stamp containing the words "GATE NO" and "INWARD" ' +
-    '(often diagonal, with Sr. No / Date / Sign lines and a company address).\n' +
-    '2. "misEntry": an "MIS ENTRY" stamp (with S.No / Date / Sign lines) — the store/MIS received stamp.\n' +
-    'A printed table header or the invoice body text does NOT count — only an actual rubber-stamp impression counts. ' +
-    'Respond with STRICT JSON only: {"gateNo": true|false, "misEntry": true|false}';
+    'This is a scanned Indian purchase / tax invoice. It usually carries hand-applied rubber INK STAMPS — ' +
+    'typically blue, sometimes faint or smudged, often tilted or diagonal, and frequently overlapping handwritten signatures. ' +
+    'Scan the ENTIRE page carefully, including rotated, diagonal, and overlapping text near the bottom. ' +
+    'Decide whether each of these stamp impressions is present:\n' +
+    '1. "gateNo": an inward gate-entry stamp. Its text includes "GATE NO" together with "INWARD" and usually a company ' +
+    'name/address (for example "ALLSURE SERVICES PVT LTD"), plus "Sr. No", "Date" and "Sign" lines.\n' +
+    '2. "misEntry": a stamp whose text includes the words "MIS ENTRY" together with "S.No", "Date" and "Sign" lines.\n' +
+    'Read the stamp text even when it is rotated, faint, or partly covering a signature. ' +
+    'Set a value to true only if you can actually see that stamp impression on the page. ' +
+    'Respond with STRICT JSON only and nothing else: {"gateNo": true|false, "misEntry": true|false}';
 
   try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
