@@ -149,6 +149,12 @@
   .lbltbl tbody td.nm{font-weight:600;max-width:280px}
   .lbltbl tbody tr:last-child td{border-bottom:none}
   .lbltbl th.div, .lbltbl td.div{border-right:1px solid var(--border)}
+  .lbltbl tr.lblrev td{color:var(--muted)}
+  .plabelcalc{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:2px;padding:11px 14px;border:1px dashed var(--border);border-radius:12px;background:var(--brand-soft)}
+  .plc{display:flex;flex-direction:column;gap:3px;min-width:150px}
+  .plc .pk{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+  .plc .pv{font-size:13.5px;font-weight:700;color:var(--ink)}
+  .plc .pv.lblbig{font-size:17px;font-weight:800;color:var(--brand-ink)}
   .printed-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#2563eb;background:#eff6ff;padding:2px 8px;border-radius:999px}
   .printed-badge svg{stroke:#2563eb;width:11px;height:11px}
   .upfrac{font-size:10.5px;font-weight:700;letter-spacing:.02em;color:var(--brand-ink);background:var(--brand-soft);

@@ -621,6 +621,13 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
             const splitMode = bs.length > 1;
             const batchSum = bs.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
             const qtyOK = !splitMode || (dispQty != null && Math.abs(batchSum - dispQty) < 0.0001);
+            // Label maths: X = total material in L1 = purchase qty x (purchase-unit -> L1 rate); Y = packing size; labels = ceil(X / Y).
+            const printLvlKey = prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || "");
+            const printLvl = prod.levels[printLvlKey];
+            const packY = printLvl && printLvl.s != null ? printLvl.s : null;
+            const convToL1 = convFactor(prod, unit, l1Uom);
+            const totalL1 = dispQty != null && convToL1 != null ? dispQty * convToL1 : null;
+            const numLabels = totalL1 != null && packY ? Math.ceil(totalL1 / packY) : null;
             const prodOpts = ed ? allNames : (cands[i].map((c) => c.name).includes(selProduct[i]) ? cands[i].map((c) => c.name) : [selProduct[i], ...cands[i].map((c) => c.name)]);
             return (
               <div key={i} className={"pcard" + (matched ? "" : " err") + (done ? " done" : "")}>
@@ -659,6 +666,13 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                   <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{dispRate != null ? "₹" + inr(dispRate) : "—"}</span></div>
                   <div className="pf"><span className="pk">GST Rate</span><span className="pv">{it.taxRate || "—"}</span></div>
                   <div className="pf"><span className="pk">GST Amount</span><span className="pv tnum">{it.gst != null ? "₹" + inr(it.gst) : "—"}</span></div>
+                </div>
+
+                {/* Label maths — X (total material in L1), Y (packing size), No. of labels = ceil(X/Y) */}
+                <div className="plabelcalc">
+                  <div className="plc"><span className="pk">Total material received · L1 (X)</span><span className="pv tnum">{totalL1 != null ? fmtQty(totalL1) + " " + l1Uom : "—"}</span></div>
+                  <div className="plc"><span className="pk">Packing size (Y)</span><span className="pv tnum">{packY != null ? packY + " " + l1Uom : "—"}</span></div>
+                  <div className="plc"><span className="pk">No. of labels · X ÷ Y</span><span className="pv tnum lblbig">{numLabels != null ? numLabels : "—"}</span></div>
                 </div>
 
                 {/* Manufacturing batches (Split on the right) */}
@@ -756,16 +770,20 @@ function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; o
     const levelKeys = Object.keys(prod.levels);
     const level = prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || "");
     const lvl = prod.levels[level];
-    const pkgUom = lvl ? lvl.u : "—";
-    const pkgSize = lvl && lvl.s != null ? String(lvl.s) : "—";
-    const l1 = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "—");
-    const factor = pkgUom !== "—" ? convFactor(prod, it.uom, pkgUom) : null;
-    const purchaseUnit = factor != null ? pkgUom : (l.unit || it.uom);
-    const purchaseQty = factor != null ? it.qty * factor : it.qty;
-    return { product: l.product, purchaseUnit, purchaseQty, pkgUom, pkgSize, l1 };
+    const pkgUom = lvl ? lvl.u : "";
+    const packYnum = lvl && lvl.s != null ? lvl.s : null;
+    const l1 = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "");
+    // X = total material in L1 = qty x (unit -> L1 rate); Y = packing size; labels = ceil(X/Y).
+    const convToL1 = convFactor(prod, it.uom, l1);
+    const totalL1 = convToL1 != null ? it.qty * convToL1 : null;
+    const ok = totalL1 != null && packYnum != null && packYnum > 0;
+    const purchaseQty = ok ? (totalL1 as number) / (packYnum as number) : null;   // packages
+    const labels = ok ? Math.ceil((totalL1 as number) / (packYnum as number)) : null;
+    return { product: l.product, ok, purchaseUnit: pkgUom, purchaseQty, pkgUom, pkgSize: packYnum != null ? String(packYnum) : "", l1, labels };
   }), [b]);
+  const anyReview = rows.some((r) => !r.ok);
   const [counts, setCounts] = useState<Record<number, number | "">>(() =>
-    Object.fromEntries(rows.map((r, i) => [i, Math.max(0, Math.round(r.purchaseQty))])));
+    Object.fromEntries(rows.map((r, i) => [i, r.ok ? (r.labels as number) : ""])));
   const totalLabels = rows.reduce((a, _r, i) => a + (typeof counts[i] === "number" ? (counts[i] as number) : 0), 0);
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -783,23 +801,28 @@ function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; o
             <thead><tr><th className="div">Product Name</th><th>Purchase Unit</th><th className="div">Purchase Qty</th><th>Packaging Size UOM</th><th>Packaging Size</th><th className="div">L1 UOM</th><th>No. of Labels</th></tr></thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={i}>
-                  <td className="nm div">{r.product}</td>
-                  <td>{r.purchaseUnit}</td>
-                  <td className="tnum div">{fmtQty(r.purchaseQty)}</td>
-                  <td>{r.pkgUom}</td>
-                  <td className="tnum">{r.pkgSize}</td>
-                  <td className="div">{r.l1}</td>
-                  <td><input type="number" min={0} className="pnuminp tnum" style={{ width: 84 }} value={counts[i]} onChange={(e) => setCounts((c) => ({ ...c, [i]: e.target.value === "" ? "" : Number(e.target.value) }))} /></td>
-                </tr>
+                r.ok
+                  ? <tr key={i}>
+                      <td className="nm div">{r.product}</td>
+                      <td>{r.purchaseUnit}</td>
+                      <td className="tnum div">{fmtQty(r.purchaseQty as number)}</td>
+                      <td>{r.pkgUom}</td>
+                      <td className="tnum">{r.pkgSize}</td>
+                      <td className="div">{r.l1}</td>
+                      <td><input type="number" min={0} className="pnuminp tnum" style={{ width: 84 }} value={counts[i]} onChange={(e) => setCounts((c) => ({ ...c, [i]: e.target.value === "" ? "" : Number(e.target.value) }))} /></td>
+                    </tr>
+                  : <tr key={i} className="lblrev">
+                      <td className="nm div">{r.product} <span className="ureview"><Icon n="alert" size={10} />unit in review</span></td>
+                      <td></td><td className="div"></td><td></td><td className="tnum"></td><td className="div"></td><td></td>
+                    </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="pfoot">
-          <span className="pstatus ok"><Icon n="printer" size={16} />{totalLabels} label{totalLabels === 1 ? "" : "s"} across {b.items.length} product{b.items.length > 1 ? "s" : ""}</span>
+          <span className={"pstatus " + (anyReview ? "bad" : "ok")}>{anyReview ? <><Icon n="alert" size={16} />A product's purchase unit is in review — fix it in Upload to PACT before printing</> : <><Icon n="printer" size={16} />{totalLabels} label{totalLabels === 1 ? "" : "s"} across {b.items.length} product{b.items.length > 1 ? "s" : ""}</>}</span>
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
-          <button className="btn btn-print" style={{ padding: "10px 15px" }} onClick={() => onPrinted(b.id)}><Icon n="printer" size={14} />Print labels</button>
+          <button className="btn btn-print" style={{ padding: "10px 15px" }} disabled={anyReview} title={anyReview ? "Resolve the purchase unit(s) in review first" : ""} onClick={() => { if (!anyReview) onPrinted(b.id); }}><Icon n="printer" size={14} />Print labels</button>
         </div>
       </div>
     </div>
