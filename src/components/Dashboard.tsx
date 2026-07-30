@@ -274,9 +274,11 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                       {b.voided
                         ? <button className="btn btn-done"><Icon n="check" size={14} />{up ? "Uploaded" : "Voided"}</button>
                         : <span className="upcol">
-                            {v.status !== "OK"
-                              ? <button className="btn btn-primary" disabled title="All 3 checks must pass before upload"><Icon n="upload" size={14} />Upload to Pact</button>
-                              : <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); setPactId(b.id); }}><Icon n="upload" size={14} />Upload to Pact</button>}
+                            {(() => {
+                              const st = fiveStatus(b);
+                              if (st === "OK") return <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); setPactId(b.id); }}><Icon n="upload" size={14} />Upload to Pact</button>;
+                              return <button className="btn btn-primary" disabled title={st === "CHECKING" ? "Verifying bill stamps…" : "All 5 checks must pass before upload"}><Icon n="upload" size={14} />Upload to Pact</button>;
+                            })()}
                             {b.items.length > 1 && <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>}
                           </span>}
                       {!b.voided && <span className="printcol">
@@ -433,8 +435,8 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
           <button className="btn btn-void" style={{ padding: "10px 15px" }} disabled={b.voided} onClick={() => voidBill(b.id)}><Icon n="ban" size={14} />Void</button>
           {b.voided
             ? <button className="btn btn-done" style={{ padding: "10px 15px" }}><Icon n="check" size={14} />{up ? "Uploaded" : "Voided"}</button>
-            : v.status !== "OK"
-              ? <button className="btn btn-primary" disabled style={{ padding: "10px 15px" }} title="All 3 checks must pass"><Icon n="upload" size={14} />Upload all to Pact</button>
+            : !fiveOkLocal
+              ? <button className="btn btn-primary" disabled style={{ padding: "10px 15px" }} title="All 5 checks must pass"><Icon n="upload" size={14} />Upload all to Pact</button>
               : <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={() => openPact(b.id)}><Icon n="upload" size={14} />Upload all to Pact</button>}
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
         </div>
@@ -527,33 +529,6 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
     Object.fromEntries(b.items.map((_, i) => [i, [{ id: 0, mfg: today, qty: 0 }]]))
   );
   const [editing, setEditing] = useState<Record<number, boolean>>({});
-  const [stampOK, setStampOK] = useState(false);
-  const [stampInfo, setStampInfo] = useState<{ status: "idle" | "checking" | "done" | "error" | "unconfigured" | "noscan"; gateNo?: boolean; storeChecked?: boolean; detail?: string }>({ status: "idle" });
-
-  // Auto-detect the Gate No. + Store Checked stamps on the scan when the modal opens.
-  useEffect(() => {
-    const scan: string | undefined = (b as any).scanUrl;
-    if (!scan) { setStampInfo({ status: "noscan" }); return; }
-    const cached = STAMP_CACHE[scan];
-    if (cached) { setStampInfo({ status: "done", gateNo: cached.gateNo, storeChecked: cached.storeChecked }); setStampOK(cached.verified); return; }
-    let alive = true;
-    setStampInfo({ status: "checking" });
-    fetch("/api/verify-stamp", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ imageUrl: scan }) })
-      .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        if (d?.ok) {
-          const res: StampResult = { gateNo: !!d.gateNo, storeChecked: !!d.storeChecked, verified: !!d.verified };
-          STAMP_CACHE[scan] = res;
-          setStampInfo({ status: "done", gateNo: res.gateNo, storeChecked: res.storeChecked });
-          setStampOK(res.verified);
-        } else {
-          setStampInfo({ status: d?.reason === "not_configured" ? "unconfigured" : "error", detail: d?.detail || d?.reason });
-        }
-      })
-      .catch(() => { if (alive) setStampInfo({ status: "error" }); });
-    return () => { alive = false; };
-  }, [b]);
   const [selProduct, setSelProduct] = useState<Record<number, string>>(() =>
     Object.fromEntries(b.items.map((_, i) => [i, lines[i].product])));
   const [selUnit, setSelUnit] = useState<Record<number, string>>(() =>
@@ -601,7 +576,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
     const sum2 = bs2.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
     return dq != null && Math.abs(sum2 - dq) < 0.0001;
   });
-  const canConfirm = unmatched === 0 && datesReady && !allUp && qtyAllOK && stampOK;
+  const canConfirm = unmatched === 0 && datesReady && !allUp && qtyAllOK;
 
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -623,21 +598,6 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
           <div className="pmi"><span className="pmk">Delivery date</span><span className="pmv">{(b as any).deliveryDate || "—"}</span></div>
         </div>
 
-        <div className={"pstamp" + (stampOK ? " ok" : "")}>
-          <label className="pstamp-lbl"><input type="checkbox" checked={stampOK} onChange={(e) => setStampOK(e.target.checked)} /> Stamp verified — <b>Gate No.</b> &amp; <b>Store Checked</b></label>
-          {stampInfo.status === "checking"
-            ? <span className="pstamp-chk"><Icon n="refresh" size={13} />Auto-checking scan…</span>
-            : stampOK
-              ? <span className="pstamp-ok"><Icon n="check" size={13} />{stampInfo.status === "done" ? "Auto-detected on scan" : "Verified"}</span>
-              : <span className="pstamp-err" title={stampInfo.detail || ""}><Icon n="alert" size={13} />{
-                  stampInfo.status === "done" ? `Stamps not detected (Gate No. ${stampInfo.gateNo ? "✓" : "✗"} · Store Checked ${stampInfo.storeChecked ? "✓" : "✗"}) — verify manually`
-                  : stampInfo.status === "unconfigured" ? "Auto-check off (set GEMINI_API_KEY) — verify manually"
-                  : stampInfo.status === "error" ? "Auto-check failed — verify manually"
-                  : stampInfo.status === "noscan" ? "No scan on file — verify manually"
-                  : "Upload blocked until the bill stamp is verified"
-                }</span>}
-          {(b as any).scanUrl && <a className="pstamp-view" href={(b as any).scanUrl} target="_blank" rel="noreferrer">View scan</a>}
-        </div>
 
         <div className="pbody">
           {lines.map((l, i) => {
@@ -760,7 +720,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
         </div>
 
         <div className="pfoot">
-          <span className={"pstatus " + (unmatched > 0 || !qtyAllOK || (!allUp && !stampOK) ? "bad" : allUp ? "ok" : datesReady ? "ok" : "warn")}>
+          <span className={"pstatus " + (unmatched > 0 || !qtyAllOK ? "bad" : allUp ? "ok" : datesReady ? "ok" : "warn")}>
             {unmatched > 0
               ? <><Icon n="alert" size={16} />{unmatched} item{unmatched > 1 ? "s" : ""} not matched — upload blocked</>
               : allUp
@@ -769,9 +729,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                   ? <><Icon n="alert" size={16} />Select a manufactured date for every batch</>
                   : !qtyAllOK
                     ? <><Icon n="alert" size={16} />Split quantities must equal the purchase quantity</>
-                    : !stampOK
-                      ? <><Icon n="alert" size={16} />Verify the bill stamp (Gate No. + Store Checked) to enable upload</>
-                      : <><Icon n="shield" size={16} />All items matched · ready to push</>}
+                    : <><Icon n="shield" size={16} />All items matched · ready to push</>}
           </span>
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled={!canConfirm}

@@ -75,7 +75,7 @@
             padding:6px 12px;border-radius:10px;font-size:12.5px;font-weight:600}
   .mailpill svg{width:15px;height:15px;stroke:var(--brand-ink)}
 
-  .content{padding:22px 26px 48px;max-width:1360px;width:100%;margin:0 auto}
+  .content{padding:22px 26px 48px;max-width:1560px;width:100%;margin:0 auto}
 
   /* ---------- Pipeline stepper ---------- */
   .pipe{display:flex;align-items:center;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -126,7 +126,7 @@
   .row:hover::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand-2)}
   .c-v{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
   .mono{width:38px;height:38px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13.5px;color:#fff;letter-spacing:.02em}
-  .vmeta{min-width:0;display:flex;flex-direction:column;gap:2px}
+  .vmeta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .vname{display:block;font-weight:700;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .vsub{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .c-inv{width:158px;flex:none;font-size:13px;color:var(--ink-2);font-weight:500}
@@ -134,7 +134,7 @@
   .c-items{width:92px;flex:none;display:flex;align-items:center;justify-content:center;gap:8px}
   .c-verify{width:170px;flex:none;display:flex;align-items:center;justify-content:center}
   .c-amt{width:120px;flex:none;text-align:right;font-weight:700;font-size:14px;color:var(--ink)}
-  .c-act{width:474px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:12px}
+  .c-act{width:462px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:10px}
   .c-act .btn{flex:none}
   .upcol{display:flex;flex-direction:column;align-items:center;gap:4px}
   .printcol{display:flex;flex-direction:column;align-items:center;gap:4px}
