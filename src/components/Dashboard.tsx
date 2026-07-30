@@ -281,7 +281,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                               if (st === "OK") return <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); setPactId(b.id); }}><Icon n="upload" size={14} />Upload to Pact</button>;
                               return <button className="btn btn-primary" disabled title={st === "CHECKING" ? "Verifying bill stamps…" : "All 5 checks must pass before upload"}><Icon n="upload" size={14} />Upload to Pact</button>;
                             })()}
-                            {b.items.length > 1 && <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>}
+                            <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>
                           </span>}
                       {!b.voided && (printedIds.has(b.id)
                         ? <button className="btn btn-printed" disabled title="Labels already printed for this bill"><Icon n="check" size={14} />Printed</button>
