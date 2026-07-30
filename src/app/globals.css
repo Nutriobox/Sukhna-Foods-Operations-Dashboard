@@ -150,6 +150,7 @@
   .pill svg{width:12px;height:12px;stroke-width:2.4}
   .pill.ok{background:var(--ok-soft);color:var(--ok-ink)} .pill.ok svg{stroke:var(--ok-ink)}
   .pill.err{background:var(--err-soft);color:var(--err-ink)} .pill.err svg{stroke:var(--err-ink)}
+  .pill.chk{background:#fef3c7;color:#92400e} .pill.chk svg{stroke:#92400e;animation:spin 1s linear infinite}
   .itcount{font-size:13px;color:var(--ink-2);font-weight:600}
 
   .btn{border:none;border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:7px;transition:.14s;white-space:nowrap}
@@ -209,6 +210,7 @@
   .status-big svg{width:17px;height:17px;stroke-width:2.3}
   .status-big.ok{color:var(--ok-ink)} .status-big.ok svg{stroke:var(--ok-ink)}
   .status-big.err{color:var(--err-ink)} .status-big.err svg{stroke:var(--err-ink)}
+  .status-big.warn{color:#b45309} .status-big.warn svg{stroke:#b45309;animation:spin 1s linear infinite}
 
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(18px);background:var(--ink);color:#fff;
          padding:12px 16px;border-radius:11px;font-size:13px;font-weight:500;opacity:0;transition:.24s;z-index:90;box-shadow:var(--sh-lg);display:flex;align-items:center;gap:9px}

@@ -51,6 +51,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pactId, setPactId] = useState<number | null>(null);
   const [pmOpen, setPmOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
+  const [stampVer, setStampVer] = useState<Record<string, StampCheck & { status: "checking" | "done" }>>({});
   const [modalTab, setModalTab] = useState<"scan" | "data">("scan");
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
 
@@ -149,6 +150,30 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
     return true;
   });
 
+  // 5-check gate: run the stamp vision check only on bills that already pass the 3 offline checks.
+  useEffect(() => {
+    visible.forEach((b) => {
+      const scan = (b as unknown as { scanUrl?: string }).scanUrl;
+      if (!scan || b.voided) return;
+      if (validate(b).status !== "OK") return;
+      if (stampVer[scan]) return;
+      setStampVer((m) => ({ ...m, [scan]: { status: "checking", ok: false, verified: false, gateNo: false, storeChecked: false } }));
+      fetchStamp(scan).then((res) => setStampVer((m) => ({ ...m, [scan]: { ...res, status: "done" } })));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  // Overall status across all 5 checks (3 offline + Gate + Store Checked stamps).
+  function fiveStatus(b: Bill): "OK" | "REVIEW" | "CHECKING" | "VOID" {
+    if (b.voided) return "VOID";
+    if (validate(b).status !== "OK") return "REVIEW";
+    const scan = (b as unknown as { scanUrl?: string }).scanUrl;
+    if (!scan) return "REVIEW";
+    const sv = stampVer[scan];
+    if (!sv || sv.status === "checking") return "CHECKING";
+    return sv.verified ? "OK" : "REVIEW";
+  }
+
   const active = modalId != null ? bills.find((b) => b.id === modalId) || null : null;
   const pactActive = pactId != null ? bills.find((b) => b.id === pactId) || null : null;
 
@@ -236,11 +261,13 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                     <span className="c-inv">{b.invoice}</span>
                     <span className="c-items"><span className="itcount">{b.items.length}</span></span>
                     <span className="c-verify">
-                      {b.voided
-                        ? <span className="pill void"><Icon n="lock" size={12} />{up ? "Uploaded" : "Voided"}</span>
-                        : v.status === "OK"
-                          ? <span className="pill ok"><Icon n="check" size={12} />OK</span>
-                          : <span className="pill err"><Icon n="alert" size={12} />Review</span>}
+                      {(() => {
+                        const st = fiveStatus(b);
+                        if (st === "VOID") return <span className="pill void"><Icon n="lock" size={12} />{up ? "Uploaded" : "Voided"}</span>;
+                        if (st === "OK") return <span className="pill ok"><Icon n="check" size={12} />OK</span>;
+                        if (st === "CHECKING") return <span className="pill chk"><Icon n="refresh" size={12} />Checking…</span>;
+                        return <span className="pill err"><Icon n="alert" size={12} />Review</span>;
+                      })()}
                     </span>
                     <span className="c-amt tnum">₹{inr(b.grandTotal)}</span>
                     <span className="c-act">
@@ -295,12 +322,21 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
   const v = validate(b);
   const up = allUploaded(b);
   const upDone = b.items.filter((i) => i.uploaded).length;
+  const scanUrl = (b as unknown as { scanUrl?: string }).scanUrl;
+  const [dstamp, setDstamp] = useState<(StampCheck & { status: "checking" | "done" }) | null>(null);
+  useEffect(() => {
+    if (!scanUrl || b.voided || validate(b).status !== "OK") return;
+    setDstamp({ status: "checking", ok: false, verified: false, gateNo: false, storeChecked: false });
+    fetchStamp(scanUrl).then((res) => setDstamp({ ...res, status: "done" }));
+  }, [scanUrl, b]);
+  const stampDone = !!dstamp && dstamp.status === "done";
+  const fiveOkLocal = v.status === "OK" && stampDone && dstamp!.ok && dstamp!.verified;
 
   const itemUpBtn = (i: number) => {
     const it = b.items[i];
     if (it.uploaded) return <span className="up-done"><Icon n="check" size={12} />Uploaded</span>;
     if (b.voided) return <span className="up-dash">—</span>;
-    if (v.status !== "OK") return <button className="mini" disabled title="All 3 checks must pass"><Icon n="upload" size={11} />Upload</button>;
+    if (!fiveOkLocal) return <button className="mini" disabled title="All 5 checks must pass (open Upload to PACT to verify or override the stamp)"><Icon n="upload" size={11} />Upload</button>;
     return <button className="mini" onClick={() => uploadItem(b.id, i)}><Icon n="upload" size={11} />Upload</button>;
   };
 
@@ -363,13 +399,27 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
                 <div className="tr grand"><span className="l">Grand Total</span><span className="a tnum">₹{inr(b.grandTotal)}</span></div>
               </div>
               <div className="checks">
-                <h3>Validation — 3 checks</h3>
+                <h3>Validation — 5 checks</h3>
                 {v.checks.map((c, i) => (
                   <div key={i} className={"chk " + c.status}>
                     <span className="ico"><Icon n={c.status === "pass" ? "check" : c.status === "fail" ? "x" : "dash"} size={13} /></span>
                     <div><div className="t">{c.label}</div><div className="d">{c.detail}</div></div>
                   </div>
                 ))}
+                {(["gateNo", "storeChecked"] as const).map((keyName) => {
+                  const label = keyName === "gateNo" ? "Gate No. stamp" : "Store Checked stamp";
+                  let cls = "na", icon = "dash", detail = "Auto-detecting on the scanned bill…";
+                  if (!scanUrl) { cls = "na"; icon = "dash"; detail = "No scan on file to verify."; }
+                  else if (!stampDone) { cls = "na"; icon = "refresh"; detail = "Auto-detecting the stamp on the scanned bill…"; }
+                  else if (!dstamp!.ok) { cls = "na"; icon = "dash"; detail = "Auto-check unavailable — verify manually in Upload to PACT."; }
+                  else { const okk = keyName === "gateNo" ? dstamp!.gateNo : dstamp!.storeChecked; cls = okk ? "pass" : "fail"; icon = okk ? "check" : "x"; detail = okk ? "Stamp detected on the scanned bill." : "Stamp not found on the scan — verify manually if it is actually stamped."; }
+                  return (
+                    <div key={keyName} className={"chk " + cls}>
+                      <span className="ico"><Icon n={icon} size={13} /></span>
+                      <div><div className="t">{label}</div><div className="d">{detail}</div></div>
+                    </div>
+                  );
+                })}
               </div>
               <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={() => downloadTxt(b.id)}><Icon n="download" size={14} />Download extracted .txt</button>
             </>
@@ -377,8 +427,8 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
         </div>
 
         <div className="mfoot">
-          <span className={"status-big " + (b.voided ? "void" : v.status === "OK" ? "ok" : "err")}>
-            {b.voided ? <><Icon n="lock" size={17} />{up ? "Uploaded to Pact · frozen" : "Voided · frozen"}</> : v.status === "OK" ? <><Icon n="shield" size={17} />All checks passed</> : <><Icon n="alert" size={17} />1 check failed — review needed</>}
+          <span className={"status-big " + (b.voided ? "void" : v.status !== "OK" ? "err" : !stampDone ? "warn" : fiveOkLocal ? "ok" : "err")}>
+            {b.voided ? <><Icon n="lock" size={17} />{up ? "Uploaded to Pact · frozen" : "Voided · frozen"}</> : v.status !== "OK" ? <><Icon n="alert" size={17} />1 check failed — review needed</> : !stampDone ? <><Icon n="shield" size={17} />Verifying bill stamps…</> : fiveOkLocal ? <><Icon n="shield" size={17} />All 5 checks passed</> : <><Icon n="alert" size={17} />Stamp check failed — review needed</>}
           </span>
           <button className="btn btn-void" style={{ padding: "10px 15px" }} disabled={b.voided} onClick={() => voidBill(b.id)}><Icon n="ban" size={14} />Void</button>
           {b.voided
@@ -440,6 +490,32 @@ const fmtQty = (n: number) => Number(n.toFixed(3)).toLocaleString("en-IN");
 // Session cache so re-opening the same bill does not re-run the (paid) vision call.
 type StampResult = { gateNo: boolean; storeChecked: boolean; verified: boolean };
 const STAMP_CACHE: Record<string, StampResult> = {};
+type StampCheck = { ok: boolean; verified: boolean; gateNo: boolean; storeChecked: boolean; reason?: string };
+const STAMP_INFLIGHT: Record<string, Promise<StampCheck>> = {};
+// Shared stamp verifier — dedups in-flight calls and caches successful results
+// so the inbox, the detail modal and the PACT modal never re-charge for the same scan.
+async function fetchStamp(scan: string): Promise<StampCheck> {
+  const c = STAMP_CACHE[scan];
+  if (c) return { ok: true, verified: c.verified, gateNo: c.gateNo, storeChecked: c.storeChecked };
+  if (STAMP_INFLIGHT[scan]) return STAMP_INFLIGHT[scan];
+  const pr = (async (): Promise<StampCheck> => {
+    try {
+      const r = await fetch("/api/verify-stamp", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ imageUrl: scan }) });
+      const d = await r.json();
+      if (d?.ok) {
+        STAMP_CACHE[scan] = { gateNo: !!d.gateNo, storeChecked: !!d.storeChecked, verified: !!d.verified };
+        return { ok: true, verified: !!d.verified, gateNo: !!d.gateNo, storeChecked: !!d.storeChecked };
+      }
+      return { ok: false, verified: false, gateNo: false, storeChecked: false, reason: d?.reason };
+    } catch {
+      return { ok: false, verified: false, gateNo: false, storeChecked: false, reason: "error" };
+    } finally {
+      delete STAMP_INFLIGHT[scan];
+    }
+  })();
+  STAMP_INFLIGHT[scan] = pr;
+  return pr;
+}
 
 function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void }) {
   const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
