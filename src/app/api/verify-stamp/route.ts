@@ -97,9 +97,9 @@ export async function POST(req: Request) {
     '2. Then decide:\n' +
     '   - gateNo = true if any stamp contains "GATE NO" together with "INWARD" (an inward gate-entry stamp, often with a ' +
     'company name/address like "ALLSURE SERVICES" and Sr.No / Date / Sign lines).\n' +
-    '   - misEntry = true if any stamp contains the words "MIS ENTRY" (with S.No / Date / Sign lines).\n\n' +
+    '   - storeChecked = true if any stamp contains the words "STORE CHECKED" (with S.No / Date / Sign lines).\n\n' +
     'After your reasoning, end your reply with a single final line in EXACTLY this form:\n' +
-    'FINAL {"gateNo": true|false, "misEntry": true|false}';
+    'FINAL {"gateNo": true|false, "storeChecked": true|false}';
 
   try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
@@ -124,8 +124,8 @@ export async function POST(req: Request) {
     const m = tail.match(/\{[\s\S]*\}/);
     const parsed = m ? JSON.parse(m[0]) : {};
     const gateNo = !!parsed.gateNo;
-    const misEntry = !!parsed.misEntry;
-    return NextResponse.json({ ok: true, model, gateNo, misEntry, verified: gateNo && misEntry });
+    const storeChecked = !!parsed.storeChecked;
+    return NextResponse.json({ ok: true, model, gateNo, storeChecked, verified: gateNo && storeChecked });
   } catch (e) {
     return NextResponse.json({ ok: false, reason: "vision_error", model, detail: String(e).slice(0, 300) });
   }

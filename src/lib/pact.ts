@@ -90,6 +90,37 @@ export function matchUnit(raw: string | null | undefined): string | null {
   return UNIT_ALIASES[key] ?? null;
 }
 
+// Canonical unit token for equivalence checks (e.g. GMS/Gm/gram -> "gm",
+// Bags/bag/sack -> "bag"). Used to test whether a bill unit equals a product's
+// PACT unit despite spelling/case/plural differences.
+export function canonUnit(u: string | null | undefined): string {
+  const k = String(u || "").trim().toLowerCase().replace(/[.\-\s]+/g, "");
+  const groups: Record<string, string[]> = {
+    gm: ["gm", "gms", "gram", "grams", "g"],
+    kg: ["kg", "kgs", "kilogram", "kilograms", "kilo", "kgm"],
+    qntl: ["qntl", "quintal", "qtl"],
+    ton: ["ton", "tonne", "tonnes", "mt"],
+    mg: ["mg"],
+    ml: ["ml", "mls"],
+    ltr: ["ltr", "ltrs", "litre", "liter", "litres", "liters", "l", "lt", "lts"],
+    pkt: ["pkt", "pkts", "packet", "packets", "pack", "packs"],
+    bag: ["bag", "bags", "sack", "sacks"],
+    box: ["box", "boxes"],
+    pcs: ["pcs", "pc", "piece", "pieces", "pces", "nos", "no", "number", "unit", "units"],
+    carton: ["carton", "cartons", "ctn", "cartoon"],
+    bottle: ["bottle", "bottles", "btl"],
+    can: ["can", "cans"],
+    tin: ["tin", "tins"],
+    roll: ["roll", "rolls"],
+    crate: ["crate", "crates"],
+    bundle: ["bundle", "bundles", "bdl"],
+    bunch: ["bunch", "bunches"],
+    ream: ["ream", "reams", "rim", "rm"],
+  };
+  for (const canon in groups) if (groups[canon].includes(k)) return canon;
+  return k;
+}
+
 export type PactLine = {
   billName: string;
   product: string;      // PACT-matched product name (default)
