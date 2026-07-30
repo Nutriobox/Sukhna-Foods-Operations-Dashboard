@@ -62,6 +62,20 @@ export async function POST(req: Request) {
   if (!key) return NextResponse.json({ ok: false, reason: "not_configured" });
 
   const body = await req.json().catch(() => null);
+
+  // Debug: POST { "list": true } to see which models this key can use.
+  if (body?.list) {
+    try {
+      const lr = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", { headers: { "x-goog-api-key": key } });
+      const ld = await lr.json();
+      const models = (ld?.models || [])
+        .filter((m: { supportedGenerationMethods?: string[] }) => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map((m: { name?: string }) => m.name);
+      return NextResponse.json({ ok: lr.ok, models });
+    } catch (e) {
+      return NextResponse.json({ ok: false, detail: String(e).slice(0, 200) });
+    }
+  }
   const imageUrl: string | undefined = body?.imageUrl;
   if (!imageUrl) return NextResponse.json({ ok: false, reason: "no_scan" });
   const modelOverride: string | undefined = body?.model;
@@ -88,15 +102,17 @@ export async function POST(req: Request) {
 
   const prompt =
     'This is a scanned Indian purchase / tax invoice. It usually carries hand-applied rubber INK STAMPS — ' +
-    'typically blue, sometimes faint or smudged, often tilted or diagonal, and frequently overlapping handwritten signatures. ' +
-    'Scan the ENTIRE page carefully, including rotated, diagonal, and overlapping text near the bottom. ' +
-    'Decide whether each of these stamp impressions is present:\n' +
-    '1. "gateNo": an inward gate-entry stamp. Its text includes "GATE NO" together with "INWARD" and usually a company ' +
-    'name/address (for example "ALLSURE SERVICES PVT LTD"), plus "Sr. No", "Date" and "Sign" lines.\n' +
-    '2. "misEntry": a stamp whose text includes the words "MIS ENTRY" together with "S.No", "Date" and "Sign" lines.\n' +
-    'Read the stamp text even when it is rotated, faint, or partly covering a signature. ' +
-    'Set a value to true only if you can actually see that stamp impression on the page. ' +
-    'Respond with STRICT JSON only and nothing else: {"gateNo": true|false, "misEntry": true|false}';
+    'typically blue, sometimes faint or smudged, often tilted or diagonal, and frequently overlapping handwritten signatures, ' +
+    'mostly in the lower half of the page.\n\n' +
+    'Work step by step:\n' +
+    '1. Look carefully across the WHOLE page, especially the lower half, and list every rubber-stamp impression you can see, ' +
+    'transcribing the text inside each stamp (read rotated / faint / overlapping text too).\n' +
+    '2. Then decide:\n' +
+    '   - gateNo = true if any stamp contains "GATE NO" together with "INWARD" (an inward gate-entry stamp, often with a ' +
+    'company name/address like "ALLSURE SERVICES" and Sr.No / Date / Sign lines).\n' +
+    '   - misEntry = true if any stamp contains the words "MIS ENTRY" (with S.No / Date / Sign lines).\n\n' +
+    'After your reasoning, end your reply with a single final line in EXACTLY this form:\n' +
+    'FINAL {"gateNo": true|false, "misEntry": true|false}';
 
   try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
@@ -106,7 +122,7 @@ export async function POST(req: Request) {
         contents: [
           { role: "user", parts: [{ inline_data: { mime_type: mt, data: b64 } }, { text: prompt }] },
         ],
-        generationConfig: { temperature: 0, maxOutputTokens: 200, responseMimeType: "application/json" },
+        generationConfig: { temperature: 0, maxOutputTokens: 1024 },
       }),
     });
     if (!r.ok) {
@@ -116,7 +132,9 @@ export async function POST(req: Request) {
     const data = await r.json();
     const parts = data?.candidates?.[0]?.content?.parts || [];
     const text: string = parts.map((p: { text?: string }) => p?.text || "").join("");
-    const m = text.match(/\{[\s\S]*\}/);
+    const idx = text.lastIndexOf("FINAL");
+    const tail = idx >= 0 ? text.slice(idx) : text;
+    const m = tail.match(/\{[\s\S]*\}/);
     const parsed = m ? JSON.parse(m[0]) : {};
     const gateNo = !!parsed.gateNo;
     const misEntry = !!parsed.misEntry;
