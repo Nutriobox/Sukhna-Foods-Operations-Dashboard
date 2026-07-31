@@ -626,13 +626,6 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
             const splitMode = bs.length > 1;
             const batchSum = bs.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
             const qtyOK = !splitMode || (dispQty != null && Math.abs(batchSum - dispQty) < 0.0001);
-            // Label maths: X = total material in L1 = purchase qty x (purchase-unit -> L1 rate); Y = packing size; labels = ceil(X / Y).
-            const printLvlKey = prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || "");
-            const printLvl = prod.levels[printLvlKey];
-            const packY = printLvl && printLvl.s != null ? printLvl.s : null;
-            const convToL1 = convFactor(prod, unit, l1Uom);
-            const totalL1 = dispQty != null && convToL1 != null ? dispQty * convToL1 : null;
-            const numLabels = totalL1 != null && packY ? Math.ceil(totalL1 / packY) : null;
             const prodOpts = ed ? allNames : (cands[i].map((c) => c.name).includes(selProduct[i]) ? cands[i].map((c) => c.name) : [selProduct[i], ...cands[i].map((c) => c.name)]);
             return (
               <div key={i} className={"pcard" + (matched ? "" : " err") + (done ? " done" : "")}>
@@ -661,7 +654,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                     {ed
                       ? <select className={"psel" + (unit && !unitInMaster ? " warn" : "")} value={unit} onChange={(e) => setSelUnit((s) => ({ ...s, [i]: e.target.value }))}>
                           <option value="">— select —</option>
-                          {(prod.units.length ? prod.units : ALL_UNITS).map((u) => <option key={u} value={u}>{u}</option>)}
+                          {prod.units.map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
                       : unit
                         ? <span className="pv">{unit}</span>
@@ -671,13 +664,6 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                   <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{dispRate != null ? "₹" + inr(dispRate) : "—"}</span></div>
                   <div className="pf"><span className="pk">GST Rate</span><span className="pv">{it.taxRate || "—"}</span></div>
                   <div className="pf"><span className="pk">GST Amount</span><span className="pv tnum">{it.gst != null ? "₹" + inr(it.gst) : "—"}</span></div>
-                </div>
-
-                {/* Label maths — X (total material in L1), Y (packing size), No. of labels = ceil(X/Y) */}
-                <div className="plabelcalc">
-                  <div className="plc"><span className="pk">Total material received · L1 (X)</span><span className="pv tnum">{totalL1 != null ? fmtQty(totalL1) + " " + l1Uom : "—"}</span></div>
-                  <div className="plc"><span className="pk">Packing size (Y)</span><span className="pv tnum">{packY != null ? packY + " " + l1Uom : "—"}</span></div>
-                  <div className="plc"><span className="pk">No. of labels · X ÷ Y</span><span className="pv tnum lblbig">{numLabels != null ? numLabels : "—"}</span></div>
                 </div>
 
                 {/* Manufacturing batches (Split on the right) */}

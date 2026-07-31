@@ -38,7 +38,7 @@ export function matchProduct(name: string): { product: PactProduct; score: numbe
   const q = tokenize(name);
   let bi = 0, bs = 0;
   for (let i = 0; i < CATALOG.length; i++) {
-    const s = score(q, CAT_TOKENS[i]);
+    const s = score(q, CAT_TOKENS[i]) + (CATALOG[i].units.length ? 1e-6 : 0);
     if (s > bs) { bs = s; bi = i; }
   }
   return { product: CATALOG[bi], score: Math.max(0, Math.min(1, bs)) };
@@ -51,7 +51,7 @@ export function candidates(name: string, min = 0.75, cap = 60): { name: string; 
   const scored: { name: string; score: number }[] = [];
   let best = { name: CATALOG[0]?.name || "", score: 0 };
   for (let i = 0; i < CATALOG.length; i++) {
-    const s = score(q, CAT_TOKENS[i]);
+    const s = score(q, CAT_TOKENS[i]) + (CATALOG[i].units.length ? 1e-6 : 0);
     if (s > best.score) best = { name: CATALOG[i].name, score: s };
     if (s >= min) scored.push({ name: CATALOG[i].name, score: s });
   }
