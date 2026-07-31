@@ -251,7 +251,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                 const up = allUploaded(b);
                 const upCount = b.items.filter((i) => i.uploaded).length;
                 return (
-                  <div key={b.id} className={"row" + (b.voided ? " voided" : "")} onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) openModal(b.id); }}>
+                  <div key={b.id} className={"row" + (up ? " up" : b.voided ? " voided" : "")} onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) openModal(b.id); }}>
                     <span className="c-date">{b.date}</span>
                     <span className="c-v">
                       <span className="mono" style={{ background: MC[(b.id - 1) % MC.length] }}>{initials(b.vendor)}</span>
@@ -273,17 +273,22 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                     </span>
                     <span className="c-amt tnum">₹{inr(b.grandTotal)}</span>
                     <span className="c-act">
-                      {b.voided
-                        ? <button className="btn btn-done"><Icon n="check" size={14} />{up ? "Uploaded" : "Voided"}</button>
-                        : <span className="upcol">
-                            {(() => {
-                              const st = fiveStatus(b);
-                              if (st === "OK") return <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); setPactId(b.id); }}><Icon n="upload" size={14} />Upload to Pact</button>;
-                              return <button className="btn btn-primary" disabled title={st === "CHECKING" ? "Verifying bill stamps…" : "All 5 checks must pass before upload"}><Icon n="upload" size={14} />Upload to Pact</button>;
-                            })()}
+                      {up
+                        ? <span className="upcol">
+                            <button className="btn btn-done"><Icon n="check" size={14} />Uploaded to Pact</button>
                             <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>
-                          </span>}
-                      {!b.voided && (printedIds.has(b.id)
+                          </span>
+                        : b.voided
+                          ? <button className="btn btn-done"><Icon n="ban" size={14} />Voided</button>
+                          : <span className="upcol">
+                              {(() => {
+                                const st = fiveStatus(b);
+                                if (st === "OK") return <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); setPactId(b.id); }}><Icon n="upload" size={14} />Upload to Pact</button>;
+                                return <button className="btn btn-primary" disabled title={st === "CHECKING" ? "Verifying bill stamps…" : "All 5 checks must pass before upload"}><Icon n="upload" size={14} />Upload to Pact</button>;
+                              })()}
+                              <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>
+                            </span>}
+                      {(up || !b.voided) && (printedIds.has(b.id)
                         ? <button className="btn btn-printed" disabled title="Labels already printed for this bill"><Icon n="check" size={14} />Printed</button>
                         : <button className="btn btn-print" onClick={(e) => { e.stopPropagation(); setPrintId(b.id); }} title="Print PACT stickers"><Icon n="printer" size={14} />Print</button>)}
                       <button className="btn btn-ghost" onClick={(e) => { e.stopPropagation(); openModal(b.id); }}><Icon n="eye" size={14} />View</button>

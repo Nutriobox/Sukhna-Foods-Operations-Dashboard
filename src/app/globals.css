@@ -241,6 +241,8 @@
   .row.voided{opacity:.62;background:repeating-linear-gradient(135deg,#fafbfd,#fafbfd 10px,#f4f6fa 10px,#f4f6fa 20px)}
   .row.voided:hover::before{display:none}
   .row.voided .vname{text-decoration:line-through;text-decoration-color:#cbd3df}
+  .row.up{background:linear-gradient(90deg,rgba(34,197,94,.06),transparent 40%)}
+  .row.up .vname{text-decoration:none}
   .pill.void{background:#eef1f6;color:#64748b}.pill.void svg{stroke:#64748b}
   .status-big.void{color:#64748b}.status-big.void svg{stroke:#64748b}
 
