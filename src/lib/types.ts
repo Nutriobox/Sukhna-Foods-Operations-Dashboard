@@ -9,6 +9,8 @@ export type Item = {
   gst: number;
   gross: number;
   uploaded: boolean;
+  pactProduct?: string; // product chosen in the Upload-to-PACT modal (overrides auto-match)
+  pactUnit?: string;    // purchase unit chosen in the Upload-to-PACT modal (overrides auto-match)
 };
 
 export type Charge = { label: string; amount: number };

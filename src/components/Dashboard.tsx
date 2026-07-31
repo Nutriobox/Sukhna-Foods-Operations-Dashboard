@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import type { Bill } from "@/lib/types";
+import type { Bill, Item } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
 import { resolveLine, candidates, productByName, matchProduct, canonUnit, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
 import { inr, inrShort } from "@/lib/format";
@@ -77,6 +77,20 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
     } catch (e) {
       /* best-effort in the prototype */
     }
+  }
+
+  // Save the product/unit fix (chosen in the Upload-to-PACT modal) onto the item
+  // so the Print popup and future re-opens reflect it, and it persists to Supabase.
+  function patchItem(id: number, idx: number, patch: Partial<Item>) {
+    setBills((prev) =>
+      prev.map((b) => {
+        if (b.id !== id) return b;
+        const items = b.items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
+        const nb: Bill = { ...b, items };
+        persist(nb);
+        return nb;
+      })
+    );
   }
 
   function uploadItem(id: number, idx: number) {
@@ -310,7 +324,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {active && <BillDetail b={active} tab={modalTab} setTab={setModalTab} onClose={() => setModalId(null)} uploadItem={uploadItem} openPact={(id) => { setModalId(null); setPactId(id); }} voidBill={voidBill} downloadTxt={downloadTxt} />}
 
       {/* PACT upload form */}
-      {pactActive && <PactUpload b={pactActive} onClose={() => setPactId(null)} uploadItem={uploadItem} onConfirm={() => { uploadAll(pactActive.id); setPactId(null); }} />}
+      {pactActive && <PactUpload b={pactActive} onClose={() => setPactId(null)} uploadItem={uploadItem} patchItem={patchItem} onConfirm={() => { uploadAll(pactActive.id); setPactId(null); }} />}
 
       {/* Product master list */}
       {/* Print labels popup */}
@@ -528,7 +542,7 @@ async function fetchStamp(scan: string): Promise<StampCheck> {
   return pr;
 }
 
-function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void }) {
+function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void; patchItem: (id: number, idx: number, patch: Partial<Item>) => void }) {
   const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
   const cands = useMemo(() => b.items.map((_, i) => candidates(lines[i].billName)), [b]);
   const allNames = useMemo(() => CATALOG.map((p) => p.name), []);
@@ -539,9 +553,9 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
   );
   const [editing, setEditing] = useState<Record<number, boolean>>({});
   const [selProduct, setSelProduct] = useState<Record<number, string>>(() =>
-    Object.fromEntries(b.items.map((_, i) => [i, lines[i].product])));
+    Object.fromEntries(b.items.map((it, i) => [i, it.pactProduct || lines[i].product])));
   const [selUnit, setSelUnit] = useState<Record<number, string>>(() =>
-    Object.fromEntries(b.items.map((_, i) => [i, lines[i].unit || ""])));
+    Object.fromEntries(b.items.map((it, i) => [i, it.pactUnit ?? (lines[i].unit || "")])));
   // Packaging level + manual packing size are per batch row, keyed `${i}:${batchId}`.
   const [selLevel, setSelLevel] = useState<Record<string, string>>({});
   const [packEdit, setPackEdit] = useState<Record<string, string | undefined>>({});
@@ -567,6 +581,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
     setBatches((m) => ({ ...m, [i]: m[i].filter((_, k) => k !== bi) }));
   const pickProduct = (i: number, name: string) => {
     setSelProduct((s) => ({ ...s, [i]: name }));
+    patchItem(b.id, i, { pactProduct: name });
     // Reset this item's per-row packaging so it re-derives from the new product.
     setSelLevel((s) => { const c = { ...s }; Object.keys(c).forEach((k) => { if (k.startsWith(`${i}:`)) delete c[k]; }); return c; });
     setPackEdit((s) => { const c = { ...s }; Object.keys(c).forEach((k) => { if (k.startsWith(`${i}:`)) delete c[k]; }); return c; });
@@ -652,7 +667,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem }: { b: Bill; onClose: (
                   </div>
                   <div className="pf"><span className="pk">Purchase Unit{unit && !unitInMaster ? <span className="ureview" title="This unit is not one of the product's PACT units (e.g. Gms / Kg / Bags). Click Edit to pick a PACT unit."><Icon n="alert" size={11} />review</span> : ""}</span>
                     {ed
-                      ? <select className={"psel" + (unit && !unitInMaster ? " warn" : "")} value={unit} onChange={(e) => setSelUnit((s) => ({ ...s, [i]: e.target.value }))}>
+                      ? <select className={"psel" + (unit && !unitInMaster ? " warn" : "")} value={unit} onChange={(e) => { const v = e.target.value; setSelUnit((s) => ({ ...s, [i]: v })); patchItem(b.id, i, { pactUnit: v }); }}>
                           <option value="">— select —</option>
                           {prod.units.map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
@@ -757,25 +772,27 @@ function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; o
   // packaging unit (same convFactor logic as the Upload to PACT modal).
   const rows = useMemo(() => b.items.map((it) => {
     const l = resolveLine(it);
-    const prod = productByName(l.product) || matchProduct(l.billName).product;
+    // Use the product / purchase unit the user fixed in the Upload-to-PACT modal
+    // (saved on the item), falling back to the auto-match.
+    const prod = (it.pactProduct ? productByName(it.pactProduct) : null) || productByName(l.product) || matchProduct(l.billName).product;
     const levelKeys = Object.keys(prod.levels);
     const level = prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (levelKeys[0] || "");
     const lvl = prod.levels[level];
     const pkgUom = lvl ? lvl.u : "";
     const packYnum = lvl && lvl.s != null ? lvl.s : null;
     const l1 = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || "");
-    // X = total material in L1 = qty x (unit -> L1 rate); Y = packing size; labels = ceil(X/Y).
-    // A row is printable only when its Purchase Unit is an actual PACT master
-    // unit (same REVIEW test as the Upload-to-PACT modal). If the unit is in
-    // review (e.g. Qntl, not a PACT unit) the whole row is blanked out.
-    const unit = l.unit;
+    // A row is printable only when its Purchase Unit is an actual PACT master unit
+    // (same REVIEW test as the modal). If in review the whole row is blanked out.
+    const unit = it.pactUnit || l.unit;
     const masterUnit = unit ? prod.units.find((u) => canonUnit(u) === canonUnit(unit)) : undefined;
-    const convToL1 = unit ? convFactor(prod, it.uom, l1) : null;
+    const convToUnit = masterUnit ? convFactor(prod, it.uom, masterUnit) : null;
+    const convToL1 = masterUnit ? convFactor(prod, it.uom, l1) : null;
     const ok = !!masterUnit && packYnum != null && packYnum > 0 && convToL1 != null;
-    // X = total material in L1 = Purchase Qty x (unit -> L1); Y = packing size; labels = ceil(X/Y).
+    // X = total material in L1 = bill qty x (bill uom -> L1); Y = packing size; labels = ceil(X/Y).
     const totalL1 = ok ? it.qty * (convToL1 as number) : null;
     const labels = ok ? Math.ceil((totalL1 as number) / (packYnum as number)) : null;
-    return { product: l.product, ok, purchaseUnit: ok ? (masterUnit as string) : "", purchaseQty: ok ? it.qty : null, pkgUom, pkgSize: packYnum != null ? String(packYnum) : "", l1, labels };
+    const purchaseQty = ok ? (convToUnit != null ? it.qty * convToUnit : it.qty) : null;
+    return { product: prod.name, ok, purchaseUnit: ok ? (masterUnit as string) : "", purchaseQty, pkgUom, pkgSize: packYnum != null ? String(packYnum) : "", l1, labels };
   }), [b]);
   const anyReview = rows.some((r) => !r.ok);
   const [counts, setCounts] = useState<Record<number, number | "">>(() =>
