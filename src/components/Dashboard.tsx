@@ -785,13 +785,26 @@ function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; o
     // (same REVIEW test as the modal). If in review the whole row is blanked out.
     const unit = it.pactUnit || l.unit;
     const masterUnit = unit ? prod.units.find((u) => canonUnit(u) === canonUnit(unit)) : undefined;
-    const convToUnit = masterUnit ? convFactor(prod, it.uom, masterUnit) : null;
+    // Blank the row ONLY when the purchase unit isn't a PACT master unit — the exact
+    // same REVIEW test the Upload-to-PACT modal uses (no extra conversion conditions).
+    const ok = !!masterUnit && packYnum != null && packYnum > 0;
+    // Purchase qty in the chosen unit (mirror the modal: fall back to x1 when the bill
+    // unit can't be converted, e.g. Pcs -> Pkt).
+    const qtyInUnit = ok ? it.qty * (convFactor(prod, it.uom, masterUnit as string) ?? 1) : null;
+    // Size (in L1 base) of the chosen purchase unit, from its packaging level.
+    const unitLvl = masterUnit ? Object.values(prod.levels).find((L) => canonUnit(L.u) === canonUnit(masterUnit as string)) : undefined;
+    const unitS = unitLvl && unitLvl.s != null ? unitLvl.s : null;
     const convToL1 = masterUnit ? convFactor(prod, it.uom, l1) : null;
-    const ok = !!masterUnit && packYnum != null && packYnum > 0 && convToL1 != null;
-    // X = total material in L1 = bill qty x (bill uom -> L1); Y = packing size; labels = ceil(X/Y).
-    const totalL1 = ok ? it.qty * (convToL1 as number) : null;
-    const labels = ok ? Math.ceil((totalL1 as number) / (packYnum as number)) : null;
-    const purchaseQty = ok ? (convToUnit != null ? it.qty * convToUnit : it.qty) : null;
+    // X = total material in L1 = qty-in-unit x unit-size (or bill qty x bill->L1).
+    const totalL1 = ok
+      ? (qtyInUnit != null && unitS != null ? qtyInUnit * unitS : (convToL1 != null ? it.qty * convToL1 : null))
+      : null;
+    // Y = packing size; No. of labels = ceil(X / Y). Falls back to 1 label per purchase
+    // unit when the L1 material can't be derived, so a matched row is never blank.
+    const labels = ok
+      ? (totalL1 != null && packYnum ? Math.ceil(totalL1 / (packYnum as number)) : Math.ceil(qtyInUnit as number))
+      : null;
+    const purchaseQty = ok ? qtyInUnit : null;
     return { product: prod.name, ok, purchaseUnit: ok ? (masterUnit as string) : "", purchaseQty, pkgUom, pkgSize: packYnum != null ? String(packYnum) : "", l1, labels };
   }), [b]);
   const anyReview = rows.some((r) => !r.ok);
