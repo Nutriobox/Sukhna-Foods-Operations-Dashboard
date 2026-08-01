@@ -303,7 +303,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                               <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>
                             </span>}
                       {(up || !b.voided) && (printedIds.has(b.id)
-                        ? <button className="btn btn-printed" disabled title="Labels already printed for this bill"><Icon n="check" size={14} />Printed</button>
+                        ? <button className="btn btn-printed" onClick={(e) => { e.stopPropagation(); setPrintId(b.id); }} title="View the labels printed for this bill"><Icon n="check" size={14} />Printed</button>
                         : <button className="btn btn-print" onClick={(e) => { e.stopPropagation(); setPrintId(b.id); }} title="Print PACT stickers"><Icon n="printer" size={14} />Print</button>)}
                       <button className="btn btn-ghost" onClick={(e) => { e.stopPropagation(); openModal(b.id); }}><Icon n="eye" size={14} />View</button>
                       <button className="btn btn-void" disabled={b.voided} onClick={(e) => { e.stopPropagation(); voidBill(b.id); }}><Icon n="ban" size={14} />Void</button>
@@ -328,7 +328,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
 
       {/* Product master list */}
       {/* Print labels popup */}
-      {printActive && <PrintLabel b={printActive} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
+      {printActive && <PrintLabel b={printActive} printed={printedIds.has(printActive.id)} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
 
       {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
 
@@ -348,6 +348,7 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
   const up = allUploaded(b);
   const upDone = b.items.filter((i) => i.uploaded).length;
   const scanUrl = (b as unknown as { scanUrl?: string }).scanUrl;
+  const [scanBroken, setScanBroken] = useState(false);
   const [dstamp, setDstamp] = useState<(StampCheck & { status: "checking" | "done" }) | null>(null);
   useEffect(() => {
     if (!scanUrl || b.voided || validate(b).status !== "OK") return;
@@ -386,10 +387,14 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
           {tab === "scan" ? (
             <>
               <div className="scanwrap">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="scanimg" src={b.scanUrl} alt={`Scanned bill — ${b.vendor}`} />
+                {scanUrl && !scanBroken ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img className="scanimg" src={scanUrl} alt={`Scanned bill — ${b.vendor}`} onError={() => setScanBroken(true)} />
+                ) : (
+                  <div className="scannone"><Icon n="image" size={30} /><span>No scanned bill on file for this invoice</span><small>The bill was added without an image. Everything else (line items, totals, checks) is still available on the Extracted Data tab.</small></div>
+                )}
               </div>
-              <div className="scancap"><Icon n="image" size={15} /><span>Original scanned bill · {b.vendor} · {b.invoice}</span></div>
+              {scanUrl && !scanBroken && <div className="scancap"><Icon n="image" size={15} /><span>Original scanned bill · {b.vendor} · {b.invoice}</span></div>}
             </>
           ) : (
             <>
@@ -767,7 +772,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
   );
 }
 
-function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; onPrinted: (id: number) => void }) {
+function PrintLabel({ b, printed, onClose, onPrinted }: { b: Bill; printed?: boolean; onClose: () => void; onPrinted: (id: number) => void }) {
   // Per-item label data, with the invoice qty auto-converted into the PACT
   // packaging unit (same convFactor logic as the Upload to PACT modal).
   const rows = useMemo(() => b.items.map((it) => {
@@ -846,9 +851,11 @@ function PrintLabel({ b, onClose, onPrinted }: { b: Bill; onClose: () => void; o
           </table>
         </div>
         <div className="pfoot">
-          <span className={"pstatus " + (anyReview ? "bad" : "ok")}>{anyReview ? <><Icon n="alert" size={16} />A product's purchase unit is in review — fix it in Upload to PACT before printing</> : <><Icon n="printer" size={16} />{totalLabels} label{totalLabels === 1 ? "" : "s"} across {b.items.length} product{b.items.length > 1 ? "s" : ""}</>}</span>
-          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
-          <button className="btn btn-print" style={{ padding: "10px 15px" }} disabled={anyReview} title={anyReview ? "Resolve the purchase unit(s) in review first" : ""} onClick={() => { if (!anyReview) onPrinted(b.id); }}><Icon n="printer" size={14} />Print labels</button>
+          <span className={"pstatus " + (anyReview ? "bad" : "ok")}>{anyReview ? <><Icon n="alert" size={16} />A product's purchase unit is in review — fix it in Upload to PACT before printing</> : printed ? <><Icon n="check" size={16} />Already printed · {totalLabels} label{totalLabels === 1 ? "" : "s"} across {b.items.length} product{b.items.length > 1 ? "s" : ""}</> : <><Icon n="printer" size={16} />{totalLabels} label{totalLabels === 1 ? "" : "s"} across {b.items.length} product{b.items.length > 1 ? "s" : ""}</>}</span>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
+          {printed
+            ? <button className="btn btn-printed" style={{ padding: "10px 15px" }} disabled title="These labels have already been printed"><Icon n="check" size={14} />Printed</button>
+            : <button className="btn btn-print" style={{ padding: "10px 15px" }} disabled={anyReview} title={anyReview ? "Resolve the purchase unit(s) in review first" : ""} onClick={() => { if (!anyReview) onPrinted(b.id); }}><Icon n="printer" size={14} />Print labels</button>}
         </div>
       </div>
     </div>
