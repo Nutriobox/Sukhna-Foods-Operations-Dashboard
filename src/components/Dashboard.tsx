@@ -859,8 +859,9 @@ function ProductMaster({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
   const rows = useMemo(() => {
-    const list = ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql)) : CATALOG;
-    return list.slice(0, 300);
+    // Show every matching product (the list is virtual-free but a plain scroll
+    // handles ~2k rows fine); no artificial cap.
+    return ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql)) : CATALOG;
   }, [ql]);
   const total = ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql)).length : CATALOG.length;
   const lvlTxt = (p: (typeof CATALOG)[number]) =>
