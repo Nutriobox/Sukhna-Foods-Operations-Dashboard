@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Bill, Item } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
 import { resolveLine, candidates, productByName, matchProduct, canonUnit, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
@@ -52,6 +52,8 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pmOpen, setPmOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
+  const [soFile, setSoFile] = useState<{ name: string; sheets: { name: string; rows: (string | number | null)[][] }[] } | null>(null);
+  const soInputRef = useRef<HTMLInputElement | null>(null);
   const [stampVer, setStampVer] = useState<Record<string, StampCheck & { status: "checking" | "done" }>>({});
   const [modalTab, setModalTab] = useState<"scan" | "data">("scan");
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
@@ -68,6 +70,28 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   function ping(msg: string) {
     setToast({ msg, show: true });
     window.setTimeout(() => setToast((t) => ({ ...t, show: false })), 2300);
+  }
+
+  // Read an uploaded Sales Order spreadsheet (xlsx/xls/csv) fully in the browser
+  // and show every column and row exactly as in the file.
+  async function onSalesOrderFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheets = wb.SheetNames.map((sn) => ({
+        name: sn,
+        rows: XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "", raw: false, blankrows: false }) as (string | number | null)[][],
+      }));
+      setSoFile({ name: file.name, sheets });
+      ping(`Sales order "${file.name}" loaded — ${sheets[0]?.rows.length ?? 0} rows.`);
+    } catch (err) {
+      ping("Couldn't read that file — upload a valid Excel (.xlsx / .xls) or CSV.");
+    } finally {
+      e.target.value = "";
+    }
   }
 
   async function persist(b: Bill) {
@@ -208,6 +232,8 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           <div className="spacer" />
           <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
           <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
+          <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>
+          <input ref={soInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onSalesOrderFile} />
           <div className="spacer" />
           <div className="mailpill"><Icon n="mail" size={15} /> mis@nutriobox.com</div>
           <div className="sync"><span className="pulse" /> Synced just now</div>
@@ -331,6 +357,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {printActive && <PrintLabel b={printActive} printed={printedIds.has(printActive.id)} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
 
       {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
+      {soFile && <SalesOrderView data={soFile} onClose={() => setSoFile(null)} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -856,6 +883,59 @@ function PrintLabel({ b, printed, onClose, onPrinted }: { b: Bill; printed?: boo
           {printed
             ? <button className="btn btn-printed" style={{ padding: "10px 15px" }} disabled title="These labels have already been printed"><Icon n="check" size={14} />Printed</button>
             : <button className="btn btn-print" style={{ padding: "10px 15px" }} disabled={anyReview} title={anyReview ? "Resolve the purchase unit(s) in review first" : ""} onClick={() => { if (!anyReview) onPrinted(b.id); }}><Icon n="printer" size={14} />Print labels</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalesOrderView({ data, onClose }: { data: { name: string; sheets: { name: string; rows: (string | number | null)[][] }[] }; onClose: () => void }) {
+  const [si, setSi] = useState(0);
+  const sheet = data.sheets[si] || { name: "", rows: [] };
+  const headers = sheet.rows[0] || [];
+  const body = sheet.rows.slice(1);
+  const cols = Math.max(headers.length, ...body.map((r) => r.length), 1);
+  const idx = Array.from({ length: cols }, (_, i) => i);
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal" style={{ maxWidth: 1120 }}>
+        <div className="phead">
+          <span className="pbadge" style={{ background: "#16a34a", boxShadow: "0 6px 16px rgba(22,163,74,.35)" }}><Icon n="file" size={15} /></span>
+          <div className="pttl">
+            <h2>Sales Order · {data.name}</h2>
+            <div className="sub">{sheet.name || "Sheet1"} · {headers.length} column{headers.length === 1 ? "" : "s"} · {body.length} row{body.length === 1 ? "" : "s"}</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        {data.sheets.length > 1 && (
+          <div className="sotabs">
+            {data.sheets.map((sh, i) => (
+              <button key={i} className={"tab" + (i === si ? " active" : "")} onClick={() => setSi(i)}>{sh.name || `Sheet ${i + 1}`}</button>
+            ))}
+          </div>
+        )}
+        <div className="pbody">
+          <div className="sowrap">
+            <table className="lbltbl sotbl">
+              <thead><tr><th className="sonum">#</th>{idx.map((c) => <th key={c}>{String(headers[c] ?? "")}</th>)}</tr></thead>
+              <tbody>
+                {body.map((r, ri) => (
+                  <tr key={ri}><td className="sonum">{ri + 1}</td>{idx.map((c) => <td key={c}>{String(r[c] ?? "")}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!body.length && <div className="pmmore">No data rows found in this sheet.</div>}
+        </div>
+        <div className="pfoot">
+          <span className="pstatus ok"><Icon n="file" size={16} />Read {body.length} row{body.length === 1 ? "" : "s"} across {headers.length} column{headers.length === 1 ? "" : "s"}</span>
+          <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled title="PACT posting will be wired next">
+            <Icon n="upload" size={14} />Post to PACT
+          </button>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} disabled title="Available after posting to PACT">
+            <Icon n="download" size={14} />Check import status
+          </button>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

@@ -394,6 +394,17 @@
   .pmbtn.ghost{background:#fff;border-color:var(--border);color:var(--ink-2)}
   .pmbtn.ghost svg{stroke:var(--ink-2)}
   .pmbtn.ghost:hover{background:var(--surface-2)}
+  .pmbtn.so{background:#16a34a;border-color:#16a34a;color:#fff}
+  .pmbtn.so svg{stroke:#fff}
+  .pmbtn.so:hover{background:#15803d}
+  .sotabs{display:flex;gap:6px;padding:10px 20px 0;flex-wrap:wrap}
+  .sotabs .tab{border:1px solid var(--border);background:#fff;border-radius:8px 8px 0 0;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink-2)}
+  .sotabs .tab.active{background:var(--brand-soft);border-color:#c7ecdd;color:var(--brand-ink)}
+  .sowrap{max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:10px}
+  .sotbl{font-size:12px}
+  .sotbl th,.sotbl td{white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+  .sotbl thead th{position:sticky;top:0;background:var(--surface-2);z-index:1}
+  .sotbl .sonum{background:var(--surface-2);color:var(--muted);font-weight:700;text-align:right;position:sticky;left:0}
   @media(max-width:1100px){.pmbtn span,.pmbtn{font-size:0}.pmbtn svg{width:16px;height:16px}}
 
   /* PACT editable selects */
