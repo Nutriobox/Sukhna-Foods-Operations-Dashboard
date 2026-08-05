@@ -523,3 +523,21 @@
   .besum>div span{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
   .besum>div b{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
   .besum .gt b{font-size:18px;color:#0369a1}
+
+  /* ===== Bill upload: mode tabs + scan dropzone ===== */
+  .bemodes{display:flex;gap:8px;margin-bottom:14px}
+  .bemode{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:#fff;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:inherit}
+  .bemode svg{stroke:var(--muted)}
+  .bemode.active{border-color:#0284c7;background:#e0f2fe;color:#0369a1}
+  .bemode.active svg{stroke:#0284c7}
+  .bedrop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;border:2px dashed #bcd8ea;border-radius:14px;background:#f5fbff;padding:26px 20px;margin-bottom:16px;cursor:pointer;transition:border-color .14s ease,background .14s ease}
+  .bedrop:hover{border-color:#0284c7;background:#eaf6fd}
+  .bedrop svg{stroke:#0284c7}
+  .bedrop b{font-size:14px;color:var(--ink)}
+  .bedrop small{font-size:12px;color:var(--muted);max-width:440px;line-height:1.5}
+  .bedrop.done{border-style:solid;border-color:#16a34a;background:#f0fdf4}
+  .bedrop.done svg{stroke:#16a34a}
+  .bedrop.busy{cursor:progress;border-color:#0284c7}
+  .bespin{width:26px;height:26px;border-radius:50%;border:3px solid #cfe8f6;border-top-color:#0284c7;animation:bespin .8s linear infinite}
+  @keyframes bespin{to{transform:rotate(360deg)}}
+  .scanpdf{width:100%;height:62vh;border:1px solid var(--border);border-radius:10px;background:#fff}

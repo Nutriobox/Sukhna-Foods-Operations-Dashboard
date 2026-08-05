@@ -51,8 +51,9 @@ async function resolveModel(key: string): Promise<string> {
 }
 
 function mediaType(url: string, ct: string | null): string {
-  if (ct && ct.startsWith("image/")) return ct.split(";")[0].trim();
-  const u = url.toLowerCase();
+  if (ct && (ct.startsWith("image/") || ct === "application/pdf")) return ct.split(";")[0].trim();
+  const u = url.toLowerCase().split("?")[0];
+  if (u.endsWith(".pdf")) return "application/pdf";
   if (u.endsWith(".png")) return "image/png";
   if (u.endsWith(".webp")) return "image/webp";
   if (u.endsWith(".gif")) return "image/gif";

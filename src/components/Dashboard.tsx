@@ -449,6 +449,7 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
   const up = allUploaded(b);
   const upDone = b.items.filter((i) => i.uploaded).length;
   const scanUrl = (b as unknown as { scanUrl?: string }).scanUrl;
+  const isPdf = /\.pdf(\?|$)/i.test(scanUrl || "");
   const [scanBroken, setScanBroken] = useState(false);
   const [dstamp, setDstamp] = useState<(StampCheck & { status: "checking" | "done" }) | null>(null);
   useEffect(() => {
@@ -489,8 +490,12 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
             <>
               <div className="scanwrap">
                 {scanUrl && !scanBroken ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img className="scanimg" src={scanUrl} alt={`Scanned bill — ${b.vendor}`} onError={() => setScanBroken(true)} />
+                  isPdf ? (
+                    <iframe className="scanpdf" src={scanUrl} title={`Scanned bill — ${b.vendor}`} />
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img className="scanimg" src={scanUrl} alt={`Scanned bill — ${b.vendor}`} onError={() => setScanBroken(true)} />
+                  )
                 ) : (
                   <div className="scannone"><Icon n="image" size={30} /><span>No scanned bill on file for this invoice</span><small>The bill was added without an image. Everything else (line items, totals, checks) is still available on the Extracted Data tab.</small></div>
                 )}
@@ -1070,6 +1075,61 @@ function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () =>
   const [items, setItems] = useState<DraftItem[]>([{ name: "", hsn: "", qty: "1", uom: "Nos", price: "", rate: "5" }]);
   const [charges, setCharges] = useState<DraftCharge[]>([]);
   const [err, setErr] = useState("");
+  const [mode, setMode] = useState<"pdf" | "manual">("pdf");
+  const [scanUrl, setScanUrl] = useState("");
+  const [scanName, setScanName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function onScan(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) await handleScan(file);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+  async function handleScan(file: File) {
+    setErr(""); setBusy(true); setScanName(file.name);
+    try {
+      if (!supabase) { setErr("Supabase isn't connected, so the scan can't be saved. Enter the bill manually instead."); setBusy(false); return; }
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `bills/${Date.now()}_${safe}`;
+      const up = await supabase.storage.from("scans").upload(path, file, { upsert: true, contentType: file.type || undefined });
+      if (up.error) { setErr("Couldn't save the scan (" + up.error.message + "). Run the one-time 'scans' storage setup, or enter the bill manually."); setBusy(false); return; }
+      const url = supabase.storage.from("scans").getPublicUrl(path).data.publicUrl;
+      setScanUrl(url);
+      const r = await fetch("/api/extract-bill", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fileUrl: url }) });
+      const j = await r.json().catch(() => null);
+      if (!j || !j.ok) {
+        setErr(j?.reason === "not_configured"
+          ? "AI reading isn't set up yet (add the Gemini key the stamp-check uses). The scan is saved — fill the fields below and Add."
+          : "Couldn't read the scan automatically. The scan is saved — fill the fields below and Add.");
+        setBusy(false); return;
+      }
+      applyExtract(j.bill);
+    } catch (e2) {
+      setErr("Upload failed: " + String(e2).slice(0, 140));
+    } finally {
+      setBusy(false);
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applyExtract(x: any) {
+    if (!x) return;
+    if (x.vendor) setVendor(String(x.vendor));
+    if (x.vendorGst) setVendorGst(String(x.vendorGst));
+    if (x.invoice) setInvoice(String(x.invoice));
+    if (x.invoiceDate && /^\d{4}-\d{2}-\d{2}/.test(String(x.invoiceDate))) setDateStr(String(x.invoiceDate).slice(0, 10));
+    if (x.buyer) setBuyer(String(x.buyer));
+    if (x.buyerGst) setBuyerGst(String(x.buyerGst));
+    if (x.roundOff != null && x.roundOff !== "") setRoundOff(String(x.roundOff));
+    if (Array.isArray(x.items) && x.items.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setItems(x.items.map((it: any) => ({ name: String(it.name ?? ""), hsn: String(it.hsn ?? ""), qty: String(it.qty ?? 1), uom: String(it.uom ?? "Nos"), price: it.price == null ? "" : String(it.price), rate: String(it.rate ?? 5) })));
+    }
+    if (Array.isArray(x.otherCharges) && x.otherCharges.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setCharges(x.otherCharges.map((c: any) => ({ label: String(c.label ?? ""), amount: String(c.amount ?? 0) })));
+    }
+  }
 
   const num = (v: string) => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
   const line = (it: DraftItem) => { const net = num(it.qty) * num(it.price); const gst = net * num(it.rate) / 100; return { net, gst, gross: net + gst }; };
@@ -1103,6 +1163,7 @@ function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () =>
       grandTotal: Math.round(grandTotal * 100) / 100,
       otherCharges: charges.filter((c) => c.label.trim() || num(c.amount)).map((c) => ({ label: c.label.trim(), amount: num(c.amount) })),
       note: note.trim() || undefined,
+      scanUrl: scanUrl || undefined,
       items: items.map((it) => { const l = line(it); return { name: it.name.trim(), hsn: it.hsn.trim(), qty: num(it.qty), uom: it.uom.trim() || "Nos", price: it.price === "" ? null : num(it.price), net: Math.round(l.net * 100) / 100, taxRate: `${num(it.rate)}%`, gst: Math.round(l.gst * 100) / 100, gross: Math.round(l.gross * 100) / 100, uploaded: false }; }),
       voided: false,
     };
@@ -1132,6 +1193,22 @@ function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () =>
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
         </div>
         <div className="pbody">
+          <div className="bemodes">
+            <button className={"bemode" + (mode === "pdf" ? " active" : "")} onClick={() => setMode("pdf")}><Icon n="upload" size={14} />Upload scan (PDF / image)</button>
+            <button className={"bemode" + (mode === "manual" ? " active" : "")} onClick={() => setMode("manual")}><Icon n="edit" size={14} />Enter manually</button>
+          </div>
+          {mode === "pdf" && (
+            <div className={"bedrop" + (busy ? " busy" : "") + (scanUrl && !busy ? " done" : "")} onClick={() => { if (!busy) fileRef.current?.click(); }}>
+              <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display: "none" }} onChange={onScan} />
+              {busy ? (
+                <><span className="bespin" /><b>Reading {scanName}…</b><small>Uploading the scan and extracting the bill with AI — this can take a few seconds.</small></>
+              ) : scanUrl ? (
+                <><Icon n="checkCircle" size={26} /><b>Scan attached{scanName ? " · " + scanName : ""}</b><small>The fields below were auto-filled — review &amp; edit them, then Add. Click here to replace the scan.</small></>
+              ) : (
+                <><Icon n="upload" size={26} /><b>Click to upload the scanned bill</b><small>PDF, JPG or PNG. It&rsquo;s read automatically, saved with the bill, and runs the same checks.</small></>
+              )}
+            </div>
+          )}
           <div className="beform">
             <div className="besec">Bill details</div>
             <div className="begrid">
