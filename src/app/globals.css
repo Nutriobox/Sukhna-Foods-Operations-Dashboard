@@ -541,3 +541,41 @@
   .bespin{width:26px;height:26px;border-radius:50%;border:3px solid #cfe8f6;border-top-color:#0284c7;animation:bespin .8s linear infinite}
   @keyframes bespin{to{transform:rotate(360deg)}}
   .scanpdf{width:100%;height:62vh;border:1px solid var(--border);border-radius:10px;background:#fff}
+
+  /* ================= Mobile / phone layout ================= */
+  @media (max-width: 720px) {
+    /* Top bar wraps; search on its own line; drop secondary chips */
+    .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
+    .topbar .spacer { display: none; }
+    .topbar .search { order: 6; flex: 1 1 100%; max-width: none; }
+    .mailpill, .sync { display: none; }
+    .brandlogo { height: 26px; }
+    .content { padding: 16px 12px 40px; }
+
+    /* Invoice inbox: turn each fixed-width row into a stacked card */
+    .thead { display: none; }
+    .row { flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px; }
+    .row > .c-date { order: 1; width: auto; flex: none; font-size: 12px; font-weight: 600; color: var(--muted); }
+    .row > .c-amt { order: 2; width: auto; flex: none; margin-left: auto; }
+    .row > .c-v { order: 3; flex: 1 1 100%; width: auto; }
+    .row > .c-inv { order: 4; width: auto; flex: none; }
+    .row > .c-inv::before { content: "Invoice "; color: var(--faint); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-right: 3px; }
+    .row > .c-items { order: 5; width: auto; flex: none; justify-content: flex-start; }
+    .row > .c-items::before { content: "Items "; color: var(--faint); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-right: 4px; }
+    .row > .c-verify { order: 6; width: auto; flex: none; justify-content: flex-end; margin-left: auto; }
+    .row > .c-act { order: 7; flex: 1 1 100%; width: auto; justify-content: flex-start; flex-wrap: wrap; gap: 8px; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--border-2); }
+    .row:hover::before { display: none; }
+
+    /* Modals fit the screen */
+    .overlay { padding: 10px; }
+    .pmodal { max-width: 100%; width: 100%; }
+    .phead { padding-right: 12px; }
+    .pfoot { flex-wrap: wrap; gap: 8px; }
+
+    /* Bill entry form: single-column fields; scroll the wide line-item grid */
+    .begrid { grid-template-columns: 1fr; }
+    .beitems { overflow-x: auto; }
+    .beih, .beir { min-width: 620px; }
+    .betotals { align-items: stretch; }
+    .besum { width: 100%; justify-content: space-between; }
+  }
