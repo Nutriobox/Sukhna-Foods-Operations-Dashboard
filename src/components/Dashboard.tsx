@@ -54,18 +54,46 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pmOpen, setPmOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
+  const [view, setView] = useState<"home" | "stock" | "sales">("home");
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
-  const [soOpen, setSoOpen] = useState(false);
   const [soActive, setSoActive] = useState<string | null>(null);
   const soInputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    try { const raw = window.localStorage.getItem("sf_sales_orders"); if (raw) setSalesOrders(JSON.parse(raw)); } catch { /* ignore */ }
-  }, []);
   const persistSO = (list: SalesOrder[]) => { try { window.localStorage.setItem("sf_sales_orders", JSON.stringify(list)); } catch { /* ignore */ } };
-  const removeSalesOrder = (id: string) => {
+  useEffect(() => {
+    try { const raw = window.localStorage.getItem("sf_sales_orders"); if (raw) { const c = JSON.parse(raw) as SalesOrder[]; setSalesOrders(c); setSoActive((a) => a ?? c[0]?.id ?? null); } } catch { /* ignore */ }
+    if (!supabase) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("sales_orders").select("id,name,created_at,sheets").order("created_at", { ascending: false });
+        if (!error && data) {
+          const list: SalesOrder[] = data.map((r: any) => ({ id: String(r.id), name: r.name, at: new Date(r.created_at).getTime(), sheets: (r.sheets as SalesOrder["sheets"]) || [] }));
+          setSalesOrders(list); persistSO(list); setSoActive((a) => a ?? list[0]?.id ?? null);
+        }
+      } catch { /* table not set up yet */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function addSalesOrder(name: string, sheets: SalesOrder["sheets"]) {
+    const tmp: SalesOrder = { id: "local-" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name, at: Date.now(), sheets };
+    setSalesOrders((prev) => { const n = [tmp, ...prev]; persistSO(n); return n; });
+    setSoActive(tmp.id);
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase.from("sales_orders").insert({ name, sheets }).select("id,created_at").single();
+      if (!error && data) {
+        const rid = String((data as any).id);
+        setSalesOrders((prev) => { const n = prev.map((o) => (o.id === tmp.id ? { ...o, id: rid, at: new Date((data as any).created_at).getTime() } : o)); persistSO(n); return n; });
+        setSoActive(rid);
+      } else {
+        ping("Saved on this device. Run the one-time sales_orders table setup to sync to Supabase.");
+      }
+    } catch { ping("Saved on this device (Supabase sales_orders table not set up yet)."); }
+  }
+  async function removeSalesOrder(id: string) {
     setSalesOrders((prev) => { const next = prev.filter((x) => x.id !== id); persistSO(next); setSoActive((a) => (a === id ? (next[0]?.id ?? null) : a)); return next; });
     ping("Sales order removed.");
-  };
+    if (supabase && /^\d+$/.test(id)) { try { await supabase.from("sales_orders").delete().eq("id", Number(id)); } catch { /* ignore */ } }
+  }
   const [stampVer, setStampVer] = useState<Record<string, StampCheck & { status: "checking" | "done" }>>({});
   const [modalTab, setModalTab] = useState<"scan" | "data">("scan");
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
@@ -97,10 +125,8 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
         name: sn,
         rows: XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "", raw: false, blankrows: false }) as (string | number | null)[][],
       }));
-      const so: SalesOrder = { id: (Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36)), name: file.name, at: Date.now(), sheets };
-      setSalesOrders((prev) => { const next = [so, ...prev]; persistSO(next); return next; });
-      setSoActive(so.id);
-      setSoOpen(true);
+      await addSalesOrder(file.name, sheets);
+      setView("sales");
       ping(`Sales order "${file.name}" saved — ${sheets[0]?.rows.length ?? 0} rows.`);
     } catch (err) {
       ping("Couldn't read that file — upload a valid Excel (.xlsx / .xls) or CSV.");
@@ -232,6 +258,15 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const pactActive = pactId != null ? bills.find((b) => b.id === pactId) || null : null;
   const printActive = printId != null ? bills.find((b) => b.id === printId) || null : null;
 
+  if (view === "home") {
+    return (
+      <div className="app">
+        <HomeScreen onOpen={setView} counts={{ bills: kpis.total, so: salesOrders.length }} />
+        <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <div className="main">
@@ -239,16 +274,20 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
         <div className="topbar">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="brandlogo" src="/logo.png" alt="Sukhna Foods" />
-          <span className="brand-div">Operations Dashboard</span>
-          <div className="search">
-            <Icon n="search" />
-            <input placeholder="Search vendor or invoice number…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
+          <button className="homebtn" onClick={() => setView("home")}><Icon n="home" size={15} />Home</button>
+          <span className="brand-div">{view === "sales" ? "Sales Order Creation" : "Stock Inward & Bill Uploader"}</span>
+          {view === "stock" && (
+            <div className="search">
+              <Icon n="search" />
+              <input placeholder="Search vendor or invoice number…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+          )}
           <div className="spacer" />
-          <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
-          <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
-          <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>
-          {salesOrders.length > 0 && <button className="pmbtn ghost" onClick={() => { setSoActive((a) => a ?? salesOrders[0]?.id ?? null); setSoOpen(true); }}><Icon n="file" size={14} />Sales Orders · {salesOrders.length}</button>}
+          {view === "stock" && <>
+            <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
+            <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
+          </>}
+          {view === "sales" && <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>}
           <input ref={soInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onSalesOrderFile} />
           <div className="spacer" />
           <div className="mailpill"><Icon n="mail" size={15} /> mis@nutriobox.com</div>
@@ -257,6 +296,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           <div className="tb-av" title={`${BUYER_NAME}`}>S</div>
         </div>
 
+        {view === "sales"
+          ? <SalesPage orders={salesOrders} activeId={soActive} onSelect={setSoActive} onRemove={removeSalesOrder} onUpload={() => soInputRef.current?.click()} supaOk={!!supabase} />
+          : (
         <div className="content">
           {/* KPIs */}
           <div className="kpis">
@@ -360,6 +402,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Modal */}
@@ -373,7 +416,6 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {printActive && <PrintLabel b={printActive} printed={printedIds.has(printActive.id)} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
 
       {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
-      {soOpen && <SalesOrderManager orders={salesOrders} activeId={soActive} onSelect={setSoActive} onRemove={removeSalesOrder} onUpload={() => soInputRef.current?.click()} onClose={() => setSoOpen(false)} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -905,7 +947,36 @@ function PrintLabel({ b, printed, onClose, onPrinted }: { b: Bill; printed?: boo
   );
 }
 
-function SalesOrderManager({ orders, activeId, onSelect, onRemove, onUpload, onClose }: { orders: SalesOrder[]; activeId: string | null; onSelect: (id: string) => void; onRemove: (id: string) => void; onUpload: () => void; onClose: () => void }) {
+function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void; counts: { bills: number; so: number } }) {
+  return (
+    <div className="home">
+      <div className="home-head">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="home-logo" src="/logo.png" alt="Sukhna Foods" />
+        <h1>Sukhna Foods Operations</h1>
+        <p>Choose what you&rsquo;d like to work on.</p>
+      </div>
+      <div className="tiles">
+        <button className="tile stock" onClick={() => onOpen("stock")}>
+          <span className="tile-ic"><Icon n="inbox" size={30} /></span>
+          <span className="tile-ttl">Stock Inward &amp; Bill Uploader</span>
+          <span className="tile-sub">Review incoming bills, verify entries, print PACT labels and push stock inward.</span>
+          <span className="tile-meta">{counts.bills} bill{counts.bills === 1 ? "" : "s"} in inbox</span>
+          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+        </button>
+        <button className="tile sales" onClick={() => onOpen("sales")}>
+          <span className="tile-ic"><Icon n="file" size={30} /></span>
+          <span className="tile-ttl">Sales Order Creation</span>
+          <span className="tile-sub">Upload a sales order, view it full-screen in a table, and save it to your database.</span>
+          <span className="tile-meta">{counts.so} sales order{counts.so === 1 ? "" : "s"} saved</span>
+          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SalesPage({ orders, activeId, onSelect, onRemove, onUpload, supaOk }: { orders: SalesOrder[]; activeId: string | null; onSelect: (id: string) => void; onRemove: (id: string) => void; onUpload: () => void; supaOk: boolean }) {
   const [si, setSi] = useState(0);
   const active = orders.find((o) => o.id === activeId) || orders[0] || null;
   const sheet = active?.sheets[si] || active?.sheets[0] || { name: "", rows: [] };
@@ -914,62 +985,53 @@ function SalesOrderManager({ orders, activeId, onSelect, onRemove, onUpload, onC
   const cols = Math.max(headers.length, ...body.map((r) => r.length), 1);
   const idx = Array.from({ length: cols }, (_, i) => i);
   const fmtDate = (t: number) => { try { return new Date(t).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
-  return (
-    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="pmodal" style={{ maxWidth: 1160 }}>
-        <div className="phead">
-          <span className="pbadge" style={{ background: "#16a34a", boxShadow: "0 6px 16px rgba(22,163,74,.35)" }}><Icon n="file" size={15} /></span>
-          <div className="pttl">
-            <h2>Sales Orders</h2>
-            <div className="sub">{orders.length} saved on this dashboard{active ? ` · viewing ${active.name}` : ""}</div>
-          </div>
-          <button className="btn btn-print" style={{ padding: "8px 13px", marginRight: 8 }} onClick={onUpload}><Icon n="upload" size={14} />Upload new</button>
-          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+  if (orders.length === 0) {
+    return (
+      <div className="content salespage">
+        <div className="sonone big">
+          <Icon n="file" size={44} />
+          <span>No sales orders yet</span>
+          <small>Upload a sales order Excel or CSV. It will be shown here full-screen in a table and saved to your database{supaOk ? "" : " (running on local storage until Supabase is connected)"}.</small>
+          <button className="btn btn-print" style={{ padding: "11px 18px", marginTop: 4 }} onClick={onUpload}><Icon n="upload" size={15} />Upload Sales Order</button>
         </div>
-        {orders.length === 0 ? (
-          <div className="pbody"><div className="sonone"><Icon n="file" size={30} /><span>No sales orders saved yet</span><small>Click &ldquo;Upload new&rdquo; to add a sales order Excel. Saved orders stay on this dashboard until you remove them.</small></div></div>
-        ) : (
-          <>
-            <div className="sochips">
-              {orders.map((o) => (
-                <span key={o.id} className={"sochip" + (active && o.id === active.id ? " active" : "")}>
-                  <button className="sochip-name" onClick={() => { onSelect(o.id); setSi(0); }} title={`${o.name} · ${fmtDate(o.at)}`}><Icon n="file" size={12} />{o.name}</button>
-                  <button className="sochip-x" title="Remove this sales order" onClick={() => onRemove(o.id)}><Icon n="x" size={12} /></button>
-                </span>
-              ))}
-            </div>
-            {active && active.sheets.length > 1 && (
+      </div>
+    );
+  }
+  return (
+    <div className="content salespage">
+      <div className="sopanel">
+        <div className="sochips">
+          {orders.map((o) => (
+            <span key={o.id} className={"sochip" + (active && o.id === active.id ? " active" : "")}>
+              <button className="sochip-name" onClick={() => { onSelect(o.id); setSi(0); }} title={`${o.name} · ${fmtDate(o.at)}`}><Icon n="file" size={12} />{o.name}</button>
+              <button className="sochip-x" title="Remove this sales order" onClick={() => onRemove(o.id)}><Icon n="x" size={12} /></button>
+            </span>
+          ))}
+        </div>
+        {active && (
+          <div className="so-bar">
+            <span className="pstatus ok"><Icon n="file" size={15} />{active.name} · {body.length} row{body.length === 1 ? "" : "s"} · {headers.length} column{headers.length === 1 ? "" : "s"}{supaOk ? " · saved to database" : " · saved on this device"}</span>
+            <div className="spacer" />
+            {active.sheets.length > 1 && (
               <div className="sotabs">
                 {active.sheets.map((sh, i) => (
                   <button key={i} className={"tab" + (i === si ? " active" : "")} onClick={() => setSi(i)}>{sh.name || `Sheet ${i + 1}`}</button>
                 ))}
               </div>
             )}
-            <div className="pbody">
-              <div className="sowrap">
-                <table className="lbltbl sotbl">
-                  <thead><tr><th className="sonum">#</th>{idx.map((c) => <th key={c}>{String(headers[c] ?? "")}</th>)}</tr></thead>
-                  <tbody>
-                    {body.map((r, ri) => (
-                      <tr key={ri}><td className="sonum">{ri + 1}</td>{idx.map((c) => <td key={c}>{String(r[c] ?? "")}</td>)}</tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!body.length && <div className="pmmore">No data rows found in this sheet.</div>}
-            </div>
-          </>
+            <button className="btn btn-void" style={{ padding: "9px 14px" }} onClick={() => onRemove(active.id)}><Icon n="ban" size={14} />Remove this order</button>
+          </div>
         )}
-        <div className="pfoot">
-          <span className="pstatus ok"><Icon n="file" size={16} />{active ? `${body.length} row${body.length === 1 ? "" : "s"} · ${headers.length} column${headers.length === 1 ? "" : "s"}` : "No order selected"}</span>
-          {active && <button className="btn btn-void" style={{ padding: "10px 15px" }} onClick={() => onRemove(active.id)}><Icon n="ban" size={14} />Remove this order</button>}
-          <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled title="PACT posting will be wired next">
-            <Icon n="upload" size={14} />Post to PACT
-          </button>
-          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} disabled title="Available after posting to PACT">
-            <Icon n="download" size={14} />Check import status
-          </button>
-          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
+        <div className="sowrap full">
+          <table className="lbltbl sotbl">
+            <thead><tr><th className="sonum">#</th>{idx.map((c) => <th key={c}>{String(headers[c] ?? "")}</th>)}</tr></thead>
+            <tbody>
+              {body.map((r, ri) => (
+                <tr key={ri}><td className="sonum">{ri + 1}</td>{idx.map((c) => <td key={c}>{String(r[c] ?? "")}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+          {!body.length && <div className="pmmore">No data rows found in this sheet.</div>}
         </div>
       </div>
     </div>

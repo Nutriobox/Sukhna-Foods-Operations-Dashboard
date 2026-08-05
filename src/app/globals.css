@@ -442,3 +442,43 @@
   .pmtable td.lv{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
   .pmtable tr:hover td{background:var(--surface-2)}
   .pmmore{padding:12px 14px;text-align:center;color:var(--faint);font-size:12px}
+
+  /* ===== Home screen (two tiles) ===== */
+  .home{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;background:radial-gradient(1200px 600px at 50% -10%,var(--brand-soft),transparent 60%),var(--bg)}
+  .home-head{text-align:center;margin-bottom:38px}
+  .home-logo{height:56px;width:auto;object-fit:contain;margin-bottom:16px}
+  .home-head h1{font-size:30px;font-weight:800;color:var(--ink);letter-spacing:-.01em;margin:0}
+  .home-head p{font-size:15px;color:var(--muted);margin:8px 0 0}
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;width:100%;max-width:840px}
+  @media (max-width:720px){.tiles{grid-template-columns:1fr}}
+  .tile{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px 26px;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(15,23,42,.06);transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
+  .tile:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(15,23,42,.12);border-color:#c7ecdd}
+  .tile-ic{display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:15px;margin-bottom:6px}
+  .tile.stock .tile-ic{background:#e0f2fe}
+  .tile.stock .tile-ic svg{stroke:#0284c7}
+  .tile.sales .tile-ic{background:var(--brand-soft)}
+  .tile.sales .tile-ic svg{stroke:#059669}
+  .tile-ttl{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+  .tile-sub{font-size:13px;color:var(--muted);line-height:1.55;min-height:42px}
+  .tile-meta{font-size:12px;font-weight:700;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 12px}
+  .tile-go{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:13px;font-weight:800;color:#059669}
+  .tile-go svg{stroke:#059669;transition:transform .14s ease}
+  .tile:hover .tile-go svg{transform:translateX(3px)}
+
+  /* ===== Home button in topbar ===== */
+  .homebtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink-2)}
+  .homebtn:hover{background:var(--surface-2);border-color:#c7ecdd;color:var(--brand-ink)}
+  .homebtn svg{stroke:var(--muted)}
+  .homebtn:hover svg{stroke:var(--brand-ink)}
+
+  /* ===== Sales page (full-screen) ===== */
+  .salespage{display:flex;flex-direction:column}
+  .sopanel{display:flex;flex-direction:column;gap:12px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:0 4px 16px rgba(15,23,42,.04)}
+  .so-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:2px 2px 0}
+  .so-bar .sotabs{padding:0}
+  .sopanel .sochips{padding:0;max-height:none}
+  .sowrap.full{max-height:calc(100vh - 260px);min-height:340px}
+  .sonone.big{padding:96px 24px}
+  .sonone.big svg{opacity:.5}
+  .sonone.big span{font-size:19px}
+  .sonone.big small{font-size:13px;max-width:440px}
