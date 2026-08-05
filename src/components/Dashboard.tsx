@@ -52,6 +52,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [modalId, setModalId] = useState<number | null>(null);
   const [pactId, setPactId] = useState<number | null>(null);
   const [pmOpen, setPmOpen] = useState(false);
+  const [billOpen, setBillOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
   const [view, setView] = useState<"home" | "stock" | "sales">("home");
@@ -133,6 +134,17 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
     } finally {
       e.target.value = "";
     }
+  }
+
+  // Manually add a bill to the dashboard (same shape as the seed bills), so it
+  // lands in the Invoice Inbox and flows through verify -> Upload to PACT -> Print.
+  async function addBill(nb: Bill) {
+    setBills((prev) => [nb, ...prev]);
+    setBillOpen(false);
+    ping(`Bill added — ${nb.vendor} · ${nb.invoice}.`);
+    if (!supabase) return;
+    try { await supabase.from("bills").upsert(billToRow(nb)); }
+    catch { ping("Added on this device (couldn't reach Supabase)."); }
   }
 
   async function persist(b: Bill) {
@@ -286,6 +298,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           {view === "stock" && <>
             <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
             <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
+            <button className="pmbtn add" onClick={() => setBillOpen(true)}><Icon n="plus" size={14} />Bill Upload</button>
           </>}
           {view === "sales" && <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>}
           <input ref={soInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onSalesOrderFile} />
@@ -416,6 +429,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {printActive && <PrintLabel b={printActive} printed={printedIds.has(printActive.id)} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
 
       {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
+
+      {/* Manual bill entry */}
+      {billOpen && <BillEntry nextId={(bills.reduce((m, b) => Math.max(m, b.id), 0) || 0) + 1} onClose={() => setBillOpen(false)} onSave={addBill} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -1032,6 +1048,163 @@ function SalesPage({ orders, activeId, onSelect, onRemove, onUpload, supaOk }: {
             </tbody>
           </table>
           {!body.length && <div className="pmmore">No data rows found in this sheet.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type DraftItem = { name: string; hsn: string; qty: string; uom: string; price: string; rate: string };
+type DraftCharge = { label: string; amount: string };
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () => void; onSave: (b: Bill) => void }) {
+  const [vendor, setVendor] = useState("");
+  const [vendorGst, setVendorGst] = useState("");
+  const [invoice, setInvoice] = useState("");
+  const [dateStr, setDateStr] = useState("");
+  const [buyer, setBuyer] = useState(BUYER_NAME);
+  const [buyerGst, setBuyerGst] = useState(BUYER_GST);
+  const [roundOff, setRoundOff] = useState("0");
+  const [note, setNote] = useState("");
+  const [items, setItems] = useState<DraftItem[]>([{ name: "", hsn: "", qty: "1", uom: "Nos", price: "", rate: "5" }]);
+  const [charges, setCharges] = useState<DraftCharge[]>([]);
+  const [err, setErr] = useState("");
+
+  const num = (v: string) => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+  const line = (it: DraftItem) => { const net = num(it.qty) * num(it.price); const gst = net * num(it.rate) / 100; return { net, gst, gross: net + gst }; };
+  const taxable = items.reduce((s, it) => s + line(it).net, 0);
+  const gstTotal = items.reduce((s, it) => s + line(it).gst, 0);
+  const chargeTotal = charges.reduce((s, c) => s + num(c.amount), 0);
+  const grandTotal = taxable + gstTotal + num(roundOff) + chargeTotal;
+
+  const setItem = (i: number, patch: Partial<DraftItem>) => setItems((prev) => prev.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+  const addItem = () => setItems((prev) => [...prev, { name: "", hsn: "", qty: "1", uom: "Nos", price: "", rate: "5" }]);
+  const delItem = (i: number) => setItems((prev) => (prev.length > 1 ? prev.filter((_, j) => j !== i) : prev));
+  const setCharge = (i: number, patch: Partial<DraftCharge>) => setCharges((prev) => prev.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+
+  function build(): Bill {
+    const d = dateStr ? new Date(dateStr + "T00:00:00") : null;
+    const dd = d ? String(d.getDate()).padStart(2, "0") : "";
+    const mon = d ? MONTHS[d.getMonth()] : "";
+    const yr = d ? d.getFullYear() : "";
+    return {
+      id: nextId,
+      vendor: vendor.trim(),
+      vendorGst: vendorGst.trim(),
+      invoice: invoice.trim(),
+      date: d ? `${Number(dd)} ${mon}` : "",
+      dateFull: d ? `${dd}-${mon}-${yr}` : "",
+      buyer: buyer.trim(),
+      buyerGst: buyerGst.trim(),
+      taxable: Math.round(taxable * 100) / 100,
+      gstTotal: Math.round(gstTotal * 100) / 100,
+      roundOff: num(roundOff),
+      grandTotal: Math.round(grandTotal * 100) / 100,
+      otherCharges: charges.filter((c) => c.label.trim() || num(c.amount)).map((c) => ({ label: c.label.trim(), amount: num(c.amount) })),
+      note: note.trim() || undefined,
+      items: items.map((it) => { const l = line(it); return { name: it.name.trim(), hsn: it.hsn.trim(), qty: num(it.qty), uom: it.uom.trim() || "Nos", price: it.price === "" ? null : num(it.price), net: Math.round(l.net * 100) / 100, taxRate: `${num(it.rate)}%`, gst: Math.round(l.gst * 100) / 100, gross: Math.round(l.gross * 100) / 100, uploaded: false }; }),
+      voided: false,
+    };
+  }
+
+  const preview = build();
+  const check = validate(preview);
+
+  function submit() {
+    if (!vendor.trim()) { setErr("Enter the vendor name."); return; }
+    if (!invoice.trim()) { setErr("Enter the invoice number."); return; }
+    if (!dateStr) { setErr("Pick the invoice date."); return; }
+    if (!items.some((it) => it.name.trim())) { setErr("Add at least one line item with a product name."); return; }
+    setErr("");
+    onSave(build());
+  }
+
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal" style={{ maxWidth: 1080 }}>
+        <div className="phead">
+          <span className="pbadge" style={{ background: "#0284c7", boxShadow: "0 6px 16px rgba(2,132,199,.35)" }}><Icon n="upload" size={15} /></span>
+          <div className="pttl">
+            <h2>Add a bill</h2>
+            <div className="sub">Enter a bill manually — it joins the Invoice Inbox and runs the same 3 checks &amp; Upload-to-PACT flow.</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        <div className="pbody">
+          <div className="beform">
+            <div className="besec">Bill details</div>
+            <div className="begrid">
+              <label className="befield"><span>Vendor name</span><input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. Wonder Packagings" /></label>
+              <label className="befield"><span>Vendor GSTIN</span><input value={vendorGst} onChange={(e) => setVendorGst(e.target.value)} placeholder="e.g. 09AABC...1ZL" /></label>
+              <label className="befield"><span>Invoice number</span><input value={invoice} onChange={(e) => setInvoice(e.target.value)} placeholder="e.g. GST-454/2026-27" /></label>
+              <label className="befield"><span>Invoice date</span><input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} /></label>
+              <label className="befield"><span>Billed to (buyer)</span><input value={buyer} onChange={(e) => setBuyer(e.target.value)} /></label>
+              <label className="befield"><span>Buyer GSTIN</span><input value={buyerGst} onChange={(e) => setBuyerGst(e.target.value)} /></label>
+            </div>
+
+            <div className="besec">Line items</div>
+            <div className="beitems">
+              <div className="beih">
+                <span>Product name</span><span>HSN</span><span>Qty</span><span>Unit</span><span>Price</span><span>GST %</span><span>Net</span><span></span>
+              </div>
+              {items.map((it, i) => {
+                const l = line(it);
+                return (
+                  <div className="beir" key={i}>
+                    <input value={it.name} onChange={(e) => setItem(i, { name: e.target.value })} placeholder="Product name" list="be-products" />
+                    <input value={it.hsn} onChange={(e) => setItem(i, { hsn: e.target.value })} placeholder="HSN" />
+                    <input value={it.qty} onChange={(e) => setItem(i, { qty: e.target.value })} inputMode="decimal" />
+                    <input value={it.uom} onChange={(e) => setItem(i, { uom: e.target.value })} list="be-units" />
+                    <input value={it.price} onChange={(e) => setItem(i, { price: e.target.value })} inputMode="decimal" placeholder="0.00" />
+                    <input value={it.rate} onChange={(e) => setItem(i, { rate: e.target.value })} inputMode="decimal" />
+                    <span className="benet">{inr(l.net)}</span>
+                    <button className="bex" title="Remove line" onClick={() => delItem(i)} disabled={items.length === 1}><Icon n="x" size={13} /></button>
+                  </div>
+                );
+              })}
+              <datalist id="be-units">{ALL_UNITS.map((u) => <option key={u} value={u} />)}</datalist>
+              <datalist id="be-products">{CATALOG.slice(0, 400).map((p) => <option key={p.name} value={p.name} />)}</datalist>
+              <button className="beadd" onClick={addItem}><Icon n="plus" size={13} />Add line item</button>
+            </div>
+
+            {charges.length > 0 && (
+              <>
+                <div className="besec">Other charges</div>
+                <div className="beitems">
+                  {charges.map((c, i) => (
+                    <div className="becr" key={i}>
+                      <input value={c.label} onChange={(e) => setCharge(i, { label: e.target.value })} placeholder="e.g. Freight" />
+                      <input value={c.amount} onChange={(e) => setCharge(i, { amount: e.target.value })} inputMode="decimal" placeholder="0.00" />
+                      <button className="bex" title="Remove charge" onClick={() => setCharges((prev) => prev.filter((_, j) => j !== i))}><Icon n="x" size={13} /></button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="betotals">
+              <button className="beadd ghost" onClick={() => setCharges((prev) => [...prev, { label: "", amount: "" }])}><Icon n="plus" size={13} />Add other charge</button>
+              <div className="spacer" />
+              <label className="befield sm"><span>Round off</span><input value={roundOff} onChange={(e) => setRoundOff(e.target.value)} inputMode="decimal" /></label>
+              <div className="besum">
+                <div><span>Taxable</span><b>{inr(taxable)}</b></div>
+                <div><span>GST</span><b>{inr(gstTotal)}</b></div>
+                <div className="gt"><span>Grand total</span><b>{inr(grandTotal)}</b></div>
+              </div>
+            </div>
+
+            <label className="befield full"><span>Note (optional)</span><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything to flag for review" /></label>
+          </div>
+        </div>
+        <div className="pfoot">
+          <span className={"pstatus " + (check.status === "OK" ? "ok" : "err")}>
+            <Icon n={check.status === "OK" ? "checkCircle" : "alert"} size={16} />
+            {check.status === "OK" ? "Passes all 3 checks — will show as Verified" : "Will show as Needs review — " + (check.checks.find((c) => c.status === "fail")?.label || "check the totals")}
+          </span>
+          {err && <span className="pstatus err" style={{ marginLeft: 8 }}><Icon n="alert" size={16} />{err}</span>}
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={submit}><Icon n="plus" size={14} />Add bill to dashboard</button>
         </div>
       </div>
     </div>

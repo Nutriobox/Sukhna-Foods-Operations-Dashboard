@@ -482,3 +482,44 @@
   .sonone.big svg{opacity:.5}
   .sonone.big span{font-size:19px}
   .sonone.big small{font-size:13px;max-width:440px}
+
+  /* ===== Bill Upload button ===== */
+  .pmbtn.add{background:#0284c7;border-color:#0284c7;color:#fff}
+  .pmbtn.add svg{stroke:#fff}
+  .pmbtn.add:hover{background:#0369a1}
+
+  /* ===== Manual bill entry form ===== */
+  .beform{display:flex;flex-direction:column;gap:14px}
+  .besec{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-bottom:4px;border-bottom:1px solid var(--border)}
+  .begrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  @media (max-width:720px){.begrid{grid-template-columns:1fr}}
+  .befield{display:flex;flex-direction:column;gap:5px}
+  .befield>span{font-size:11.5px;font-weight:700;color:var(--ink-2)}
+  .befield input{border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;outline:none}
+  .befield input:focus{border-color:#0284c7;box-shadow:0 0 0 3px rgba(2,132,199,.12)}
+  .befield.full{width:100%}
+  .befield.sm{width:120px}
+  .befield.sm input{text-align:right}
+  .beitems{display:flex;flex-direction:column;gap:6px}
+  .beih,.beir{display:grid;grid-template-columns:minmax(0,2.4fr) .9fr .7fr .8fr .9fr .7fr .9fr 34px;gap:8px;align-items:center}
+  .beih{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:0 2px}
+  .beih span:nth-child(3),.beih span:nth-child(5),.beih span:nth-child(6),.beih span:nth-child(7){text-align:right}
+  .beir input{border:1px solid var(--border);border-radius:8px;padding:8px 9px;font-size:12.5px;font-family:inherit;color:var(--ink);background:#fff;outline:none;width:100%}
+  .beir input:focus{border-color:#0284c7;box-shadow:0 0 0 3px rgba(2,132,199,.12)}
+  .beir input:nth-child(3),.beir input:nth-child(5),.beir input:nth-child(6){text-align:right}
+  .benet{text-align:right;font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;padding-right:2px}
+  .becr{display:grid;grid-template-columns:minmax(0,1fr) 160px 34px;gap:8px;align-items:center}
+  .becr input{border:1px solid var(--border);border-radius:8px;padding:8px 9px;font-size:12.5px;font-family:inherit;background:#fff;outline:none;width:100%}
+  .becr input:nth-child(2){text-align:right}
+  .bex{border:1px solid var(--border);background:#fff;border-radius:8px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted)}
+  .bex:hover:not(:disabled){background:#fee2e2;border-color:#fca5a5;color:#dc2626}
+  .bex:disabled{opacity:.35;cursor:not-allowed}
+  .beadd{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--border);background:var(--surface-2);border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:700;color:var(--brand-ink);cursor:pointer;font-family:inherit;margin-top:2px}
+  .beadd:hover{border-color:#0284c7;color:#0369a1}
+  .beadd.ghost{color:var(--ink-2)}
+  .betotals{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border)}
+  .besum{display:flex;gap:20px;align-items:flex-end}
+  .besum>div{display:flex;flex-direction:column;gap:2px;text-align:right}
+  .besum>div span{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+  .besum>div b{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .besum .gt b{font-size:18px;color:#0369a1}
