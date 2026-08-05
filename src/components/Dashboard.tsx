@@ -9,6 +9,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
 import { Icon } from "./icons";
 
+type SalesOrder = { id: string; name: string; at: number; sheets: { name: string; rows: (string | number | null)[][] }[] };
+
 const MC = ["#0ea5a3", "#6366f1", "#0284c7", "#d97706", "#e11d48", "#7c3aed", "#059669", "#db2777", "#0891b2", "#4f46e5"];
 const initials = (n: string) =>
   (n.replace(/\b(pvt|ltd|private|limited|&|\.|-|enterprises|packaging|packagings|india|p)\b/gi, "").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || n.slice(0, 2).toUpperCase());
@@ -52,8 +54,18 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pmOpen, setPmOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
-  const [soFile, setSoFile] = useState<{ name: string; sheets: { name: string; rows: (string | number | null)[][] }[] } | null>(null);
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
+  const [soOpen, setSoOpen] = useState(false);
+  const [soActive, setSoActive] = useState<string | null>(null);
   const soInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    try { const raw = window.localStorage.getItem("sf_sales_orders"); if (raw) setSalesOrders(JSON.parse(raw)); } catch { /* ignore */ }
+  }, []);
+  const persistSO = (list: SalesOrder[]) => { try { window.localStorage.setItem("sf_sales_orders", JSON.stringify(list)); } catch { /* ignore */ } };
+  const removeSalesOrder = (id: string) => {
+    setSalesOrders((prev) => { const next = prev.filter((x) => x.id !== id); persistSO(next); setSoActive((a) => (a === id ? (next[0]?.id ?? null) : a)); return next; });
+    ping("Sales order removed.");
+  };
   const [stampVer, setStampVer] = useState<Record<string, StampCheck & { status: "checking" | "done" }>>({});
   const [modalTab, setModalTab] = useState<"scan" | "data">("scan");
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
@@ -85,8 +97,11 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
         name: sn,
         rows: XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "", raw: false, blankrows: false }) as (string | number | null)[][],
       }));
-      setSoFile({ name: file.name, sheets });
-      ping(`Sales order "${file.name}" loaded — ${sheets[0]?.rows.length ?? 0} rows.`);
+      const so: SalesOrder = { id: (Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36)), name: file.name, at: Date.now(), sheets };
+      setSalesOrders((prev) => { const next = [so, ...prev]; persistSO(next); return next; });
+      setSoActive(so.id);
+      setSoOpen(true);
+      ping(`Sales order "${file.name}" saved — ${sheets[0]?.rows.length ?? 0} rows.`);
     } catch (err) {
       ping("Couldn't read that file — upload a valid Excel (.xlsx / .xls) or CSV.");
     } finally {
@@ -233,6 +248,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
           <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
           <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>
+          {salesOrders.length > 0 && <button className="pmbtn ghost" onClick={() => { setSoActive((a) => a ?? salesOrders[0]?.id ?? null); setSoOpen(true); }}><Icon n="file" size={14} />Sales Orders · {salesOrders.length}</button>}
           <input ref={soInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onSalesOrderFile} />
           <div className="spacer" />
           <div className="mailpill"><Icon n="mail" size={15} /> mis@nutriobox.com</div>
@@ -357,7 +373,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {printActive && <PrintLabel b={printActive} printed={printedIds.has(printActive.id)} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
 
       {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
-      {soFile && <SalesOrderView data={soFile} onClose={() => setSoFile(null)} />}
+      {soOpen && <SalesOrderManager orders={salesOrders} activeId={soActive} onSelect={setSoActive} onRemove={removeSalesOrder} onUpload={() => soInputRef.current?.click()} onClose={() => setSoOpen(false)} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -889,46 +905,64 @@ function PrintLabel({ b, printed, onClose, onPrinted }: { b: Bill; printed?: boo
   );
 }
 
-function SalesOrderView({ data, onClose }: { data: { name: string; sheets: { name: string; rows: (string | number | null)[][] }[] }; onClose: () => void }) {
+function SalesOrderManager({ orders, activeId, onSelect, onRemove, onUpload, onClose }: { orders: SalesOrder[]; activeId: string | null; onSelect: (id: string) => void; onRemove: (id: string) => void; onUpload: () => void; onClose: () => void }) {
   const [si, setSi] = useState(0);
-  const sheet = data.sheets[si] || { name: "", rows: [] };
+  const active = orders.find((o) => o.id === activeId) || orders[0] || null;
+  const sheet = active?.sheets[si] || active?.sheets[0] || { name: "", rows: [] };
   const headers = sheet.rows[0] || [];
   const body = sheet.rows.slice(1);
   const cols = Math.max(headers.length, ...body.map((r) => r.length), 1);
   const idx = Array.from({ length: cols }, (_, i) => i);
+  const fmtDate = (t: number) => { try { return new Date(t).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="pmodal" style={{ maxWidth: 1120 }}>
+      <div className="pmodal" style={{ maxWidth: 1160 }}>
         <div className="phead">
           <span className="pbadge" style={{ background: "#16a34a", boxShadow: "0 6px 16px rgba(22,163,74,.35)" }}><Icon n="file" size={15} /></span>
           <div className="pttl">
-            <h2>Sales Order · {data.name}</h2>
-            <div className="sub">{sheet.name || "Sheet1"} · {headers.length} column{headers.length === 1 ? "" : "s"} · {body.length} row{body.length === 1 ? "" : "s"}</div>
+            <h2>Sales Orders</h2>
+            <div className="sub">{orders.length} saved on this dashboard{active ? ` · viewing ${active.name}` : ""}</div>
           </div>
+          <button className="btn btn-print" style={{ padding: "8px 13px", marginRight: 8 }} onClick={onUpload}><Icon n="upload" size={14} />Upload new</button>
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
         </div>
-        {data.sheets.length > 1 && (
-          <div className="sotabs">
-            {data.sheets.map((sh, i) => (
-              <button key={i} className={"tab" + (i === si ? " active" : "")} onClick={() => setSi(i)}>{sh.name || `Sheet ${i + 1}`}</button>
-            ))}
-          </div>
-        )}
-        <div className="pbody">
-          <div className="sowrap">
-            <table className="lbltbl sotbl">
-              <thead><tr><th className="sonum">#</th>{idx.map((c) => <th key={c}>{String(headers[c] ?? "")}</th>)}</tr></thead>
-              <tbody>
-                {body.map((r, ri) => (
-                  <tr key={ri}><td className="sonum">{ri + 1}</td>{idx.map((c) => <td key={c}>{String(r[c] ?? "")}</td>)}</tr>
+        {orders.length === 0 ? (
+          <div className="pbody"><div className="sonone"><Icon n="file" size={30} /><span>No sales orders saved yet</span><small>Click &ldquo;Upload new&rdquo; to add a sales order Excel. Saved orders stay on this dashboard until you remove them.</small></div></div>
+        ) : (
+          <>
+            <div className="sochips">
+              {orders.map((o) => (
+                <span key={o.id} className={"sochip" + (active && o.id === active.id ? " active" : "")}>
+                  <button className="sochip-name" onClick={() => { onSelect(o.id); setSi(0); }} title={`${o.name} · ${fmtDate(o.at)}`}><Icon n="file" size={12} />{o.name}</button>
+                  <button className="sochip-x" title="Remove this sales order" onClick={() => onRemove(o.id)}><Icon n="x" size={12} /></button>
+                </span>
+              ))}
+            </div>
+            {active && active.sheets.length > 1 && (
+              <div className="sotabs">
+                {active.sheets.map((sh, i) => (
+                  <button key={i} className={"tab" + (i === si ? " active" : "")} onClick={() => setSi(i)}>{sh.name || `Sheet ${i + 1}`}</button>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          {!body.length && <div className="pmmore">No data rows found in this sheet.</div>}
-        </div>
+              </div>
+            )}
+            <div className="pbody">
+              <div className="sowrap">
+                <table className="lbltbl sotbl">
+                  <thead><tr><th className="sonum">#</th>{idx.map((c) => <th key={c}>{String(headers[c] ?? "")}</th>)}</tr></thead>
+                  <tbody>
+                    {body.map((r, ri) => (
+                      <tr key={ri}><td className="sonum">{ri + 1}</td>{idx.map((c) => <td key={c}>{String(r[c] ?? "")}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!body.length && <div className="pmmore">No data rows found in this sheet.</div>}
+            </div>
+          </>
+        )}
         <div className="pfoot">
-          <span className="pstatus ok"><Icon n="file" size={16} />Read {body.length} row{body.length === 1 ? "" : "s"} across {headers.length} column{headers.length === 1 ? "" : "s"}</span>
+          <span className="pstatus ok"><Icon n="file" size={16} />{active ? `${body.length} row${body.length === 1 ? "" : "s"} · ${headers.length} column${headers.length === 1 ? "" : "s"}` : "No order selected"}</span>
+          {active && <button className="btn btn-void" style={{ padding: "10px 15px" }} onClick={() => onRemove(active.id)}><Icon n="ban" size={14} />Remove this order</button>}
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled title="PACT posting will be wired next">
             <Icon n="upload" size={14} />Post to PACT
           </button>

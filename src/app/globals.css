@@ -405,6 +405,20 @@
   .sotbl th,.sotbl td{white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
   .sotbl thead th{position:sticky;top:0;background:var(--surface-2);z-index:1}
   .sotbl .sonum{background:var(--surface-2);color:var(--muted);font-weight:700;text-align:right;position:sticky;left:0}
+  .sochips{display:flex;gap:8px;padding:12px 20px 4px;flex-wrap:wrap;max-height:96px;overflow:auto}
+  .sochip{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:9px;background:#fff;overflow:hidden}
+  .sochip.active{border-color:#16a34a;background:#f0fdf4}
+  .sochip-name{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink-2);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sochip.active .sochip-name{color:#15803d}
+  .sochip-name svg{stroke:var(--muted);flex:none}
+  .sochip.active .sochip-name svg{stroke:#16a34a}
+  .sochip-x{border:none;background:transparent;padding:7px 9px;cursor:pointer;border-left:1px solid var(--border);color:var(--muted)}
+  .sochip-x:hover{background:#fee2e2;color:#dc2626}
+  .sochip-x svg{stroke:currentColor}
+  .sonone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:56px 24px;color:var(--muted)}
+  .sonone svg{stroke:var(--muted);opacity:.55}
+  .sonone span{font-size:15px;font-weight:700;color:var(--ink)}
+  .sonone small{font-size:12px;max-width:380px;line-height:1.5}
   @media(max-width:1100px){.pmbtn span,.pmbtn{font-size:0}.pmbtn svg{width:16px;height:16px}}
 
   /* PACT editable selects */
