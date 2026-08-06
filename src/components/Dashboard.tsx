@@ -1195,7 +1195,6 @@ function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () =>
         <div className="pbody">
           <div className="bemodes">
             <button className={"bemode" + (mode === "pdf" ? " active" : "")} onClick={() => setMode("pdf")}><Icon n="upload" size={14} />Upload scan (PDF / image)</button>
-            <button className={"bemode" + (mode === "manual" ? " active" : "")} onClick={() => setMode("manual")}><Icon n="edit" size={14} />Enter manually</button>
           </div>
           {mode === "pdf" && (
             <div className={"bedrop" + (busy ? " busy" : "") + (scanUrl && !busy ? " done" : "")} onClick={() => { if (!busy) fileRef.current?.click(); }}>
