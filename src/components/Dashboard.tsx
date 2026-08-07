@@ -1016,6 +1016,16 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void
 
 type PriceRow = { code: string; name: string; customer: string; unit: string; rate: number | null; wef: string };
 const PRICES = PRICE_CHART as PriceRow[];
+const CAT_LEVELS = (() => { const m = new Map<string, (typeof CATALOG)[number]["levels"]>(); for (const c of CATALOG) { if (c.levels && Object.keys(c.levels).length) m.set(c.name.trim().toLowerCase(), c.levels); } return m; })();
+function productLevels(name: string) { return CAT_LEVELS.get((name || "").trim().toLowerCase()) || null; }
+function unitConversion(name: string, unit: string): number | null {
+  const lv = productLevels(name); if (!lv) return null;
+  const u = (unit || "").trim().toLowerCase();
+  for (const k of ["L1", "L2", "L3"] as const) { const e = lv[k]; if (e && String(e.u).trim().toLowerCase() === u) return Number(e.s); }
+  return null;
+}
+const PRICE_NAME_SET = new Set(PRICES.map((p) => p.name.trim().toLowerCase()).filter(Boolean));
+const inPriceChart = (name: string) => PRICE_NAME_SET.has((name || "").trim().toLowerCase());
 const wefNum = (w: string) => { const m = (w || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (!m) return 0; const d = +m[1], mo = +m[2]; const yy = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return yy * 10000 + mo * 100 + d; };
 function lookupRate(name: string, unit: string, customer?: string): PriceRow | null {
   const n = (name || "").trim().toLowerCase(); const u = (unit || "").trim().toLowerCase();
@@ -1051,7 +1061,7 @@ function PriceChartModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="pmbody">
           <table className="pmtable">
-            <thead><tr><th>#</th><th>Code</th><th>Product Name</th><th>Customer</th><th>Unit</th><th>Rate</th><th>W.E.F.</th></tr></thead>
+            <thead><tr><th>#</th><th>Code</th><th>Product Name</th><th>Customer Name</th><th>Unit</th><th>Rate</th><th>L1</th><th>L2</th><th>L3</th><th>W.E.F.</th></tr></thead>
             <tbody>
               {rows.map((p, i) => (
                 <tr key={p.code + p.unit + p.customer + i}>
@@ -1061,6 +1071,7 @@ function PriceChartModal({ onClose }: { onClose: () => void }) {
                   <td>{p.customer || "—"}</td>
                   <td>{p.unit || "—"}</td>
                   <td className="lv" style={{ textAlign: "right", fontWeight: 700 }}>{p.rate != null ? inr(p.rate) : "—"}</td>
+                  {(() => { const lv = productLevels(p.name); const cell = (k: "L1" | "L2" | "L3") => lv && lv[k] ? `${lv[k]!.u} ×${lv[k]!.s}` : "—"; return (<><td className="lv">{cell("L1")}</td><td className="lv">{cell("L2")}</td><td className="lv">{cell("L3")}</td></>); })()}
                   <td>{p.wef || "—"}</td>
                 </tr>
               ))}
@@ -1132,7 +1143,7 @@ function SalesOrderCreate({ nextDocNo, onClose, onSave }: { nextDocNo: string; o
   const onCustomer = (v: string) => { setCustomer(v); setLines([soBlankLine()]); };
   const onProduct = (i: number, product: string) => {
     const info = soPriceInfo(customer, product);
-    const ps = soPackSize(product);
+    const ps = unitConversion(product, info.salesUnit) ?? soPackSize(product);
     setLines((prev) => prev.map((l, j) => {
       if (j !== i) return l;
       const sq = parseFloat(l.salesQty);
@@ -1145,7 +1156,7 @@ function SalesOrderCreate({ nextDocNo, onClose, onSave }: { nextDocNo: string; o
   const onSalesQty = (i: number, v: string) => {
     setLines((prev) => prev.map((l, j) => {
       if (j !== i) return l;
-      const sq = parseFloat(v); const ps = soPackSize(l.product); const pr = parseFloat(l.unitPrice);
+      const sq = parseFloat(v); const ps = unitConversion(l.product, l.salesUnits) ?? soPackSize(l.product); const pr = parseFloat(l.unitPrice);
       const nl: SoLine = { ...l, salesQty: v };
       if (ps != null && isFinite(sq)) nl.qty = String(Math.round(sq * ps * 100) / 100);
       if (isFinite(pr) && isFinite(sq)) nl.value = String(Math.round(sq * pr * 100) / 100);
@@ -1337,6 +1348,8 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
             const dgArr = ordersByDoc(a);
             const dgOk = dgArr.filter((d) => d.statuses.length && !d.statuses.some((x) => !/pass|success|imported|ok/i.test(x))).length;
             const dgAny = dgArr.some((d) => d.statuses.length);
+            const prodNames = Array.from(new Set(a.body.map((r) => a.vAt(r, a.cProduct)).filter(Boolean)));
+            const unmatched = prodNames.filter((pn) => !inPriceChart(pn)).length;
             return (
               <div key={o.id} className="soblock">
                 <div className="row" style={{ cursor: "default" }}>
@@ -1346,6 +1359,7 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
                   <span className="vmeta">
                     <span className="vname">{o.name}</span>
                     <span className="vsub">{cust}</span>
+                    {unmatched > 0 && <span className="sowarn"><Icon n="alert" size={11} />{unmatched} product{unmatched === 1 ? "" : "s"} not in price chart</span>}
                   </span>
                 </span>
                 <span className="c-inv">{docTxt}</span>
@@ -1382,6 +1396,7 @@ function SalesOrderView({ order, onClose }: { order: SalesOrder; onClose: () => 
   const body = sheet.rows.slice(1);
   const cols = Math.max(headers.length, ...body.map((r) => r.length), 1);
   const idx = Array.from({ length: cols }, (_, i) => i);
+  const prodCol = soCol(headers, [/product/, /item name/, /^item$/]);
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="pmodal" style={{ maxWidth: 1200 }}>
@@ -1399,7 +1414,7 @@ function SalesOrderView({ order, onClose }: { order: SalesOrder; onClose: () => 
           <div className="sowrap full">
             <table className="lbltbl sotbl">
               <thead><tr><th className="sonum">#</th>{idx.map((c) => <th key={c}>{String(headers[c] ?? "")}</th>)}</tr></thead>
-              <tbody>{body.map((r, ri) => <tr key={ri}><td className="sonum">{ri + 1}</td>{idx.map((c) => <td key={c}>{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
+              <tbody>{body.map((r, ri) => <tr key={ri}><td className="sonum">{ri + 1}</td>{idx.map((c) => { const v = String(r[c] ?? ""); const bad = c === prodCol && v.trim() !== "" && !inPriceChart(v); return <td key={c} className={bad ? "nomatch" : ""} title={bad ? "Not found in price chart" : undefined}>{v}</td>; })}</tr>)}</tbody>
             </table>
             {!body.length && <div className="pmmore">No data rows found in this sheet.</div>}
           </div>
