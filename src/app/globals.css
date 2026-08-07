@@ -579,3 +579,12 @@
     .betotals { align-items: stretch; }
     .besum { width: 100%; justify-content: space-between; }
   }
+
+  /* ===== Create sales order: line-item grid ===== */
+  .soih, .soir { display: grid; grid-template-columns: minmax(0, 2fr) 1fr .8fr .7fr .9fr .9fr .9fr .7fr 34px; gap: 8px; align-items: center; }
+  .soih { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); padding: 0 2px; }
+  .soih span:nth-child(3), .soih span:nth-child(5), .soih span:nth-child(6), .soih span:nth-child(7) { text-align: right; }
+  .soir input { border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; font-size: 12.5px; font-family: inherit; color: var(--ink); background: #fff; outline: none; width: 100%; }
+  .soir input:focus { border-color: #0284c7; box-shadow: 0 0 0 3px rgba(2,132,199,.12); }
+  .soir input:nth-child(3), .soir input:nth-child(5), .soir input:nth-child(6), .soir input:nth-child(7) { text-align: right; }
+  @media (max-width: 720px) { .soih, .soir { min-width: 760px; } }

@@ -53,6 +53,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pactId, setPactId] = useState<number | null>(null);
   const [pmOpen, setPmOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
+  const [soCreateOpen, setSoCreateOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
   const [view, setView] = useState<"home" | "stock" | "sales">("home");
@@ -300,7 +301,10 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
             <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
             <button className="pmbtn add" onClick={() => setBillOpen(true)}><Icon n="plus" size={14} />Bill Upload</button>
           </>}
-          {view === "sales" && <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>}
+          {view === "sales" && <>
+            <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>
+            <button className="pmbtn add" onClick={() => setSoCreateOpen(true)}><Icon n="plus" size={14} />Create Sales Order</button>
+          </>}
           <input ref={soInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onSalesOrderFile} />
           <div className="spacer" />
           <div className="mailpill"><Icon n="mail" size={15} /> mis@nutriobox.com</div>
@@ -432,6 +436,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
 
       {/* Manual bill entry */}
       {billOpen && <BillEntry nextId={(bills.reduce((m, b) => Math.max(m, b.id), 0) || 0) + 1} onClose={() => setBillOpen(false)} onSave={addBill} />}
+
+      {/* Manual sales order entry */}
+      {soCreateOpen && <SalesOrderCreate onClose={() => setSoCreateOpen(false)} onSave={async (name, sheets) => { await addSalesOrder(name, sheets); setSoCreateOpen(false); }} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -997,6 +1004,105 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void
   );
 }
 
+async function downloadOrderXlsx(o: SalesOrder) {
+  try {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    (o.sheets.length ? o.sheets : [{ name: "Sheet1", rows: [] as (string | number | null)[][] }]).forEach((sh, i) => {
+      const ws = XLSX.utils.aoa_to_sheet((sh.rows || []) as (string | number | null)[][]);
+      XLSX.utils.book_append_sheet(wb, ws, (sh.name || `Sheet${i + 1}`).slice(0, 31));
+    });
+    const base = (o.name || "sales_order").replace(/\.(xlsx|xls|csv)$/i, "").replace(/[^a-zA-Z0-9._-]+/g, "_") || "sales_order";
+    XLSX.writeFile(wb, base + ".xlsx");
+  } catch { /* ignore */ }
+}
+
+const SO_HEADERS = ["DOC DATE", "PREFIX", "DOC NO", "CUSTOMER NAME", "PRODUCT NAME", "SALES UNITS", "SALES QTY", "UNITS", "QTY", "UNIT PRICE", "VALUE", "TAX", "IMPORT_STATUS", "IMPORT_MESSAGE"];
+type SoLine = { product: string; salesUnits: string; salesQty: string; units: string; qty: string; unitPrice: string; value: string; tax: string };
+const soBlankLine = (): SoLine => ({ product: "", salesUnits: "Container", salesQty: "", units: "Gms", qty: "", unitPrice: "", value: "", tax: "" });
+
+function SalesOrderCreate({ onClose, onSave }: { onClose: () => void; onSave: (name: string, sheets: SalesOrder["sheets"]) => void }) {
+  const [docDate, setDocDate] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [docNo, setDocNo] = useState("");
+  const [customer, setCustomer] = useState("");
+  const [lines, setLines] = useState<SoLine[]>([soBlankLine()]);
+  const [err, setErr] = useState("");
+  const setLine = (i: number, patch: Partial<SoLine>) => setLines((prev) => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const addLine = () => setLines((prev) => [...prev, soBlankLine()]);
+  const delLine = (i: number) => setLines((prev) => (prev.length > 1 ? prev.filter((_, j) => j !== i) : prev));
+  const fmtDate = (iso: string) => { if (!iso) return ""; const d = new Date(iso + "T00:00:00"); if (isNaN(d.getTime())) return iso; return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
+  const lineCount = lines.filter((l) => l.product.trim()).length;
+  function build(): (string | number | null)[][] {
+    const dd = fmtDate(docDate);
+    const rows = lines.filter((l) => l.product.trim()).map((l) => [dd, prefix.trim(), docNo.trim(), customer.trim(), l.product.trim(), l.salesUnits.trim(), l.salesQty.trim(), l.units.trim(), l.qty.trim(), l.unitPrice.trim(), l.value.trim(), l.tax.trim(), "", ""]);
+    return [SO_HEADERS, ...rows];
+  }
+  function submit() {
+    if (!docNo.trim()) { setErr("Enter a Doc No."); return; }
+    if (!customer.trim()) { setErr("Enter the customer name."); return; }
+    if (!lineCount) { setErr("Add at least one product line."); return; }
+    setErr("");
+    const name = ("Manual SO " + (prefix.trim() + docNo.trim())).trim();
+    onSave(name, [{ name: "Sales Order", rows: build() }]);
+  }
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal" style={{ maxWidth: 1120 }}>
+        <div className="phead">
+          <span className="pbadge" style={{ background: "#0284c7", boxShadow: "0 6px 16px rgba(2,132,199,.35)" }}><Icon n="plus" size={15} /></span>
+          <div className="pttl">
+            <h2>Create a sales order</h2>
+            <div className="sub">Fill one document manually. It joins the Sales Orders list, saves to your database, and can be downloaded as an Excel for PACT.</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        <div className="pbody">
+          <div className="beform">
+            <div className="besec">Order details (single document)</div>
+            <div className="begrid">
+              <label className="befield"><span>Doc Date</span><input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} /></label>
+              <label className="befield"><span>Prefix</span><input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="e.g. 26-27/" /></label>
+              <label className="befield"><span>Doc No</span><input value={docNo} onChange={(e) => setDocNo(e.target.value)} placeholder="e.g. 61" /></label>
+              <label className="befield"><span>Customer Name</span><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="e.g. Om Sweets Sector-4 Gurugram" /></label>
+            </div>
+
+            <div className="besec">Products</div>
+            <div className="beitems">
+              <div className="soih">
+                <span>Product Name</span><span>Sales Units</span><span>Sales Qty</span><span>Units</span><span>Qty</span><span>Unit Price</span><span>Value</span><span>Tax</span><span></span>
+              </div>
+              {lines.map((l, i) => (
+                <div className="soir" key={i}>
+                  <input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} placeholder="Product name" list="so-products" />
+                  <input value={l.salesUnits} onChange={(e) => setLine(i, { salesUnits: e.target.value })} placeholder="Container" list="so-sunits" />
+                  <input value={l.salesQty} onChange={(e) => setLine(i, { salesQty: e.target.value })} inputMode="decimal" />
+                  <input value={l.units} onChange={(e) => setLine(i, { units: e.target.value })} placeholder="Gms" list="so-units" />
+                  <input value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} inputMode="decimal" />
+                  <input value={l.unitPrice} onChange={(e) => setLine(i, { unitPrice: e.target.value })} inputMode="decimal" placeholder="—" />
+                  <input value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} inputMode="decimal" placeholder="—" />
+                  <input value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value })} placeholder="—" />
+                  <button className="bex" title="Remove line" onClick={() => delLine(i)} disabled={lines.length === 1}><Icon n="x" size={13} /></button>
+                </div>
+              ))}
+              <datalist id="so-products">{CATALOG.slice(0, 400).map((pp) => <option key={pp.name} value={pp.name} />)}</datalist>
+              <datalist id="so-units">{ALL_UNITS.map((u) => <option key={u} value={u} />)}</datalist>
+              <datalist id="so-sunits">{["Container", "Pkt", "Box", "Nos", "Bag", "Jar", "Bottle"].map((u) => <option key={u} value={u} />)}</datalist>
+              <button className="beadd" onClick={addLine}><Icon n="plus" size={13} />Add product line</button>
+            </div>
+          </div>
+        </div>
+        <div className="pfoot">
+          <span className="pstatus ok"><Icon n="file" size={16} />{lineCount} product line{lineCount === 1 ? "" : "s"} · Doc {prefix.trim()}{docNo.trim() || "—"}</span>
+          {err && <span className="pstatus err" style={{ marginLeft: 8 }}><Icon n="alert" size={16} />{err}</span>}
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={submit}><Icon n="plus" size={14} />Create sales order</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function soCol(headers: (string | number | null)[], res: RegExp[]): number {
   for (let i = 0; i < headers.length; i++) {
     const h = String(headers[i] ?? "").toLowerCase().replace(/[_\s]+/g, " ").trim();
@@ -1082,6 +1188,7 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
                       : <span className="pill err"><Icon n="alert" size={12} />{a.passN}/{a.statuses.length} passed</span>}
                 </span>
                 <span className="c-act">
+                  <button className="btn btn-ghost" title="Download this order as Excel (FSALES format)" onClick={() => downloadOrderXlsx(o)}><Icon n="download" size={14} />Excel</button>
                   <button className="btn btn-ghost" onClick={() => setViewId(o.id)}><Icon n="eye" size={14} />View</button>
                   <button className="btn btn-primary" onClick={() => setStatusId(o.id)}><Icon n="checkCircle" size={14} />Status check</button>
                 </span>
