@@ -1217,6 +1217,44 @@ function analyzeSO(o: SalesOrder) {
   return { headers, body, cDate, cDoc, cCust, cProduct, cStatus, cMsg, docs, custs, statuses, passN, dateTxt, vAt };
 }
 
+function ordersByDoc(a: ReturnType<typeof analyzeSO>) {
+  const map = new Map<string, { docNo: string; customer: string; lines: number; statuses: string[] }>();
+  a.body.forEach((r) => {
+    const doc = a.vAt(r, a.cDoc) || "—";
+    const cust = a.vAt(r, a.cCust);
+    const st = a.vAt(r, a.cStatus);
+    let g = map.get(doc);
+    if (!g) { g = { docNo: doc, customer: cust, lines: 0, statuses: [] }; map.set(doc, g); }
+    g.lines++; if (!g.customer && cust) g.customer = cust; if (st) g.statuses.push(st);
+  });
+  return Array.from(map.values()).map((g) => ({ ...g, passN: g.statuses.filter((x) => /pass|success|imported|ok/i.test(x)).length }));
+}
+
+function SalesOrderDetail({ order }: { order: SalesOrder }) {
+  const a = analyzeSO(order);
+  const docs = ordersByDoc(a);
+  return (
+    <div className="sodetail-wrap">
+      <table className="sodetail">
+        <thead><tr><th>Doc No</th><th>Customer Name</th><th>Import Status</th></tr></thead>
+        <tbody>
+          {docs.map((d, di) => {
+            const cls = d.statuses.length === 0 ? "pending" : d.passN === d.lines ? "ok" : "partial";
+            return (
+              <tr key={di}>
+                <td className="dn">{d.docNo}</td>
+                <td>{d.customer || "—"}</td>
+                <td>{cls === "ok" ? <span className="pill ok"><Icon n="check" size={11} />Imported</span> : cls === "partial" ? <span className="pill err"><Icon n="alert" size={11} />{d.passN}/{d.lines} passed</span> : <span className="pill chk"><Icon n="refresh" size={11} />Pending</span>}</td>
+              </tr>
+            );
+          })}
+          {!docs.length && <tr><td colSpan={3} className="pmmore" style={{ textAlign: "center" }}>No documents in this order.</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUpload: () => void; supaOk: boolean }) {
   const [viewId, setViewId] = useState<string | null>(null);
   const [statusId, setStatusId] = useState<string | null>(null);
@@ -1256,7 +1294,8 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
             const cust = a.custs.length <= 1 ? (a.custs[0] || `${a.body.length} rows`) : `${a.custs.length} customers`;
             const docTxt = a.docs.length === 1 ? a.docs[0] : a.docs.length === 0 ? "—" : `${a.docs.length} docs`;
             return (
-              <div key={o.id} className="row" style={{ cursor: "default" }}>
+              <div key={o.id} className="soblock">
+                <div className="row" style={{ cursor: "default" }}>
                 <span className="c-date">{a.dateTxt || fmtDate(o.at)}</span>
                 <span className="c-v">
                   <span className="mono" style={{ background: MC[oi % MC.length] }}>{initials(a.custs[0] || o.name)}</span>
@@ -1279,6 +1318,8 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
                   <button className="btn btn-ghost" onClick={() => setViewId(o.id)}><Icon n="eye" size={14} />View</button>
                   <button className="btn btn-primary" onClick={() => setStatusId(o.id)}><Icon n="checkCircle" size={14} />Status check</button>
                 </span>
+                </div>
+                <SalesOrderDetail order={o} />
               </div>
             );
           })}

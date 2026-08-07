@@ -588,3 +588,16 @@
   .soir input:focus { border-color: #0284c7; box-shadow: 0 0 0 3px rgba(2,132,199,.12); }
   .soir input:nth-child(3), .soir input:nth-child(5), .soir input:nth-child(6), .soir input:nth-child(7) { text-align: right; }
   @media (max-width: 720px) { .soih, .soir { min-width: 760px; } }
+
+  /* ===== Sales order inline per-document detail ===== */
+  .soblock { border-bottom: 1px solid var(--border-2); }
+  .soblock:last-child { border-bottom: none; }
+  .soblock .row { border-bottom: none; }
+  .sodetail-wrap { padding: 0 22px 16px 64px; overflow-x: auto; }
+  .sodetail { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+  .sodetail thead th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; padding: 8px 12px; background: #fff; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .sodetail tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border-2); color: var(--ink-2); vertical-align: middle; }
+  .sodetail tbody tr:last-child td { border-bottom: none; }
+  .sodetail tbody tr:hover td { background: #fff; }
+  .sodetail td.dn { font-weight: 700; color: var(--ink); white-space: nowrap; }
+  @media (max-width: 720px) { .sodetail-wrap { padding: 0 12px 14px; } }
