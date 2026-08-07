@@ -7,3 +7,9 @@ out/
 .vercel
 *.log
 .DS_Store
+
+# local staging / push helpers (not for the repo)
+_to_delete/
+*.tgz
+_push_now*.bat
+_push_log*.txt
