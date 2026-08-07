@@ -1,0 +1,2178 @@
+[
+{
+"code":"FG0083",
+"name":"Aloo Sabji (8 Kg/Carton)",
+"customer":"Zomato Hyperpure Pvt Ltd-GGN3",
+"unit":"Carton",
+"rate":1056.0,
+"wef":"16/03/2026"
+},
+{
+"code":"FG0083",
+"name":"Aloo Sabji (8 Kg/Carton)",
+"customer":"Zomato Hyperpure Pvt Ltd-GGN3",
+"unit":"Kg",
+"rate":132.0,
+"wef":"16/03/2026"
+},
+{
+"code":"FG0083",
+"name":"Aloo Sabji (8 Kg/Carton)",
+"customer":"",
+"unit":"Kg",
+"rate":132.0,
+"wef":"01/01/2026"
+},
+{
+"code":"FG0126",
+"name":"Paneer Parantha-Zomato (150 Gms/600 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.242,
+"wef":"17/06/2026"
+},
+{
+"code":"FG0126",
+"name":"Paneer Parantha-Zomato (150 Gms/600 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Pkt",
+"rate":145.2,
+"wef":"20/05/2026"
+},
+{
+"code":"FG0126",
+"name":"Paneer Parantha-Zomato (150 Gms/600 Gms)",
+"customer":"Nandan Sweets",
+"unit":"Pkt",
+"rate":128.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0128",
+"name":"Aloo-Pyaz Parantha-Zomato (150 Gms/600 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.169,
+"wef":"17/06/2026"
+},
+{
+"code":"FG0128",
+"name":"Aloo-Pyaz Parantha-Zomato (150 Gms/600 Gms)",
+"customer":"Nandan Sweets",
+"unit":"Pkt",
+"rate":92.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0128",
+"name":"Aloo-Pyaz Parantha-Zomato (150 Gms/600 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Pkt",
+"rate":101.2,
+"wef":"20/05/2026"
+},
+{
+"code":"FG0138",
+"name":"Hara Bhara Kebab Sukhna (30 Gms/540 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pcs",
+"rate":7.8,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0146",
+"name":"Corn and Cheese Tikki (40 Gms/480 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pcs",
+"rate":11.4,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0148",
+"name":"Corn and Cheese Stick (40 Gms/240 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pcs",
+"rate":11.2,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0154",
+"name":"Veg. Galouti (40 Gms/480 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pcs",
+"rate":12.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0168",
+"name":"Original Veg Momos Sukhna (32 Gms/500 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.18,
+"wef":"15/06/2026"
+},
+{
+"code":"FG0168",
+"name":"Original Veg Momos Sukhna (32 Gms/500 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Container",
+"rate":81.06,
+"wef":"14/04/2026"
+},
+{
+"code":"FG0168",
+"name":"Original Veg Momos Sukhna (32 Gms/500 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Container",
+"rate":81.6,
+"wef":"20/05/2026"
+},
+{
+"code":"FG0174",
+"name":"Chilli Paneer Momos (32 Gms/500 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.274,
+"wef":"29/06/2026"
+},
+{
+"code":"FG0174",
+"name":"Chilli Paneer Momos (32 Gms/500 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Container",
+"rate":137.28,
+"wef":"20/05/2026"
+},
+{
+"code":"FG0044",
+"name":"Hummus (1 Kg)",
+"customer":"Nutriobox (Inter trans)",
+"unit":"Kg",
+"rate":118.0,
+"wef":"31/03/2026"
+},
+{
+"code":"FG0200",
+"name":"Matar Chola Kulcha Wala (1 Kg) Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FG0252",
+"name":"Mix Veg. Parantha (150 Gms/600 Gms)",
+"customer":"Nandan Sweets",
+"unit":"Pkt",
+"rate":112.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0262",
+"name":"65 Masala (1 Kg)",
+"customer":"Biryani By Kilo",
+"unit":"Kg",
+"rate":166.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0262",
+"name":"65 Masala (1 Kg)",
+"customer":"Biryani By Kilo",
+"unit":"Kg",
+"rate":165.0,
+"wef":"05/03/2026"
+},
+{
+"code":"FG0266",
+"name":"Hyderabadi Marination (2 Kg)",
+"customer":"Biryani By Kilo",
+"unit":"Pkt",
+"rate":132.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0270",
+"name":"Chicken Fried for Chicken 65 (1 Kg)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.405,
+"wef":"29/07/2026"
+},
+{
+"code":"FG0270",
+"name":"Chicken Fried for Chicken 65 (1 Kg)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.393,
+"wef":"30/07/2026"
+},
+{
+"code":"FG0270",
+"name":"Chicken Fried for Chicken 65 (1 Kg)",
+"customer":"Biryani By Kilo",
+"unit":"Kg",
+"rate":334.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0274",
+"name":"Chicken Malai Tikka Marinated (1400 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.12,
+"wef":"29/07/2026"
+},
+{
+"code":"FG0274",
+"name":"Chicken Malai Tikka Marinated (1400 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pkt",
+"rate":141.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0276",
+"name":"Paneer Tikka Cooked (360 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pkt",
+"rate":110.68,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0278",
+"name":"Tandoori Chicken Marinated (1500 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pkt",
+"rate":130.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0280",
+"name":"Paneer Biryani Base (1 Kg)",
+"customer":"Biryani By Kilo",
+"unit":"Kg",
+"rate":350.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0284",
+"name":"Mutton Galouti (40 Gms/480 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.762,
+"wef":"29/07/2026"
+},
+{
+"code":"FG0284",
+"name":"Mutton Galouti (40 Gms/480 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.762,
+"wef":"30/07/2026"
+},
+{
+"code":"FG0272",
+"name":"Chicken Ghee Roast (300 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.148,
+"wef":"29/07/2026"
+},
+{
+"code":"FG0272",
+"name":"Chicken Ghee Roast (300 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Pkt",
+"rate":146.0,
+"wef":"01/04/2025"
+},
+{
+"code":"FG0291",
+"name":"Paneer Tikka Vaggies-BBK (400 Gms)",
+"customer":"Biryani By Kilo",
+"unit":"Container",
+"rate":78.0,
+"wef":"17/03/2026"
+},
+{
+"code":"FG0087",
+"name":"Bhature Wale Chole (8 Kg/Carton)",
+"customer":"Zomato Hyperpure Pvt Ltd-GGN3",
+"unit":"Kg",
+"rate":160.0,
+"wef":"15/04/2026"
+},
+{
+"code":"FG0292",
+"name":"Paneer Tikka Vaggies-BBK (400 Gms/16 Pack)",
+"customer":"Biryani By Kilo",
+"unit":"Container",
+"rate":78.0,
+"wef":"17/03/2026"
+},
+{
+"code":"FG0292",
+"name":"Paneer Tikka Vaggies-BBK (400 Gms/16 Pack)",
+"customer":"Zomato Hyperpure Pvt Ltd-GGN3",
+"unit":"Carton",
+"rate":936.0,
+"wef":"17/03/2026"
+},
+{
+"code":"FG0371",
+"name":"Chicken Ghee Roast (300 Gms/25 Pack)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.148,
+"wef":"29/07/2026"
+},
+{
+"code":"FG0201",
+"name":"Matar Chola Kulcha Wala (8 Kg/Carton) Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FG0251",
+"name":"Kurkure Veg Momo (12 Pack/Carton)",
+"customer":"Zomato Hyperpure Pvt Ltd-GGN3",
+"unit":"Container",
+"rate":85.0,
+"wef":"24/03/2026"
+},
+{
+"code":"FG0263",
+"name":"65 Masala (1 Kg/8 Pack)",
+"customer":"Biryani By Kilo",
+"unit":"Kg",
+"rate":166.0,
+"wef":"17/03/2026"
+},
+{
+"code":"FG0263",
+"name":"65 Masala (1 Kg/8 Pack)",
+"customer":"Biryani By Kilo",
+"unit":"Carton",
+"rate":1328.0,
+"wef":"17/03/2026"
+},
+{
+"code":"FG0129",
+"name":"Aloo-Pyaz Parantha-Zomato (150 Gms/600 Gms/10 Pack)",
+"customer":"Zomato Hyperpure Pvt Ltd-GGN3",
+"unit":"Pkt",
+"rate":84.0,
+"wef":"15/04/2026"
+},
+{
+"code":"FG0131",
+"name":"Aloo Samosa (90 Gms/450 Gms/16 Pack)",
+"customer":"Zomato Hyperpure Pvt Ltd-GGN3",
+"unit":"Container",
+"rate":91.0,
+"wef":"15/04/2026"
+},
+{
+"code":"FG0375",
+"name":"Chicken Tikka Marinated (8 Pkt/Carton)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.429,
+"wef":"30/07/2026"
+},
+{
+"code":"FG0358",
+"name":"Vada Pao (70 Gms/8 Pcs Pack)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.226,
+"wef":"15/06/2026"
+},
+{
+"code":"FG0358",
+"name":"Vada Pao (70 Gms/8 Pcs Pack)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Container",
+"rate":115.0,
+"wef":"02/06/2026"
+},
+{
+"code":"FGO500",
+"name":"Garlic Chatni (250 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.246,
+"wef":"15/06/2026"
+},
+{
+"code":"FGO504",
+"name":"Lehsoon Chutney (250 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.246,
+"wef":"29/06/2026"
+},
+{
+"code":"FGO504",
+"name":"Lehsoon Chutney (250 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Pkt",
+"rate":61.6,
+"wef":"20/05/2026"
+},
+{
+"code":"FG0175",
+"name":"Chilli Paneer Momos (32 Gms/500 Gms/12 Pack)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Gms",
+"rate":0.275,
+"wef":"15/06/2026"
+},
+{
+"code":"WP0049",
+"name":"Matar Chola Kulcha Wala (1 Kg) Apni Mandi WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO536",
+"name":"Aloo Parantha (160 Gms/640 Gms/10 Pack)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Pkt",
+"rate":101.2,
+"wef":"20/05/2026"
+},
+{
+"code":"FGO566",
+"name":"Paneer Parantha (160 Gms/10 Pkt/Carton)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Pkt",
+"rate":145.2,
+"wef":"20/05/2026"
+},
+{
+"code":"FGO584",
+"name":"Palak Pakoda - Apni Mandi (500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.266,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0259",
+"name":"Palak Pakoda - Apni Mandi (500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO585",
+"name":"Shahi Makhani Gravy - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.317,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0260",
+"name":"Shahi Makhani Gravy - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO586",
+"name":"Veg. Spring Roll - Apni Mandi (36 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.399,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0261",
+"name":"Veg. Spring Roll - Apni Mandi (36 Gms/500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO587",
+"name":"Hara Bhara Kebab - Apni Mandi (30 Gms/540 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0262",
+"name":"Hara Bhara Kebab - Apni Mandi (30 Gms/540 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO588",
+"name":"Quinoa Nuggets - Apni Mandi (40 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0263",
+"name":"Quinoa Nuggets - Apni Mandi (30 Gms/540 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO591",
+"name":"Veg. Shammi Kebab - Apni Mandi (30 Gms/540 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.348,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO592",
+"name":"Spinach Corn Kebab - Apni Mandi (40 Gms/480 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.478,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO593",
+"name":"Dahi Ke Kebab  - Apni Mandi (40 Gms/480 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.381,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0265",
+"name":"Veg. Shammi Kebab - Apni Mandi (30 Gms/540 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0266",
+"name":"Spinach Corn Kebab - Apni Mandi (30 Gms/540 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0267",
+"name":"Dahi Ke Kebab  - Apni Mandi (40 Gms/480 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO596",
+"name":"Palak Pakoda - Apni Mandi (20 Pkt/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.266,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO597",
+"name":"Shahi Makhani Gravy - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.317,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO598",
+"name":"Veg. Spring Roll - Apni Mandi (36 Gms/500 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.399,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO599",
+"name":"Hara Bhara Kebab - Apni Mandi (30 Gms/540 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO600",
+"name":"Quinoa Nuggets - Apni Mandi (40 Gms/500 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO595",
+"name":"Dal Makhani - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0269",
+"name":"Dal Makhani - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO601",
+"name":"Khata Meeta Petha - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.25,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0270",
+"name":"Khata Meeta Petha - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO602",
+"name":"Khata Meeta Petha - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.25,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO604",
+"name":"Veg. Shammi Kebab - Apni Mandi (30 Gms/540 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.348,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO605",
+"name":"Spinach Corn Kebab - Apni Mandi (40 Gms/480 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.478,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO606",
+"name":"Dahi Ke Kebab  - Apni Mandi (40 Gms/480 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.381,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO608",
+"name":"Dal Makhani - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO609",
+"name":"Corn and Cheese Stick -Apni Mandi (40 Gms/240 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.421,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO610",
+"name":"Corn and Cheese Stick - Apni Mandi (40 Gms/240 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.421,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO611",
+"name":"Shahi Paneer Gravy - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.317,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO612",
+"name":"Shahi Paneer Gravy - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.317,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO613",
+"name":"Rajma - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO614",
+"name":"Rajma - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO615",
+"name":"Hyderabadi Paneer Biryani -  Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.179,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO616",
+"name":"Hyderabadi Paneer Biryani - Apni Mandi (400 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.179,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0271",
+"name":"Corn and Cheese Stick -Apni Mandi (40 Gms/240 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0272",
+"name":"Shahi Paneer Gravy - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0273",
+"name":"Rajma - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0274",
+"name":"Hyderabadi Paneer Biryani -  Apni Mandi (400 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO617",
+"name":"Malabari Gravy - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0275",
+"name":"Malabari Gravy - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO618",
+"name":"Aloo Sabji - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.281,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO619",
+"name":"Beetroot Tikki -Apni Mandi (30 Gms/540 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.281,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO620",
+"name":"Bhuna Veg. Biryani - Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0276",
+"name":"Aloo Sabji - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0277",
+"name":"Beetroot Tikki -Apni Mandi (30 Gms/540 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0278",
+"name":"Bhuna Veg. Biryani - Apni Mandi (400 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO621",
+"name":"Paneer Bhurji Cutlet - Apni Mandi (40 Gms/480 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.47,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0279",
+"name":"Paneer Bhurji Cutlet - Apni Mandi (40 Gms/480 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO622",
+"name":"Malabari Gravy - Apni Mandi (8 Pkt/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO623",
+"name":"Aloo Sabji - Apni Mandi (8 Pkt/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.281,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO624",
+"name":"Beetroot Tikki -Apni Mandi (30 Gms/540 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.281,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO625",
+"name":"Bhuna Veg. Biryani - Apni Mandi (400 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO626",
+"name":"Paneer Bhurji Cutlet - Apni Mandi (40 Gms/480 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.47,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO627",
+"name":"Corn and Cheese Stick - Apni Mandi (40 Gms/240 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.421,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO628",
+"name":"Aloo Tikki Chat Wali - Apni Mandi (125 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.273,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO629",
+"name":"Cocktail Aloo Patty -Apni Mandi (40 Gms/480 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.266,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO630",
+"name":"Malai Methi Matar - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.501,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO631",
+"name":"Kolkata Mix Veg. Biryani - Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO632",
+"name":"Vada Pao - Apni Mandi (70 Gms/8 Pcs)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.362,
+"wef":"20/06/2026"
+},
+{
+"code":"FG0339",
+"name":"Vada Pao (70 Gms)",
+"customer":"OM SWEETS PRIVATE LIMITED-HR",
+"unit":"Container",
+"rate":115.2,
+"wef":"20/05/2026"
+},
+{
+"code":"WP0280",
+"name":"Aloo Tikki Chat Wali - Apni Mandi (125 Gms/500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0281",
+"name":"Cocktail Aloo Patty -Apni Mandi (40 Gms/480 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0282",
+"name":"Malai Methi Matar - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0283",
+"name":"Kolkata Mix Veg. Biryani - Apni Mandi (400 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0284",
+"name":"Vada Pao - Apni Mandi (70 Gms/8 Pcs) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO634",
+"name":"Cocktail Aloo Patty - Apni Mandi (40 Gms/480 Gms/20 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.266,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO635",
+"name":"Malai Methi Matar - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.501,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO636",
+"name":"Kolkata Mix Veg. Biryani - Apni Mandi (400 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO637",
+"name":"Vada Pao - Apni Mandi (70 Gms/8 Pcs/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.362,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO638",
+"name":"Poori - Apni Mandi (40 Gms/320 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.235,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0285",
+"name":"Poori - Apni Mandi (40 Gms/320 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO641",
+"name":"Garlic Chutney - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.337,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0288",
+"name":"Garlic Chutney - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0289",
+"name":"Alfredo Sauce - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0290",
+"name":"Pink Pasta Sauce - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO642",
+"name":"Alfredo Sauce - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO643",
+"name":"Pink Pasta Sauce - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO644",
+"name":"Poori - Apni Mandi (320 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.235,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO645",
+"name":"Makhani Paneer Biryani - Apni Mandi (16 Box/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.179,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO646",
+"name":"Soya Keema Matar - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.327,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO647",
+"name":"Garlic Chutney - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.337,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO648",
+"name":"Alfredo Sauce - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO649",
+"name":"Pink Pasta Sauce - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO639",
+"name":"Makhani Paneer Biryani - Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.179,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0286",
+"name":"Makhani Paneer Biryani - Apni Mandi (400 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.179,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO640",
+"name":"Soya Keema Matar - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.327,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0287",
+"name":"Soya Keema Matar - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO650",
+"name":"Rogan Josh Gravy - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.399,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0291",
+"name":"Rogan Josh Gravy - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO651",
+"name":"Aloo Tikki Chat Wali - Apni Mandi (500 Gms/20 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.273,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO652",
+"name":"Methi Poori - Apni Mandi (40 Gms/320 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.235,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0292",
+"name":"Methi Poori - Apni Mandi (40 Gms/320 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO653",
+"name":"Methi Poori - Apni Mandi (320 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.235,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO654",
+"name":"Chilli Paneer Momos - Apni Mandi (32 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.342,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0293",
+"name":"Chilli Paneer Momos - Apni Mandi (32 Gms/500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO655",
+"name":"Chilli Paneer Momos - Apni Mandi (32 Gms/500 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.342,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO656",
+"name":"Pao Bhaji - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO657",
+"name":"Kala Channa - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO658",
+"name":"Dal Tadka - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0294",
+"name":"Pao Bhaji - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0295",
+"name":"Kala Channa - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0296",
+"name":"Dal Tadka - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO659",
+"name":"Rogan Josh Gravy - Apni Mandi (8 Pkt/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.399,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO660",
+"name":"Pao Bhaji - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO661",
+"name":"Kala Channa - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO662",
+"name":"Dal Tadka - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO663",
+"name":"Tandoori Pasta Sauce - Apni Manid (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0297",
+"name":"Tandoori Pasta Sauce - Apni Manid (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO664",
+"name":"Tandoori Pasta Sauce - Apni Manid (8 Pkt/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.291,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO670",
+"name":"Paprika & Overloaded Cheese Spring Roll - Apni Mandi (36 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.475,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0303",
+"name":"Paprika & Overloaded Cheese Spring Roll - Apni Mandi (36 Gms/500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO671",
+"name":"Paprika & Overloaded Cheese Spring Roll - Apni Mandi (500 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.475,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO669",
+"name":"Paneer Bhurji Patty - Apni Mandi (120 Gms/360 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.449,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0302",
+"name":"Paneer Bhurji Patty - Apni Mandi (120 Gms/360 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO672",
+"name":"Paneer Bhurji Patty - Apni Mandi (120 Gms/360 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.449,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO673",
+"name":"Paneer Cube for Manchurian - Apni Mandi (500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.521,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0304",
+"name":"Paneer Cube for Manchurian - Apni Mandi (500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO665",
+"name":"Exotic Veg Momo - Apni Mandi (32 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0298",
+"name":"Exotic Veg Momo - Apni Mandi (32 Gms/500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0300",
+"name":"Bhatura - Apni Mandi (80 Gms/480 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO667",
+"name":"Bhatura - Apni Mandi (80 Gms/480 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0299",
+"name":"Amritsari Paneer Tikka Marinated - Apni Mandi (600 Gms/8 Pcs) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO666",
+"name":"Amritsari Paneer Tikka Marinated - Apni Mandi (600 Gms/8 Pcs/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.317,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO668",
+"name":"Aloo Samosa - Apni Mandi (125 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.275,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0301",
+"name":"Aloo Samosa - Apni Mandi (125 Gms/500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO674",
+"name":"Exotic Veg Momo - Apni Mandi (500 Gms/20 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO676",
+"name":"Aloo Samosa - Apni Mandi (125 Gms/500 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.275,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO675",
+"name":"Amritsari Paneer Tikka Marinated - Apni Mandi (600 Gms/8 Pcs)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.317,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO677",
+"name":"Paneer Cube for Manchurian - Apni Mandi (500 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.521,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO678",
+"name":"Bhatura - Apni Mandi (80 Gms/480 Gms/14 Pkt)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO679",
+"name":"Kurkure Veg Momo - Apni Mandi (43 Gms/340 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.307,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO680",
+"name":"Kurkure Veg Momo - Apni Mandi (12 Pack/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.307,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0305",
+"name":"Kurkure Veg Momo - Apni Mandi (43 Gms/340 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO682",
+"name":"South Indian Dindigul Mix Veg. Biryani - Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO683",
+"name":"South Indian Dindigul Mix Veg. Biryani - Apni Mandi (400 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO684",
+"name":"Sooji Halwa - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.348,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO685",
+"name":"Sooji Halwa - Apni Mandi (8 Pkt/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.348,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO686",
+"name":"Moong Dal Halwa - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.491,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO687",
+"name":"Moong Dal Halwa - Apni Mandi (8 Pkt/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.491,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO688",
+"name":"Original Veg Momos - Apni Mandi (32 Gms/500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.235,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO689",
+"name":"Original Veg Momos - Apni Mandi (32 Gms/500 Gms/20 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.235,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO690",
+"name":"Aloo-Pyaz Parantha - Apni Mandi (330 Gms/660 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0307",
+"name":"South Indian Dindigul Mix Veg. Biryani - Apni Mandi (400 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0308",
+"name":"Sooji Halwa - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0309",
+"name":"Moong Dal Halwa - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0310",
+"name":"Original Veg Momos - Apni Mandi (32 Gms/500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0311",
+"name":"Aloo-Pyaz Parantha - Apni Mandi (330 Gms/660 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO692",
+"name":"Aloo-Pyaz Parantha - Apni Mandi (330 Gms/660 Gms/10 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.256,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO693",
+"name":"Paneer Parantha - Apni Mandi (330 Gms/1000 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.357,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO694",
+"name":"Paneer Parantha - Apni Mandi (330 Gms/1000 Gms/10 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.357,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0314",
+"name":"Paneer Parantha - Apni Mandi (330 Gms/660 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO695",
+"name":"Lucknowi Paneer Biryani - Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.179,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO696",
+"name":"Lucknowi Paneer Biryani - Apni Mandi (400 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.179,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0315",
+"name":"Crispy Chilli Paneer Momos (43 Gms/340 Gms) WIP Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO697",
+"name":"Crispy Chilli Paneer Momos (43 Gms/340 Gms) - APNI MANDI",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.414,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO698",
+"name":"Crispy Chilli Paneer Momos (43 Gms/340 Gms/12 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.414,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0317",
+"name":"Lucknowi Paneer Biryani - Apni Mandi (400 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO700",
+"name":"Lucknowi Mix Veg. Biryani - Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0318",
+"name":"Lucknowi Mix Veg. Biryani - Apni Mandi (400 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO701",
+"name":"Lucknowi Mix Veg. Biryani - Apni Mandi (400 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.153,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO704",
+"name":"Poha - Apni Mandi (400 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0320",
+"name":"Poha - Apni Mandi (300 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO707",
+"name":"Poha - Apni Mandi (400 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO709",
+"name":"Aloo-Pyaz Parantha - Apni Mandi (330 Gms/1000 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.256,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0322",
+"name":"Aloo-Pyaz Parantha - Apni Mandi (330 Gms/1000 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO710",
+"name":"Pani Poori (Anar Dana) - Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.317,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0323",
+"name":"Pani Poori (Anar Dana) - Apni Mandi WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO711",
+"name":"Pani Poori (Spice Jamun) - Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.256,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0324",
+"name":"Pani Poori (Spice Jamun) - Apni Mandi WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO712",
+"name":"Flavoured Rice for Layering - Apni Mandi (500 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.164,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0325",
+"name":"Flavoured Rice for Layering - Apni Mandi (500 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO713",
+"name":"Pani Poori (Guava Chilli) - Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO714",
+"name":"Pani Poori (Chilli Orange) - Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.327,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0326",
+"name":"Pani Poori (Guava Chilli) - Apni Mandi WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0327",
+"name":"Pani Poori (Chilli Orange) - Apni Mandi WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO715",
+"name":"Flavoured Rice for Layering -Apni Mandi (500 Gms/20 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.164,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO716",
+"name":"Pani Poori (Aam Pana) - Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Bucket",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0328",
+"name":"Pani Poori (Aaam Pana) - Apni Mandi WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO717",
+"name":"Aloo Masala Patty - Apni Mandi (120 Gms/360 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO718",
+"name":"Aloo Masala Patty - Apni Mandi (120 Gms/360 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0329",
+"name":"Aloo Masala Patty - Apni Mandi (120 Gms/360 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO720",
+"name":"Pani Poori (Imli Hing) - Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.286,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0330",
+"name":"Pani Poori (Imli Hing) - Apni Mandi WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":1.0,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO721",
+"name":"Aloo Parantha - Apni Mandi - (160 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.256,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0331",
+"name":"Aloo Parantha - Apni Mandi - (160 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.256,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0332",
+"name":"Paneer Parantha - Apni Mandi - (160 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.357,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO722",
+"name":"Paneer Parantha - Apni Mandi - (160 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.357,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO723",
+"name":"Veg. Galouti - Apni Mandi (40 Gms/480 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.348,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0333",
+"name":"Veg. Galouti - Apni Mandi (40 Gms/480 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO724",
+"name":"Veg. Galouti - Apni Mandi (40 Gms/480 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.348,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0592",
+"name":"Aloo Samosa (40 Gms/400 Gms) WIP - Apni MAndi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO725",
+"name":"Thai Red Curry - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO727",
+"name":"Thai Green Curry - Apni Mandi (1 Kg)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0334",
+"name":"Thai Green Curry - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0335",
+"name":"Thai Red Curry - Apni Mandi (1 Kg) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO729",
+"name":"Paneer Parantha - Apni Mandi - (160 Gms/640 Gms/10 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.357,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO730",
+"name":"Aloo Parantha - Apni Mandi - (160 Gms/640 Gms/10 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.256,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0336",
+"name":"Palak Paneer Parantha - Apni Mandi (160 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"WP0337",
+"name":"Gobhi Parantha - Apni Mandi (160 Gms) WIP",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO731",
+"name":"Palak Paneer Parantha - Apni Mandi (160 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO732",
+"name":"Gobhi Parantha - Apni Mandi (160 Gms)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO733",
+"name":"Palak Paneer Parantha - Apni Mandi (160 Gms/640 Pkt/10 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO734",
+"name":"Gobhi Parantha - Apni Mandi (160 Gms/640 Pkt/10 Pkt)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO735",
+"name":"Aloo Samosa - Apni Mandi (40 Gms/400 Gms/16 Pack)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO726",
+"name":"Thai Red Curry - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO728",
+"name":"Thai Green Curry - Apni Mandi (8 Kg/Carton)",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.384,
+"wef":"20/06/2026"
+},
+{
+"code":"FG0592",
+"name":"Aloo Samosa (40 Gms/400 Gms) - Apni Mandi",
+"customer":"Apni Mandi Fullfillment Centre Inc",
+"unit":"Gms",
+"rate":0.306,
+"wef":"20/06/2026"
+},
+{
+"code":"FGO739",
+"name":"Chicken Cooked for Lucknowi Biryani",
+"customer":"Biryani By Kilo",
+"unit":"Pcs",
+"rate":0.129,
+"wef":"29/07/2026"
+},
+{
+"code":"FGO809",
+"name":"Lucknowi Chicken Biryani Base (860 Gms/10 Pkt)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.29,
+"wef":"29/07/2026"
+},
+{
+"code":"FGO809",
+"name":"Lucknowi Chicken Biryani Base (860 Gms/10 Pkt)",
+"customer":"Biryani By Kilo",
+"unit":"Gms",
+"rate":0.29,
+"wef":"30/07/2026"
+},
+{
+"code":"REPORT TOTAL",
+"name":"",
+"customer":"",
+"unit":"",
+"rate":7960.365,
+"wef":""
+}
+]

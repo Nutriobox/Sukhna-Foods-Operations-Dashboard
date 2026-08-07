@@ -8,6 +8,7 @@ import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
 import { Icon } from "./icons";
+import PRICE_CHART from "@/lib/price-chart.json";
 
 type SalesOrder = { id: string; name: string; at: number; sheets: { name: string; rows: (string | number | null)[][] }[] };
 
@@ -54,6 +55,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pmOpen, setPmOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
   const [soCreateOpen, setSoCreateOpen] = useState(false);
+  const [priceOpen, setPriceOpen] = useState(false);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
   const [view, setView] = useState<"home" | "stock" | "sales">("home");
@@ -304,6 +306,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           {view === "sales" && <>
             <button className="pmbtn so" onClick={() => soInputRef.current?.click()}><Icon n="upload" size={14} />Upload Sales Order</button>
             <button className="pmbtn add" onClick={() => setSoCreateOpen(true)}><Icon n="plus" size={14} />Create Sales Order</button>
+            <button className="pmbtn" onClick={() => setPriceOpen(true)}><Icon n="rupee" size={14} />Price Chart</button>
           </>}
           <input ref={soInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onSalesOrderFile} />
           <div className="spacer" />
@@ -439,6 +442,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
 
       {/* Manual sales order entry */}
       {soCreateOpen && <SalesOrderCreate onClose={() => setSoCreateOpen(false)} onSave={async (name, sheets) => { await addSalesOrder(name, sheets); setSoCreateOpen(false); }} />}
+
+      {/* Sales price chart reference */}
+      {priceOpen && <PriceChartModal onClose={() => setPriceOpen(false)} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -1004,6 +1010,68 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void
   );
 }
 
+type PriceRow = { code: string; name: string; customer: string; unit: string; rate: number | null; wef: string };
+const PRICES = PRICE_CHART as PriceRow[];
+const wefNum = (w: string) => { const m = (w || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (!m) return 0; const d = +m[1], mo = +m[2]; const yy = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return yy * 10000 + mo * 100 + d; };
+function lookupRate(name: string, unit: string, customer?: string): PriceRow | null {
+  const n = (name || "").trim().toLowerCase(); const u = (unit || "").trim().toLowerCase();
+  if (!n) return null;
+  let cands = PRICES.filter((p) => p.rate != null && p.name.trim().toLowerCase() === n && (!u || p.unit.trim().toLowerCase() === u));
+  if (!cands.length && u) cands = PRICES.filter((p) => p.rate != null && p.name.trim().toLowerCase() === n);
+  if (!cands.length) return null;
+  const c = (customer || "").trim().toLowerCase();
+  const scored = cands.map((p) => ({ p, cm: c && p.customer && (p.customer.toLowerCase().includes(c) || c.includes(p.customer.toLowerCase().split("-")[0].trim())) ? 1 : 0, w: wefNum(p.wef) }));
+  scored.sort((x, y) => (y.cm - x.cm) || (y.w - x.w));
+  return scored[0].p;
+}
+
+function PriceChartModal({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const ql = q.trim().toLowerCase();
+  const rows = ql ? PRICES.filter((p) => (p.name + " " + p.code + " " + p.customer + " " + p.unit).toLowerCase().includes(ql)) : PRICES;
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal">
+        <div className="phead">
+          <span className="pbadge" style={{ background: "#0284c7", boxShadow: "0 6px 16px rgba(2,132,199,.35)" }}><Icon n="rupee" size={15} /></span>
+          <div className="pttl">
+            <h2>Sales Price Chart</h2>
+            <div className="sub">{PRICES.length.toLocaleString("en-IN")} rates · reference for sales order creation</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        <div className="pmsearch">
+          <Icon n="search" size={15} />
+          <input placeholder="Search product, code, customer or unit…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+          <span className="pmcount">{rows.length === PRICES.length ? PRICES.length : `${rows.length} of ${PRICES.length}`} shown</span>
+        </div>
+        <div className="pmbody">
+          <table className="pmtable">
+            <thead><tr><th>#</th><th>Code</th><th>Product Name</th><th>Customer</th><th>Unit</th><th>Rate</th><th>W.E.F.</th></tr></thead>
+            <tbody>
+              {rows.map((p, i) => (
+                <tr key={p.code + p.unit + p.customer + i}>
+                  <td className="n">{i + 1}</td>
+                  <td>{p.code || "—"}</td>
+                  <td className="nm">{p.name}</td>
+                  <td>{p.customer || "—"}</td>
+                  <td>{p.unit || "—"}</td>
+                  <td className="lv" style={{ textAlign: "right", fontWeight: 700 }}>{p.rate != null ? inr(p.rate) : "—"}</td>
+                  <td>{p.wef || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="pfoot">
+          <span className="pstatus ok"><Icon n="shield" size={16} />Read-only reference · used to auto-fill Unit Price when creating an order</span>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 async function downloadOrderXlsx(o: SalesOrder) {
   try {
     const XLSX = await import("xlsx");
@@ -1028,7 +1096,26 @@ function SalesOrderCreate({ onClose, onSave }: { onClose: () => void; onSave: (n
   const [customer, setCustomer] = useState("");
   const [lines, setLines] = useState<SoLine[]>([soBlankLine()]);
   const [err, setErr] = useState("");
-  const setLine = (i: number, patch: Partial<SoLine>) => setLines((prev) => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const setLine = (i: number, patch: Partial<SoLine>) => setLines((prev) => prev.map((l, j) => {
+    if (j !== i) return l;
+    const nl: SoLine = { ...l, ...patch };
+    if ("product" in patch || "salesUnits" in patch) {
+      const m = lookupRate(nl.product, nl.salesUnits, customer);
+      if (m && m.rate != null) nl.unitPrice = String(m.rate);
+    }
+    const q = parseFloat(nl.salesQty), pr = parseFloat(nl.unitPrice);
+    if (("product" in patch || "salesUnits" in patch || "salesQty" in patch || "unitPrice" in patch) && isFinite(q) && isFinite(pr)) nl.value = String(Math.round(q * pr * 100) / 100);
+    return nl;
+  }));
+  useEffect(() => {
+    setLines((prev) => prev.map((l) => {
+      if (!l.product) return l;
+      const m = lookupRate(l.product, l.salesUnits, customer);
+      if (m && m.rate != null) { const nl = { ...l, unitPrice: String(m.rate) }; const q = parseFloat(nl.salesQty); if (isFinite(q)) nl.value = String(Math.round(q * m.rate * 100) / 100); return nl; }
+      return l;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer]);
   const addLine = () => setLines((prev) => [...prev, soBlankLine()]);
   const delLine = (i: number) => setLines((prev) => (prev.length > 1 ? prev.filter((_, j) => j !== i) : prev));
   const fmtDate = (iso: string) => { if (!iso) return ""; const d = new Date(iso + "T00:00:00"); if (isNaN(d.getTime())) return iso; return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
