@@ -453,7 +453,7 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
   const [scanBroken, setScanBroken] = useState(false);
   const [dstamp, setDstamp] = useState<(StampCheck & { status: "checking" | "done" }) | null>(null);
   useEffect(() => {
-    if (!scanUrl || b.voided || validate(b).status !== "OK") return;
+    if (!scanUrl || b.voided) return; // run stamp detection regardless of the 3-check result
     setDstamp({ status: "checking", ok: false, verified: false, gateNo: false, storeChecked: false });
     fetchStamp(scanUrl).then((res) => setDstamp({ ...res, status: "done" }));
   }, [scanUrl, b]);
