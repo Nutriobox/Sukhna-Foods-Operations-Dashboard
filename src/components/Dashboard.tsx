@@ -64,20 +64,24 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const soInputRef = useRef<HTMLInputElement | null>(null);
   const persistSO = (list: SalesOrder[]) => { try { window.localStorage.setItem("sf_sales_orders", JSON.stringify(list)); } catch { /* ignore */ } };
   useEffect(() => {
-    try { const raw = window.localStorage.getItem("sf_sales_orders"); if (raw) { const c = JSON.parse(raw) as SalesOrder[]; setSalesOrders(c); setSoActive((a) => a ?? c[0]?.id ?? null); } } catch { /* ignore */ }
+    try { const raw = window.localStorage.getItem("sf_sales_orders"); if (raw) { const c = dedupeSO(JSON.parse(raw) as SalesOrder[]); setSalesOrders(c); persistSO(c); setSoActive((a) => a ?? c[0]?.id ?? null); } } catch { /* ignore */ }
     if (!supabase) return;
     (async () => {
       try {
         const { data, error } = await supabase.from("sales_orders").select("id,name,created_at,sheets").order("created_at", { ascending: false });
         if (!error && data) {
           const list: SalesOrder[] = data.map((r: any) => ({ id: String(r.id), name: r.name, at: new Date(r.created_at).getTime(), sheets: (r.sheets as SalesOrder["sheets"]) || [] }));
-          setSalesOrders(list); persistSO(list); setSoActive((a) => a ?? list[0]?.id ?? null);
+          const dl = dedupeSO(list); setSalesOrders(dl); persistSO(dl); setSoActive((a) => a ?? dl[0]?.id ?? null);
         }
       } catch { /* table not set up yet */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   async function addSalesOrder(name: string, sheets: SalesOrder["sheets"]) {
+    if (salesOrders.some((o) => (o.name || "").trim().toLowerCase() === name.trim().toLowerCase())) {
+      ping(`A sales order named "${name}" is already added — duplicates aren't allowed.`);
+      return;
+    }
     const tmp: SalesOrder = { id: "local-" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name, at: Date.now(), sheets };
     setSalesOrders((prev) => { const n = [tmp, ...prev]; persistSO(n); return n; });
     setSoActive(tmp.id);
@@ -441,7 +445,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {billOpen && <BillEntry nextId={(bills.reduce((m, b) => Math.max(m, b.id), 0) || 0) + 1} onClose={() => setBillOpen(false)} onSave={addBill} />}
 
       {/* Manual sales order entry */}
-      {soCreateOpen && <SalesOrderCreate onClose={() => setSoCreateOpen(false)} onSave={async (name, sheets) => { await addSalesOrder(name, sheets); setSoCreateOpen(false); }} />}
+      {soCreateOpen && <SalesOrderCreate nextDocNo={(() => { let mx = 0; salesOrders.forEach((o) => analyzeSO(o).docs.forEach((d) => { const n = parseInt(String(d).replace(/[^0-9]/g, ""), 10); if (isFinite(n) && n > mx) mx = n; })); return mx > 0 ? String(mx + 1) : ""; })()} onClose={() => setSoCreateOpen(false)} onSave={async (name, sheets) => { await addSalesOrder(name, sheets); setSoCreateOpen(false); }} />}
 
       {/* Sales price chart reference */}
       {priceOpen && <PriceChartModal onClose={() => setPriceOpen(false)} />}
@@ -1089,33 +1093,66 @@ const SO_HEADERS = ["DOC DATE", "PREFIX", "DOC NO", "CUSTOMER NAME", "PRODUCT NA
 type SoLine = { product: string; salesUnits: string; salesQty: string; units: string; qty: string; unitPrice: string; value: string; tax: string };
 const soBlankLine = (): SoLine => ({ product: "", salesUnits: "Container", salesQty: "", units: "Gms", qty: "", unitPrice: "", value: "", tax: "" });
 
-function SalesOrderCreate({ onClose, onSave }: { onClose: () => void; onSave: (name: string, sheets: SalesOrder["sheets"]) => void }) {
+function dedupeSO(list: SalesOrder[]): SalesOrder[] {
+  const seen = new Set<string>(); const out: SalesOrder[] = [];
+  for (const o of list) { const k = (o.name || "").trim().toLowerCase(); if (seen.has(k)) continue; seen.add(k); out.push(o); }
+  return out;
+}
+
+const SO_BASE_UNIT = /^(gms?|grams?|kg|kgs|ml|ltr|l|litres?|liters?)$/i;
+function soCustomers(): string[] { return Array.from(new Set(PRICES.map((p) => p.customer).filter(Boolean))).sort(); }
+function soProducts(customer: string): string[] { const c = customer.trim().toLowerCase(); return Array.from(new Set(PRICES.filter((p) => p.customer.trim().toLowerCase() === c).map((p) => p.name))).sort(); }
+function soPriceInfo(customer: string, product: string): { salesUnit: string; baseUnit: string; unitPrice: number | null } {
+  const c = customer.trim().toLowerCase(), n = product.trim().toLowerCase();
+  const rows = PRICES.filter((p) => p.customer.trim().toLowerCase() === c && p.name.trim().toLowerCase() === n && p.rate != null);
+  if (!rows.length) return { salesUnit: "", baseUnit: "", unitPrice: null };
+  const sales = rows.filter((r) => !SO_BASE_UNIT.test(r.unit.trim())).sort((a, b) => wefNum(b.wef) - wefNum(a.wef));
+  const base = rows.filter((r) => SO_BASE_UNIT.test(r.unit.trim())).sort((a, b) => wefNum(b.wef) - wefNum(a.wef));
+  const su = sales[0] || base[0]; const bu = base[0] || sales[0];
+  return { salesUnit: su ? su.unit : "", baseUnit: bu ? bu.unit : "", unitPrice: su && su.rate != null ? su.rate : bu && bu.rate != null ? bu.rate : null };
+}
+function soPackSize(name: string): number | null {
+  const m = name.match(/\(([^)]*)\)\s*$/) || name.match(/\(([^)]*)\)/);
+  if (!m) return null;
+  const parts = m[1].split("/").map((s) => s.trim());
+  const num = (s: string) => { const x = s.match(/([\d.]+)/); return x ? parseFloat(x[1]) : null; };
+  if (parts.length >= 2) { const a = num(parts[0]), b = num(parts[1]); if (/pcs|pack|piece|pc\b/i.test(parts[1])) return a != null && b != null ? a * b : null; return b; }
+  return num(parts[0]);
+}
+
+function SalesOrderCreate({ nextDocNo, onClose, onSave }: { nextDocNo: string; onClose: () => void; onSave: (name: string, sheets: SalesOrder["sheets"]) => void }) {
   const [docDate, setDocDate] = useState("");
-  const [prefix, setPrefix] = useState("");
-  const [docNo, setDocNo] = useState("");
+  const [prefix, setPrefix] = useState("26-27/");
+  const [docNo, setDocNo] = useState(nextDocNo);
   const [customer, setCustomer] = useState("");
   const [lines, setLines] = useState<SoLine[]>([soBlankLine()]);
   const [err, setErr] = useState("");
-  const setLine = (i: number, patch: Partial<SoLine>) => setLines((prev) => prev.map((l, j) => {
-    if (j !== i) return l;
-    const nl: SoLine = { ...l, ...patch };
-    if ("product" in patch || "salesUnits" in patch) {
-      const m = lookupRate(nl.product, nl.salesUnits, customer);
-      if (m && m.rate != null) nl.unitPrice = String(m.rate);
-    }
-    const q = parseFloat(nl.salesQty), pr = parseFloat(nl.unitPrice);
-    if (("product" in patch || "salesUnits" in patch || "salesQty" in patch || "unitPrice" in patch) && isFinite(q) && isFinite(pr)) nl.value = String(Math.round(q * pr * 100) / 100);
-    return nl;
-  }));
-  useEffect(() => {
-    setLines((prev) => prev.map((l) => {
-      if (!l.product) return l;
-      const m = lookupRate(l.product, l.salesUnits, customer);
-      if (m && m.rate != null) { const nl = { ...l, unitPrice: String(m.rate) }; const q = parseFloat(nl.salesQty); if (isFinite(q)) nl.value = String(Math.round(q * m.rate * 100) / 100); return nl; }
-      return l;
+  const customers = useMemo(() => soCustomers(), []);
+  const products = useMemo(() => (customer ? soProducts(customer) : []), [customer]);
+  const onCustomer = (v: string) => { setCustomer(v); setLines([soBlankLine()]); };
+  const onProduct = (i: number, product: string) => {
+    const info = soPriceInfo(customer, product);
+    const ps = soPackSize(product);
+    setLines((prev) => prev.map((l, j) => {
+      if (j !== i) return l;
+      const sq = parseFloat(l.salesQty);
+      const nl: SoLine = { ...l, product, salesUnits: info.salesUnit || l.salesUnits, units: info.baseUnit || l.units, unitPrice: info.unitPrice != null ? String(info.unitPrice) : "" };
+      if (ps != null && isFinite(sq)) nl.qty = String(Math.round(sq * ps * 100) / 100);
+      if (info.unitPrice != null && isFinite(sq)) nl.value = String(Math.round(sq * info.unitPrice * 100) / 100);
+      return nl;
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customer]);
+  };
+  const onSalesQty = (i: number, v: string) => {
+    setLines((prev) => prev.map((l, j) => {
+      if (j !== i) return l;
+      const sq = parseFloat(v); const ps = soPackSize(l.product); const pr = parseFloat(l.unitPrice);
+      const nl: SoLine = { ...l, salesQty: v };
+      if (ps != null && isFinite(sq)) nl.qty = String(Math.round(sq * ps * 100) / 100);
+      if (isFinite(pr) && isFinite(sq)) nl.value = String(Math.round(sq * pr * 100) / 100);
+      return nl;
+    }));
+  };
+  const setField = (i: number, key: keyof SoLine, v: string) => setLines((prev) => prev.map((l, j) => (j === i ? { ...l, [key]: v } : l)));
   const addLine = () => setLines((prev) => [...prev, soBlankLine()]);
   const delLine = (i: number) => setLines((prev) => (prev.length > 1 ? prev.filter((_, j) => j !== i) : prev));
   const fmtDate = (iso: string) => { if (!iso) return ""; const d = new Date(iso + "T00:00:00"); if (isNaN(d.getTime())) return iso; return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
@@ -1126,21 +1163,20 @@ function SalesOrderCreate({ onClose, onSave }: { onClose: () => void; onSave: (n
     return [SO_HEADERS, ...rows];
   }
   function submit() {
+    if (!customer.trim()) { setErr("Select a customer."); return; }
     if (!docNo.trim()) { setErr("Enter a Doc No."); return; }
-    if (!customer.trim()) { setErr("Enter the customer name."); return; }
-    if (!lineCount) { setErr("Add at least one product line."); return; }
+    if (!lineCount) { setErr("Add at least one product."); return; }
     setErr("");
-    const name = ("Manual SO " + (prefix.trim() + docNo.trim())).trim();
-    onSave(name, [{ name: "Sales Order", rows: build() }]);
+    onSave(("Manual SO " + (prefix.trim() + docNo.trim())).trim(), [{ name: "Sales Order", rows: build() }]);
   }
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="pmodal" style={{ maxWidth: 1120 }}>
+      <div className="pmodal" style={{ maxWidth: 1160 }}>
         <div className="phead">
           <span className="pbadge" style={{ background: "#0284c7", boxShadow: "0 6px 16px rgba(2,132,199,.35)" }}><Icon n="plus" size={15} /></span>
           <div className="pttl">
             <h2>Create a sales order</h2>
-            <div className="sub">Fill one document manually. It joins the Sales Orders list, saves to your database, and can be downloaded as an Excel for PACT.</div>
+            <div className="sub">Pick a customer, then its products. Sales Units, Qty and Unit Price fill from the price chart; Unit Price, Value &amp; Tax are locked.</div>
           </div>
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
         </div>
@@ -1150,37 +1186,42 @@ function SalesOrderCreate({ onClose, onSave }: { onClose: () => void; onSave: (n
             <div className="begrid">
               <label className="befield"><span>Doc Date</span><input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} /></label>
               <label className="befield"><span>Prefix</span><input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="e.g. 26-27/" /></label>
-              <label className="befield"><span>Doc No</span><input value={docNo} onChange={(e) => setDocNo(e.target.value)} placeholder="e.g. 61" /></label>
-              <label className="befield"><span>Customer Name</span><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="e.g. Om Sweets Sector-4 Gurugram" /></label>
+              <label className="befield"><span>Doc No <small style={{ color: "var(--faint)", fontWeight: 600 }}>(auto · editable)</small></span><input value={docNo} onChange={(e) => setDocNo(e.target.value)} placeholder="e.g. 69" /></label>
+              <label className="befield full"><span>Customer Name</span>
+                <select value={customer} onChange={(e) => onCustomer(e.target.value)}>
+                  <option value="">Select customer…</option>
+                  {customers.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
             </div>
 
-            <div className="besec">Products</div>
+            <div className="besec">Products{customer ? "" : " — pick a customer first"}</div>
             <div className="beitems">
               <div className="soih">
                 <span>Product Name</span><span>Sales Units</span><span>Sales Qty</span><span>Units</span><span>Qty</span><span>Unit Price</span><span>Value</span><span>Tax</span><span></span>
               </div>
               {lines.map((l, i) => (
                 <div className="soir" key={i}>
-                  <input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} placeholder="Product name" list="so-products" />
-                  <input value={l.salesUnits} onChange={(e) => setLine(i, { salesUnits: e.target.value })} placeholder="Container" list="so-sunits" />
-                  <input value={l.salesQty} onChange={(e) => setLine(i, { salesQty: e.target.value })} inputMode="decimal" />
-                  <input value={l.units} onChange={(e) => setLine(i, { units: e.target.value })} placeholder="Gms" list="so-units" />
-                  <input value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} inputMode="decimal" />
-                  <input value={l.unitPrice} onChange={(e) => setLine(i, { unitPrice: e.target.value })} inputMode="decimal" placeholder="—" />
-                  <input value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} inputMode="decimal" placeholder="—" />
-                  <input value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value })} placeholder="—" />
+                  <select value={l.product} onChange={(e) => onProduct(i, e.target.value)} disabled={!customer}>
+                    <option value="">{customer ? "Select product…" : "Pick customer first"}</option>
+                    {products.map((pn) => <option key={pn} value={pn}>{pn}</option>)}
+                  </select>
+                  <input value={l.salesUnits} onChange={(e) => setField(i, "salesUnits", e.target.value)} placeholder="Container" />
+                  <input value={l.salesQty} onChange={(e) => onSalesQty(i, e.target.value)} inputMode="decimal" placeholder="0" />
+                  <input value={l.units} onChange={(e) => setField(i, "units", e.target.value)} placeholder="Gms" />
+                  <input value={l.qty} onChange={(e) => setField(i, "qty", e.target.value)} inputMode="decimal" placeholder="0" />
+                  <input className="frozen" value={l.unitPrice} readOnly tabIndex={-1} placeholder="—" title="From price chart (locked)" />
+                  <input className="frozen" value={l.value} readOnly tabIndex={-1} placeholder="—" title="Sales Qty × Unit Price (locked)" />
+                  <input className="frozen" value={l.tax} readOnly tabIndex={-1} placeholder="—" title="Locked" />
                   <button className="bex" title="Remove line" onClick={() => delLine(i)} disabled={lines.length === 1}><Icon n="x" size={13} /></button>
                 </div>
               ))}
-              <datalist id="so-products">{CATALOG.slice(0, 400).map((pp) => <option key={pp.name} value={pp.name} />)}</datalist>
-              <datalist id="so-units">{ALL_UNITS.map((u) => <option key={u} value={u} />)}</datalist>
-              <datalist id="so-sunits">{["Container", "Pkt", "Box", "Nos", "Bag", "Jar", "Bottle"].map((u) => <option key={u} value={u} />)}</datalist>
-              <button className="beadd" onClick={addLine}><Icon n="plus" size={13} />Add product line</button>
+              <button className="beadd" onClick={addLine} disabled={!customer}><Icon n="plus" size={13} />Add product line</button>
             </div>
           </div>
         </div>
         <div className="pfoot">
-          <span className="pstatus ok"><Icon n="file" size={16} />{lineCount} product line{lineCount === 1 ? "" : "s"} · Doc {prefix.trim()}{docNo.trim() || "—"}</span>
+          <span className="pstatus ok"><Icon n="file" size={16} />{lineCount} product{lineCount === 1 ? "" : "s"} · Doc {prefix.trim()}{docNo.trim() || "—"}{customer ? " · " + customer : ""}</span>
           {err && <span className="pstatus err" style={{ marginLeft: 8 }}><Icon n="alert" size={16} />{err}</span>}
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={submit}><Icon n="plus" size={14} />Create sales order</button>
@@ -1239,12 +1280,12 @@ function SalesOrderDetail({ order }: { order: SalesOrder }) {
         <thead><tr><th>Doc No</th><th>Customer Name</th><th>Import Status</th></tr></thead>
         <tbody>
           {docs.map((d, di) => {
-            const cls = d.statuses.length === 0 ? "pending" : d.passN === d.lines ? "ok" : "partial";
+            const cls = d.statuses.length === 0 ? "pending" : d.statuses.some((x) => !/pass|success|imported|ok/i.test(x)) ? "fail" : "ok";
             return (
               <tr key={di}>
                 <td className="dn">{d.docNo}</td>
                 <td>{d.customer || "—"}</td>
-                <td>{cls === "ok" ? <span className="pill ok"><Icon n="check" size={11} />Imported</span> : cls === "partial" ? <span className="pill err"><Icon n="alert" size={11} />{d.passN}/{d.lines} passed</span> : <span className="pill chk"><Icon n="refresh" size={11} />Pending</span>}</td>
+                <td>{cls === "ok" ? <span className="pill ok"><Icon n="check" size={11} />Imported</span> : cls === "fail" ? <span className="pill err"><Icon n="alert" size={11} />Failed</span> : <span className="pill chk"><Icon n="refresh" size={11} />Pending</span>}</td>
               </tr>
             );
           })}
@@ -1293,6 +1334,9 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
             const a = analyzeSO(o);
             const cust = a.custs.length <= 1 ? (a.custs[0] || `${a.body.length} rows`) : `${a.custs.length} customers`;
             const docTxt = a.docs.length === 1 ? a.docs[0] : a.docs.length === 0 ? "—" : `${a.docs.length} docs`;
+            const dgArr = ordersByDoc(a);
+            const dgOk = dgArr.filter((d) => d.statuses.length && !d.statuses.some((x) => !/pass|success|imported|ok/i.test(x))).length;
+            const dgAny = dgArr.some((d) => d.statuses.length);
             return (
               <div key={o.id} className="soblock">
                 <div className="row" style={{ cursor: "default" }}>
@@ -1307,11 +1351,11 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
                 <span className="c-inv">{docTxt}</span>
                 <span className="c-items"><span className="itcount">{a.body.length}</span></span>
                 <span className="c-verify">
-                  {a.statuses.length === 0
+                  {!dgAny
                     ? <span className="pill chk"><Icon n="refresh" size={12} />Pending</span>
-                    : a.passN === a.statuses.length
-                      ? <span className="pill ok"><Icon n="check" size={12} />Imported {a.passN}/{a.body.length}</span>
-                      : <span className="pill err"><Icon n="alert" size={12} />{a.passN}/{a.statuses.length} passed</span>}
+                    : dgOk === dgArr.length
+                      ? <span className="pill ok"><Icon n="check" size={12} />Imported {dgOk}/{dgArr.length}</span>
+                      : <span className="pill err"><Icon n="alert" size={12} />{dgOk}/{dgArr.length} imported</span>}
                 </span>
                 <span className="c-act">
                   <button className="btn btn-ghost" title="Download this order as Excel (FSALES format)" onClick={() => downloadOrderXlsx(o)}><Icon n="download" size={14} />Excel</button>

@@ -601,3 +601,12 @@
   .sodetail tbody tr:hover td { background: #fff; }
   .sodetail td.dn { font-weight: 700; color: var(--ink); white-space: nowrap; }
   @media (max-width: 720px) { .sodetail-wrap { padding: 0 12px 14px; } }
+
+  /* ===== Create sales order: dropdowns + frozen fields ===== */
+  .befield select { border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font-size: 13px; font-family: inherit; color: var(--ink); background: #fff; outline: none; cursor: pointer; }
+  .befield select:focus { border-color: #0284c7; box-shadow: 0 0 0 3px rgba(2,132,199,.12); }
+  .soir select { border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; font-size: 12.5px; font-family: inherit; color: var(--ink); background: #fff; outline: none; width: 100%; cursor: pointer; }
+  .soir select:focus { border-color: #0284c7; box-shadow: 0 0 0 3px rgba(2,132,199,.12); }
+  .soir select:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+  .soir input.frozen { background: var(--surface-2); color: var(--muted); cursor: not-allowed; text-align: right; }
+  .beadd:disabled { opacity: .5; cursor: not-allowed; }
