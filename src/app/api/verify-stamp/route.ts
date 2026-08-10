@@ -90,15 +90,23 @@ export async function POST(req: Request) {
 
   const prompt =
     'This is a scanned Indian purchase / tax invoice. It usually carries hand-applied rubber INK STAMPS — ' +
-    'typically blue, sometimes faint or smudged, often tilted or diagonal, and frequently overlapping handwritten signatures, ' +
-    'mostly in the lower half of the page.\n\n' +
+    'typically blue, sometimes faint, smudged, partial, tilted or diagonal, and frequently overlapping handwritten ' +
+    'signatures, mostly in the lower half of the page. Stamps are often hard to read, so be GENEROUS: judge by the ' +
+    'overall shape and any legible words, not perfect spelling.\n\n' +
     'Work step by step:\n' +
-    '1. Look carefully across the WHOLE page, especially the lower half, and list every rubber-stamp impression you can see, ' +
-    'transcribing the text inside each stamp (read rotated / faint / overlapping text too).\n' +
-    '2. Then decide:\n' +
-    '   - gateNo = true if any stamp contains "GATE NO" together with "INWARD" (an inward gate-entry stamp, often with a ' +
-    'company name/address like "ALLSURE SERVICES" and Sr.No / Date / Sign lines).\n' +
-    '   - storeChecked = true if any stamp contains the words "STORE CHECKED" (with S.No / Date / Sign lines).\n\n' +
+    '1. Look carefully across the WHOLE page, especially the lower half and the margins, and list every rubber-stamp ' +
+    'impression you can see, transcribing whatever text you can make out inside each stamp (read rotated / faint / ' +
+    'partial / overlapping text too — write what you can even if some letters are unclear).\n' +
+    '2. Then decide (match loosely — accept close spellings, partial words, and abbreviations):\n' +
+    '   - gateNo = true if ANY stamp looks like an inward gate-entry stamp. Treat it as present if the stamp contains ' +
+    'ANY of these (you do NOT need all of them): "GATE NO" / "GATE NUMBER" / "GATE", or "INWARD" / "IN WARD", or a ' +
+    'security/logistics company name such as "ALLSURE" / "ALLSURE SERVICES", especially when accompanied by ' +
+    'Sr.No / S.No / Date / Sign / Time lines.\n' +
+    '   - storeChecked = true if ANY stamp is a store-verification stamp. Treat it as present if the stamp contains ' +
+    'ANY of "STORE CHECKED" / "STORE CHECK" / "STORE CHK" / "STORE CHEKD" / "STORE" combined with "CHECK", or the ' +
+    'clearly-store-check stamp with S.No / Date / Sign lines.\n' +
+    'Only mark a value false if that stamp is genuinely absent from the page — not merely because the text is faint ' +
+    'or the spelling differs slightly.\n\n' +
     'After your reasoning, end your reply with a single final line in EXACTLY this form:\n' +
     'FINAL {"gateNo": true|false, "storeChecked": true|false}';
 
