@@ -390,7 +390,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                       <span className="mono" style={{ background: MC[(b.id - 1) % MC.length] }}>{initials(b.vendor)}</span>
                       <span className="vmeta">
                         <span className="vname">{b.vendor}</span>
-                        <span className="vsub">{b.items[0].name}{b.items.length > 1 ? ` · +${b.items.length - 1} more` : ""}</span>
+                        <span className="vsub">{b.items[0]?.name ?? "No line items"}{b.items.length > 1 ? ` · +${b.items.length - 1} more` : ""}</span>
                       </span>
                     </span>
                     <span className="c-inv">{b.invoice}</span>
