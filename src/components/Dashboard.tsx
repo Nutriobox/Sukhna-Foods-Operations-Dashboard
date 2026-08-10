@@ -119,7 +119,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const { data, error } = await supabase.from("bills").select("*").order("id");
+      const { data, error } = await supabase.from("bills").select("*").order("id", { ascending: false });
       if (!error && data && data.length) setBills(data.map(rowToBill));
     })();
   }, []);
@@ -159,8 +159,10 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
     setBillOpen(false);
     ping(`Bill added — ${nb.vendor} · ${nb.invoice}.`);
     if (!supabase) return;
-    try { await supabase.from("bills").upsert(billToRow(nb)); }
-    catch { ping("Added on this device (couldn't reach Supabase)."); }
+    try {
+      const { error } = await supabase.from("bills").upsert(billToRow(nb));
+      if (error) ping("Saved on this device only \u2014 database rejected it: " + error.message);
+    } catch { ping("Added on this device (couldn't reach Supabase)."); }
   }
 
   async function persist(b: Bill) {
@@ -256,7 +258,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
     if (filter === "up" && !allUploaded(b)) return false;
     if (q && !(b.vendor.toLowerCase().includes(q) || b.invoice.toLowerCase().includes(q))) return false;
     return true;
-  });
+  }).sort((a, b) => b.id - a.id);
 
   // 5-check gate: run the stamp vision check only on bills that already pass the 3 offline checks.
   useEffect(() => {
