@@ -1327,7 +1327,7 @@ function ordersByDoc(a: ReturnType<typeof analyzeSO>) {
   return Array.from(map.values()).map((g) => ({ ...g, passN: g.statuses.filter((x) => /pass|success|imported|ok/i.test(x)).length }));
 }
 
-function SalesOrderDetail({ order }: { order: SalesOrder }) {
+function SalesOrderDetail({ order, exported }: { order: SalesOrder; exported: boolean }) {
   const a = analyzeSO(order);
   const docs = ordersByDoc(a);
   return (
@@ -1341,7 +1341,7 @@ function SalesOrderDetail({ order }: { order: SalesOrder }) {
               <tr key={di}>
                 <td className="dn">{d.docNo}</td>
                 <td>{d.customer || "—"}</td>
-                <td>{cls === "ok" ? <span className="pill ok"><Icon n="check" size={11} />Imported</span> : cls === "fail" ? <span className="pill err"><Icon n="alert" size={11} />Failed</span> : <span className="pill chk"><Icon n="refresh" size={11} />Pending</span>}</td>
+                <td>{cls === "ok" ? <span className="pill ok"><Icon n="check" size={11} />Imported</span> : cls === "fail" ? <span className="pill err"><Icon n="alert" size={11} />Failed</span> : exported ? <span className="pill mut"><Icon n="upload" size={11} />Awaiting import</span> : <span className="pill mut">Not exported</span>}</td>
               </tr>
             );
           })}
@@ -1411,7 +1411,7 @@ function SalesPage({ orders, onUpload, supaOk, exportedIds, onExport }: { orders
                 <span className="c-items"><span className="itcount">{a.body.length}</span></span>
                 <span className="c-verify">
                   {!dgAny
-                    ? <span className="pill chk"><Icon n="refresh" size={12} />Pending</span>
+                    ? (exportedIds.has(o.id) ? <span className="pill mut"><Icon n="upload" size={12} />Awaiting import</span> : <span className="pill mut">Not exported</span>)
                     : dgOk === dgArr.length
                       ? <span className="pill ok"><Icon n="check" size={12} />Imported {dgOk}/{dgArr.length}</span>
                       : <span className="pill err"><Icon n="alert" size={12} />{dgOk}/{dgArr.length} imported</span>}
@@ -1423,7 +1423,7 @@ function SalesPage({ orders, onUpload, supaOk, exportedIds, onExport }: { orders
                   <button className={"btn " + (exportedIds.has(o.id) ? "btn-primary" : "btn-ghost")} disabled={!exportedIds.has(o.id)} title={exportedIds.has(o.id) ? "Check PACT import status" : "Export to PACT first to enable"} onClick={() => { if (exportedIds.has(o.id)) setStatusId(o.id); }}><Icon n="checkCircle" size={14} />Status check</button>
                 </span>
                 </div>
-                <SalesOrderDetail order={o} />
+                <SalesOrderDetail order={o} exported={exportedIds.has(o.id)} />
               </div>
             );
           })}
@@ -1495,7 +1495,7 @@ function SalesOrderStatus({ order, onClose }: { order: SalesOrder; onClose: () =
                       <td>{a.vAt(r, a.cDoc) || "—"}</td>
                       <td>{a.vAt(r, a.cCust) || "—"}</td>
                       <td>{a.vAt(r, a.cProduct) || "—"}</td>
-                      <td>{st ? <span className={"pill " + (ok ? "ok" : "err")}>{ok ? <Icon n="check" size={12} /> : <Icon n="alert" size={12} />}{st}</span> : <span className="pill chk"><Icon n="refresh" size={12} />Pending</span>}</td>
+                      <td>{st ? <span className={"pill " + (ok ? "ok" : "err")}>{ok ? <Icon n="check" size={12} /> : <Icon n="alert" size={12} />}{st}</span> : <span className="pill mut">Pending</span>}</td>
                       <td>{a.vAt(r, a.cMsg) || "—"}</td>
                     </tr>
                   );

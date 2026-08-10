@@ -615,3 +615,7 @@
   .sowarn { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 999px; padding: 1px 8px; margin-top: 4px; width: fit-content; }
   .sowarn svg { stroke: #b45309; }
   .lbltbl td.nomatch, .sotbl td.nomatch { color: #dc2626; font-weight: 700; background: #fef2f2; }
+
+  /* ===== Muted (pre-export) status pill — no spinner ===== */
+  .pill.mut { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+  .pill.mut svg { stroke: var(--muted); animation: none; }
