@@ -638,15 +638,41 @@ function unitGrams(prod: { levels: LevelMap }, u: string): { g: number; fam: str
   }
   return null;
 }
+// Generic count-unit synonyms (a single countable item). Used to bridge a bill's
+// count UOM (e.g. "Pcs.", "Nos") to a count-based product's base packaging level.
+// Multipack names (Carton/Box/Bag/Roll) are deliberately excluded — those must come
+// from a named packaging level so their pack size is respected.
+const COUNT_UNITS = new Set(["pc", "pcs", "piece", "pieces", "no", "nos", "number", "numbers", "unit", "units", "ea", "each", "pkt", "pkts", "packet", "packets", "qty", "quantity"]);
+// Size of `u` in the product's L1 base units, via the master's packaging levels
+// (L1/L2/L3). Works for count-based products (no weight/volume). A generic count unit
+// maps to the L1 base only when the product itself is count-based (its L1 is not a
+// weight/volume unit), so pieces never get misread on a Kg/Gms product.
+function levelInBase(prod: { levels: LevelMap }, u: string): number | null {
+  const n = normU(u);
+  const lv = prod.levels || {};
+  for (const k of ["L1", "L2", "L3"]) {
+    const L = lv[k];
+    if (L && normU(L.u) === n) return L.s != null ? L.s : 1;
+  }
+  const L1 = lv.L1;
+  if (L1 && COUNT_UNITS.has(n) && COUNT_UNITS.has(normU(L1.u)) && !stdGrams(L1.u)) return L1.s != null ? L1.s : 1;
+  return null;
+}
 // Multiply an invoice quantity in `from` units by this to get `to` units (rate divides).
 function convFactor(prod: { levels: LevelMap }, from: string, to: string): number | null {
   const nf = normU(from);
   const nt = normU(to);
   if (!nf || !nt) return null;
   if (nf === nt) return 1;
+  // Weight / volume conversion (standard units) — unchanged.
   const a = unitGrams(prod, from);
   const b = unitGrams(prod, to);
   if (a && b && a.fam === b.fam && b.g) return a.g / b.g;
+  // Count / packaging-level conversion via the product's own pack sizes
+  // (e.g. Pcs. -> Carton where 1 Carton = 1000 Pkt).
+  const la = levelInBase(prod, from);
+  const lb = levelInBase(prod, to);
+  if (la != null && lb != null && lb) return la / lb;
   return null;
 }
 const fmtQty = (n: number) => Number(n.toFixed(3)).toLocaleString("en-IN");
