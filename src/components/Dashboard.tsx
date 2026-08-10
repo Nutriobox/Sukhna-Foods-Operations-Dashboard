@@ -56,6 +56,8 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [billOpen, setBillOpen] = useState(false);
   const [soCreateOpen, setSoCreateOpen] = useState(false);
   const [priceOpen, setPriceOpen] = useState(false);
+  const [exportedSO, setExportedSO] = useState<Set<string>>(new Set());
+  const [priceVer, setPriceVer] = useState(0);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
   const [view, setView] = useState<"home" | "stock" | "sales">("home");
@@ -64,6 +66,8 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const soInputRef = useRef<HTMLInputElement | null>(null);
   const persistSO = (list: SalesOrder[]) => { try { window.localStorage.setItem("sf_sales_orders", JSON.stringify(list)); } catch { /* ignore */ } };
   useEffect(() => {
+    try { const raw = window.localStorage.getItem("sf_so_exported"); if (raw) setExportedSO(new Set(JSON.parse(raw))); } catch { /* ignore */ }
+    if (loadStoredPrices()) setPriceVer((v) => v + 1);
     try { const raw = window.localStorage.getItem("sf_sales_orders"); if (raw) { const c = dedupeSO(JSON.parse(raw) as SalesOrder[]); setSalesOrders(c); persistSO(c); setSoActive((a) => a ?? c[0]?.id ?? null); } } catch { /* ignore */ }
     if (!supabase) return;
     (async () => {
@@ -77,6 +81,11 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  function markExported(o: SalesOrder) {
+    downloadOrderXlsx(o);
+    setExportedSO((prev) => { const n = new Set(prev); n.add(o.id); try { window.localStorage.setItem("sf_so_exported", JSON.stringify(Array.from(n))); } catch { /* ignore */ } return n; });
+    ping(`"${o.name}" exported — an Excel was downloaded. Upload it to PACT, then run Status check.`);
+  }
   async function addSalesOrder(name: string, sheets: SalesOrder["sheets"]) {
     if (salesOrders.some((o) => (o.name || "").trim().toLowerCase() === name.trim().toLowerCase())) {
       ping(`A sales order named "${name}" is already added — duplicates aren't allowed.`);
@@ -321,7 +330,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
         </div>
 
         {view === "sales"
-          ? <SalesPage orders={salesOrders} onUpload={() => soInputRef.current?.click()} supaOk={!!supabase} />
+          ? <SalesPage key={"so" + priceVer} orders={salesOrders} onUpload={() => soInputRef.current?.click()} supaOk={!!supabase} exportedIds={exportedSO} onExport={markExported} />
           : (
         <div className="content">
           {/* KPIs */}
@@ -448,7 +457,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {soCreateOpen && <SalesOrderCreate nextDocNo={(() => { let mx = 0; salesOrders.forEach((o) => analyzeSO(o).docs.forEach((d) => { const n = parseInt(String(d).replace(/[^0-9]/g, ""), 10); if (isFinite(n) && n > mx) mx = n; })); return mx > 0 ? String(mx + 1) : ""; })()} onClose={() => setSoCreateOpen(false)} onSave={async (name, sheets) => { await addSalesOrder(name, sheets); setSoCreateOpen(false); }} />}
 
       {/* Sales price chart reference */}
-      {priceOpen && <PriceChartModal onClose={() => setPriceOpen(false)} />}
+      {priceOpen && <PriceChartModal onClose={() => setPriceOpen(false)} onUpdated={() => setPriceVer((v) => v + 1)} />}
 
       {/* Toast */}
       <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
@@ -1015,7 +1024,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void
 }
 
 type PriceRow = { code: string; name: string; customer: string; unit: string; rate: number | null; wef: string };
-const PRICES = PRICE_CHART as PriceRow[];
+let PRICES: PriceRow[] = PRICE_CHART as PriceRow[];
 const CAT_LEVELS = (() => { const m = new Map<string, (typeof CATALOG)[number]["levels"]>(); for (const c of CATALOG) { if (c.levels && Object.keys(c.levels).length) m.set(c.name.trim().toLowerCase(), c.levels); } return m; })();
 function productLevels(name: string) { return CAT_LEVELS.get((name || "").trim().toLowerCase()) || null; }
 function unitConversion(name: string, unit: string): number | null {
@@ -1024,8 +1033,27 @@ function unitConversion(name: string, unit: string): number | null {
   for (const k of ["L1", "L2", "L3"] as const) { const e = lv[k]; if (e && String(e.u).trim().toLowerCase() === u) return Number(e.s); }
   return null;
 }
-const PRICE_NAME_SET = new Set(PRICES.map((p) => p.name.trim().toLowerCase()).filter(Boolean));
+let PRICE_NAME_SET = new Set(PRICES.map((p) => p.name.trim().toLowerCase()).filter(Boolean));
 const inPriceChart = (name: string) => PRICE_NAME_SET.has((name || "").trim().toLowerCase());
+function rebuildPriceIndex() { PRICE_NAME_SET = new Set(PRICES.map((p) => p.name.trim().toLowerCase()).filter(Boolean)); }
+function setActivePrices(rows: PriceRow[]) { PRICES = rows; rebuildPriceIndex(); }
+function parsePriceRows(rows: (string | number | null)[][]): PriceRow[] {
+  const hi = rows.findIndex((r) => r && r.some((c) => String(c ?? "").trim().toLowerCase() === "product code"));
+  const hdr = (hi >= 0 ? rows[hi] : rows[0] || []).map((c) => String(c ?? "").toLowerCase().trim());
+  const col = (res: RegExp[]) => { for (let i = 0; i < hdr.length; i++) if (res.some((r) => r.test(hdr[i]))) return i; return -1; };
+  const ci = { code: col([/product code/, /^code$/]), name: col([/product name/, /^product$/, /^name$/]), customer: col([/customer/]), unit: col([/unit name/, /^unit$/, /uom/]), rate: col([/sales rate/, /^rate$/, /price/]), wef: col([/w\.?e\.?f/, /effective/]) };
+  const out: PriceRow[] = [];
+  for (const r of rows.slice((hi >= 0 ? hi : 0) + 1)) {
+    if (!r) continue;
+    const g = (i: number) => (i >= 0 && i < r.length ? r[i] : null);
+    const name = String(g(ci.name) ?? "").trim(); const code = String(g(ci.code) ?? "").trim();
+    if (!name && !code) continue;
+    const rr = g(ci.rate); const rate = rr != null && String(rr).trim() !== "" ? parseFloat(String(rr).replace(/,/g, "")) : NaN;
+    out.push({ code, name, customer: String(g(ci.customer) ?? "").trim(), unit: String(g(ci.unit) ?? "").trim(), rate: isFinite(rate) ? rate : null, wef: String(g(ci.wef) ?? "").trim() });
+  }
+  return out;
+}
+function loadStoredPrices(): boolean { try { const raw = window.localStorage.getItem("sf_price_chart"); if (raw) { const r = JSON.parse(raw); if (Array.isArray(r) && r.length) { setActivePrices(r as PriceRow[]); return true; } } } catch { /* ignore */ } return false; }
 const wefNum = (w: string) => { const m = (w || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (!m) return 0; const d = +m[1], mo = +m[2]; const yy = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return yy * 10000 + mo * 100 + d; };
 function lookupRate(name: string, unit: string, customer?: string): PriceRow | null {
   const n = (name || "").trim().toLowerCase(); const u = (unit || "").trim().toLowerCase();
@@ -1039,8 +1067,23 @@ function lookupRate(name: string, unit: string, customer?: string): PriceRow | n
   return scored[0].p;
 }
 
-function PriceChartModal({ onClose }: { onClose: () => void }) {
+function PriceChartModal({ onClose, onUpdated }: { onClose: () => void; onUpdated?: () => void }) {
   const [q, setQ] = useState("");
+  const [ver, setVer] = useState(0);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  async function onPriceFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) { return; }
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "", raw: false, blankrows: false }) as (string | number | null)[][];
+      const rows = parsePriceRows(aoa);
+      if (!rows.length) { window.alert("Couldn't read any price rows. Make sure the file has Product Code / Product Name / Customer / Unit Name / Sales Rate columns."); return; }
+      setActivePrices(rows);
+      try { window.localStorage.setItem("sf_price_chart", JSON.stringify(rows)); } catch { /* ignore */ }
+      setVer((v) => v + 1); onUpdated?.();
+    } catch { window.alert("Couldn't read that file — upload a valid Excel (.xlsx / .xls) or CSV."); } finally { e.target.value = ""; }
+  }
   const ql = q.trim().toLowerCase();
   const rows = ql ? PRICES.filter((p) => (p.name + " " + p.code + " " + p.customer + " " + p.unit).toLowerCase().includes(ql)) : PRICES;
   return (
@@ -1050,8 +1093,10 @@ function PriceChartModal({ onClose }: { onClose: () => void }) {
           <span className="pbadge" style={{ background: "#0284c7", boxShadow: "0 6px 16px rgba(2,132,199,.35)" }}><Icon n="rupee" size={15} /></span>
           <div className="pttl">
             <h2>Sales Price Chart</h2>
-            <div className="sub">{PRICES.length.toLocaleString("en-IN")} rates · reference for sales order creation</div>
+            <div className="sub" data-v={ver}>{PRICES.length.toLocaleString("en-IN")} rates · reference for sales order creation</div>
           </div>
+          <button className="pmbtn add" style={{ marginRight: 8 }} onClick={() => fileRef.current?.click()}><Icon n="upload" size={14} />Update price chart</button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onPriceFile} />
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
         </div>
         <div className="pmsearch">
@@ -1147,19 +1192,19 @@ function SalesOrderCreate({ nextDocNo, onClose, onSave }: { nextDocNo: string; o
     setLines((prev) => prev.map((l, j) => {
       if (j !== i) return l;
       const sq = parseFloat(l.salesQty);
-      const nl: SoLine = { ...l, product, salesUnits: info.salesUnit || l.salesUnits, units: info.baseUnit || l.units, unitPrice: info.unitPrice != null ? String(info.unitPrice) : "" };
+      const lv = productLevels(product);
+      const l1u = lv && lv.L1 ? String(lv.L1.u) : (info.baseUnit || l.units);
+      const nl: SoLine = { ...l, product, salesUnits: info.salesUnit || l.salesUnits, units: l1u };
       if (ps != null && isFinite(sq)) nl.qty = String(Math.round(sq * ps * 100) / 100);
-      if (info.unitPrice != null && isFinite(sq)) nl.value = String(Math.round(sq * info.unitPrice * 100) / 100);
       return nl;
     }));
   };
   const onSalesQty = (i: number, v: string) => {
     setLines((prev) => prev.map((l, j) => {
       if (j !== i) return l;
-      const sq = parseFloat(v); const ps = unitConversion(l.product, l.salesUnits) ?? soPackSize(l.product); const pr = parseFloat(l.unitPrice);
+      const sq = parseFloat(v); const ps = unitConversion(l.product, l.salesUnits) ?? soPackSize(l.product);
       const nl: SoLine = { ...l, salesQty: v };
       if (ps != null && isFinite(sq)) nl.qty = String(Math.round(sq * ps * 100) / 100);
-      if (isFinite(pr) && isFinite(sq)) nl.value = String(Math.round(sq * pr * 100) / 100);
       return nl;
     }));
   };
@@ -1187,7 +1232,7 @@ function SalesOrderCreate({ nextDocNo, onClose, onSave }: { nextDocNo: string; o
           <span className="pbadge" style={{ background: "#0284c7", boxShadow: "0 6px 16px rgba(2,132,199,.35)" }}><Icon n="plus" size={15} /></span>
           <div className="pttl">
             <h2>Create a sales order</h2>
-            <div className="sub">Pick a customer, then its products. Sales Units, Qty and Unit Price fill from the price chart; Unit Price, Value &amp; Tax are locked.</div>
+            <div className="sub">Pick a customer, then its products. Sales Units, Units (L1) and Converted Qty fill automatically; Unit Price, Value &amp; Tax are left blank and locked.</div>
           </div>
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
         </div>
@@ -1209,7 +1254,7 @@ function SalesOrderCreate({ nextDocNo, onClose, onSave }: { nextDocNo: string; o
             <div className="besec">Products{customer ? "" : " — pick a customer first"}</div>
             <div className="beitems">
               <div className="soih">
-                <span>Product Name</span><span>Sales Units</span><span>Sales Qty</span><span>Units</span><span>Qty</span><span>Unit Price</span><span>Value</span><span>Tax</span><span></span>
+                <span>Product Name</span><span>Sales Units</span><span>Sales Qty</span><span>Units</span><span>Converted Qty</span><span>Unit Price</span><span>Value</span><span>Tax</span><span></span>
               </div>
               {lines.map((l, i) => (
                 <div className="soir" key={i}>
@@ -1307,7 +1352,7 @@ function SalesOrderDetail({ order }: { order: SalesOrder }) {
   );
 }
 
-function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUpload: () => void; supaOk: boolean }) {
+function SalesPage({ orders, onUpload, supaOk, exportedIds, onExport }: { orders: SalesOrder[]; onUpload: () => void; supaOk: boolean; exportedIds: Set<string>; onExport: (o: SalesOrder) => void }) {
   const [viewId, setViewId] = useState<string | null>(null);
   const [statusId, setStatusId] = useState<string | null>(null);
   const fmtDate = (t: number) => { try { return new Date(t).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }); } catch { return ""; } };
@@ -1372,9 +1417,10 @@ function SalesPage({ orders, onUpload, supaOk }: { orders: SalesOrder[]; onUploa
                       : <span className="pill err"><Icon n="alert" size={12} />{dgOk}/{dgArr.length} imported</span>}
                 </span>
                 <span className="c-act">
+                  <button className="btn btn-primary" title="Create the Excel and export this order to PACT" onClick={() => onExport(o)}><Icon n="upload" size={14} />Export to PACT</button>
                   <button className="btn btn-ghost" title="Download this order as Excel (FSALES format)" onClick={() => downloadOrderXlsx(o)}><Icon n="download" size={14} />Excel</button>
                   <button className="btn btn-ghost" onClick={() => setViewId(o.id)}><Icon n="eye" size={14} />View</button>
-                  <button className="btn btn-primary" onClick={() => setStatusId(o.id)}><Icon n="checkCircle" size={14} />Status check</button>
+                  <button className={"btn " + (exportedIds.has(o.id) ? "btn-primary" : "btn-ghost")} disabled={!exportedIds.has(o.id)} title={exportedIds.has(o.id) ? "Check PACT import status" : "Export to PACT first to enable"} onClick={() => { if (exportedIds.has(o.id)) setStatusId(o.id); }}><Icon n="checkCircle" size={14} />Status check</button>
                 </span>
                 </div>
                 <SalesOrderDetail order={o} />
