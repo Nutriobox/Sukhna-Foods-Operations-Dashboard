@@ -1,0 +1,14 @@
+{
+  "name": "vehicle-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Daily 7PM automation: download tracker report, clean, geocode lat/long to road names, upload to Supabase.",
+  "scripts": {
+    "run": "node run.js"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0",
+    "xlsx": "^0.18.5",
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

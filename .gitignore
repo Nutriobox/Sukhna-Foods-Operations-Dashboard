@@ -13,3 +13,13 @@ _to_delete/
 *.tgz
 _push_now*.bat
 _push_log*.txt
+
+# Playwright codegen recordings (may contain credentials) + debug captures
+*-recording.ts
+**/downloads/
+pact-worker/*.png
+pact-worker/*.html
+pact-worker/gge-buttons.json
+vehicle-monitor/*.png
+vehicle-monitor/*.html
+vehicle-monitor/report-fields.json

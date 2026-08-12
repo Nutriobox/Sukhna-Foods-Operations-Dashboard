@@ -1,0 +1,12 @@
+{
+  "name": "pact-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright automation that enters verified bills into PACT ERP (Stock Inward).",
+  "scripts": {
+    "enter": "node run.js"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}

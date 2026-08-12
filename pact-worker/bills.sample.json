@@ -1,0 +1,13 @@
+[
+  {
+    "company": "Factory",
+    "vendor": "Mangalam Packaging Solutions",
+    "vendorSearch": "mang",
+    "billNo": "495",
+    "items": [
+      { "search": "Paper", "name": "Tissue Paper",   "unitLevel": "L2", "qty": 2 },
+      { "search": "lid",   "name": "100ml Dip Lids",  "unitLevel": "L3", "qty": 4 },
+      { "search": "50ml",  "name": "50ml Dip Lids",   "unitLevel": "L3", "qty": 6 }
+    ]
+  }
+]
