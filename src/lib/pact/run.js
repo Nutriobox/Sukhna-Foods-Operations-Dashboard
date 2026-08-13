@@ -9,11 +9,11 @@ const { createStockInward } = require('./stock-inward');
 async function pushBillToPact(bill, { dryRun = false } = {}) {
   const log = [];
   const say = (m) => { log.push(m); console.log(m); };
-  let browser;
+  let browser, page;
   try {
     browser = await launchBrowser();
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
-    const page = await context.newPage();
+    page = await context.newPage();
     page.setDefaultTimeout(30000);
 
     say('Logging into PACT...');
@@ -33,7 +33,20 @@ async function pushBillToPact(bill, { dryRun = false } = {}) {
     await context.close();
     return { ok: true, grn, dryRun, log };
   } catch (e) {
-    return { ok: false, error: String(e && e.message ? e.message : e), log };
+    let pageInfo = {};
+    try {
+      if (page) {
+        pageInfo = {
+          url: page.url(),
+          title: await page.title().catch(() => ''),
+          textboxes: await page.getByRole('textbox').count().catch(() => -1),
+          inputs: await page.locator('input').count().catch(() => -1),
+          bodyText: (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 500),
+          html: (await page.content().catch(() => '')).replace(/\s+/g, ' ').slice(0, 1500),
+        };
+      }
+    } catch {}
+    return { ok: false, error: String(e && e.message ? e.message : e), log, pageInfo };
   } finally {
     if (browser) await browser.close().catch(() => {});
   }
