@@ -81,7 +81,7 @@ async function launchBrowser() {
 
     // Playwright (unlike Puppeteer) does NOT work with Chromium's --single-process;
     // it makes the browser close as soon as the page does real work. Strip it.
-    const args = sparticuz.args.filter((a) => a !== '--single-process' && a !== '--no-zygote');
+    const args = sparticuz.args.filter((a) => a !== '--single-process');
     try {
       return await chromium.launch({
         args: [...args, '--no-sandbox', '--disable-dev-shm-usage', '--disable-remote-fonts', '--disable-font-subpixel-positioning'],
