@@ -68,6 +68,7 @@ async function launchBrowser() {
 
     const libDirs = ['/tmp', '/tmp/lib'].filter((p) => { try { return fs.existsSync(p); } catch { return false; } });
     process.env.LD_LIBRARY_PATH = [...libDirs, process.env.LD_LIBRARY_PATH].filter(Boolean).join(':');
+    process.env.HOME = process.env.HOME || '/tmp';
 
     const diag = {
       nss,
@@ -80,7 +81,7 @@ async function launchBrowser() {
 
     try {
       return await chromium.launch({
-        args: [...sparticuz.args, '--no-sandbox', '--disable-dev-shm-usage'],
+        args: [...sparticuz.args, '--no-sandbox', '--disable-dev-shm-usage', '--disable-remote-fonts', '--disable-font-subpixel-positioning'],
         executablePath,
         headless: true,
       });
