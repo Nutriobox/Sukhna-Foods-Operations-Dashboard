@@ -17,9 +17,7 @@ function targetDate() {
     const [y, m, d] = process.env.REPORT_DATE.split('-').map(Number);
     return new Date(y, m - 1, d);
   }
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d;
+  return new Date(); // today (the 7 PM run captures the current working day)
 }
 
 async function getActiveDevices(page) {

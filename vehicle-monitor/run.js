@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { downloadReport } = require('./lib/download-report');
 const { buildSummary, writeTargetExcel } = require('./lib/transform');
+const { uploadToSupabase } = require('./lib/upload');
 
 (function loadEnv() {
   const p = path.join(__dirname, '.env');
@@ -44,6 +45,15 @@ async function main() {
   const outXlsx = path.join(outDir, `movement-summary-${Date.now()}.xlsx`);
   writeTargetExcel(rows, outXlsx);
   console.log('Wrote:', outXlsx);
+
+  // Upload to Supabase so it shows on the operations website
+  const now = new Date();
+  const runDate = process.env.REPORT_DATE ||
+    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  try {
+    const n = await uploadToSupabase(rows, runDate);
+    if (n >= 0 && process.env.SUPABASE_URL) console.log(`Uploaded ${n} rows to the website for ${runDate}.`);
+  } catch (e) { console.error('Website upload failed:', e.message); }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
