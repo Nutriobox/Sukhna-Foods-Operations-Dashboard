@@ -1,10 +1,58 @@
 // Launches Chromium in a Vercel serverless function using @sparticuz/chromium
-// (a Lambda-compatible build) + playwright-core. Includes diagnostics so we can
-// see where the shared libraries land if the launch fails.
+// (a Lambda-compatible build) + playwright-core.
+//
+// On Vercel's runtime, @sparticuz/chromium inflates the graphics (swiftshader)
+// libs but NOT the NSS/system library pack (al2023.tar.br), so Chromium can't
+// find libnss3.so. We inflate that pack ourselves (brotli + a tiny tar reader,
+// no extra deps) into /tmp and put /tmp on LD_LIBRARY_PATH.
 const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
 
 function safeList(dir) {
-  try { return fs.readdirSync(dir).slice(0, 60); } catch (e) { return `(cannot read ${dir}: ${e.code || e.message})`; }
+  try { return fs.readdirSync(dir).slice(0, 80); } catch (e) { return `(cannot read ${dir}: ${e.code || e.message})`; }
+}
+
+// Minimal USTAR extractor (regular files, dirs, symlinks).
+function untar(buf, dest) {
+  let off = 0;
+  while (off + 512 <= buf.length) {
+    const h = buf.subarray(off, off + 512);
+    // end-of-archive: a zero block
+    if (h.every((b) => b === 0)) break;
+    const name = h.subarray(0, 100).toString('utf8').replace(/\0.*$/, '');
+    const prefix = h.subarray(345, 500).toString('utf8').replace(/\0.*$/, '');
+    const fullName = prefix ? `${prefix}/${name}` : name;
+    const size = parseInt(h.subarray(124, 136).toString('utf8').replace(/\0.*$/, '').trim() || '0', 8) || 0;
+    const type = String.fromCharCode(h[156]);
+    const linkname = h.subarray(157, 257).toString('utf8').replace(/\0.*$/, '');
+    off += 512;
+    const data = buf.subarray(off, off + size);
+    off += Math.ceil(size / 512) * 512;
+    if (!fullName) continue;
+    const out = path.join(dest, fullName);
+    try {
+      if (type === '5') { fs.mkdirSync(out, { recursive: true }); continue; }
+      fs.mkdirSync(path.dirname(out), { recursive: true });
+      if (type === '2' || type === '1') { try { fs.symlinkSync(linkname, out); } catch {} continue; }
+      fs.writeFileSync(out, data);
+    } catch { /* keep going */ }
+  }
+}
+
+function ensureNssLibs(pkgBinDir) {
+  const here = () => ['/tmp/libnss3.so', '/tmp/lib/libnss3.so'].some((p) => { try { return fs.existsSync(p); } catch { return false; } });
+  if (here()) return 'already-present';
+  for (const pack of ['al2023.tar.br', 'al2.tar.br']) {
+    const br = path.join(pkgBinDir, pack);
+    try {
+      if (!fs.existsSync(br)) continue;
+      const tarBuf = zlib.brotliDecompressSync(fs.readFileSync(br));
+      untar(tarBuf, '/tmp');
+      if (here()) return 'extracted:' + pack;
+    } catch (e) { /* try next pack */ }
+  }
+  return 'not-extracted';
 }
 
 async function launchBrowser() {
@@ -15,16 +63,18 @@ async function launchBrowser() {
     const sparticuz = require('@sparticuz/chromium');
     const executablePath = await sparticuz.executablePath();
 
-    // Make sure the loader can find the extracted .so files (libnss3, etc.).
-    const candidates = ['/tmp', '/tmp/lib', '/tmp/al2', '/tmp/al2023'].filter((p) => { try { return fs.existsSync(p); } catch { return false; } });
-    process.env.LD_LIBRARY_PATH = [...candidates, process.env.LD_LIBRARY_PATH].filter(Boolean).join(':');
+    const pkgBinDir = path.join(process.cwd(), 'node_modules/@sparticuz/chromium/bin');
+    const nss = ensureNssLibs(pkgBinDir);
+
+    const libDirs = ['/tmp', '/tmp/lib'].filter((p) => { try { return fs.existsSync(p); } catch { return false; } });
+    process.env.LD_LIBRARY_PATH = [...libDirs, process.env.LD_LIBRARY_PATH].filter(Boolean).join(':');
 
     const diag = {
-      executablePath,
+      nss,
       LD_LIBRARY_PATH: process.env.LD_LIBRARY_PATH,
-      tmp: safeList('/tmp'),
-      pkgBin: safeList(require('path').join(process.cwd(), 'node_modules/@sparticuz/chromium/bin')),
       hasLibnss_tmp: (() => { try { return fs.existsSync('/tmp/libnss3.so'); } catch { return false; } })(),
+      hasLibnss_tmplib: (() => { try { return fs.existsSync('/tmp/lib/libnss3.so'); } catch { return false; } })(),
+      tmp: safeList('/tmp'),
     };
     console.log('[chromium diag]', JSON.stringify(diag));
 
