@@ -724,6 +724,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
   // Packaging level + manual packing size are per batch row, keyed `${i}:${batchId}`.
   const [selLevel, setSelLevel] = useState<Record<string, string>>({});
   const [packEdit, setPackEdit] = useState<Record<string, string | undefined>>({});
+  const [pushing, setPushing] = useState(false);
+  const [pushErr, setPushErr] = useState<string>("");
 
   const setBatch = (i: number, bi: number, patch: Partial<Batch>) =>
     setBatches((m) => ({ ...m, [i]: m[i].map((x, k) => (k === bi ? { ...x, ...patch } : x)) }));
@@ -766,6 +768,43 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
     return dq != null && Math.abs(sum2 - dq) < 0.0001;
   });
   const canConfirm = unmatched === 0 && datesReady && !allUp && qtyAllOK;
+
+  async function doPush() {
+    if (!canConfirm || pushing) return;
+    setPushErr(""); setPushing(true);
+    const toDMY = (v: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
+    const items = lines.map((l, i) => {
+      const prod = productByName(selProduct[i]) || matchProduct(l.billName).product;
+      const unit = selUnit[i] || "";
+      const factor = convFactor(prod, b.items[i].uom, unit);
+      const qty = l.qty != null ? l.qty * (factor ?? 1) : 0;
+      const lvl = Object.entries(prod.levels).find(([, L]) => canonUnit(L.u) === canonUnit(unit));
+      const unitLevel = lvl ? lvl[0] : (prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (Object.keys(prod.levels)[0] || "L1"));
+      const mfg = toDMY(batches[i]?.[0]?.mfg || "");
+      return { search: prod.name, name: prod.name, unitLevel, qty, batch: mfg ? { mfgDate: mfg } : undefined };
+    });
+    const payload = {
+      dryRun: false,
+      bill: {
+        company: "Factory",
+        vendor: b.vendor,
+        vendorSearch: (b.vendor || "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, 4),
+        billNo: b.invoice,
+        billDate: b.dateFull,
+        items,
+      },
+    };
+    try {
+      const res = await fetch("/api/push-to-pact", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({ ok: false, error: "Server returned a non-JSON response." }));
+      if (data.ok) { onConfirm(); }
+      else { setPushErr((data.error || "Push failed.") + (data.grn ? ` (GGE ${data.grn} may have posted — check PACT before retrying)` : "")); }
+    } catch (e) {
+      setPushErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPushing(false);
+    }
+  }
 
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -920,11 +959,12 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                     ? <><Icon n="alert" size={16} />Split quantities must equal the purchase quantity</>
                     : <><Icon n="shield" size={16} />All items matched · ready to push</>}
           </span>
+          {pushErr && <span className="pstatus bad" style={{ maxWidth: 420 }}><Icon n="alert" size={16} />{pushErr}</span>}
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled={!canConfirm}
+          <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled={!canConfirm || pushing}
             title={canConfirm ? "" : "Every item must have a purchase unit and a manufactured date"}
-            onClick={() => { if (canConfirm) onConfirm(); }}>
-            <Icon n="upload" size={14} />Confirm &amp; Push to PACT
+            onClick={doPush}>
+            <Icon n="upload" size={14} />{pushing ? "Pushing to PACT\u2026" : "Confirm & Push to PACT"}
           </button>
         </div>
       </div>

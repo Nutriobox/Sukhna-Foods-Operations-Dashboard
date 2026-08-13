@@ -20,7 +20,7 @@ async function main(){
   console.log('Logging in...');
   await page.goto('http://140.245.255.130:8443/PACTALLUSUREWEB/#/login', { waitUntil:'domcontentloaded', timeout: 60000 });
   await page.getByRole('textbox', { name: 'Enter User Name' }).fill(process.env.PACT_USER);
-  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.PACT_PASSWORD);
+  await page.getByRole('textbox', { name: 'Password' }).fill((process.env.PACT_PASSWORD || process.env.PACT_PASS));
   await page.getByRole('button', { name: 'Select' }).click();
   await page.waitForTimeout(4000);
 

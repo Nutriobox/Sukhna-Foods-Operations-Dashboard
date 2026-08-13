@@ -1,0 +1,127 @@
+// Creates a Stock Inward in PACT that LINKS to the already-posted Goods Gate Entry.
+// Built from stockinward-recording.ts. Incremental: this pass opens Stock Inward,
+// sets vendor + bill, and pulls the GGE items via the Link tab, then (dry-run)
+// screenshots and stops before the per-item qty/batch/Post.
+
+const path = require('path');
+
+async function createStockInward(page, bill, { dryRun = true } = {}) {
+  // 1. Open Stock Inward (via the Flows menu if the link isn't showing)
+  const link = page.getByRole('link', { name: 'Stock Inward', exact: true }).first();
+  if (!(await link.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Flows' }).click({ timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(1500);
+  }
+  await link.click({ timeout: 20000 });
+  await page.waitForTimeout(2000);
+
+  // 1b. Voucher Prefix / Location popup (same as GGE), if it appears
+  const vp = page.locator('modal-container.show').first();
+  if (await vp.isVisible().catch(() => false)) {
+    await vp.locator('.List__button').first().click().catch(() => {});
+    await page.waitForTimeout(700);
+    await page.getByText(bill.company || 'Factory', { exact: true }).first().click({ timeout: 8000 }).catch(() => {});
+    await vp.getByRole('button', { name: 'Ok' }).click({ timeout: 5000 }).catch(() => {});
+    await vp.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+  }
+  await page.waitForTimeout(1200);
+
+  // 2. Vendor
+  const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
+  await tab.locator('[id="100"]').first().click();
+  await tab.locator('[id="100"]').first().fill(bill.vendorSearch || bill.vendor.slice(0, 4));
+  await page.getByText(bill.vendor, { exact: false }).first().click({ timeout: 8000 });
+  await page.waitForTimeout(800);
+
+  // 3. Bill number
+  await tab.locator('#BillNo').first().fill(String(bill.billNo));
+  await tab.locator('#BillNo').first().press('Enter').catch(() => {});
+  await page.waitForTimeout(800);
+
+  // 4. Link -> tick the GGE in the Pending List (pulls its items in).
+  //    The checkbox id (lchk1_0) shifts each session, so target the app-check-list checkbox.
+  await page.getByRole('tab', { name: 'Link' }).click({ timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  // Link the SPECIFIC GGE we posted (from last-grn.txt), not just the first in the list.
+  const fs = require('fs');
+  let targetGrn = process.env.TARGET_GRN || '';
+  if (!targetGrn) { try { targetGrn = fs.readFileSync(path.join(__dirname, '..', 'last-grn.txt'), 'utf8').trim(); } catch {} }
+  console.log('  linking GGE:', targetGrn || '(none set — using first)');
+
+  let ggeCheckbox;
+  if (targetGrn) {
+    const row = page.locator(`app-check-list div:has(label:text-is("${targetGrn}"))`).first();
+    if (await row.isVisible().catch(() => false)) {
+      ggeCheckbox = row.locator('input[type="checkbox"]').first();
+    } else {
+      console.log('  ! target GRN not in pending list — check it is posted/unlinked. Using first as fallback.');
+      ggeCheckbox = page.locator('app-check-list input[type="checkbox"]').first();
+    }
+  } else {
+    ggeCheckbox = page.locator('app-check-list input[type="checkbox"]').first();
+  }
+  await ggeCheckbox.check({ timeout: 8000 })
+    .catch((e) => console.log('  link checkbox failed:', String(e.message).split('\n')[0]));
+  await page.waitForTimeout(2000);
+  // A "Link Info" dialog opens listing the GGE's items -> Select All -> Ok
+  await page.getByText('Select All', { exact: true }).click({ timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  await page.getByRole('button', { name: 'Ok', exact: true }).click({ timeout: 6000 }).catch(() => {});
+  await page.waitForTimeout(3000);
+
+  // 5. Approve Qty — fill down the grid column (one value per linked row)
+  await page.getByRole('gridcell', { description: 'Approve Qty', exact: true }).first().click({ timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  for (let i = 0; i < bill.items.length; i++) {
+    const aq = bill.items[i].approveQty ?? bill.items[i].qty;
+    await page.locator('.PactTextBoxEditor').fill(String(aq)).catch(() => {});
+    const key = i < bill.items.length - 1 ? 'ArrowDown' : 'Enter';
+    await page.locator('.PactTextBoxEditor').press(key).catch(() => {});
+    await page.waitForTimeout(350);
+  }
+
+  // 6. Per-item: base Quantity cell -> Enter opens "Generate Batch Numbers" dialog -> allocate a batch
+  for (let i = 0; i < bill.items.length; i++) {
+    // open the batch dialog by clicking the Batch Number cell
+    const bCell = page.getByRole('gridcell', { description: 'Batch Number', exact: true }).nth(i);
+    await bCell.scrollIntoViewIfNeeded().catch(() => {});
+    await bCell.click({ timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(1800);
+
+    const dlg = page.locator('modal-container.show').last();
+    if (await dlg.isVisible().catch(() => false)) {
+      if (i === 0) await dlg.screenshot({ path: path.join(__dirname, '..', 'batch-dialog.png') }).catch(() => {});
+      // pick the latest existing batch from the grid dropdown
+      await dlg.locator('select.input_cntrl, .slick-cell > .input_cntrl, select').first()
+        .selectOption({ index: 1 })
+        .catch((e) => console.log(`  batch[${i + 1}] select failed: ${String(e.message).split('\n')[0]}`));
+      await page.waitForTimeout(700);
+      await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
+      await page.waitForTimeout(1000);
+      await dlg.getByRole('button', { name: 'Save', exact: true }).first().click({ timeout: 6000 }).catch(() => {});
+      await dlg.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(700);
+    } else {
+      console.log(`  batch[${i + 1}]: dialog did not open`);
+    }
+  }
+
+  if (dryRun) {
+    await page.screenshot({ path: path.join(__dirname, '..', 'stockinward-filled.png'), fullPage: true }).catch(() => {});
+    console.log('  [DRY RUN] Stock Inward — linked + Approve Qty + base Quantity + Batch done. Screenshot saved. Stopping before Post.');
+    return { posted: false };
+  }
+
+  // 7. Post the Stock Inward (only when DRY_RUN=false)
+  await page.screenshot({ path: path.join(__dirname, '..', 'stockinward-before-post.png'), fullPage: true }).catch(() => {});
+  page.once('dialog', (d) => d.accept().catch(() => {}));
+  await page.locator('button[title="Post"]').first().click({ timeout: 10000 });
+  await page.waitForTimeout(3000);
+  await page.locator('button[title="Post"]').first().click({ timeout: 6000 }).catch(() => {});
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: path.join(__dirname, '..', 'stockinward-after-post.png'), fullPage: true }).catch(() => {});
+  console.log('  Stock Inward post attempted — check stockinward-before-post.png & stockinward-after-post.png.');
+  return { posted: true };
+}
+
+module.exports = { createStockInward };

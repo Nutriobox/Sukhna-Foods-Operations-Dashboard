@@ -59,7 +59,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   await page.getByRole('tab', { name: 'Link' }).click({ timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(1500);
   let targetGrn = grnOpt || process.env.TARGET_GRN || '';
-  if (!targetGrn) { try { targetGrn = fs.readFileSync(path.join(__dirname, '..', 'last-grn.txt'), 'utf8').trim(); } catch {} }
+  if (!targetGrn) { try { targetGrn = fs.readFileSync(path.join('/tmp', 'last-grn.txt'), 'utf8').trim(); } catch {} }
   console.log('  linking GGE:', targetGrn || '(none set — using first)');
 
   let ggeCheckbox;
@@ -268,19 +268,19 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   }
 
   if (dryRun) {
-    await page.screenshot({ path: path.join(__dirname, '..', 'stockinward-filled.png'), fullPage: true }).catch(() => {});
+    await page.screenshot({ path: path.join('/tmp', 'stockinward-filled.png'), fullPage: true }).catch(() => {});
     console.log('  [DRY RUN] Stock Inward filled. Screenshot saved. Stopping before Post.');
     return { posted: false };
   }
 
   // 7. Post the Stock Inward (only when DRY_RUN=false)
-  await page.screenshot({ path: path.join(__dirname, '..', 'stockinward-before-post.png'), fullPage: true }).catch(() => {});
+  await page.screenshot({ path: path.join('/tmp', 'stockinward-before-post.png'), fullPage: true }).catch(() => {});
   page.once('dialog', (d) => d.accept().catch(() => {}));
   await page.locator('button[title="Post"]').first().click({ timeout: 10000 });
   await page.waitForTimeout(3000);
   await page.locator('button[title="Post"]').first().click({ timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(3000);
-  await page.screenshot({ path: path.join(__dirname, '..', 'stockinward-after-post.png'), fullPage: true }).catch(() => {});
+  await page.screenshot({ path: path.join('/tmp', 'stockinward-after-post.png'), fullPage: true }).catch(() => {});
   console.log('  Stock Inward post attempted.');
   return { posted: true };
 }

@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "src/app/api/push-to-pact/route.ts": {
+      "maxDuration": 300,
+      "memory": 3009
+    }
+  }
+}

@@ -91,7 +91,7 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   } catch (e) { console.log('  delivery-date step:', String(e.message).split('\n')[0]); }
 
   if (dryRun) {
-    await page.screenshot({ path: path.join(__dirname, '..', 'gge-filled.png'), fullPage: true }).catch(() => {});
+    await page.screenshot({ path: path.join('/tmp', 'gge-filled.png'), fullPage: true }).catch(() => {});
     console.log('  [DRY RUN] GGE filled — screenshot saved as gge-filled.png. Stopping before Post.');
     return { posted: false };
   }
@@ -101,7 +101,7 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   await page.keyboard.press('Tab').catch(() => {});
   await page.waitForTimeout(1200);
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: path.join(__dirname, '..', 'gge-before-post.png'), fullPage: true }).catch(() => {});
+  await page.screenshot({ path: path.join('/tmp', 'gge-before-post.png'), fullPage: true }).catch(() => {});
   // capture the draft's Doc No BEFORE posting (this becomes the posted GRN)
   let grn = '';
   try {
