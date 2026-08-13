@@ -13,7 +13,17 @@ async function pushBillToPact(bill, { dryRun = false } = {}) {
   const pageErrs = [];
   const failed = [];
   let browser, page;
+  let netCheck = {};
   try {
+    const testUrl = process.env.PACT_URL || 'http://140.245.255.130:8443/PACTALLUSUREWEB/#/login';
+    const base = testUrl.split('#')[0];
+    try {
+      const t0 = Date.now();
+      const r = await fetch(base, { signal: AbortSignal.timeout(15000) });
+      const body = await r.text();
+      netCheck = { ok: true, status: r.status, ms: Date.now() - t0, len: body.length, head: body.slice(0, 160).replace(/\s+/g, ' ') };
+    } catch (e) { netCheck = { ok: false, error: String(e && e.message ? e.message : e) }; }
+
     browser = await launchBrowser();
     const context = await browser.newContext({ ignoreHTTPSErrors: true, bypassCSP: true });
     page = await context.newPage();
@@ -37,7 +47,7 @@ async function pushBillToPact(bill, { dryRun = false } = {}) {
     say(`Stock Inward done (posted=${si && si.posted}).`);
 
     await context.close();
-    return { ok: true, grn, dryRun, log };
+    return { ok: true, grn, dryRun, log, netCheck };
   } catch (e) {
     let pageInfo = { consoleErrs: consoleErrs.slice(0, 12), pageErrs: pageErrs.slice(0, 12), failed: failed.slice(0, 12) };
     try {
@@ -51,7 +61,7 @@ async function pushBillToPact(bill, { dryRun = false } = {}) {
         if (shot) pageInfo.screenshotB64 = shot.toString('base64').slice(0, 120000);
       }
     } catch {}
-    return { ok: false, error: String(e && e.message ? e.message : e), log, pageInfo };
+    return { ok: false, error: String(e && e.message ? e.message : e), log, pageInfo, netCheck };
   } finally {
     if (browser) await browser.close().catch(() => {});
   }
