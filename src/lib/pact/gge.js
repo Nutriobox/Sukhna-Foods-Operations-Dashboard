@@ -127,21 +127,29 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
     await page.locator('#revwebbody').press('Enter').catch(() => {});
     await page.waitForTimeout(400);
 
-    // purchase unit level (L1/L2/L3) -> a <select> appears inside the clicked cell
+    // purchase unit level (L1/L2/L3). The "Purchase Unit Level" column's internal
+    // name is "Value"; it holds a persistent <select> in each row — target that
+    // select directly (getByRole('combobox') matched the wrong widget before).
     if (it.unitLevel) {
-      await page.getByRole('gridcell', { description: 'Purchase Unit Level', exact: true }).nth(i).click();
-      await page.waitForTimeout(500);
-      await page.getByRole('combobox').last()
-        .selectOption(it.unitLevel)
-        .catch((e) => console.log(`    [item ${i+1}] unit-level select failed: ${String(e.message).split('\n')[0]}`));
+      const ulCell = page.locator('.slick-cell[aria-describedby$="Value"]').nth(i);
+      await ulCell.scrollIntoViewIfNeeded().catch(() => {});
+      await ulCell.click();            // activate the cell so its <select> renders
       await page.waitForTimeout(400);
+      const ulSelect = ulCell.locator('select').first();
+      await ulSelect.selectOption(it.unitLevel)
+        .catch((e) => console.log(`    [item ${i + 1}] unit-level select failed: ${String(e.message).split('\n')[0]}`));
+      await page.waitForTimeout(500);
     }
 
-    // quantity -> the Purchase Qty column cell
-    await page.getByRole('gridcell', { description: 'Purchase Qty', exact: true }).nth(i).click();
+    // quantity -> the Purchase Qty column (internal name dcNum9). It's a numeric
+    // cell whose text editor (input.PactTextBoxEditor) only opens on DOUBLE-click.
+    const qtyCell = page.locator('.slick-cell[aria-describedby$="dcNum9"]').nth(i);
+    await qtyCell.scrollIntoViewIfNeeded().catch(() => {});
+    await qtyCell.dblclick().catch(() => {});
     await page.waitForTimeout(400);
-    await page.locator('.PactTextBoxEditor').fill(String(it.qty)).catch((e) => console.log(`    [item ${i+1}] qty fill failed: ${String(e.message).split('\n')[0]}`));
-    await page.locator('.PactTextBoxEditor').press('Enter').catch(() => {});
+    const qtyInput = page.locator('.slick-cell.editable input.PactTextBoxEditor, input.PactTextBoxEditor').first();
+    await qtyInput.fill(String(it.qty)).catch((e) => console.log(`    [item ${i + 1}] qty fill failed: ${String(e.message).split('\n')[0]}`));
+    await qtyInput.press('Enter').catch(() => {});
     await page.waitForTimeout(500);
   }
 
