@@ -91,24 +91,25 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
     // render as [id="10"], id="undefined", or unnamed), so target the known id
     // if present and otherwise type into whatever editor the click focused.
     await page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i).click();
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(700);
     const term = String(it.search || it.name);
-    const knownBox = page.locator('[id="10"]').first();
-    if (await knownBox.isVisible().catch(() => false)) {
-      await knownBox.fill(term);
-    } else {
-      // Fall back to the active lookup editor. Prefer a visible "List" lookup
-      // that isn't the vendor field (#100); else type into the focused element.
-      const listBox = page.locator('input[title="List"]:not([id="100"]), input[placeholder="List"]:not([id="100"])').last();
-      if (await listBox.isVisible().catch(() => false)) {
-        await listBox.click().catch(() => {});
-        await listBox.fill(term).catch(async () => { await page.keyboard.type(term, { delay: 25 }); });
-      } else {
-        await page.keyboard.type(term, { delay: 25 });
-      }
+    // Identify the product lookup box: the known id if present, else the visible
+    // "List" lookup that isn't the vendor field (#100).
+    let box = page.locator('[id="10"]').first();
+    if (!(await box.isVisible().catch(() => false))) {
+      box = page.locator('input[title="List"]:not([id="100"]), input[placeholder="List"]:not([id="100"])').last();
     }
-    await page.waitForTimeout(900);
-    await page.getByText(it.name, { exact: false }).first().click({ timeout: 8000 });
+    // Type char-by-char (not fill) so the Angular type-ahead actually fires and
+    // populates the dropdown — same reason the login form needed real keystrokes.
+    await box.click().catch(() => {});
+    await box.fill('').catch(() => {});
+    if (await box.isVisible().catch(() => false)) {
+      await box.pressSequentially(term, { delay: 45 }).catch(async () => { await page.keyboard.type(term, { delay: 45 }); });
+    } else {
+      await page.keyboard.type(term, { delay: 45 });
+    }
+    await page.waitForTimeout(1400);
+    await page.getByText(it.name, { exact: false }).first().click({ timeout: 10000 });
     await page.locator('#revwebbody').press('Enter').catch(() => {});
     await page.waitForTimeout(400);
 
