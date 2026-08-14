@@ -85,7 +85,9 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   await vendorField.click();
   await vendorField.fill('');
   await vendorField.pressSequentially(String(bill.vendorSearch || bill.vendor.slice(0, 4)), { delay: 60 });
-  await pickSuggestion(page, bill.vendor);
+  await pickSuggestion(page, bill.vendor).catch(() => {
+    throw new Error(`Vendor "${bill.vendor}" not found in PACT's supplier master (searched "${bill.vendorSearch || bill.vendor.slice(0, 4)}"). Add the supplier in PACT or check its exact name, then retry.`);
+  });
 
   // 4. Bill number
   await page.locator('#BillNo').first().fill(String(bill.billNo));
@@ -123,7 +125,9 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
     await page.waitForTimeout(300);
     await search.pressSequentially(String(it.search || it.name), { delay: 70 });
     await page.waitForTimeout(700);
-    await pickSuggestion(page, it.name);
+    await pickSuggestion(page, it.name).catch(() => {
+      throw new Error(`Product "${it.name}" (line ${i + 1}) not found in PACT's item master. Check the product mapping, then retry.`);
+    });
     await page.locator('#revwebbody').press('Enter').catch(() => {});
     await page.waitForTimeout(400);
 

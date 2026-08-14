@@ -18,8 +18,16 @@ const sb = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
 
 async function setStatus(patch) {
   if (!sb || !JOB_ID) return;
-  try { await sb.from('pact_jobs').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', JOB_ID); }
-  catch (e) { console.log('status update failed:', e.message); }
+  // Upsert (not update): the queued row may not have been inserted by the API
+  // route if it lacked the service key, in which case a plain update is a no-op
+  // and the dashboard would poll a row that never appears. Upsert guarantees the
+  // row exists with a current status so the UI can track it.
+  try {
+    await sb.from('pact_jobs').upsert(
+      { id: JOB_ID, invoice: bill.billNo || null, vendor: bill.vendor || null, ...patch, updated_at: new Date().toISOString() },
+      { onConflict: 'id' }
+    );
+  } catch (e) { console.log('status upsert failed:', e.message); }
 }
 
 (async () => {
