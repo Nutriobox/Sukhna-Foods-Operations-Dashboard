@@ -23,6 +23,54 @@ async function pickSuggestion(page, name) {
   await page.getByText(name, { exact: false }).first().click({ timeout: 8000 });
 }
 
+// Normalize a company name for tolerant matching: lowercase, strip punctuation
+// and common legal/entity suffixes so "Asha Ram & Sons Pvt. Ltd." matches a PACT
+// master entry stored as "Asha Ram & Sons" (or "ASHA RAM AND SONS").
+function normName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/&/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\b(pvt|private|ltd|limited|llp|co|company|inc|corp|corporation|and|the)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Pick a vendor from the type-ahead suggestions using tolerant matching, so a
+// bill's "Pvt. Ltd." suffix (or minor spelling differences) doesn't cause a
+// false "not found". If nothing matches well, throw an error listing the exact
+// suggestions PACT offered — so one run tells "wrong spelling" from "missing".
+async function pickVendorSuggestion(page, vendorName) {
+  const dd = page.locator('.List__dropdown--suggestions');
+  await dd.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  const opts = dd.locator('.suggestions__list-name');
+  const n = await opts.count().catch(() => 0);
+  const wanted = normName(vendorName);
+  const wantTokens = wanted.split(' ').filter(Boolean);
+  const texts = [];
+  let best = -1, bestScore = 0;
+  for (let i = 0; i < n; i++) {
+    const raw = ((await opts.nth(i).innerText().catch(() => '')) || '').trim();
+    texts.push(raw);
+    const cand = normName(raw);
+    let score = 0;
+    if (cand && (wanted.includes(cand) || cand.includes(wanted))) {
+      score = 1;
+    } else {
+      const ct = new Set(cand.split(' ').filter(Boolean));
+      const overlap = wantTokens.filter((x) => ct.has(x)).length;
+      score = wantTokens.length ? overlap / wantTokens.length : 0;
+    }
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  if (best >= 0 && bestScore >= 0.6) {
+    console.log(`  vendor match: "${texts[best]}" (score ${bestScore.toFixed(2)}) for "${vendorName}"`);
+    await opts.nth(best).click({ timeout: 8000 });
+    return;
+  }
+  throw new Error(`Vendor "${vendorName}" not matched in PACT's supplier master. PACT offered: [${texts.slice(0, 8).join(' | ') || 'no suggestions'}]. Add the supplier in PACT or correct its name, then retry.`);
+}
+
 async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   // 1. Open the Goods Gate Entry screen.
   // In a headless/large viewport the nav can render differently, so try several
@@ -85,9 +133,8 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   await vendorField.click();
   await vendorField.fill('');
   await vendorField.pressSequentially(String(bill.vendorSearch || bill.vendor.slice(0, 4)), { delay: 60 });
-  await pickSuggestion(page, bill.vendor).catch(() => {
-    throw new Error(`Vendor "${bill.vendor}" not found in PACT's supplier master (searched "${bill.vendorSearch || bill.vendor.slice(0, 4)}"). Add the supplier in PACT or check its exact name, then retry.`);
-  });
+  await page.waitForTimeout(700);
+  await pickVendorSuggestion(page, bill.vendor);
 
   // 4. Bill number
   await page.locator('#BillNo').first().fill(String(bill.billNo));
@@ -192,4 +239,4 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   return { posted: true, grn };
 }
 
-module.exports = { createGoodsGateEntry };
+module.exports = { createGoodsGateEntry, pickVendorSuggestion, normName };

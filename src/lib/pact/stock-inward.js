@@ -7,6 +7,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const { pickVendorSuggestion } = require('./gge');
 
 async function dumpOuter(page, name, locator) {
   try {
@@ -45,9 +46,13 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
 
   // 2. Vendor
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
-  await tab.locator('[id="100"]').first().click();
-  await tab.locator('[id="100"]').first().fill(bill.vendorSearch || bill.vendor.slice(0, 4));
-  await page.getByText(bill.vendor, { exact: false }).first().click({ timeout: 8000 });
+  const siVendor = tab.locator('[id="100"]').first();
+  await siVendor.click();
+  await siVendor.fill('');
+  // Type char-by-char so the type-ahead fires, then match tolerantly (same as GGE).
+  await siVendor.pressSequentially(String(bill.vendorSearch || bill.vendor.slice(0, 4)), { delay: 60 });
+  await page.waitForTimeout(700);
+  await pickVendorSuggestion(page, bill.vendor);
   await page.waitForTimeout(800);
 
   // 3. Bill number
