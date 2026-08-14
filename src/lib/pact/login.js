@@ -9,15 +9,52 @@ async function login(page) {
   }
 
   await page.goto(url, { waitUntil: 'load' });
-  await page.getByRole('textbox', { name: 'Enter User Name' }).fill(user);
-  await page.getByRole('textbox', { name: 'Password' }).fill(password);
+
+  const userBox = page.getByRole('textbox', { name: 'Enter User Name' });
+  const passBox = page.getByRole('textbox', { name: 'Password' });
+  await userBox.waitFor({ state: 'visible', timeout: 30000 });
+
+  // Type char-by-char so Angular's form model registers the input. A plain
+  // fill() sets the DOM value but does not fire the per-keystroke events the
+  // form binds to, so in headless the login can submit empty and silently
+  // stay on #/login (works headed only because focus/blur happen naturally).
+  await userBox.click();
+  await userBox.fill('');
+  await userBox.pressSequentially(String(user), { delay: 30 });
+  await passBox.click();
+  await passBox.fill('');
+  await passBox.pressSequentially(String(password), { delay: 30 });
+  await passBox.blur().catch(() => {});
+  await page.waitForTimeout(400);
+
   await page.getByRole('button', { name: 'Select' }).click();
 
-  // Wait for the home screen to appear after login.
-  // The Flows/home page shows the company footer — good "we're logged in" signal.
-  // TODO(confirm during recording): adjust the text if needed.
-  await page.getByText('Company Name', { exact: false }).waitFor({ timeout: 30000 }).catch(() => {});
+  // Login has succeeded once the SPA routes away from the #/login hash.
+  const offLogin = () => page.waitForFunction(
+    () => !String(location.hash || '').toLowerCase().includes('/login'),
+    null,
+    { timeout: 25000 }
+  );
+  try {
+    await offLogin();
+  } catch {
+    // Fallback: submit the form with Enter, then re-check.
+    await passBox.press('Enter').catch(() => {});
+    try {
+      await page.waitForFunction(
+        () => !String(location.hash || '').toLowerCase().includes('/login'),
+        null,
+        { timeout: 15000 }
+      );
+    } catch {
+      let hint = '';
+      try { hint = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim().slice(0, 300); } catch {}
+      throw new Error('Login did not complete — still on /login. On-screen text: ' + (hint || '(none)'));
+    }
+  }
+
   await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForTimeout(1000);
 }
 
 module.exports = { login };
