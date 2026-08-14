@@ -13,14 +13,13 @@
     "next": "^14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "xlsx": "^0.18.5",
-    "@sparticuz/chromium": "131.0.1",
-    "playwright-core": "1.49.1"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "20.14.10",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "playwright": "1.49.1"
   }
 }

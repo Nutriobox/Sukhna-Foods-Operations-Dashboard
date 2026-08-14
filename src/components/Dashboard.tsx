@@ -787,6 +787,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
       dryRun: false,
       bill: {
         company: "Factory",
+        billId: b.id,
         vendor: b.vendor,
         vendorSearch: (b.vendor || "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, 4),
         billNo: b.invoice,
@@ -797,11 +798,23 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
     try {
       const res = await fetch("/api/push-to-pact", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json().catch(() => ({ ok: false, error: "Server returned a non-JSON response." }));
-      if (data.ok) { onConfirm(); }
-      else { setPushErr((data.error || "Push failed.") + (data.grn ? ` (GGE ${data.grn} may have posted — check PACT before retrying)` : "")); }
+      if (!data.ok || !data.jobId) { setPushErr(data.error || "Could not start the PACT push."); setPushing(false); return; }
+
+      // The push runs in a GitHub Actions job; poll pact_jobs for its status.
+      const jobId = data.jobId as string;
+      if (!supabase) { setPushErr("Push started (job " + jobId.slice(0, 8) + "). Status tracking needs Supabase — check PACT in ~2 min."); setPushing(false); return; }
+      const started = Date.now();
+      const poll = async (): Promise<void> => {
+        if (Date.now() - started > 12 * 60 * 1000) { setPushErr("Still running after 12 min — check the PACT screen / GitHub Actions."); setPushing(false); return; }
+        const { data: row } = await supabase.from("pact_jobs").select("status,grn,error").eq("id", jobId).maybeSingle();
+        const st = row?.status;
+        if (st === "done") { onConfirm(); return; }
+        if (st === "failed") { setPushErr("PACT push failed: " + (row?.error || "unknown error")); setPushing(false); return; }
+        setTimeout(poll, 5000);
+      };
+      poll();
     } catch (e) {
       setPushErr(e instanceof Error ? e.message : String(e));
-    } finally {
       setPushing(false);
     }
   }
