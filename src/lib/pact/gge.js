@@ -86,9 +86,28 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   // 5. Line items — one grid row each
   for (let i = 0; i < bill.items.length; i++) {
     const it = bill.items[i];
-    // product name
+    // product name — click the cell to open its lookup editor, then type the
+    // search term. The lookup input's id is unreliable in this build (it can
+    // render as [id="10"], id="undefined", or unnamed), so target the known id
+    // if present and otherwise type into whatever editor the click focused.
     await page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i).click();
-    await page.locator('[id="10"]').fill(it.search || it.name);
+    await page.waitForTimeout(600);
+    const term = String(it.search || it.name);
+    const knownBox = page.locator('[id="10"]').first();
+    if (await knownBox.isVisible().catch(() => false)) {
+      await knownBox.fill(term);
+    } else {
+      // Fall back to the active lookup editor. Prefer a visible "List" lookup
+      // that isn't the vendor field (#100); else type into the focused element.
+      const listBox = page.locator('input[title="List"]:not([id="100"]), input[placeholder="List"]:not([id="100"])').last();
+      if (await listBox.isVisible().catch(() => false)) {
+        await listBox.click().catch(() => {});
+        await listBox.fill(term).catch(async () => { await page.keyboard.type(term, { delay: 25 }); });
+      } else {
+        await page.keyboard.type(term, { delay: 25 });
+      }
+    }
+    await page.waitForTimeout(900);
     await page.getByText(it.name, { exact: false }).first().click({ timeout: 8000 });
     await page.locator('#revwebbody').press('Enter').catch(() => {});
     await page.waitForTimeout(400);
