@@ -9,6 +9,20 @@ const path = require('path');
 
 const DEFAULT_COMPANY = 'Factory';
 
+// PACT's type-ahead lookups (vendor #100, product #10, etc.) render matches in a
+// dropdown `.List__dropdown--suggestions`, each option being a
+// `.suggestions__list-name` element holding the item's name. Click the matching
+// option; fall back to a plain text match if the dropdown markup differs.
+async function pickSuggestion(page, name) {
+  const dd = page.locator('.List__dropdown--suggestions');
+  await dd.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  const inDd = dd.locator('.suggestions__list-name', { hasText: name }).first();
+  if (await inDd.isVisible().catch(() => false)) { await inDd.click({ timeout: 8000 }); return; }
+  const anyOpt = page.locator('.suggestions__list-name', { hasText: name }).first();
+  if (await anyOpt.isVisible().catch(() => false)) { await anyOpt.click({ timeout: 8000 }); return; }
+  await page.getByText(name, { exact: false }).first().click({ timeout: 8000 });
+}
+
 async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   // 1. Open the Goods Gate Entry screen.
   // In a headless/large viewport the nav can render differently, so try several
@@ -64,11 +78,14 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   }
   await page.waitForTimeout(1500);
 
-  // 3. Vendor (type-ahead search box id=100, then click the matching name)
+  // 3. Vendor (type-ahead lookup #100). Type char-by-char so the type-ahead
+  //    actually fires, then pick from the suggestions dropdown. A plain fill()
+  //    sets the value without firing the events the dropdown needs.
   const vendorField = page.locator('[id="100"]').first();
   await vendorField.click();
-  await vendorField.fill(bill.vendorSearch || bill.vendor.slice(0, 4));
-  await page.getByText(bill.vendor, { exact: false }).first().click({ timeout: 8000 });
+  await vendorField.fill('');
+  await vendorField.pressSequentially(String(bill.vendorSearch || bill.vendor.slice(0, 4)), { delay: 60 });
+  await pickSuggestion(page, bill.vendor);
 
   // 4. Bill number
   await page.locator('#BillNo').first().fill(String(bill.billNo));
@@ -86,30 +103,24 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   // 5. Line items — one grid row each
   for (let i = 0; i < bill.items.length; i++) {
     const it = bill.items[i];
-    // product name — click the cell to open its lookup editor, then type the
-    // search term. The lookup input's id is unreliable in this build (it can
-    // render as [id="10"], id="undefined", or unnamed), so target the known id
-    // if present and otherwise type into whatever editor the click focused.
-    await page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i).click();
-    await page.waitForTimeout(700);
-    const term = String(it.search || it.name);
-    // Identify the product lookup box: the known id if present, else the visible
-    // "List" lookup that isn't the vendor field (#100).
-    let box = page.locator('[id="10"]').first();
-    if (!(await box.isVisible().catch(() => false))) {
-      box = page.locator('input[title="List"]:not([id="100"]), input[placeholder="List"]:not([id="100"])').last();
-    }
-    // Type char-by-char (not fill) so the Angular type-ahead actually fires and
-    // populates the dropdown — same reason the login form needed real keystrokes.
-    await box.click().catch(() => {});
-    await box.fill('').catch(() => {});
-    if (await box.isVisible().catch(() => false)) {
-      await box.pressSequentially(term, { delay: 45 }).catch(async () => { await page.keyboard.type(term, { delay: 45 }); });
-    } else {
-      await page.keyboard.type(term, { delay: 45 });
-    }
-    await page.waitForTimeout(1400);
-    await page.getByText(it.name, { exact: false }).first().click({ timeout: 10000 });
+    // product name — activate the Product Name cell so its lookup editor (#10)
+    // opens. In headless a single programmatic click sometimes only selects the
+    // cell without entering edit mode, so escalate to double-click / Enter until
+    // the #10 editor appears.
+    const prodCell = page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i);
+    const editorVisible = () => page.locator('[id="10"]').isVisible().catch(() => false);
+    await prodCell.click();
+    await page.waitForTimeout(500);
+    if (!(await editorVisible())) { await prodCell.dblclick().catch(() => {}); await page.waitForTimeout(500); }
+    if (!(await editorVisible())) { await prodCell.click().catch(() => {}); await page.keyboard.press('Enter').catch(() => {}); await page.waitForTimeout(500); }
+
+    // Type the search term char-by-char into #10 so the suggestions dropdown
+    // fires, then pick the matching product from it.
+    const search = page.locator('[id="10"]').first();
+    await search.click().catch(() => {});
+    await search.fill('').catch(() => {});
+    await search.pressSequentially(String(it.search || it.name), { delay: 60 });
+    await pickSuggestion(page, it.name);
     await page.locator('#revwebbody').press('Enter').catch(() => {});
     await page.waitForTimeout(400);
 
