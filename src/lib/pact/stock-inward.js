@@ -183,36 +183,52 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
       } catch (e) { console.log('  [si-columns] failed:', e.message); }
     }
 
-    const baseQtyByRole = page.getByRole('gridcell', { description: 'Base Qty', exact: true }).nth(i);
+    // Map the SI item row's cells: header label -> aria-describedby suffix, by
+    // finding the .slick-row that actually contains the product (there are two
+    // grids on this screen — the empty template grid and the real approve grid).
+    const colMap = await page.evaluate(() => {
+      const hdr = {};
+      [...document.querySelectorAll('.slick-header-column')].forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
+      const rows = [...document.querySelectorAll('.slick-row')];
+      const row = rows.find(r => /Soya Chips|Extra/i.test(r.innerText || '')) || rows.find(r => (r.innerText || '').trim().length > 3);
+      if (!row) return { cells: [] };
+      const cells = [...row.querySelectorAll('.slick-cell')].map(c => {
+        const db = c.getAttribute('aria-describedby') || '';
+        return { suffix: db.replace(/^slickgrid_\d+/, ''), label: hdr[db] || '', text: (c.innerText || '').trim().slice(0, 12) };
+      }).filter(c => c.label || c.text);
+      return { cells };
+    }).catch(() => ({ cells: [] }));
+    if (i === 0) console.log('  [si-colmap]', JSON.stringify(colMap.cells).slice(0, 1800));
+
+    const suffixFor = (label) => (colMap.cells.find(c => c.label === label) || {}).suffix;
+    const baseSuf = suffixFor('Base Qty');
+    const batchSuf = suffixFor('Batch No');
+    const approveSuf = suffixFor('Approve Qty');
+    const cell = (suf) => page.locator('.slick-row').filter({ hasText: /Soya|Extra/i }).locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
+
     const strategies = [
-      ['dblclick BaseQty', async () => { await baseQtyByRole.scrollIntoViewIfNeeded().catch(() => {}); await baseQtyByRole.dblclick({ timeout: 6000 }); }],
-      ['click BaseQty + Enter', async () => { await baseQtyByRole.click({ timeout: 6000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
-      ['click BaseQty + editor Enter', async () => { await baseQtyByRole.click({ timeout: 6000 }); await page.waitForTimeout(300); await page.locator('input.PactTextBoxEditor').first().press('Enter').catch(() => {}); }],
-      ['Generate Batch button', async () => { await page.getByRole('button', { name: /generate batch/i }).first().click({ timeout: 4000 }); }],
-      ['row batch text/icon', async () => { await page.locator('.slick-row').nth(i).getByText(/batch/i).first().click({ timeout: 4000 }); }],
+      ['dblclick BatchNo', async () => { if (!batchSuf) throw 0; await cell(batchSuf).scrollIntoViewIfNeeded().catch(() => {}); await cell(batchSuf).dblclick({ timeout: 5000 }); }],
+      ['click BatchNo + Enter', async () => { if (!batchSuf) throw 0; await cell(batchSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
+      ['dblclick BaseQty(suffix)', async () => { if (!baseSuf) throw 0; await cell(baseSuf).dblclick({ timeout: 5000 }); }],
+      ['click BaseQty + Enter', async () => { if (!baseSuf) throw 0; await cell(baseSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
+      ['dblclick ApproveQty', async () => { if (!approveSuf) throw 0; await cell(approveSuf).dblclick({ timeout: 5000 }); }],
     ];
     let opened = false, usedStrategy = '';
     for (const [name, fn] of strategies) {
       await fn().catch(() => {});
-      await page.waitForTimeout(1400);
+      await page.waitForTimeout(1500);
       if (await isOpen()) { opened = true; usedStrategy = name; break; }
+      // close any stray editor before next attempt
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(200);
     }
-    console.log(`  batch[${i + 1}] open: ${opened ? 'OPENED via [' + usedStrategy + ']' : 'NOT OPENED (all strategies failed)'}`);
+    console.log(`  batch[${i + 1}] open: ${opened ? 'OPENED via [' + usedStrategy + ']' : 'NOT OPENED'} (baseSuf=${baseSuf} batchSuf=${batchSuf})`);
 
-    if (i === 0) {
+    if (i === 0 && opened) {
       try {
-        if (opened) {
-          const html = await openModal().evaluate(el => el.outerHTML);
-          console.log('  [batch-dialog HTML]', html.replace(/\s+/g, ' ').slice(0, 2500));
-        } else {
-          const rowInfo = await page.evaluate((idx) => {
-            const row = [...document.querySelectorAll('.slick-row')][idx];
-            if (!row) return 'no row';
-            return [...row.querySelectorAll('.slick-cell')].map(c => `${(c.getAttribute('aria-describedby') || '').replace(/^slickgrid_\d+/, '')}=${(c.innerText || '').trim().slice(0, 10)}`);
-          }, i);
-          console.log('  [si-row cells]', JSON.stringify(rowInfo));
-        }
-      } catch (e) { console.log('  [diag] dump failed:', e.message); }
+        const html = await openModal().evaluate(el => el.outerHTML);
+        console.log('  [batch-dialog HTML]', html.replace(/\s+/g, ' ').slice(0, 2600));
+      } catch (e) { console.log('  [diag] dialog dump failed:', e.message); }
     }
 
     let dlg = openModal();
