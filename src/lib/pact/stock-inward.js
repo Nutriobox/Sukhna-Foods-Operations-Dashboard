@@ -168,15 +168,31 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     const exp = b.expiryDate || DEF_EXP;
     const baseQty = it.baseQty ?? null;
 
-    // open the dialog: Base Qty cell -> Enter
+    // open the dialog: activate the Base Qty cell, then Enter opens the
+    // "Generate Batch Numbers" dialog. A numeric grid cell only enters edit mode
+    // on a DOUBLE-click in headless (single-click merely selects it) — same fix
+    // as the GGE qty column — so double-click, then Enter on the opened editor.
     const qCell = page.getByRole('gridcell', { description: 'Base Qty', exact: true }).nth(i);
     await qCell.scrollIntoViewIfNeeded().catch(() => {});
-    await qCell.click({ timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(400);
-    await page.locator('.PactTextBoxEditor').press('Enter').catch(() => {});
-    await page.waitForTimeout(1600);
+    await qCell.dblclick({ timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    let dlg = page.locator('modal-container.show').last();
+    if (!(await dlg.isVisible().catch(() => false))) {
+      // editor open but dialog not yet — press Enter on the active editor to open it
+      const ed = page.locator('.slick-cell.editable input.PactTextBoxEditor, input.PactTextBoxEditor').first();
+      await ed.press('Enter').catch(() => {});
+      await page.waitForTimeout(600);
+      // last resort: single click + Enter (the original path)
+      if (!(await page.locator('modal-container.show').last().isVisible().catch(() => false))) {
+        await qCell.click({ timeout: 6000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        await page.locator('.PactTextBoxEditor').first().press('Enter').catch(() => {});
+        await page.waitForTimeout(1200);
+      }
+    }
+    await page.waitForTimeout(800);
 
-    const dlg = page.locator('modal-container.show').last();
+    dlg = page.locator('modal-container.show').last();
     if (!(await dlg.isVisible().catch(() => false))) {
       console.log(`  batch[${i + 1}]: dialog did not open`);
       continue;
