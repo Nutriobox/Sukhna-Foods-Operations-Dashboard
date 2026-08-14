@@ -29,14 +29,25 @@ async function setStatus(patch) {
   console.log(`Running PACT push for ${bill.vendor} / ${bill.billNo} (${bill.items.length} items), dryRun=${DRY_RUN}`);
   await setStatus({ status: 'processing' });
 
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const browser = await chromium.launch({ headless: true, args: ['--window-size=1920,1080'] });
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1920, height: 1080 } });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
+
+  // Save a screenshot + HTML dump so we can see what the headless browser saw.
+  const fs = require('fs');
+  const DEBUG_DIR = '/tmp/pact-debug';
+  try { fs.mkdirSync(DEBUG_DIR, { recursive: true }); } catch {}
+  async function dumpDebug(tag) {
+    try { await page.screenshot({ path: `${DEBUG_DIR}/${tag}.png`, fullPage: true }); } catch {}
+    try { fs.writeFileSync(`${DEBUG_DIR}/${tag}.html`, await page.content()); } catch {}
+    try { console.log(`[debug ${tag}] url=${page.url()} title=${await page.title()}`); } catch {}
+  }
 
   try {
     await login(page);
     console.log('Logged in.');
+    await dumpDebug('after-login');
     const gge = await createGoodsGateEntry(page, bill, { dryRun: DRY_RUN });
     const grn = gge && gge.grn ? gge.grn : '';
     console.log('GGE done, GRN =', grn || '(none)');
@@ -48,6 +59,7 @@ async function setStatus(patch) {
   } catch (e) {
     const msg = String(e && e.message ? e.message : e).slice(0, 500);
     console.error('JOB FAILED:', msg);
+    await dumpDebug('failure');
     await setStatus({ status: 'failed', error: msg });
     process.exitCode = 1;
   } finally {

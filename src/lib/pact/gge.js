@@ -10,13 +10,44 @@ const path = require('path');
 const DEFAULT_COMPANY = 'Factory';
 
 async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
-  // 1. Open the Goods Gate Entry screen (open the Flows menu first if the link isn't showing)
+  // 1. Open the Goods Gate Entry screen.
+  // In a headless/large viewport the nav can render differently, so try several
+  // ways to reach the link: open the Flows menu, wait for the link to attach,
+  // scroll it into view, then fall back to a plain-text match.
   const ggeLink = page.getByRole('link', { name: 'Goods Gate Entry', exact: true }).first();
-  if (!(await ggeLink.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: 'Flows' }).click({ timeout: 8000 }).catch(() => {});
+  const ggeText = page.getByText('Goods Gate Entry', { exact: true }).first();
+
+  async function openGge() {
+    // If it's already clickable, click it.
+    if (await ggeLink.isVisible().catch(() => false)) {
+      await ggeLink.scrollIntoViewIfNeeded().catch(() => {});
+      await ggeLink.click({ timeout: 15000 });
+      return true;
+    }
+    // Otherwise open the Flows menu (try button, link, or plain text) and retry.
+    await page.getByRole('button', { name: 'Flows' }).click({ timeout: 6000 })
+      .catch(() => page.getByRole('link', { name: 'Flows', exact: false }).first().click({ timeout: 6000 })
+      .catch(() => page.getByText('Flows', { exact: true }).first().click({ timeout: 6000 }).catch(() => {})));
     await page.waitForTimeout(1500);
+
+    // Wait for the link (or its text) to appear, then click whichever exists.
+    await ggeLink.waitFor({ state: 'attached', timeout: 12000 }).catch(() => {});
+    if (await ggeLink.count().catch(() => 0)) {
+      await ggeLink.scrollIntoViewIfNeeded().catch(() => {});
+      await ggeLink.click({ timeout: 12000 });
+      return true;
+    }
+    if (await ggeText.count().catch(() => 0)) {
+      await ggeText.scrollIntoViewIfNeeded().catch(() => {});
+      await ggeText.click({ timeout: 12000 });
+      return true;
+    }
+    return false;
   }
-  await ggeLink.click({ timeout: 20000 });
+
+  if (!(await openGge())) {
+    throw new Error("Could not find/open the 'Goods Gate Entry' link on the PACT home screen (see failure screenshot).");
+  }
   await page.waitForTimeout(1500);
 
   // 2. "Voucher Prefix" popup -> pick the Location, click Ok
