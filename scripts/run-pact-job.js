@@ -42,6 +42,21 @@ async function setStatus(patch) {
     try { await page.screenshot({ path: `${DEBUG_DIR}/${tag}.png`, fullPage: true }); } catch {}
     try { fs.writeFileSync(`${DEBUG_DIR}/${tag}.html`, await page.content()); } catch {}
     try { console.log(`[debug ${tag}] url=${page.url()} title=${await page.title()}`); } catch {}
+    try {
+      const info = await page.evaluate(() => {
+        const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        const fields = Array.from(document.querySelectorAll('input,select,textarea'))
+          .filter(vis)
+          .map((e) => `${e.tagName.toLowerCase()}#${e.id || '-'}|${(e.getAttribute('placeholder') || e.getAttribute('title') || e.name || '').toString().slice(0, 24)}`)
+          .slice(0, 70);
+        const modals = Array.from(document.querySelectorAll('modal-container, .modal, [role="dialog"]'))
+          .filter(vis)
+          .map((m) => (m.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 160));
+        return { fieldCount: fields.length, fields, modals };
+      });
+      console.log(`[debug ${tag}] visible fields (${info.fieldCount}): ${JSON.stringify(info.fields)}`);
+      console.log(`[debug ${tag}] visible modals: ${JSON.stringify(info.modals)}`);
+    } catch (e) { console.log(`[debug ${tag}] dom-dump failed: ${e.message}`); }
   }
 
   try {
