@@ -82,51 +82,82 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   await page.getByRole('button', { name: 'Ok', exact: true }).click({ timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(3000);
 
-  // 5. Approve Qty — locate each row's Approve Qty cell by its column header
-  //    (robust to id changes), activate it, log the editor that appears (first
-  //    row, for diagnosis), then fill it. Short timeouts keep the run fast.
-  const aqSuffix = await page.evaluate(() => {
-    const hdr = {}; document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
-    const row = [...document.querySelectorAll('.slick-row')].find(r => /Soya|Extra|FGO/i.test(r.innerText || ''));
-    if (!row) return '';
-    const c = [...row.querySelectorAll('.slick-cell')].find(x => hdr[x.getAttribute('aria-describedby')] === 'Approve Qty');
-    return c ? (c.getAttribute('aria-describedby') || '').replace(/^slickgrid_\d+/, '') : '';
-  }).catch(() => '');
-  console.log('  [approveQty] column suffix =', aqSuffix || '(not found)');
-  const aqCellFor = (idx) => aqSuffix
-    ? page.locator('.slick-row').filter({ hasText: /Soya|Extra|FGO/i }).nth(idx).locator(`.slick-cell[aria-describedby$="${aqSuffix}"]`).first()
-    : page.getByRole('gridcell', { description: 'Approve Qty', exact: true }).nth(idx);
+  // 5. Approve the received quantity for each item.
+  //    After linking the GGE the approve-grid rows show Receipt Qty (e.g. 800),
+  //    Rejected Qty (defaults to the FULL qty), and Approve Qty (computed =
+  //    Receipt − Rejected, hence 0 and NOT directly editable). So the real fix is
+  //    to ZERO the "Rejected Qty" cell — Approve Qty then auto-fills to the full
+  //    received qty. We still try to set Approve Qty directly as a fallback in
+  //    case this environment lets you edit it.
+
+  // Map header-label -> aria-describedby suffix from the product row, and log the
+  // whole row's {label: value} so one run confirms the column semantics.
+  const rowMap = await page.evaluate(() => {
+    const hdr = {};
+    document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
+    const row = [...document.querySelectorAll('.slick-row')].find(r => /Soya|Extra|FGO|Chips/i.test(r.innerText || ''));
+    if (!row) return { map: {}, dump: [] };
+    const map = {}; const dump = [];
+    row.querySelectorAll('.slick-cell').forEach(c => {
+      const db = c.getAttribute('aria-describedby') || '';
+      const label = hdr[db] || '';
+      const suffix = db.replace(/^slickgrid_\d+/, '');
+      const text = (c.innerText || '').trim();
+      if (label) { map[label] = suffix; dump.push([label, text]); }
+    });
+    return { map, dump };
+  }).catch(() => ({ map: {}, dump: [] }));
+  console.log('  [approveGrid row]', JSON.stringify(rowMap.dump));
+  const sufFor = (labels) => { for (const l of labels) if (rowMap.map[l]) return rowMap.map[l]; return ''; };
+  const rejectSuf = sufFor(['Rejected Qty', 'Reject Qty', 'Rejected Quantity', 'Rejected']);
+  const approveSuf = sufFor(['Approve Qty', 'Approved Qty', 'Approve Quantity', 'Accepted Qty']);
+  console.log('  [approveGrid] rejectSuf =', rejectSuf || '(none)', ' approveSuf =', approveSuf || '(none)');
+
+  const rowCell = (idx, suf) => page.locator('.slick-row').filter({ hasText: /Soya|Extra|FGO|Chips/i }).nth(idx)
+    .locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
+
+  // Robustly type `value` into a slick numeric cell: click (select), then if no
+  // editor opened, double-click; fill the editable input; commit with Enter.
+  async function setCell(cell, value, tag) {
+    await cell.scrollIntoViewIfNeeded().catch(() => {});
+    await cell.click({ timeout: 6000 }).catch(() => {});
+    await page.waitForTimeout(350);
+    let ed = page.locator('.slick-cell.editable input, .slick-cell.editable textarea, input.PactTextBoxEditor, input.editor-text').first();
+    if (!(await ed.isVisible({ timeout: 1500 }).catch(() => false))) {
+      await cell.dblclick({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      ed = page.locator('.slick-cell.editable input, .slick-cell.editable textarea, input.PactTextBoxEditor, input.editor-text').first();
+    }
+    if (await ed.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await ed.fill('').catch(() => {});
+      await ed.fill(String(value)).catch(async () => { await page.keyboard.type(String(value)).catch(() => {}); });
+      await page.keyboard.press('Enter').catch(() => {});
+      console.log(`  ${tag}: set ${value}`);
+    } else {
+      console.log(`  ${tag}: no editor opened (cell may be read-only/computed)`);
+    }
+    await page.waitForTimeout(400);
+  }
 
   for (let i = 0; i < bill.items.length; i++) {
     const aq = bill.items[i].approveQty ?? bill.items[i].qty;
-    const aqCell = aqCellFor(i);
-    await aqCell.scrollIntoViewIfNeeded().catch(() => {});
-    await aqCell.click({ timeout: 6000 }).catch(() => {});
-    await page.waitForTimeout(500);
-    if (i === 0) {
-      const info = await page.evaluate(() => {
-        const ec = document.querySelector('.slick-cell.editable');
-        const inp = ec ? ec.querySelector('input,select,textarea') : null;
-        const a = document.activeElement;
-        return {
-          editableCell: ec ? ec.className.slice(0, 45) : 'none',
-          editor: inp ? `${inp.tagName}#${inp.id || '-'}.${(inp.className || '').slice(0, 30)}` : 'none',
-          active: a ? `${a.tagName}#${a.id || '-'}.${(a.className || '').slice(0, 30)}` : 'none',
-        };
-      }).catch(() => ({}));
-      console.log('  [approveQty after click]', JSON.stringify(info));
-    }
-    // fill whatever editor appeared; fall back to double-click then type
-    let ed = page.locator('.slick-cell.editable input, .slick-cell.editable textarea, input.PactTextBoxEditor').first();
-    if (!(await ed.isVisible({ timeout: 2000 }).catch(() => false))) {
-      await aqCell.dblclick({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(400);
-      ed = page.locator('.slick-cell.editable input, .slick-cell.editable textarea, input.PactTextBoxEditor').first();
-    }
-    await ed.fill(String(aq), { timeout: 5000 }).catch(async () => { await page.keyboard.type(String(aq)).catch(() => {}); });
-    await page.keyboard.press('Enter').catch(() => {});
-    await page.waitForTimeout(500);
+    // Primary fix: zero the Rejected Qty so Approve Qty auto-computes to full.
+    if (rejectSuf) await setCell(rowCell(i, rejectSuf), 0, `reject[${i + 1}]`);
+    // Fallback: also try to set Approve Qty directly (no-op if computed/read-only).
+    if (approveSuf) await setCell(rowCell(i, approveSuf), aq, `approve[${i + 1}]`);
   }
+
+  // Log the row again so one run shows whether Approve Qty is now non-zero.
+  const afterRow = await page.evaluate(() => {
+    const hdr = {};
+    document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
+    const row = [...document.querySelectorAll('.slick-row')].find(r => /Soya|Extra|FGO|Chips/i.test(r.innerText || ''));
+    if (!row) return [];
+    return [...row.querySelectorAll('.slick-cell')].map(c => {
+      const db = c.getAttribute('aria-describedby') || ''; return [hdr[db] || '', (c.innerText || '').trim()];
+    }).filter(x => x[0]);
+  }).catch(() => []);
+  console.log('  [approveGrid row AFTER]', JSON.stringify(afterRow));
 
   // ---- DIAGNOSTIC: dump grid + batch dialog, then stop ------------------------
   if (DIAG) {
