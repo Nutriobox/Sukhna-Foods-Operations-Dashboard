@@ -395,10 +395,45 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
 
   // 7. Post the Stock Inward (only when DRY_RUN=false)
   await page.screenshot({ path: path.join('/tmp', 'stockinward-before-post.png'), fullPage: true }).catch(() => {});
+
+  // Commit any still-open grid editor before posting (blur it) so the row saves.
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.waitForTimeout(400);
+
+  // Capture the SI grid state so a failure tells us whether Approve Qty and the
+  // batch actually landed (visible in the Supabase error, no GitHub log needed).
+  const preState = await page.evaluate(() => {
+    const hdr = {};
+    document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
+    const row = [...document.querySelectorAll('.slick-row')].find(r => /Soya|Extra|FGO|Chips/i.test(r.innerText || ''));
+    const vals = {};
+    if (row) row.querySelectorAll('.slick-cell').forEach(c => { const l = hdr[c.getAttribute('aria-describedby')]; if (l) vals[l] = (c.innerText || '').trim(); });
+    const modalOpen = !!document.querySelector('modal-container.show');
+    const posts = [...document.querySelectorAll('button[title="Post"]')].map(b => { const r = b.getBoundingClientRect(); return { vis: r.width > 0 && r.height > 0, cls: (b.className || '').slice(0, 30) }; });
+    return { vals, modalOpen, posts };
+  }).catch(() => ({}));
+  const preSummary = `preState=${JSON.stringify(preState).slice(0, 400)}`;
+  console.log('  [pre-post]', preSummary);
+
   page.once('dialog', (d) => d.accept().catch(() => {}));
-  await page.locator('button[title="Post"]').first().click({ timeout: 10000 });
+
+  // There can be several button[title="Post"] in the DOM (the hidden GGE tab plus
+  // the Stock Inward tab). Click the VISIBLE one, scrolling it into view first.
+  const postBtn = page.locator('button[title="Post"]:visible').first();
+  try {
+    await postBtn.scrollIntoViewIfNeeded({ timeout: 4000 }).catch(() => {});
+    await postBtn.click({ timeout: 10000 });
+  } catch (e) {
+    // fallback: last Post button, forced
+    const fb = page.locator('button[title="Post"]').last();
+    await fb.scrollIntoViewIfNeeded().catch(() => {});
+    await fb.click({ timeout: 6000, force: true }).catch(() => {
+      throw new Error(`Stock Inward Post button not clickable. ${preSummary}. orig=${String(e.message).split('\n')[0]}`);
+    });
+  }
   await page.waitForTimeout(3000);
-  await page.locator('button[title="Post"]').first().click({ timeout: 6000 }).catch(() => {});
+  // some builds show a confirmation Post; click a visible one again if present
+  await page.locator('button[title="Post"]:visible').first().click({ timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(3000);
   await page.screenshot({ path: path.join('/tmp', 'stockinward-after-post.png'), fullPage: true }).catch(() => {});
   console.log('  Stock Inward post attempted.');
