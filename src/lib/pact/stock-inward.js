@@ -168,32 +168,55 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     const exp = b.expiryDate || DEF_EXP;
     const baseQty = it.baseQty ?? null;
 
-    // open the dialog: activate the Base Qty cell, then Enter opens the
-    // "Generate Batch Numbers" dialog. A numeric grid cell only enters edit mode
-    // on a DOUBLE-click in headless (single-click merely selects it) — same fix
-    // as the GGE qty column — so double-click, then Enter on the opened editor.
-    const qCell = page.getByRole('gridcell', { description: 'Base Qty', exact: true }).nth(i);
-    await qCell.scrollIntoViewIfNeeded().catch(() => {});
-    await qCell.dblclick({ timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(500);
-    let dlg = page.locator('modal-container.show').last();
-    if (!(await dlg.isVisible().catch(() => false))) {
-      // editor open but dialog not yet — press Enter on the active editor to open it
-      const ed = page.locator('.slick-cell.editable input.PactTextBoxEditor, input.PactTextBoxEditor').first();
-      await ed.press('Enter').catch(() => {});
-      await page.waitForTimeout(600);
-      // last resort: single click + Enter (the original path)
-      if (!(await page.locator('modal-container.show').last().isVisible().catch(() => false))) {
-        await qCell.click({ timeout: 6000 }).catch(() => {});
-        await page.waitForTimeout(300);
-        await page.locator('.PactTextBoxEditor').first().press('Enter').catch(() => {});
-        await page.waitForTimeout(1200);
-      }
-    }
-    await page.waitForTimeout(800);
+    // ---- open the "Generate Batch Numbers" dialog (self-diagnosing) ----------
+    // We don't yet know the exact trigger in headless, so log the grid columns,
+    // try several strategies, report which one opened the dialog, and dump the
+    // dialog HTML (or the row's cell structure if none worked) to the run log.
+    const openModal = () => page.locator('modal-container.show').last();
+    const isOpen = async () => openModal().isVisible().catch(() => false);
 
-    dlg = page.locator('modal-container.show').last();
-    if (!(await dlg.isVisible().catch(() => false))) {
+    if (i === 0) {
+      try {
+        const cols = await page.evaluate(() =>
+          [...document.querySelectorAll('.slick-header-column')].map(h => (h.innerText || '').trim()).filter(Boolean));
+        console.log('  [si-columns]', JSON.stringify(cols));
+      } catch (e) { console.log('  [si-columns] failed:', e.message); }
+    }
+
+    const baseQtyByRole = page.getByRole('gridcell', { description: 'Base Qty', exact: true }).nth(i);
+    const strategies = [
+      ['dblclick BaseQty', async () => { await baseQtyByRole.scrollIntoViewIfNeeded().catch(() => {}); await baseQtyByRole.dblclick({ timeout: 6000 }); }],
+      ['click BaseQty + Enter', async () => { await baseQtyByRole.click({ timeout: 6000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
+      ['click BaseQty + editor Enter', async () => { await baseQtyByRole.click({ timeout: 6000 }); await page.waitForTimeout(300); await page.locator('input.PactTextBoxEditor').first().press('Enter').catch(() => {}); }],
+      ['Generate Batch button', async () => { await page.getByRole('button', { name: /generate batch/i }).first().click({ timeout: 4000 }); }],
+      ['row batch text/icon', async () => { await page.locator('.slick-row').nth(i).getByText(/batch/i).first().click({ timeout: 4000 }); }],
+    ];
+    let opened = false, usedStrategy = '';
+    for (const [name, fn] of strategies) {
+      await fn().catch(() => {});
+      await page.waitForTimeout(1400);
+      if (await isOpen()) { opened = true; usedStrategy = name; break; }
+    }
+    console.log(`  batch[${i + 1}] open: ${opened ? 'OPENED via [' + usedStrategy + ']' : 'NOT OPENED (all strategies failed)'}`);
+
+    if (i === 0) {
+      try {
+        if (opened) {
+          const html = await openModal().evaluate(el => el.outerHTML);
+          console.log('  [batch-dialog HTML]', html.replace(/\s+/g, ' ').slice(0, 2500));
+        } else {
+          const rowInfo = await page.evaluate((idx) => {
+            const row = [...document.querySelectorAll('.slick-row')][idx];
+            if (!row) return 'no row';
+            return [...row.querySelectorAll('.slick-cell')].map(c => `${(c.getAttribute('aria-describedby') || '').replace(/^slickgrid_\d+/, '')}=${(c.innerText || '').trim().slice(0, 10)}`);
+          }, i);
+          console.log('  [si-row cells]', JSON.stringify(rowInfo));
+        }
+      } catch (e) { console.log('  [diag] dump failed:', e.message); }
+    }
+
+    let dlg = openModal();
+    if (!opened) {
       console.log(`  batch[${i + 1}]: dialog did not open`);
       continue;
     }
