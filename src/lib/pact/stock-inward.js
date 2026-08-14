@@ -82,15 +82,19 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   await page.getByRole('button', { name: 'Ok', exact: true }).click({ timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(3000);
 
-  // 5. Approve Qty — fill down the grid column (one value per linked row)
-  await page.getByRole('gridcell', { description: 'Approve Qty', exact: true }).first().click({ timeout: 8000 }).catch(() => {});
-  await page.waitForTimeout(600);
+  // 5. Approve Qty — DOUBLE-click each row's Approve Qty cell to open its numeric
+  //    editor (single-click only selects it, leaving Approve Qty empty so the
+  //    whole line gets rejected and Base Qty stays 0), then fill it.
   for (let i = 0; i < bill.items.length; i++) {
     const aq = bill.items[i].approveQty ?? bill.items[i].qty;
-    await page.locator('.PactTextBoxEditor').fill(String(aq)).catch(() => {});
-    const key = i < bill.items.length - 1 ? 'ArrowDown' : 'Enter';
-    await page.locator('.PactTextBoxEditor').press(key).catch(() => {});
-    await page.waitForTimeout(350);
+    const aqCell = page.getByRole('gridcell', { description: 'Approve Qty', exact: true }).nth(i);
+    await aqCell.scrollIntoViewIfNeeded().catch(() => {});
+    await aqCell.dblclick({ timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    const ed = page.locator('.slick-cell.editable input.PactTextBoxEditor, input.PactTextBoxEditor').first();
+    await ed.fill(String(aq)).catch((e) => console.log(`  approveQty[${i + 1}] fill failed: ${String(e.message).split('\n')[0]}`));
+    await ed.press('Enter').catch(() => {});
+    await page.waitForTimeout(500);
   }
 
   // ---- DIAGNOSTIC: dump grid + batch dialog, then stop ------------------------
@@ -207,11 +211,10 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     const cell = (suf) => page.locator('.slick-row').filter({ hasText: /Soya|Extra/i }).locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
 
     const strategies = [
-      ['dblclick BatchNo', async () => { if (!batchSuf) throw 0; await cell(batchSuf).scrollIntoViewIfNeeded().catch(() => {}); await cell(batchSuf).dblclick({ timeout: 5000 }); }],
+      ['click BaseQty + Enter', async () => { if (!baseSuf) throw 0; await cell(baseSuf).scrollIntoViewIfNeeded().catch(() => {}); await cell(baseSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
+      ['dblclick BaseQty', async () => { if (!baseSuf) throw 0; await cell(baseSuf).dblclick({ timeout: 5000 }); }],
       ['click BatchNo + Enter', async () => { if (!batchSuf) throw 0; await cell(batchSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
-      ['dblclick BaseQty(suffix)', async () => { if (!baseSuf) throw 0; await cell(baseSuf).dblclick({ timeout: 5000 }); }],
-      ['click BaseQty + Enter', async () => { if (!baseSuf) throw 0; await cell(baseSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
-      ['dblclick ApproveQty', async () => { if (!approveSuf) throw 0; await cell(approveSuf).dblclick({ timeout: 5000 }); }],
+      ['dblclick BatchNo', async () => { if (!batchSuf) throw 0; await cell(batchSuf).dblclick({ timeout: 5000 }); }],
     ];
     let opened = false, usedStrategy = '';
     for (const [name, fn] of strategies) {
