@@ -52,10 +52,19 @@ async function setStatus(patch) {
         const modals = Array.from(document.querySelectorAll('modal-container, .modal, [role="dialog"]'))
           .filter(vis)
           .map((m) => (m.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 160));
-        return { fieldCount: fields.length, fields, modals };
+        // Capture any open lookup/suggestions dropdown so we can see its markup.
+        const dropdowns = Array.from(document.querySelectorAll('.List__dropdown, .List__dropdown--suggestions, .suggestions__group, .slick-row'))
+          .filter(vis)
+          .map((d) => `${d.tagName.toLowerCase()}.${(d.className || '').toString().trim().replace(/\s+/g, '.').slice(0, 40)} :: ${(d.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 80)}`)
+          .slice(0, 12);
+        const activeEl = document.activeElement;
+        const active = activeEl ? `${activeEl.tagName.toLowerCase()}#${activeEl.id || '-'} val="${(activeEl.value || '').slice(0, 30)}"` : 'none';
+        return { fieldCount: fields.length, fields, modals, dropdowns, active };
       });
       console.log(`[debug ${tag}] visible fields (${info.fieldCount}): ${JSON.stringify(info.fields)}`);
       console.log(`[debug ${tag}] visible modals: ${JSON.stringify(info.modals)}`);
+      console.log(`[debug ${tag}] dropdowns: ${JSON.stringify(info.dropdowns)}`);
+      console.log(`[debug ${tag}] activeEl: ${info.active}`);
     } catch (e) { console.log(`[debug ${tag}] dom-dump failed: ${e.message}`); }
   }
 

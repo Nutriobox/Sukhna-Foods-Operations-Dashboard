@@ -125,8 +125,9 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
       search = page.locator('input.list_grid_input:not([id="100"])').last();
     }
     await search.click().catch(() => {});
-    await search.fill('').catch(() => {});
-    await search.pressSequentially(String(it.search || it.name), { delay: 60 });
+    await page.waitForTimeout(300);
+    await search.pressSequentially(String(it.search || it.name), { delay: 70 });
+    await page.waitForTimeout(600);
     await pickSuggestion(page, it.name);
     await page.locator('#revwebbody').press('Enter').catch(() => {});
     await page.waitForTimeout(400);
