@@ -17,9 +17,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - name: Install dependencies
         run: npm install
-      - name: Install Chromium
+      - name: Cache Playwright browser (Chromium 1.49.1)
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.49.1
+      - name: Install Chromium (skips download on cache hit)
         run: npx playwright install --with-deps chromium
       - name: Run PACT push
         env:
