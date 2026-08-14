@@ -103,20 +103,27 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   // 5. Line items — one grid row each
   for (let i = 0; i < bill.items.length; i++) {
     const it = bill.items[i];
-    // product name — activate the Product Name cell so its lookup editor (#10)
-    // opens. In headless a single programmatic click sometimes only selects the
-    // cell without entering edit mode, so escalate to double-click / Enter until
-    // the #10 editor appears.
+    // product name — activate the Product Name cell so its lookup editor opens.
+    // The editor is a `list_grid_input` inside the active/editable grid cell; its
+    // id is NOT stable across environments (seen as #10, #1, ...), so match by
+    // class/position, never a hard id, and exclude the vendor field (#100). In
+    // headless a single programmatic click sometimes only selects the cell, so
+    // escalate to double-click / Enter until the editor appears.
     const prodCell = page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i);
-    const editorVisible = () => page.locator('[id="10"]').isVisible().catch(() => false);
+    const activeEditor = page.locator('.slick-cell.editable input.list_grid_input').first();
+    const editorVisible = () => activeEditor.isVisible().catch(() => false);
     await prodCell.click();
     await page.waitForTimeout(500);
     if (!(await editorVisible())) { await prodCell.dblclick().catch(() => {}); await page.waitForTimeout(500); }
     if (!(await editorVisible())) { await prodCell.click().catch(() => {}); await page.keyboard.press('Enter').catch(() => {}); await page.waitForTimeout(500); }
 
-    // Type the search term char-by-char into #10 so the suggestions dropdown
-    // fires, then pick the matching product from it.
-    const search = page.locator('[id="10"]').first();
+    // Resolve the search box (active editable cell first, else any grid lookup
+    // that isn't the vendor), type char-by-char to fire the suggestions
+    // dropdown, then pick the matching product.
+    let search = activeEditor;
+    if (!(await search.isVisible().catch(() => false))) {
+      search = page.locator('input.list_grid_input:not([id="100"])').last();
+    }
     await search.click().catch(() => {});
     await search.fill('').catch(() => {});
     await search.pressSequentially(String(it.search || it.name), { delay: 60 });
