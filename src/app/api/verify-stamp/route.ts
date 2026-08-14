@@ -2,28 +2,38 @@ import { NextResponse } from "next/server";
 
 /**
  * Stamp verification (Phase-2 vision helper) — Google Gemini.
- * POSTs { imageUrl } — the scanned bill image — to a Gemini vision model and
- * reports whether the inward "Gate No." stamp and the "MIS Entry" stamp are
- * present. The UI uses this to auto-tick the stamp gate.
+ * POSTs { imageUrl } — the scanned bill image — and reports whether the inward
+ * "Gate No." stamp and the "Store Checked" stamp are present. The UI uses this
+ * to auto-tick the stamp gate.
  *
- * Requires GEMINI_API_KEY (or GOOGLE_API_KEY). Optional GEMINI_VISION_MODEL
- * pins a specific model; otherwise the route auto-discovers a current
- * vision-capable model from the account (so it survives model renames).
+ * Resilient to transient model overload (HTTP 503 "high demand" / 429): it tries
+ * several current flash models newest-first and retries with backoff, so a busy
+ * model never silently fails the check.
+ *
+ * Requires GEMINI_API_KEY (or GOOGLE_API_KEY). Optional GEMINI_VISION_MODEL pins
+ * a specific model.
  */
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-let RESOLVED_MODEL: string | null = null;
+let RESOLVED_MODELS: string[] | null = null;
 
 function verOf(name: string): number {
   const m = (name || "").match(/gemini-(\d+(?:\.\d+)?)/i);
   return m ? parseFloat(m[1]) : 0;
 }
 
-async function resolveModel(key: string): Promise<string> {
-  if (process.env.GEMINI_VISION_MODEL) return process.env.GEMINI_VISION_MODEL;
-  if (RESOLVED_MODEL) return RESOLVED_MODEL;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Ordered candidate flash models (newest first) plus stable fallbacks, so a
+// single overloaded model does not break the feature.
+async function candidateModels(key: string): Promise<string[]> {
+  if (process.env.GEMINI_VISION_MODEL) {
+    return Array.from(new Set([process.env.GEMINI_VISION_MODEL, "gemini-flash-latest", "gemini-2.5-flash"]));
+  }
+  if (RESOLVED_MODELS) return RESOLVED_MODELS;
+  let list: string[] = [];
   try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", {
       headers: { "x-goog-api-key": key },
@@ -31,23 +41,57 @@ async function resolveModel(key: string): Promise<string> {
     if (r.ok) {
       const d = await r.json();
       const models: Array<{ name?: string; supportedGenerationMethods?: string[] }> = d?.models || [];
-      // Stable flash vision models only (exclude lite/preview/image/tts/etc.), newest version first.
-      const flash = models
+      list = models
         .filter(
           (m) =>
             (m.supportedGenerationMethods || []).includes("generateContent") &&
             /flash/i.test(m.name || "") &&
             !/lite|preview|exp|thinking|image|tts|audio|latest/i.test(m.name || "")
         )
-        .sort((a, b) => verOf(b.name || "") - verOf(a.name || ""));
-      const pick = flash[0]?.name || "models/gemini-flash-latest";
-      RESOLVED_MODEL = pick.replace(/^models\//, "");
-      return RESOLVED_MODEL;
+        .map((m) => (m.name || "").replace(/^models\//, ""))
+        .sort((a, b) => verOf(b) - verOf(a));
     }
   } catch {
-    // fall through
+    /* fall through to static fallbacks */
   }
-  return "gemini-flash-latest";
+  const picks = Array.from(new Set([...list.slice(0, 3), "gemini-flash-latest", "gemini-2.5-flash"]));
+  RESOLVED_MODELS = picks.length ? picks : ["gemini-flash-latest"];
+  return RESOLVED_MODELS;
+}
+
+// Call generateContent, trying each candidate model and retrying transient
+// overload (429/5xx) with exponential backoff. Returns the first success.
+async function generate(
+  key: string,
+  models: string[],
+  parts: unknown[],
+  generationConfig: Record<string, unknown>
+): Promise<{ ok: boolean; data?: any; model?: string; detail?: string }> {
+  let detail = "no_models";
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let r: Response;
+      try {
+        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig }),
+        });
+      } catch (e) {
+        detail = "fetch " + String(e).slice(0, 120);
+        break;
+      }
+      if (r.ok) return { ok: true, data: await r.json(), model };
+      const status = r.status;
+      detail = "model=" + model + " HTTP " + status + " " + (await r.text().catch(() => "")).slice(0, 120);
+      if (status === 429 || status >= 500) {
+        await sleep(500 * Math.pow(2, attempt));
+        continue;
+      }
+      break;
+    }
+  }
+  return { ok: false, detail };
 }
 
 function mediaType(url: string, ct: string | null): string {
@@ -86,7 +130,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "scan_fetch_failed", detail: String(e).slice(0, 200) });
   }
 
-  const model = await resolveModel(key);
+  const models = await candidateModels(key);
 
   const prompt =
     'This is a scanned Indian purchase / tax invoice. It usually carries hand-applied rubber INK STAMPS — ' +
@@ -110,22 +154,16 @@ export async function POST(req: Request) {
     'After your reasoning, end your reply with a single final line in EXACTLY this form:\n' +
     'FINAL {"gateNo": true|false, "storeChecked": true|false}';
 
+  const res = await generate(
+    key,
+    models,
+    [{ inline_data: { mime_type: mt, data: b64 } }, { text: prompt }],
+    { temperature: 0, maxOutputTokens: 1024 }
+  );
+  if (!res.ok) return NextResponse.json({ ok: false, reason: "vision_error", detail: (res.detail || "").slice(0, 300) });
+
   try {
-    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [
-          { role: "user", parts: [{ inline_data: { mime_type: mt, data: b64 } }, { text: prompt }] },
-        ],
-        generationConfig: { temperature: 0, maxOutputTokens: 1024 },
-      }),
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(() => "");
-      return NextResponse.json({ ok: false, reason: "vision_error", model, detail: ("model=" + model + " HTTP " + r.status + " " + t).slice(0, 300) });
-    }
-    const data = await r.json();
+    const data = res.data;
     const parts = data?.candidates?.[0]?.content?.parts || [];
     const text: string = parts.map((p: { text?: string }) => p?.text || "").join("");
     const idx = text.lastIndexOf("FINAL");
@@ -134,8 +172,8 @@ export async function POST(req: Request) {
     const parsed = m ? JSON.parse(m[0]) : {};
     const gateNo = !!parsed.gateNo;
     const storeChecked = !!parsed.storeChecked;
-    return NextResponse.json({ ok: true, model, gateNo, storeChecked, verified: gateNo && storeChecked });
+    return NextResponse.json({ ok: true, model: res.model, gateNo, storeChecked, verified: gateNo && storeChecked });
   } catch (e) {
-    return NextResponse.json({ ok: false, reason: "vision_error", model, detail: String(e).slice(0, 300) });
+    return NextResponse.json({ ok: false, reason: "parse_failed", model: res.model, detail: String(e).slice(0, 300) });
   }
 }

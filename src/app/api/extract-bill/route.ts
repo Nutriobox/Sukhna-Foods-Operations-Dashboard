@@ -4,22 +4,32 @@ import { NextResponse } from "next/server";
  * Bill extraction (Phase-2 vision helper) — Google Gemini.
  * POST { fileUrl } — a public URL of the uploaded scanned bill (PDF or image).
  * Returns structured bill fields so the "Add a bill" form can be auto-filled.
+ *
+ * Resilient to transient model overload (HTTP 503 "high demand" / 429): it tries
+ * several current flash models newest-first and retries with backoff, so a busy
+ * model never leaves the form blank.
+ *
  * Uses the same GEMINI_API_KEY (or GOOGLE_API_KEY) as the stamp checker.
  */
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-let RESOLVED_MODEL: string | null = null;
+let RESOLVED_MODELS: string[] | null = null;
 
 function verOf(name: string): number {
   const m = (name || "").match(/gemini-(\d+(?:\.\d+)?)/i);
   return m ? parseFloat(m[1]) : 0;
 }
 
-async function resolveModel(key: string): Promise<string> {
-  if (process.env.GEMINI_VISION_MODEL) return process.env.GEMINI_VISION_MODEL;
-  if (RESOLVED_MODEL) return RESOLVED_MODEL;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function candidateModels(key: string): Promise<string[]> {
+  if (process.env.GEMINI_VISION_MODEL) {
+    return Array.from(new Set([process.env.GEMINI_VISION_MODEL, "gemini-flash-latest", "gemini-2.5-flash"]));
+  }
+  if (RESOLVED_MODELS) return RESOLVED_MODELS;
+  let list: string[] = [];
   try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", {
       headers: { "x-goog-api-key": key },
@@ -27,22 +37,56 @@ async function resolveModel(key: string): Promise<string> {
     if (r.ok) {
       const d = await r.json();
       const models: Array<{ name?: string; supportedGenerationMethods?: string[] }> = d?.models || [];
-      const flash = models
+      list = models
         .filter(
           (m) =>
             (m.supportedGenerationMethods || []).includes("generateContent") &&
             /flash/i.test(m.name || "") &&
             !/lite|preview|exp|thinking|image|tts|audio|latest/i.test(m.name || "")
         )
-        .sort((a, b) => verOf(b.name || "") - verOf(a.name || ""));
-      const pick = flash[0]?.name || "models/gemini-flash-latest";
-      RESOLVED_MODEL = pick.replace(/^models\//, "");
-      return RESOLVED_MODEL;
+        .map((m) => (m.name || "").replace(/^models\//, ""))
+        .sort((a, b) => verOf(b) - verOf(a));
     }
   } catch {
-    /* fall through */
+    /* fall through to static fallbacks */
   }
-  return "gemini-flash-latest";
+  const picks = Array.from(new Set([...list.slice(0, 3), "gemini-flash-latest", "gemini-2.5-flash"]));
+  RESOLVED_MODELS = picks.length ? picks : ["gemini-flash-latest"];
+  return RESOLVED_MODELS;
+}
+
+// Try each candidate model, retrying transient overload (429/5xx) with backoff.
+async function generate(
+  key: string,
+  models: string[],
+  parts: unknown[],
+  generationConfig: Record<string, unknown>
+): Promise<{ ok: boolean; data?: any; model?: string; detail?: string }> {
+  let detail = "no_models";
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let r: Response;
+      try {
+        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig }),
+        });
+      } catch (e) {
+        detail = "fetch " + String(e).slice(0, 120);
+        break;
+      }
+      if (r.ok) return { ok: true, data: await r.json(), model };
+      const status = r.status;
+      detail = "model=" + model + " HTTP " + status + " " + (await r.text().catch(() => "")).slice(0, 120);
+      if (status === 429 || status >= 500) {
+        await sleep(500 * Math.pow(2, attempt));
+        continue;
+      }
+      break;
+    }
+  }
+  return { ok: false, detail };
 }
 
 function mediaType(url: string, ct: string | null): string {
@@ -81,7 +125,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "fetch_failed", detail: String(e).slice(0, 200) });
   }
 
-  const model = await resolveModel(key);
+  const models = await candidateModels(key);
 
   const prompt =
     "You are reading a scanned Indian purchase / tax (GST) invoice. Extract its contents into JSON.\n\n" +
@@ -104,27 +148,23 @@ export async function POST(req: Request) {
     "}\n\n" +
     "If a field is not present, use \"\" for strings, 0 for numbers, or [] for arrays. Do not invent values.";
 
+  const res = await generate(
+    key,
+    models,
+    [{ inline_data: { mime_type: mt, data: b64 } }, { text: prompt }],
+    { temperature: 0, maxOutputTokens: 4096, responseMimeType: "application/json" }
+  );
+  if (!res.ok) return NextResponse.json({ ok: false, reason: "vision_error", detail: (res.detail || "").slice(0, 300) });
+
   try {
-    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ inline_data: { mime_type: mt, data: b64 } }, { text: prompt }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 4096, responseMimeType: "application/json" },
-      }),
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(() => "");
-      return NextResponse.json({ ok: false, reason: "vision_error", model, detail: ("HTTP " + r.status + " " + t).slice(0, 300) });
-    }
-    const data = await r.json();
+    const data = res.data;
     const parts = data?.candidates?.[0]?.content?.parts || [];
     const text: string = parts.map((p: { text?: string }) => p?.text || "").join("");
     const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return NextResponse.json({ ok: false, reason: "parse_failed", model, detail: text.slice(0, 300) });
+    if (!m) return NextResponse.json({ ok: false, reason: "parse_failed", model: res.model, detail: text.slice(0, 300) });
     const parsed = JSON.parse(m[0]);
-    return NextResponse.json({ ok: true, model, bill: parsed });
+    return NextResponse.json({ ok: true, model: res.model, bill: parsed });
   } catch (e) {
-    return NextResponse.json({ ok: false, reason: "vision_error", model, detail: String(e).slice(0, 300) });
+    return NextResponse.json({ ok: false, reason: "parse_failed", model: res.model, detail: String(e).slice(0, 300) });
   }
 }
