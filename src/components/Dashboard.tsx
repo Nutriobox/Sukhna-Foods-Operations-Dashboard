@@ -774,6 +774,10 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
   const cands = useMemo(() => b.items.map((_, i) => candidates(lines[i].billName)), [b]);
   const sup = useMemo(() => matchSupplier(b.vendorGst, b.vendor), [b]);
   const [ackNoSupplier, setAckNoSupplier] = useState(false);
+  const [selSupplierName, setSelSupplierName] = useState<string>(sup.supplier ? sup.supplier.name : "");
+  const supplierNames = useMemo(() => ALL_SUPPLIERS.map((sp) => sp.name), []);
+  const chosenSup = useMemo(() => ALL_SUPPLIERS.find((sp) => sp.name === selSupplierName) || null, [selSupplierName]);
+  const [qtyEdit, setQtyEdit] = useState<Record<number, number | "">>({});
   const allNames = useMemo(() => CATALOG.map((p) => p.name), []);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -827,11 +831,12 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
     const q = lines[i2].qty;
     const prod2 = productByName(selProduct[i2]) || matchProduct(lines[i2].billName).product;
     const f2 = convFactor(prod2, itm.uom, selUnit[i2] || "");
-    const dq = q != null ? q * (f2 ?? 1) : null;
+    const ov2 = qtyEdit[i2];
+    const dq = typeof ov2 === "number" ? ov2 : (q != null ? q * (f2 ?? 1) : null);
     const sum2 = bs2.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
     return dq != null && Math.abs(sum2 - dq) < 0.0001;
   });
-  const supplierOk = sup.supplier != null || ackNoSupplier;
+  const supplierOk = chosenSup != null || ackNoSupplier;
   const canConfirm = unmatched === 0 && datesReady && !allUp && qtyAllOK && supplierOk;
 
   async function doPush() {
@@ -842,7 +847,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
       const prod = productByName(selProduct[i]) || matchProduct(l.billName).product;
       const unit = selUnit[i] || "";
       const factor = convFactor(prod, b.items[i].uom, unit);
-      const qty = l.qty != null ? l.qty * (factor ?? 1) : 0;
+      const ov = qtyEdit[i];
+      const qty = typeof ov === "number" ? ov : (l.qty != null ? l.qty * (factor ?? 1) : 0);
       const lvl = Object.entries(prod.levels).find(([, L]) => canonUnit(L.u) === canonUnit(unit));
       const unitLevel = lvl ? lvl[0] : (prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (Object.keys(prod.levels)[0] || "L1"));
       const mfg = toDMY(batches[i]?.[0]?.mfg || "");
@@ -853,10 +859,10 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
       bill: {
         company: "Factory",
         billId: b.id,
-        vendor: sup.supplier ? sup.supplier.name : b.vendor,
-        vendorSearch: ((sup.supplier ? sup.supplier.name : b.vendor) || "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, 4),
-        vendorCode: sup.supplier ? sup.supplier.code : undefined,
-        vendorGst: sup.supplier ? sup.supplier.gstin : b.vendorGst,
+        vendor: chosenSup ? chosenSup.name : b.vendor,
+        vendorSearch: ((chosenSup ? chosenSup.name : b.vendor) || "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, 4),
+        vendorCode: chosenSup ? chosenSup.code : undefined,
+        vendorGst: chosenSup ? chosenSup.gstin : b.vendorGst,
         billNo: b.invoice,
         billDate: b.dateFull,
         items,
@@ -899,8 +905,11 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
         </div>
 
         <div className="pmeta">
-          <div className="pmi"><span className="pmk">Party name{sup.supplier ? <span className="pedit"> · PACT master{sup.by === "name" ? " (name)" : ""}</span> : <span className="ureview" title="This supplier's GSTIN and name were not found in your PACT supplier master."><Icon n="alert" size={11} />not in master</span>}</span><span className={"pmv" + (sup.supplier ? "" : " bad")}>{sup.supplier ? sup.supplier.name : b.vendor}</span>{sup.supplier && sup.supplier.name.trim().toLowerCase() !== (b.vendor || "").trim().toLowerCase() ? <span className="pfrom">from bill: {b.vendor}</span> : null}</div>
-          <div className="pmi"><span className="pmk">Party GST</span><span className="pmv tnum">{sup.supplier ? sup.supplier.gstin : (b.vendorGst || "—")}</span></div>
+          <div className="pmi"><span className="pmk">Party name{chosenSup ? <span className="pedit"> · PACT master</span> : <span className="ureview" title="Pick the PACT supplier this bill belongs to."><Icon n="alert" size={11} />select supplier</span>}</span>
+            <Combobox value={selSupplierName} options={supplierNames} onChange={(v) => setSelSupplierName(v)} placeholder="Search supplier…" />
+            <span className="pfrom">from bill: {b.vendor}</span>
+          </div>
+          <div className="pmi"><span className="pmk">Party GST</span><span className="pmv tnum">{chosenSup ? chosenSup.gstin : (b.vendorGst || "—")}</span></div>
           <div className="pmi"><span className="pmk">Bill number</span><span className="pmv">{b.invoice}</span></div>
           <div className="pmi"><span className="pmk">Bill date</span><span className="pmv">{b.dateFull}</span></div>
           <div className="pmi"><span className="pmk">Delivery date</span><span className="pmv">{(b as any).deliveryDate || "—"}</span></div>
@@ -921,10 +930,12 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
             const unitInMaster = !!unit && prod.units.some((u) => canonUnit(u) === canonUnit(unit));
             const factor = convFactor(prod, it.uom, unit);
             const dispQty = l.qty != null ? l.qty * (factor ?? 1) : null;
+            const qtyOv = qtyEdit[i];
+            const effQty = typeof qtyOv === "number" ? qtyOv : dispQty;
             const dispRate = l.rate != null ? l.rate / (factor ?? 1) : null;
             const splitMode = bs.length > 1;
             const batchSum = bs.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
-            const qtyOK = !splitMode || (dispQty != null && Math.abs(batchSum - dispQty) < 0.0001);
+            const qtyOK = !splitMode || (effQty != null && Math.abs(batchSum - effQty) < 0.0001);
             const prodOpts = ed ? allNames : (cands[i].map((c) => c.name).includes(selProduct[i]) ? cands[i].map((c) => c.name) : [selProduct[i], ...cands[i].map((c) => c.name)]);
             return (
               <div key={i} className={"pcard" + (matched ? "" : " err") + (done ? " done" : "")}>
@@ -949,7 +960,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                   </div>
                   <div className="pf"><span className="pk">Purchase Unit{unit && !unitInMaster ? <span className="ureview" title="This unit is not one of the product's PACT units (e.g. Gms / Kg / Bags). Click Edit to pick a PACT unit."><Icon n="alert" size={11} />review</span> : ""}</span>
                     {ed
-                      ? <select className={"psel" + (unit && !unitInMaster ? " warn" : "")} value={unit} onChange={(e) => { const v = e.target.value; setSelUnit((s) => ({ ...s, [i]: v })); patchItem(b.id, i, { pactUnit: v }); }}>
+                      ? <select className={"psel" + (unit && !unitInMaster ? " warn" : "")} value={unit} onChange={(e) => { const v = e.target.value; setSelUnit((s) => ({ ...s, [i]: v })); patchItem(b.id, i, { pactUnit: v }); setQtyEdit((s) => { const c = { ...s }; delete c[i]; return c; }); }}>
                           <option value="">— select —</option>
                           {prod.units.map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
@@ -957,7 +968,11 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                         ? <span className="pv">{unit}</span>
                         : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}
                   </div>
-                  <div className="pf"><span className="pk">Purchase Quantity{factor != null && factor !== 1 ? <span className="pedit"> · {it.uom}→{unit}</span> : ""}</span>{dispQty != null ? <span className="pv tnum">{fmtQty(dispQty)}</span> : <span className="pv bad">Requires unit</span>}</div>
+                  <div className="pf"><span className="pk">Purchase Quantity{factor != null && factor !== 1 ? <span className="pedit"> · {it.uom}→{unit}</span> : ""}</span>
+                    {unit
+                      ? <input type="number" min={0} step="any" className="pnuminp tnum" disabled={done} value={qtyEdit[i] !== undefined ? qtyEdit[i] : (dispQty != null ? Number(dispQty.toFixed(3)) : "")} onChange={(e) => { const v = e.target.value; setQtyEdit((s) => ({ ...s, [i]: v === "" ? "" : Number(v) })); }} />
+                      : <span className="pv bad">Requires unit</span>}
+                  </div>
                   <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{dispRate != null ? "₹" + inr(dispRate) : "—"}</span></div>
                   <div className="pf"><span className="pk">GST Rate</span><span className="pv">{it.taxRate || "—"}</span></div>
                   <div className="pf"><span className="pk">GST Amount</span><span className="pv tnum">{it.gst != null ? "₹" + inr(it.gst) : "—"}</span></div>
@@ -984,7 +999,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                       <div className="pf"><span className="pk">Quantity / Mfg Date</span>
                         {qtyEditable
                           ? <input type="number" min={0} className="pnuminp tnum" value={bt.qty} onChange={(e) => setBatch(i, bi, { qty: e.target.value === "" ? "" : Number(e.target.value) })} />
-                          : <span className="pv tnum">{splitMode ? bt.qty : fmtQty(dispQty ?? 0)}</span>}
+                          : <span className="pv tnum">{splitMode ? bt.qty : fmtQty(effQty ?? 0)}</span>}
                       </div>
                       <div className="pf"><span className="pk">UOM</span>{unit ? <span className="pv">{unit}</span> : <span className="pv bad"><Icon n="alert" size={11} />—</span>}</div>
                       <div className="pf"><span className="pk">Packaging size UOM{ed ? <span className="pedit"> · level</span> : ""}</span>
@@ -1004,7 +1019,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                     </div>
                   );
                 })}
-                {splitMode && !qtyOK && <div className="perr"><Icon n="alert" size={14} />Batch quantities add up to {fmtQty(batchSum)} {unit}, but purchase quantity is {fmtQty(dispQty ?? 0)} {unit}. They must match before upload.</div>}
+                {splitMode && !qtyOK && <div className="perr"><Icon n="alert" size={14} />Batch quantities add up to {fmtQty(batchSum)} {unit}, but purchase quantity is {fmtQty(effQty ?? 0)} {unit}. They must match before upload.</div>}
 
                 {!matched && <div className="perr"><Icon n="alert" size={14} />No purchase unit matched for "{b.items[i].uom}" — click Edit to pick one from the master. Upload is blocked until then.</div>}
 
