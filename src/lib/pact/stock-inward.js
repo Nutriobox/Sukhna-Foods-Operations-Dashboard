@@ -28,21 +28,21 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   const link = page.getByRole('link', { name: 'Stock Inward', exact: true }).first();
   if (!(await link.isVisible().catch(() => false))) {
     await page.getByRole('button', { name: 'Flows' }).click({ timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1050);
   }
   await link.click({ timeout: 20000 });
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1400);
 
   // 1b. Voucher Prefix / Location popup (same as GGE), if it appears
   const vp = page.locator('modal-container.show').first();
   if (await vp.isVisible().catch(() => false)) {
     await vp.locator('.List__button').first().click().catch(() => {});
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
     await page.getByText(bill.company || 'Factory', { exact: true }).first().click({ timeout: 8000 }).catch(() => {});
     await vp.getByRole('button', { name: 'Ok' }).click({ timeout: 5000 }).catch(() => {});
     await vp.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(850);
 
   // 2. Vendor
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
@@ -51,18 +51,18 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   await siVendor.fill('');
   // Type char-by-char so the type-ahead fires, then match tolerantly (same as GGE).
   await siVendor.pressSequentially(String(bill.vendorSearch || bill.vendor.slice(0, 4)), { delay: 60 });
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(500);
   await pickVendorSuggestion(page, bill.vendor);
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(550);
 
   // 3. Bill number
   await tab.locator('#BillNo').first().fill(String(bill.billNo));
   await tab.locator('#BillNo').first().press('Enter').catch(() => {});
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(550);
 
   // 4. Link -> tick the specific GGE (from last-grn.txt) to pull its items in.
   await page.getByRole('tab', { name: 'Link' }).click({ timeout: 8000 }).catch(() => {});
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1050);
   let targetGrn = grnOpt || process.env.TARGET_GRN || '';
   if (!targetGrn) { try { targetGrn = fs.readFileSync(path.join('/tmp', 'last-grn.txt'), 'utf8').trim(); } catch {} }
   console.log('  linking GGE:', targetGrn || '(none set — using first)');
@@ -81,11 +81,11 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   }
   await ggeCheckbox.check({ timeout: 8000 })
     .catch((e) => console.log('  link checkbox failed:', String(e.message).split('\n')[0]));
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1400);
   await page.getByText('Select All', { exact: true }).click({ timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(400);
   await page.getByRole('button', { name: 'Ok', exact: true }).click({ timeout: 6000 }).catch(() => {});
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(2100);
 
   // 5. Approve the received quantity for each item.
   //    After linking the GGE the approve-grid rows show Receipt Qty (e.g. 800),
@@ -126,11 +126,11 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   async function setCell(cell, value, tag) {
     await cell.scrollIntoViewIfNeeded().catch(() => {});
     await cell.click({ timeout: 6000 }).catch(() => {});
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(300);
     let ed = page.locator('.slick-cell.editable input, .slick-cell.editable textarea, input.PactTextBoxEditor, input.editor-text').first();
     if (!(await ed.isVisible({ timeout: 1500 }).catch(() => false))) {
       await cell.dblclick({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(300);
       ed = page.locator('.slick-cell.editable input, .slick-cell.editable textarea, input.PactTextBoxEditor, input.editor-text').first();
     }
     if (await ed.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -141,7 +141,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     } else {
       console.log(`  ${tag}: no editor opened (cell may be read-only/computed)`);
     }
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(300);
   }
 
   for (let i = 0; i < bill.items.length; i++) {
@@ -182,7 +182,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     const bCell = page.getByRole('gridcell', { description: 'Batch Number', exact: true }).nth(0);
     await bCell.scrollIntoViewIfNeeded().catch(() => {});
     await bCell.click({ timeout: 8000 }).catch((e) => console.log('  [diag] batch cell click failed:', String(e.message).split('\n')[0]));
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(1250);
     let modal = page.locator('modal-container.show');
     let n = await modal.count().catch(() => 0);
     console.log('  [diag] modal-container.show count after batch click =', n);
@@ -196,15 +196,15 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
         if (await c.count().catch(() => 0)) {
           console.log('  [diag] found base-qty column description =', d);
           await c.click({ timeout: 5000 }).catch(() => {});
-          await page.waitForTimeout(500);
+          await page.waitForTimeout(350);
           const ed = page.locator('.PactTextBoxEditor');
           if (await ed.count().catch(() => 0)) { await ed.press('Enter').catch(() => {}); }
-          await page.waitForTimeout(800);
+          await page.waitForTimeout(550);
           break;
         }
       }
       await bCell.click({ timeout: 6000 }).catch(() => {});
-      await page.waitForTimeout(1800);
+      await page.waitForTimeout(1250);
       n = await modal.count().catch(() => 0);
       console.log('  [diag] modal count after Attempt B =', n);
       if (n > 0) await dumpOuter(page, 'batch-dialog.html', modal.last());
@@ -226,10 +226,10 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
 
   async function typeDate(el, value) {
     await el.click().catch(() => {});
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(300);
     await el.fill('').catch(() => {});
     await el.pressSequentially(value, { delay: 30 }).catch(() => {});
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
   }
 
   for (let i = 0; i < bill.items.length; i++) {
@@ -286,11 +286,11 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     let opened = false, usedStrategy = '';
     for (const [name, fn] of strategies) {
       await fn().catch(() => {});
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(1050);
       if (await isOpen()) { opened = true; usedStrategy = name; break; }
       // close any stray editor before next attempt
       await page.keyboard.press('Escape').catch(() => {});
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(300);
     }
     console.log(`  batch[${i + 1}] open: ${opened ? 'OPENED via [' + usedStrategy + ']' : 'NOT OPENED'} (baseSuf=${baseSuf} batchSuf=${batchSuf})`);
 
@@ -324,7 +324,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     const gridRow = dlg.locator('.slick-row').first();
     const bnCell = gridRow.locator('.slick-cell').nth(1);
     await bnCell.click({ timeout: 6000 }).catch((e) => console.log(`  batch[${i + 1}] BN cell click: ${String(e.message).split('\n')[0]}`));
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
 
     if (i === 0) {
       try {
@@ -345,7 +345,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
       const lastTxt = await gsel.locator('option').nth(nOpt - 1).innerText().catch(() => '');
       if (nOpt > 1) {
         await gsel.selectOption({ index: nOpt - 1 }).catch((e) => console.log(`  batch[${i + 1}] dropdown select: ${String(e.message).split('\n')[0]}`));
-        await page.waitForTimeout(700);
+        await page.waitForTimeout(500);
         usedExisting = true;
         console.log(`  batch[${i + 1}] picked existing batch "${lastTxt.trim()}" (${nOpt} opts); footer: ${await footer()}`);
       } else {
@@ -362,7 +362,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
       await dlg.locator('#QTY').first().click().catch(() => {});
       await page.waitForTimeout(300);
       await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(850);
       console.log(`  batch[${i + 1}] created new batch; footer: ${await footer()}`);
     }
 
@@ -374,11 +374,11 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
         const wantQty = baseQty != null ? baseQty : (pf ? pf.total : (await dlg.locator('#QTY').first().inputValue().catch(() => ''))) || '';
         const qtyCell = gridRow.locator('.slick-cell').nth(4); // 0=# 1=BatchNo 2=Mfg 3=Expiry 4=Quantity
         await qtyCell.click({ timeout: 5000 }).catch(() => {});
-        await page.waitForTimeout(400);
+        await page.waitForTimeout(300);
         const ed = dlg.locator('.slick-cell input, input.editor-text, .PactTextBoxEditor').first();
         await ed.fill(String(wantQty)).catch((e) => console.log(`  batch[${i + 1}] qty fill: ${String(e.message).split('\n')[0]}`));
         await ed.press('Enter').catch(() => {});
-        await page.waitForTimeout(700);
+        await page.waitForTimeout(500);
         console.log(`  batch[${i + 1}] set grid qty ${wantQty}; footer: ${await footer()}`);
       }
     }
@@ -388,7 +388,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     if (!(await saveBtn.count().catch(() => 0))) saveBtn = dlg.getByRole('button', { name: 'Save', exact: true }).last();
     await saveBtn.click({ timeout: 6000 }).catch((e) => console.log(`  batch[${i + 1}] Save failed: ${String(e.message).split('\n')[0]}`));
     await dlg.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => console.log(`  batch[${i + 1}] dialog did not close after Save`));
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(550);
     console.log(`  batch[${i + 1}] done`);
   }
 
@@ -403,7 +403,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
 
   // Commit any still-open grid editor before posting (blur it) so the row saves.
   await page.keyboard.press('Escape').catch(() => {});
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(300);
 
   // Capture the SI grid state so a failure tells us whether Approve Qty and the
   // batch actually landed (visible in the Supabase error, no GitHub log needed).
@@ -436,10 +436,10 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
       throw new Error(`Stock Inward Post button not clickable. ${preSummary}. orig=${String(e.message).split('\n')[0]}`);
     });
   }
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(2100);
   // some builds show a confirmation Post; click a visible one again if present
   await page.locator('button[title="Post"]:visible').first().click({ timeout: 6000 }).catch(() => {});
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(2100);
   await page.screenshot({ path: path.join('/tmp', 'stockinward-after-post.png'), fullPage: true }).catch(() => {});
   console.log('  Stock Inward post attempted.');
   return { posted: true };

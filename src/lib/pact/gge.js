@@ -90,7 +90,7 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
     await page.getByRole('button', { name: 'Flows' }).click({ timeout: 6000 })
       .catch(() => page.getByRole('link', { name: 'Flows', exact: false }).first().click({ timeout: 6000 })
       .catch(() => page.getByText('Flows', { exact: true }).first().click({ timeout: 6000 }).catch(() => {})));
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1050);
 
     // Wait for the link (or its text) to appear, then click whichever exists.
     await ggeLink.waitFor({ state: 'attached', timeout: 12000 }).catch(() => {});
@@ -110,7 +110,7 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   if (!(await openGge())) {
     throw new Error("Could not find/open the 'Goods Gate Entry' link on the PACT home screen (see failure screenshot).");
   }
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1050);
 
   // 2. "Voucher Prefix" popup -> pick the Location, click Ok
   const location = bill.company || DEFAULT_COMPANY; // e.g. "Factory"
@@ -118,13 +118,13 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   await vp.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
   if (await vp.isVisible().catch(() => false)) {
     await vp.locator('.List__button').first().click().catch(() => {}); // open the Location dropdown
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
     await vp.locator('#Name').click().catch(() => {});
     await page.getByText(location, { exact: true }).first().click({ timeout: 8000 });
     await vp.getByRole('button', { name: 'Ok' }).click({ timeout: 5000 });
     await vp.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1050);
 
   // 3. Vendor (type-ahead lookup #100). Type char-by-char so the type-ahead
   //    actually fires, then pick from the suggestions dropdown. A plain fill()
@@ -133,21 +133,21 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   await vendorField.click();
   await vendorField.fill('');
   await vendorField.pressSequentially(String(bill.vendorSearch || bill.vendor.slice(0, 4)), { delay: 60 });
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(500);
   await pickVendorSuggestion(page, bill.vendor);
 
   // 4. Bill number
   await page.locator('#BillNo').first().fill(String(bill.billNo));
   await page.locator('#BillNo').first().press('Enter').catch(() => {});
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(350);
 
   // 4b. Bill Date (required) — click the field to open its calendar and pick today
   await page.locator('#BillDate').first().click().catch(() => {});
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(550);
   const billDay = String((new Date()).getDate());
   await page.getByText(billDay, { exact: true }).first().click({ timeout: 6000 })
     .catch((e) => console.log('  bill-date step:', String(e.message).split('\n')[0]));
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(400);
 
   // 5. Line items — one grid row each
   for (let i = 0; i < bill.items.length; i++) {
@@ -161,9 +161,9 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
     const editorVisible = () => prodEditor().isVisible().catch(() => false);
     await prodCell.scrollIntoViewIfNeeded().catch(() => {});
     await prodCell.click();
-    await page.waitForTimeout(500);
-    if (!(await editorVisible())) { await prodCell.dblclick().catch(() => {}); await page.waitForTimeout(500); }
-    if (!(await editorVisible())) { await prodCell.click().catch(() => {}); await page.keyboard.press('Enter').catch(() => {}); await page.waitForTimeout(500); }
+    await page.waitForTimeout(350);
+    if (!(await editorVisible())) { await prodCell.dblclick().catch(() => {}); await page.waitForTimeout(350); }
+    if (!(await editorVisible())) { await prodCell.click().catch(() => {}); await page.keyboard.press('Enter').catch(() => {}); await page.waitForTimeout(350); }
 
     // Type char-by-char into the ProductName editor to fire the suggestions
     // dropdown, then pick the matching product.
@@ -171,12 +171,12 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
     await search.click().catch(() => {});
     await page.waitForTimeout(300);
     await search.pressSequentially(String(it.search || it.name), { delay: 70 });
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
     await pickSuggestion(page, it.name).catch(() => {
       throw new Error(`Product "${it.name}" (line ${i + 1}) not found in PACT's item master. Check the product mapping, then retry.`);
     });
     await page.locator('#revwebbody').press('Enter').catch(() => {});
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(300);
 
     // purchase unit level (L1/L2/L3). The "Purchase Unit Level" column's internal
     // name is "Value"; it holds a persistent <select> in each row — target that
@@ -185,11 +185,11 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
       const ulCell = page.locator('.slick-cell[aria-describedby$="Value"]').nth(i);
       await ulCell.scrollIntoViewIfNeeded().catch(() => {});
       await ulCell.click();            // activate the cell so its <select> renders
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(300);
       const ulSelect = ulCell.locator('select').first();
       await ulSelect.selectOption(it.unitLevel)
         .catch((e) => console.log(`    [item ${i + 1}] unit-level select failed: ${String(e.message).split('\n')[0]}`));
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(350);
     }
 
     // quantity -> the Purchase Qty column (internal name dcNum9). It's a numeric
@@ -197,21 +197,21 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
     const qtyCell = page.locator('.slick-cell[aria-describedby$="dcNum9"]').nth(i);
     await qtyCell.scrollIntoViewIfNeeded().catch(() => {});
     await qtyCell.dblclick().catch(() => {});
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(300);
     const qtyInput = page.locator('.slick-cell.editable input.PactTextBoxEditor, input.PactTextBoxEditor').first();
     await qtyInput.fill(String(it.qty)).catch((e) => console.log(`    [item ${i + 1}] qty fill failed: ${String(e.message).split('\n')[0]}`));
     await qtyInput.press('Enter').catch(() => {});
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(350);
   }
 
   // 5b. Delivery Date (required before Post) — open its calendar and pick today
   try {
     const ddLabel = page.getByText('Delivery Date', { exact: false }).first();
     await ddLabel.locator('xpath=following::*[contains(@class,"List__button") or contains(@class,"fa-calendar")][1]').click({ timeout: 8000 });
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
     const today = String((new Date()).getDate());
     await page.getByText(today, { exact: true }).first().click({ timeout: 6000 });
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(350);
   } catch (e) { console.log('  delivery-date step:', String(e.message).split('\n')[0]); }
 
   if (dryRun) {
@@ -223,8 +223,8 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   // editor blurs and the grid saves — otherwise Post drops the uncommitted row).
   await page.locator('#BillNo').first().click().catch(() => {});
   await page.keyboard.press('Tab').catch(() => {});
-  await page.waitForTimeout(1200);
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(850);
+  await page.waitForTimeout(1050);
   await page.screenshot({ path: path.join('/tmp', 'gge-before-post.png'), fullPage: true }).catch(() => {});
   // capture the draft's Doc No BEFORE posting (this becomes the posted GRN)
   let grn = '';
@@ -234,7 +234,7 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   } catch {}
   try { require('fs').writeFileSync(require('path').join(__dirname, '..', 'last-grn.txt'), grn); } catch {}
   await page.locator('button[title="Post"]').first().click();
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(1750);
   console.log('  GGE posted. GRN =', grn || '(NOT captured — check #TxtVoucherNo)');
   return { posted: true, grn };
 }
