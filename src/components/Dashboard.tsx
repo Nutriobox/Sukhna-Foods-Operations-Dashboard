@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
 import { Icon } from "./icons";
 import PRICE_CHART from "@/lib/price-chart.json";
+import { matchSupplier } from "@/lib/suppliers";
 
 type SalesOrder = { id: string; name: string; at: number; sheets: { name: string; rows: (string | number | null)[][] }[] };
 
@@ -710,6 +711,8 @@ async function fetchStamp(scan: string): Promise<StampCheck> {
 function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void; patchItem: (id: number, idx: number, patch: Partial<Item>) => void }) {
   const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
   const cands = useMemo(() => b.items.map((_, i) => candidates(lines[i].billName)), [b]);
+  const sup = useMemo(() => matchSupplier(b.vendorGst, b.vendor), [b]);
+  const [ackNoSupplier, setAckNoSupplier] = useState(false);
   const allNames = useMemo(() => CATALOG.map((p) => p.name), []);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -767,7 +770,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
     const sum2 = bs2.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
     return dq != null && Math.abs(sum2 - dq) < 0.0001;
   });
-  const canConfirm = unmatched === 0 && datesReady && !allUp && qtyAllOK;
+  const supplierOk = sup.supplier != null || ackNoSupplier;
+  const canConfirm = unmatched === 0 && datesReady && !allUp && qtyAllOK && supplierOk;
 
   async function doPush() {
     if (!canConfirm || pushing) return;
@@ -788,8 +792,10 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
       bill: {
         company: "Factory",
         billId: b.id,
-        vendor: b.vendor,
-        vendorSearch: (b.vendor || "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, 4),
+        vendor: sup.supplier ? sup.supplier.name : b.vendor,
+        vendorSearch: ((sup.supplier ? sup.supplier.name : b.vendor) || "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, 4),
+        vendorCode: sup.supplier ? sup.supplier.code : undefined,
+        vendorGst: sup.supplier ? sup.supplier.gstin : b.vendorGst,
         billNo: b.invoice,
         billDate: b.dateFull,
         items,
@@ -832,8 +838,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
         </div>
 
         <div className="pmeta">
-          <div className="pmi"><span className="pmk">Party name</span><span className="pmv">{b.vendor}</span></div>
-          <div className="pmi"><span className="pmk">Party GST</span><span className="pmv tnum">{b.vendorGst}</span></div>
+          <div className="pmi"><span className="pmk">Party name{sup.supplier ? <span className="pedit"> · PACT master{sup.by === "name" ? " (name)" : ""}</span> : <span className="ureview" title="This supplier's GSTIN and name were not found in your PACT supplier master."><Icon n="alert" size={11} />not in master</span>}</span><span className={"pmv" + (sup.supplier ? "" : " bad")}>{sup.supplier ? sup.supplier.name : b.vendor}</span>{sup.supplier && sup.supplier.name.trim().toLowerCase() !== (b.vendor || "").trim().toLowerCase() ? <span className="pfrom">from bill: {b.vendor}</span> : null}</div>
+          <div className="pmi"><span className="pmk">Party GST</span><span className="pmv tnum">{sup.supplier ? sup.supplier.gstin : (b.vendorGst || "—")}</span></div>
           <div className="pmi"><span className="pmk">Bill number</span><span className="pmv">{b.invoice}</span></div>
           <div className="pmi"><span className="pmk">Bill date</span><span className="pmv">{b.dateFull}</span></div>
           <div className="pmi"><span className="pmk">Delivery date</span><span className="pmv">{(b as any).deliveryDate || "—"}</span></div>
@@ -961,7 +967,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
         </div>
 
         <div className="pfoot">
-          <span className={"pstatus " + (unmatched > 0 || !qtyAllOK ? "bad" : allUp ? "ok" : datesReady ? "ok" : "warn")}>
+          <span className={"pstatus " + (unmatched > 0 || !qtyAllOK ? "bad" : allUp ? "ok" : !datesReady ? "warn" : !supplierOk ? "warn" : "ok")}>
             {unmatched > 0
               ? <><Icon n="alert" size={16} />{unmatched} item{unmatched > 1 ? "s" : ""} not matched — upload blocked</>
               : allUp
@@ -970,8 +976,16 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                   ? <><Icon n="alert" size={16} />Select a manufactured date for every batch</>
                   : !qtyAllOK
                     ? <><Icon n="alert" size={16} />Split quantities must equal the purchase quantity</>
-                    : <><Icon n="shield" size={16} />All items matched · ready to push</>}
+                    : !supplierOk
+                      ? <><Icon n="alert" size={16} />Supplier not in PACT master — confirm below to push</>
+                      : <><Icon n="shield" size={16} />All items matched · ready to push</>}
           </span>
+          {!sup.supplier && (
+            <label className="pstatus warn" style={{ maxWidth: 470, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={ackNoSupplier} onChange={(e) => setAckNoSupplier(e.target.checked)} />
+              <Icon n="alert" size={16} />Supplier not in your PACT master — add it in PACT, or tick to push anyway.
+            </label>
+          )}
           {pushErr && <span className="pstatus bad" style={{ maxWidth: 420 }}><Icon n="alert" size={16} />{pushErr}</span>}
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} disabled={!canConfirm || pushing}
