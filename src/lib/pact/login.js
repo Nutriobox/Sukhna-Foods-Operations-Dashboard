@@ -52,15 +52,31 @@ async function login(page) {
       .catch(() => null),
   ]);
 
-  // Primary submit: click the login button (accessible name "Select").
-  await page.getByRole('button', { name: 'Select' }).click().catch(() => {});
-  let outcome = await settle(12000);
+  // Primary submit: click the VISIBLE "Log in" button. It is <button id="btnLogn"
+  // type="submit">, but the page renders a DUPLICATE hidden copy with the same id
+  // — clicking the hidden one silently no-ops and leaves you on /login (that was
+  // the bug: the old name-based selector could resolve to the hidden duplicate).
+  const loginBtn = page.locator('button#btnLogn:visible').first();
+  await loginBtn.click({ timeout: 8000 }).catch(() => {});
+  let outcome = await settle(10000);
 
   if (!outcome) {
-    // Fallback for builds that only submit on Enter. (One extra attempt only, to
-    // avoid hammering the account into a lockout.)
+    // Fallback 1: submit via Enter in the password field.
     await passBox.press('Enter').catch(() => {});
-    outcome = await settle(8000);
+    outcome = await settle(6000);
+  }
+  if (!outcome) {
+    // Fallback 2: submit the login form in-page (covers headless click quirks and
+    // the hidden-duplicate button).
+    await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button#btnLogn'));
+      const b = btns.find((x) => x.offsetParent !== null) || btns[0];
+      if (!b) return;
+      const f = b.closest('form');
+      if (f && typeof f.requestSubmit === 'function') f.requestSubmit(b);
+      else b.click();
+    }).catch(() => {});
+    outcome = await settle(6000);
   }
 
   if (outcome === 'success') {
