@@ -100,7 +100,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   const rowMap = await page.evaluate(() => {
     const hdr = {};
     document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
-    const row = [...document.querySelectorAll('.slick-row')].find(r => /Soya|Extra|FGO|Chips/i.test(r.innerText || ''));
+    const row = [...document.querySelectorAll('.slick-row')].find(r => (r.innerText || '').trim().length > 3);
     if (!row) return { map: {}, dump: [] };
     const map = {}; const dump = [];
     row.querySelectorAll('.slick-cell').forEach(c => {
@@ -118,7 +118,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   const approveSuf = sufFor(['Approve Qty', 'Approved Qty', 'Approve Quantity', 'Accepted Qty']);
   console.log('  [approveGrid] rejectSuf =', rejectSuf || '(none)', ' approveSuf =', approveSuf || '(none)');
 
-  const rowCell = (idx, suf) => page.locator('.slick-row').filter({ hasText: /Soya|Extra|FGO|Chips/i }).nth(idx)
+  const rowCell = (idx, suf) => page.locator('.slick-row').nth(idx)
     .locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
 
   // Robustly type `value` into a slick numeric cell: click (select), then if no
@@ -156,7 +156,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   const afterRow = await page.evaluate(() => {
     const hdr = {};
     document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
-    const row = [...document.querySelectorAll('.slick-row')].find(r => /Soya|Extra|FGO|Chips/i.test(r.innerText || ''));
+    const row = [...document.querySelectorAll('.slick-row')].find(r => (r.innerText || '').trim().length > 3);
     if (!row) return [];
     return [...row.querySelectorAll('.slick-cell')].map(c => {
       const db = c.getAttribute('aria-describedby') || ''; return [hdr[db] || '', (c.innerText || '').trim()];
@@ -261,7 +261,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
       const hdr = {};
       [...document.querySelectorAll('.slick-header-column')].forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
       const rows = [...document.querySelectorAll('.slick-row')];
-      const row = rows.find(r => /Soya Chips|Extra/i.test(r.innerText || '')) || rows.find(r => (r.innerText || '').trim().length > 3);
+      const row = rows.find(r => (r.innerText || '').trim().length > 3);
       if (!row) return { cells: [] };
       const cells = [...row.querySelectorAll('.slick-cell')].map(c => {
         const db = c.getAttribute('aria-describedby') || '';
@@ -275,7 +275,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     const baseSuf = suffixFor('Base Qty');
     const batchSuf = suffixFor('Batch No');
     const approveSuf = suffixFor('Approve Qty');
-    const cell = (suf) => page.locator('.slick-row').filter({ hasText: /Soya|Extra/i }).locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
+    const cell = (suf) => page.locator('.slick-row').nth(i).locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
 
     const strategies = [
       ['click BaseQty + Enter', async () => { if (!baseSuf) throw 0; await cell(baseSuf).scrollIntoViewIfNeeded().catch(() => {}); await cell(baseSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
@@ -410,7 +410,7 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   const preState = await page.evaluate(() => {
     const hdr = {};
     document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
-    const row = [...document.querySelectorAll('.slick-row')].find(r => /Soya|Extra|FGO|Chips/i.test(r.innerText || ''));
+    const row = [...document.querySelectorAll('.slick-row')].find(r => (r.innerText || '').trim().length > 3);
     const vals = {};
     if (row) row.querySelectorAll('.slick-cell').forEach(c => { const l = hdr[c.getAttribute('aria-describedby')]; if (l) vals[l] = (c.innerText || '').trim(); });
     const modalOpen = !!document.querySelector('modal-container.show');
