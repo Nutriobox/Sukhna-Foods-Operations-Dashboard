@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
 import { Icon } from "./icons";
 import PRICE_CHART from "@/lib/price-chart.json";
-import { matchSupplier } from "@/lib/suppliers";
+import { matchSupplier, ALL_SUPPLIERS } from "@/lib/suppliers";
 
 type SalesOrder = { id: string; name: string; at: number; sheets: { name: string; rows: (string | number | null)[][] }[] };
 
@@ -54,6 +54,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [modalId, setModalId] = useState<number | null>(null);
   const [pactId, setPactId] = useState<number | null>(null);
   const [pmOpen, setPmOpen] = useState(false);
+  const [smOpen, setSmOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
   const [soCreateOpen, setSoCreateOpen] = useState(false);
   const [priceOpen, setPriceOpen] = useState(false);
@@ -316,6 +317,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           <div className="spacer" />
           {view === "stock" && <>
             <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
+            <button className="pmbtn" onClick={() => setSmOpen(true)}><Icon n="mail" size={14} />View supplier master</button>
             <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
             <button className="pmbtn add" onClick={() => setBillOpen(true)}><Icon n="plus" size={14} />Bill Upload</button>
           </>}
@@ -452,6 +454,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
       {printActive && <PrintLabel b={printActive} printed={printedIds.has(printActive.id)} onClose={() => setPrintId(null)} onPrinted={(id) => { setPrintedIds((prev) => new Set(prev).add(id)); setPrintId(null); ping("Labels sent to print — the Print button is now locked for this bill."); }} />}
 
       {pmOpen && <ProductMaster onClose={() => setPmOpen(false)} />}
+      {smOpen && <SupplierMaster onClose={() => setSmOpen(false)} />}
 
       {/* Manual bill entry */}
       {billOpen && <BillEntry nextId={(bills.reduce((m, b) => Math.max(m, b.id), 0) || 0) + 1} onClose={() => setBillOpen(false)} onSave={addBill} />}
@@ -1832,6 +1835,57 @@ function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () =>
           {err && <span className="pstatus err" style={{ marginLeft: 8 }}><Icon n="alert" size={16} />{err}</span>}
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={submit}><Icon n="plus" size={14} />Add bill to dashboard</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SupplierMaster({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const ql = q.trim().toLowerCase();
+  const all = ALL_SUPPLIERS;
+  const rows = useMemo(() => {
+    if (!ql) return all;
+    return all.filter((s) => (s.name + " " + s.gstin + " " + s.city + " " + s.code).toLowerCase().includes(ql));
+  }, [ql, all]);
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal">
+        <div className="phead">
+          <span className="pbadge"><Icon n="mail" size={15} /></span>
+          <div className="pttl">
+            <h2>PACT Supplier Master</h2>
+            <div className="sub">{all.length.toLocaleString("en-IN")} suppliers · bills are matched against this (GST first, then name)</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        <div className="pmsearch">
+          <Icon n="search" size={15} />
+          <input placeholder="Search name, GSTIN or city…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+          <span className="pmcount">{rows.length === all.length ? all.length : `${rows.length} of ${all.length}`} shown</span>
+        </div>
+        <div className="pmbody">
+          <table className="pmtable">
+            <thead><tr><th>#</th><th>Supplier Name</th><th>GSTIN</th><th>City</th><th>Phone</th><th>Email</th></tr></thead>
+            <tbody>
+              {rows.map((s, i) => (
+                <tr key={s.code + i}>
+                  <td className="n">{i + 1}</td>
+                  <td className="nm">{s.name}</td>
+                  <td className="lv">{s.gstin || "—"}</td>
+                  <td>{s.city || "—"}</td>
+                  <td>{s.phone || "—"}</td>
+                  <td>{s.email || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!rows.length && <div className="pmmore">No suppliers match that search.</div>}
+        </div>
+        <div className="pfoot">
+          <span className="pstatus ok"><Icon n="shield" size={16} />Read-only · from your PACT supplier ledger export</span>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
