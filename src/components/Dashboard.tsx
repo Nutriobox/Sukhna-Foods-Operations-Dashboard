@@ -416,7 +416,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
                     <span className="c-act">
                       {up
                         ? <span className="upcol">
-                            <button className="btn btn-done"><Icon n="check" size={14} />Uploaded to Pact</button>
+                            <button className="btn btn-done" onClick={(e) => { e.stopPropagation(); setPactId(b.id); }} title="View what was uploaded to PACT (read-only)"><Icon n="eye" size={14} />Uploaded to Pact · View</button>
                             <span className="upfrac">{upCount}/{b.items.length} items to Pact</span>
                           </span>
                         : b.voided
@@ -903,7 +903,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
 
         <div className="pmeta">
           <div className="pmi"><span className="pmk">Party name{chosenSup ? <span className="pedit"> · PACT master</span> : <span className="ureview" title="Pick the PACT supplier this bill belongs to."><Icon n="alert" size={11} />select supplier</span>}</span>
-            <Combobox value={selSupplierName} options={supplierNames} onChange={(v) => setSelSupplierName(v)} placeholder="Search supplier…" />
+            <Combobox value={selSupplierName} options={supplierNames} disabled={allUp} onChange={(v) => setSelSupplierName(v)} placeholder="Search supplier…" />
             <span className="pfrom">from bill: {b.vendor}</span>
           </div>
           <div className="pmi"><span className="pmk">Party GST</span><span className="pmv tnum">{chosenSup ? chosenSup.gstin : (b.vendorGst || "—")}</span></div>
