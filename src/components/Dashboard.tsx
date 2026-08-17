@@ -8,6 +8,7 @@ import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
 import { Icon } from "./icons";
+import { createPortal } from "react-dom";
 import PRICE_CHART from "@/lib/price-chart.json";
 import { matchSupplier, ALL_SUPPLIERS } from "@/lib/suppliers";
 
@@ -711,6 +712,54 @@ async function fetchStamp(scan: string): Promise<StampCheck> {
   return pr;
 }
 
+// Searchable, alphabetically-sorted dropdown that always opens DOWNWARD.
+// Rendered into a body portal (position:fixed) so it is never clipped by the
+// scrolling modal, unlike a native <select> whose direction the browser picks.
+function Combobox({ value, options, onChange, disabled, placeholder }: { value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean; placeholder?: string }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const sorted = useMemo(() => [...options].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" })), [options]);
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return t ? sorted.filter((o) => o.toLowerCase().includes(t)) : sorted;
+  }, [sorted, q]);
+  const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (r) setRect({ left: r.left, top: r.bottom + 4, width: r.width }); };
+  const openIt = () => { if (disabled) return; place(); setQ(""); setOpen(true); };
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (!popRef.current?.contains(e.target as Node) && !btnRef.current?.contains(e.target as Node)) setOpen(false); };
+    const onMove = () => place();
+    document.addEventListener("mousedown", onDoc);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => { document.removeEventListener("mousedown", onDoc); window.removeEventListener("scroll", onMove, true); window.removeEventListener("resize", onMove); };
+  }, [open]);
+  return (
+    <>
+      <button type="button" ref={btnRef} className={"psel cbx-val" + (disabled ? " disabled" : "")} disabled={disabled} onClick={() => (open ? setOpen(false) : openIt())}>
+        <span className={value ? "cbx-txt" : "cbx-txt ph"}>{value || placeholder || "— select —"}</span>
+        <span className="cbx-caret">▾</span>
+      </button>
+      {open && rect && createPortal(
+        <div className="cbx-pop" ref={popRef} style={{ position: "fixed", left: rect.left, top: rect.top, width: rect.width }}>
+          <div className="cbx-search"><Icon n="search" size={14} /><input autoFocus placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+          <div className="cbx-list">
+            {filtered.length === 0 && <div className="cbx-empty">No matches</div>}
+            {filtered.slice(0, 400).map((o) => (
+              <button type="button" key={o} className={"cbx-opt" + (o === value ? " sel" : "")} onClick={() => { onChange(o); setOpen(false); }}>{o}</button>
+            ))}
+            {filtered.length > 400 && <div className="cbx-empty">Showing first 400 — keep typing to narrow.</div>}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void; patchItem: (id: number, idx: number, patch: Partial<Item>) => void }) {
   const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
   const cands = useMemo(() => b.items.map((_, i) => candidates(lines[i].billName)), [b]);
@@ -887,9 +936,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                 {/* Product line — purchase fields */}
                 <div className="pgrid">
                   <div className="pf"><span className="pk">Product Name{ed ? <span className="pedit"> · full master</span> : ""}</span>
-                    <select className="psel" disabled={done} value={selProduct[i]} onChange={(e) => pickProduct(i, e.target.value)}>
-                      {prodOpts.map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                    <Combobox value={selProduct[i]} options={prodOpts} disabled={done} onChange={(v) => pickProduct(i, v)} placeholder="Search product…" />
                   </div>
                   <div className="pf"><span className="pk">Purchase Unit{unit && !unitInMaster ? <span className="ureview" title="This unit is not one of the product's PACT units (e.g. Gms / Kg / Bags). Click Edit to pick a PACT unit."><Icon n="alert" size={11} />review</span> : ""}</span>
                     {ed

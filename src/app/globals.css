@@ -619,3 +619,18 @@
   /* ===== Muted (pre-export) status pill — no spinner ===== */
   .pill.mut { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
   .pill.mut svg { stroke: var(--muted); animation: none; }
+
+  /* ===== Searchable combobox (product picker) — alphabetical, opens downward ===== */
+  .cbx-val { display: flex; align-items: center; justify-content: space-between; gap: 6px; text-align: left; }
+  .cbx-val .cbx-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cbx-val .ph { color: var(--muted); }
+  .cbx-caret { color: var(--muted); font-size: 10px; line-height: 1; flex: none; }
+  .cbx-val:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+  .cbx-pop { z-index: 200; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--sh-lg); display: flex; flex-direction: column; max-height: 320px; min-width: 180px; }
+  .cbx-search { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--muted); }
+  .cbx-search input { border: none; outline: none; font-size: 13px; font-family: inherit; width: 100%; color: var(--ink); background: transparent; }
+  .cbx-list { overflow: auto; padding: 4px; }
+  .cbx-opt { display: block; width: 100%; text-align: left; border: none; background: transparent; padding: 7px 9px; font-size: 12.5px; font-family: inherit; color: var(--ink); cursor: pointer; border-radius: 7px; }
+  .cbx-opt:hover { background: var(--surface-2); }
+  .cbx-opt.sel { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+  .cbx-empty { padding: 9px 10px; font-size: 12px; color: var(--muted); }
