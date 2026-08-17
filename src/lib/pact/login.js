@@ -32,6 +32,15 @@ async function login(page) {
   await passBox.blur().catch(() => {});
   await page.waitForTimeout(300);
 
+  // Diagnostic: did the typed values actually register in Angular's form model?
+  // (These inputs are `required` and there is no native <form>, so if the model
+  // stays invalid the app's login() silently bails and we sit on /login.)
+  const fieldState = await page.evaluate(() => {
+    const g = (id) => { const e = document.querySelector(id); return e ? { len: (e.value || '').length, dirty: e.className.includes('ng-dirty'), valid: e.className.includes('ng-valid') } : null; };
+    return { user: g('#txtUserName'), pass: g('#txtPassword'), hasForm: !!document.querySelector('form') };
+  }).catch(() => null);
+  console.log('[login] field state after typing:', JSON.stringify(fieldState));
+
   // Error toast / alert selectors PACT (PACTSOFT / Angular) may use on a bad login.
   const ERR_SEL = [
     '.toast-message', '.toast-error', '#toast-container .toast', '.Toastify__toast--error',
@@ -85,11 +94,22 @@ async function login(page) {
     return;
   }
 
-  const said = outcome && outcome.startsWith('error:') ? outcome.slice(6) : '';
+  let said = outcome && outcome.startsWith('error:') ? outcome.slice(6) : '';
+  if (!said) {
+    said = await page.evaluate(() => {
+      const els = Array.from(document.querySelectorAll('[role="alert"], .toast, .toast-message, .alert, .error, mat-error, .swal2-popup'))
+        .map((e) => (e.innerText || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+      if (els.length) return els[0];
+      const m = (document.body.innerText || '').match(/(invalid|incorrect|wrong|locked|expired|not\s+found|failed|captcha)[^\n]{0,60}/i);
+      return m ? m[0].trim() : '';
+    }).catch(() => '');
+  }
   throw new Error(
     'Login did not complete — still on /login' +
-    (said ? ` · PACT said: "${said.slice(0, 160)}"` : ' (no error toast detected)') +
-    '. Verify the PACT_USER / PACT_PASSWORD GitHub secrets, and that the PACT account is not locked from repeated failed attempts.'
+    (said ? ` · PACT said: "${said.slice(0, 160)}"` : ' (no visible error message)') +
+    ` · fields=${JSON.stringify(fieldState)}` +
+    '. If fields.user.valid is false the typed values did NOT register in the form model; ' +
+    'otherwise verify the PACT_USER / PACT_PASSWORD secrets and that the account is not locked.'
   );
 }
 
