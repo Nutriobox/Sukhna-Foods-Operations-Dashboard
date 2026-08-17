@@ -284,7 +284,11 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
     if (!scan) return "REVIEW";
     const sv = stampVer[scan];
     if (!sv || sv.status === "checking") return "CHECKING";
-    return sv.verified ? "OK" : "REVIEW";
+    // "Auto-check unavailable" (sv.ok === false — the vision call could not run)
+    // is a transient hiccup, NOT a missing stamp: only a definitive "stamp absent"
+    // (vision ran and did not find it) is a real review. Otherwise the 3 hard
+    // checks already passed, so the bill is clear.
+    return sv.ok && !sv.verified ? "REVIEW" : "OK";
   }
 
   const active = modalId != null ? bills.find((b) => b.id === modalId) || null : null;
@@ -491,7 +495,12 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
     fetchStamp(scanUrl).then((res) => setDstamp({ ...res, status: "done" }));
   }, [scanUrl, b]);
   const stampDone = !!dstamp && dstamp.status === "done";
-  const fiveOkLocal = v.status === "OK" && stampDone && dstamp!.ok && dstamp!.verified;
+  const stampAbsent = stampDone && dstamp!.ok && !dstamp!.verified;   // vision ran, a stamp is missing
+  const stampUnavailable = stampDone && !dstamp!.ok;                  // vision could not run (transient)
+  // Cleared to push once the 3 hard checks pass and stamps are done AND not
+  // definitively absent — a transient auto-check failure never blocks (the
+  // operator verifies the scan manually in that case).
+  const fiveOkLocal = v.status === "OK" && stampDone && !stampAbsent;
 
   const itemUpBtn = (i: number) => {
     const it = b.items[i];
@@ -596,8 +605,8 @@ function BillDetail({ b, tab, setTab, onClose, uploadItem, openPact, voidBill, d
         </div>
 
         <div className="mfoot">
-          <span className={"status-big " + (b.voided ? "void" : v.status !== "OK" ? "err" : !stampDone ? "warn" : fiveOkLocal ? "ok" : "err")}>
-            {b.voided ? <><Icon n="lock" size={17} />{up ? "Uploaded to Pact · frozen" : "Voided · frozen"}</> : v.status !== "OK" ? <><Icon n="alert" size={17} />1 check failed — review needed</> : !stampDone ? <><Icon n="shield" size={17} />Verifying bill stamps…</> : fiveOkLocal ? <><Icon n="shield" size={17} />All 5 checks passed</> : <><Icon n="alert" size={17} />Stamp check failed — review needed</>}
+          <span className={"status-big " + (b.voided ? "void" : v.status !== "OK" ? "err" : !stampDone ? "warn" : stampAbsent ? "err" : stampUnavailable ? "warn" : "ok")}>
+            {b.voided ? <><Icon n="lock" size={17} />{up ? "Uploaded to Pact · frozen" : "Voided · frozen"}</> : v.status !== "OK" ? <><Icon n="alert" size={17} />1 check failed — review needed</> : !stampDone ? <><Icon n="shield" size={17} />Verifying bill stamps…</> : stampAbsent ? <><Icon n="alert" size={17} />Stamp check failed — review needed</> : stampUnavailable ? <><Icon n="shield" size={17} />3 checks passed · stamps couldn't be auto-checked — verify the scan, then upload</> : <><Icon n="shield" size={17} />All 5 checks passed</>}
           </span>
           <button className="btn btn-void" style={{ padding: "10px 15px" }} disabled={b.voided} onClick={() => voidBill(b.id)}><Icon n="ban" size={14} />Void</button>
           {b.voided
