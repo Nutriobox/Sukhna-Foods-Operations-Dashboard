@@ -777,7 +777,6 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
   const [selSupplierName, setSelSupplierName] = useState<string>(sup.supplier ? sup.supplier.name : "");
   const supplierNames = useMemo(() => ALL_SUPPLIERS.map((sp) => sp.name), []);
   const chosenSup = useMemo(() => ALL_SUPPLIERS.find((sp) => sp.name === selSupplierName) || null, [selSupplierName]);
-  const [qtyEdit, setQtyEdit] = useState<Record<number, number | "">>({});
   const allNames = useMemo(() => CATALOG.map((p) => p.name), []);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -831,8 +830,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
     const q = lines[i2].qty;
     const prod2 = productByName(selProduct[i2]) || matchProduct(lines[i2].billName).product;
     const f2 = convFactor(prod2, itm.uom, selUnit[i2] || "");
-    const ov2 = qtyEdit[i2];
-    const dq = typeof ov2 === "number" ? ov2 : (q != null ? q * (f2 ?? 1) : null);
+    const dq = q != null ? q * (f2 ?? 1) : null;
     const sum2 = bs2.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
     return dq != null && Math.abs(sum2 - dq) < 0.0001;
   });
@@ -845,14 +843,13 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
     const toDMY = (v: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
     const items = lines.map((l, i) => {
       const prod = productByName(selProduct[i]) || matchProduct(l.billName).product;
-      const unit = selUnit[i] || "";
-      const factor = convFactor(prod, b.items[i].uom, unit);
-      const ov = qtyEdit[i];
-      const qty = typeof ov === "number" ? ov : (l.qty != null ? l.qty * (factor ?? 1) : 0);
-      const lvl = Object.entries(prod.levels).find(([, L]) => canonUnit(L.u) === canonUnit(unit));
-      const unitLevel = lvl ? lvl[0] : (prod.printLevel && prod.levels[prod.printLevel] ? prod.printLevel : (Object.keys(prod.levels)[0] || "L1"));
+      const l1u = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || selUnit[i] || "");
+      // Push everything at L1 (base) level. Receipt Qty = Packing Size x Purchase Qty,
+      // i.e. the bill quantity converted straight to L1 base units.
+      const l1Factor = convFactor(prod, b.items[i].uom, l1u);
+      const receiptQty = l.qty != null ? l.qty * (l1Factor ?? 1) : 0;
       const mfg = toDMY(batches[i]?.[0]?.mfg || "");
-      return { search: prod.name, name: prod.name, unitLevel, qty, batch: mfg ? { mfgDate: mfg } : undefined };
+      return { search: prod.name, name: prod.name, unit: l1u, unitLevel: "L1", printLevel: "L1", qty: receiptQty, batch: mfg ? { mfgDate: mfg } : undefined };
     });
     const payload = {
       dryRun: false,
@@ -930,8 +927,10 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
             const unitInMaster = !!unit && prod.units.some((u) => canonUnit(u) === canonUnit(unit));
             const factor = convFactor(prod, it.uom, unit);
             const dispQty = l.qty != null ? l.qty * (factor ?? 1) : null;
-            const qtyOv = qtyEdit[i];
-            const effQty = typeof qtyOv === "number" ? qtyOv : dispQty;
+            const l1Factor = convFactor(prod, it.uom, l1Uom);
+            const packSize = convFactor(prod, unit, l1Uom);            // L1 base units per purchase unit
+            const receiptQty = l.qty != null ? l.qty * (l1Factor ?? 1) : null;  // = packSize x purchase qty (L1)
+            const effQty = dispQty;
             const dispRate = l.rate != null ? l.rate / (factor ?? 1) : null;
             const splitMode = bs.length > 1;
             const batchSum = bs.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
@@ -960,7 +959,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                   </div>
                   <div className="pf"><span className="pk">Purchase Unit{unit && !unitInMaster ? <span className="ureview" title="This unit is not one of the product's PACT units (e.g. Gms / Kg / Bags). Click Edit to pick a PACT unit."><Icon n="alert" size={11} />review</span> : ""}</span>
                     {ed
-                      ? <select className={"psel" + (unit && !unitInMaster ? " warn" : "")} value={unit} onChange={(e) => { const v = e.target.value; setSelUnit((s) => ({ ...s, [i]: v })); patchItem(b.id, i, { pactUnit: v }); setQtyEdit((s) => { const c = { ...s }; delete c[i]; return c; }); }}>
+                      ? <select className={"psel" + (unit && !unitInMaster ? " warn" : "")} value={unit} onChange={(e) => { const v = e.target.value; setSelUnit((s) => ({ ...s, [i]: v })); patchItem(b.id, i, { pactUnit: v }); }}>
                           <option value="">— select —</option>
                           {prod.units.map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
@@ -968,11 +967,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                         ? <span className="pv">{unit}</span>
                         : <span className="pv bad"><Icon n="alert" size={11} />Not matched</span>}
                   </div>
-                  <div className="pf"><span className="pk">Purchase Quantity{factor != null && factor !== 1 ? <span className="pedit"> · {it.uom}→{unit}</span> : ""}</span>
-                    {unit
-                      ? <input type="number" min={0} step="any" className="pnuminp tnum" disabled={done} value={qtyEdit[i] !== undefined ? qtyEdit[i] : (dispQty != null ? Number(dispQty.toFixed(3)) : "")} onChange={(e) => { const v = e.target.value; setQtyEdit((s) => ({ ...s, [i]: v === "" ? "" : Number(v) })); }} />
-                      : <span className="pv bad">Requires unit</span>}
-                  </div>
+                  <div className="pf"><span className="pk">Purchase Quantity{factor != null && factor !== 1 ? <span className="pedit"> · {it.uom}→{unit}</span> : ""}</span>{dispQty != null ? <span className="pv tnum">{fmtQty(dispQty)}</span> : <span className="pv bad">Requires unit</span>}</div>
+                  <div className="pf"><span className="pk">Receipt Quantity{packSize != null && packSize !== 1 ? <span className="pedit"> · {fmtQty(packSize)}×qty (L1)</span> : <span className="pedit"> · L1</span>}</span>{receiptQty != null ? <span className="pv tnum">{fmtQty(receiptQty)} {l1Uom}</span> : <span className="pv bad">Requires unit</span>}</div>
                   <div className="pf"><span className="pk">Purchase Rate</span><span className="pv tnum">{dispRate != null ? "₹" + inr(dispRate) : "—"}</span></div>
                   <div className="pf"><span className="pk">GST Rate</span><span className="pv">{it.taxRate || "—"}</span></div>
                   <div className="pf"><span className="pk">GST Amount</span><span className="pv tnum">{it.gst != null ? "₹" + inr(it.gst) : "—"}</span></div>
