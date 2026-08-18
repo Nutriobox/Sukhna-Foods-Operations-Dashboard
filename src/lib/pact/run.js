@@ -35,21 +35,15 @@ async function pushBillToPact(bill, { dryRun = false } = {}) {
     say('Logging into PACT...');
     await login(page);
 
-    say(`Goods Gate Entry for ${bill.vendor} / ${bill.billNo} (${bill.items.length} items)...`);
-    const gge = await createGoodsGateEntry(page, bill, { dryRun });
-    const grn = gge && gge.grn ? gge.grn : '';
-    say(`GGE done. GRN = ${grn || '(not captured)'}`);
-
-    // Stock Inward no longer links the GGE (that step was removed in PACT); it
-    // enters the product manually, so a missing GRN is not fatal.
-    if (!grn) say('No GRN captured — continuing (Stock Inward enters items manually).');
-
-    say('Stock Inward (manual entry, batch allocation)...');
+    // Stock-Inward-only flow: the Goods Gate Entry step was removed from the PACT
+    // process, so we no longer post a GGE (that halves the run time and drops a
+    // whole failure surface). Stock Inward enters the product(s) itself.
+    say(`Stock Inward for ${bill.vendor} / ${bill.billNo} (${bill.items.length} items)...`);
     const si = await createStockInward(page, bill, { dryRun });
     say(`Stock Inward done (posted=${si && si.posted}).`);
 
     await context.close();
-    return { ok: true, grn, dryRun, log, netCheck };
+    return { ok: true, grn: '', dryRun, log, netCheck };
   } catch (e) {
     let pageInfo = { consoleErrs: consoleErrs.slice(0, 12), pageErrs: pageErrs.slice(0, 12), failed: failed.slice(0, 12) };
     try {
