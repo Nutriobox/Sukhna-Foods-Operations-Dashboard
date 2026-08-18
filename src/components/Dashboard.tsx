@@ -1200,6 +1200,13 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void
           <span className="tile-meta">{counts.so} sales order{counts.so === 1 ? "" : "s"} saved</span>
           <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
         </button>
+        <a className="tile dispatch" href="/outlet-dispatch/index.html">
+          <span className="tile-ic"><Icon n="truck" size={30} /></span>
+          <span className="tile-ttl">Outlet Dispatch Tool</span>
+          <span className="tile-sub">Build the day&rsquo;s outlet dispatch challans and the PACT ERP upload from the order sheets. Fully manual.</span>
+          <span className="tile-meta">Manual · opens the dispatch app</span>
+          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+        </a>
       </div>
     </div>
   );

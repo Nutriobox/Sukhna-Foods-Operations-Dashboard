@@ -1,0 +1,3034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NutrioBox Dispatch</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--green:#2f6b34;--green-dark:#234f27;--green-soft:#eaf3ea;--ink:#1c1d1a;--muted:#6b6f6a;
+--line:#dfe2dd;--bg:#f6f7f5;--red:#b3261e;--red-soft:#fdeceb;--amber:#8a5a00;--amber-soft:#fff5e0;--blue-soft:#eaf0f8}
+body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;font-size:14px}
+header{background:var(--green);color:#fff;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-weight:700;font-size:15px}
+header h1{font-size:19px;font-weight:600}header p{font-size:12.5px;opacity:.85}
+.pill{background:rgba(255,255,255,.18);padding:6px 14px;border-radius:20px;font-size:12.5px;font-weight:500}
+main{max-width:1080px;margin:26px auto 60px;padding:0 20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px}
+.card-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.card-head h2{font-size:16px;font-weight:600}
+.step{width:26px;height:26px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600;flex-shrink:0}
+.hint{color:var(--muted);font-size:12.5px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end}
+@media(max-width:720px){.grid-2{grid-template-columns:1fr}}
+label{display:block;font-size:13px;font-weight:500;margin-bottom:4px}
+label small{font-weight:400;color:var(--muted)}
+input[type=date],input[type=number],textarea{width:100%;margin-top:6px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;background:#fff;color:var(--ink)}
+input:focus,textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,107,52,.12)}
+textarea{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;resize:vertical}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:34px 20px;text-align:center;cursor:pointer;transition:.15s;background:#fcfdfc}
+.drop:hover,.drop.over{border-color:var(--green);background:var(--green-soft)}
+.drop strong{display:block;font-size:15px;margin-bottom:5px}
+.drop span{font-size:12.5px;color:var(--muted)}
+.drop.loaded{border-style:solid;border-color:var(--green);background:var(--green-soft)}
+.btn{padding:9px 18px;border:none;border-radius:8px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-primary{background:var(--green);color:#fff}.btn-primary:hover{background:var(--green-dark)}
+.btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}.btn-ghost:hover{border-color:var(--green);color:var(--green)}
+.btn-sm{padding:5px 12px;font-size:12.5px}.btn:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.spinner{display:none;width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+.spinner.on{display:inline-block}@keyframes spin{to{transform:rotate(360deg)}}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tab{background:none;border:none;padding:9px 16px;font-size:13.5px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-family:inherit;margin-bottom:-1px}
+.tab.active{color:var(--green);border-bottom-color:var(--green);font-weight:600}
+.tab-body{display:none}.tab-body.active{display:block}
+.fmt{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+code{background:var(--green-soft);padding:2px 7px;border-radius:4px;font-size:12px;font-family:ui-monospace,Consolas,monospace;color:var(--green-dark)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--green);color:#fff;padding:9px 11px;text-align:left;font-weight:600;font-size:12.5px}
+td{padding:8px 11px;border-bottom:1px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}tbody tr:hover{background:#fafbfa}
+.tag{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11.5px;font-weight:600}
+.tag-ok{background:var(--green-soft);color:var(--green-dark)}
+.tag-miss{background:var(--red-soft);color:var(--red)}
+.tag-warn{background:var(--amber-soft);color:var(--amber)}
+.tag-info{background:var(--blue-soft);color:#2c4a72}
+.tag-off{background:#f0f0ee;color:var(--muted)}
+.banner{padding:14px 18px;border-radius:10px;margin-bottom:16px;font-weight:500;font-size:14px}
+.banner-ok{background:var(--green-soft);color:var(--green-dark);border:1px solid #cfe0cf}
+.banner-warn{background:var(--amber-soft);color:var(--amber);border:1px solid #f0dfb8}
+.banner-err{background:var(--red-soft);color:var(--red);border:1px solid #f3cfcd}
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:10px}
+.file-item{border:1px solid var(--line);border-radius:9px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.file-name{font-size:13px;font-weight:500}.file-kind{font-size:11.5px;color:var(--muted)}
+.bread{background:#1c1d1a;color:#e8eae6;padding:16px 18px;border-radius:9px;font-family:ui-monospace,Consolas,monospace;font-size:13px;white-space:pre;overflow-x:auto}
+.copy-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.error-list{list-style:none}
+.error-list li{padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.error-list li:last-child{border-bottom:none}
+.error-list .who{font-weight:600}.error-list .what{color:var(--muted)}
+.opt{display:flex;align-items:center;gap:9px;padding:11px 14px;border:1px solid var(--line);border-radius:9px;margin-top:10px;background:#fcfdfc}
+.opt input[type=checkbox]{width:17px;height:17px;accent-color:var(--green);cursor:pointer;flex-shrink:0;margin:0}
+.opt label{margin:0;font-weight:500;cursor:pointer;flex:1}
+.opt .sub{font-weight:400;color:var(--muted);font-size:12.5px;display:block;margin-top:2px}
+.opt input[type=number]{width:74px;margin:0}
+.bulkbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;background:var(--green-soft);
+  border:1px solid #cfe0cf;border-radius:9px;margin-bottom:12px}
+.bulkchk{display:flex;align-items:center;gap:7px;margin:0;font-weight:500;cursor:pointer}
+.bulkchk input{width:16px;height:16px;accent-color:var(--green);cursor:pointer;margin:0}
+.rvtable td{vertical-align:top;padding:10px 11px}
+.rvchk{width:16px;height:16px;accent-color:var(--green);cursor:pointer;margin-top:3px}
+.rvfind{width:100%;padding:6px 9px;margin-bottom:5px;border:1px solid var(--line);border-radius:7px;font-size:12.5px}
+.rvsel{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;
+  font-family:inherit;background:#fff;color:var(--ink)}
+.rvsel:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,107,52,.12)}
+.rvact{white-space:nowrap}.rvact .btn{margin-bottom:4px}
+.applybar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+/* ---- dashboard ---- */
+.dash{padding:0;overflow:hidden}
+.dashhead{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:20px 22px;
+  background:linear-gradient(135deg,var(--green) 0%,var(--green-dark) 100%);color:#fff}
+.dlabel{font-size:11px;text-transform:uppercase;letter-spacing:.7px;opacity:.75}
+.dval{font-size:20px;font-weight:600;line-height:1.25}
+.dsub{font-size:12.5px;opacity:.85}
+.darrow{font-size:24px;opacity:.55}
+.kpis{display:flex;gap:12px;flex-wrap:wrap;margin-left:auto}
+.kpi{background:rgba(255,255,255,.14);border-radius:9px;padding:9px 15px;min-width:96px;text-align:center}
+.kv{font-size:17px;font-weight:600;line-height:1.3}
+.kk{font-size:10.5px;opacity:.8;text-transform:uppercase;letter-spacing:.4px}
+.dashtable{font-size:13px}
+.dashtable th{background:#f0f2ef;color:var(--ink);border-bottom:1px solid var(--line)}
+.dashtable td{padding:9px 11px}
+.dashtable tfoot td{background:var(--green-soft);border-top:2px solid var(--green);font-weight:600}
+.numcell{text-align:center;white-space:nowrap}
+.numcell .qty{display:block;font-size:15px;font-weight:600;line-height:1.2}
+.numcell .items{display:block;font-size:10.5px;color:var(--muted)}
+.numcell.tot .qty{color:var(--green-dark)}
+.numcell .dash{color:#c8ccc6}
+.rowmiss{background:#fffafa}
+.schedstrip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:11px 13px;
+  border:1px solid var(--line);border-radius:10px;background:#fcfdfc}
+.schip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;
+  font-size:12.5px;font-weight:600;border:1px solid transparent}
+.schip b{font-size:13px;font-weight:400}
+.schip em{font-style:normal;font-weight:700;background:rgba(255,255,255,.75);
+  border-radius:9px;padding:0 7px;font-size:11.5px}
+.schip.f2{background:#dbe7f6;color:#1d4373;border-color:#c3d6ee}
+.schip.f1{background:#eaf0f8;color:#2c4a72;border-color:#d6e2f1}
+.schip.vg{background:var(--green-soft);color:var(--green-dark);border-color:#cfe0cf}
+.schip.dp{background:#f6ecd9;color:#7a5518;border-color:#ecdcbe}
+.schip.off{background:#f2f2f0;color:var(--muted);border-color:var(--line)}
+.schip.off em{background:transparent;font-weight:600}
+.schip.mini{padding:2px 9px;font-size:11.5px}
+.schedbtn{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 13px;
+  font-size:12.5px;font-weight:500;font-family:inherit;color:var(--green-dark);cursor:pointer}
+.schedbtn:hover{border-color:var(--green);background:var(--green-soft)}
+.modal{display:none;position:fixed;inset:0;background:rgba(28,29,26,.45);z-index:90;
+  align-items:flex-start;justify-content:center;padding:48px 18px;overflow:auto}
+.modal.on{display:flex}
+.modalbox{background:#fff;border-radius:14px;max-width:760px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.modalhead{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;
+  border-bottom:1px solid var(--line);background:var(--green);color:#fff;border-radius:14px 14px 0 0}
+.modalhead h3{font-size:16px;font-weight:600}
+.modalx{background:rgba(255,255,255,.18);border:none;color:#fff;width:28px;height:28px;border-radius:7px;
+  font-size:19px;line-height:1;cursor:pointer;font-family:inherit}
+.modalx:hover{background:rgba(255,255,255,.32)}
+.modalbody{padding:20px 22px 24px}
+.schedtable{width:100%;border-collapse:collapse;font-size:13px}
+.schedtable th{background:var(--green);color:#fff;padding:8px 10px;font-size:12px}
+.schedtable td{padding:7px 10px;border-bottom:1px solid var(--line)}
+.schedtable tr.idle td{background:#fafaf8;color:var(--muted)}
+.schedtable tfoot td{background:var(--green-soft);border-bottom:none}
+.ctr{text-align:center}
+.tick{color:var(--green);font-weight:700}
+.dashm{color:#c9cdc7}
+.addrow{display:grid;grid-template-columns:1.3fr 1fr 2.4fr .7fr .7fr 30px;gap:7px;margin-bottom:7px;align-items:center}
+.addrow select,.addrow input{margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:7px;
+  font-size:13px;font-family:inherit;background:#fff;color:var(--ink);width:100%}
+.addrow select:focus,.addrow input:focus{outline:none;border-color:var(--green)}
+.ar-del{background:#fff;border:1px solid var(--line);border-radius:7px;color:var(--muted);
+  cursor:pointer;font-size:17px;line-height:1;padding:5px 0;font-family:inherit}
+.ar-del:hover{border-color:var(--red);color:var(--red)}
+@media(max-width:760px){.addrow{grid-template-columns:1fr 1fr}}
+.disclose{display:flex;align-items:center;gap:6px;width:100%;background:#fff;border:1px solid var(--line);
+  border-radius:9px;padding:10px 14px;font-size:13px;font-weight:500;font-family:inherit;color:var(--ink);
+  cursor:pointer;text-align:left;transition:.15s}
+.disclose:hover{border-color:var(--green);color:var(--green)}
+.disclose.open{border-bottom-left-radius:0;border-bottom-right-radius:0}
+.disclose .caret{font-size:11px;color:var(--muted)}
+.error-list[hidden]{display:none}
+#issueList{border:1px solid var(--line);border-top:none;border-radius:0 0 9px 9px;
+  padding:4px 14px;max-height:420px;overflow:auto;background:#fff}
+.req{display:inline-block;background:var(--red-soft);color:var(--red);border-radius:9px;
+  padding:0 7px;font-size:10.5px;font-weight:700;letter-spacing:.3px;vertical-align:1px}
+input.missing{border-color:var(--red);background:#fffafa}
+input.missing:focus{box-shadow:0 0 0 3px rgba(179,38,30,.12)}
+.confirmbox{border-color:#f0dfb8;background:#fffdf7}
+.confirmbox.done{border-color:#cfe0cf;background:var(--green-soft)}
+.daybar{display:flex;align-items:stretch;gap:0;margin-top:14px;border:1px solid var(--line);
+  border-radius:10px;overflow:hidden;background:#fff;flex-wrap:wrap}
+.daycell{flex:1;min-width:190px;padding:12px 16px}
+.daycell+.daycell{border-left:1px solid var(--line)}
+.daycell.disp{background:var(--green-soft)}
+.daylab{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--muted);text-transform:uppercase}
+.dayname{font-size:21px;font-weight:700;line-height:1.25;color:var(--green-dark)}
+.daydate{font-size:12.5px;color:var(--muted)}
+.dayarrow{display:grid;place-items:center;padding:0 14px;color:var(--muted);font-size:20px;
+  border-left:1px solid var(--line)}
+.gatemsg{margin-top:10px;font-size:12.5px;color:var(--red);font-weight:500}
+.sev-err{background:#fdeceb}
+.sev-err td{border-bottom-color:#f3cfcd}
+.sev-warn{background:#fffaf0}
+.chip{display:inline-block;padding:2px 8px;border-radius:11px;font-size:10.5px;font-weight:600;margin:1px 2px 1px 0}
+.chip-f{background:#e3ecf7;color:#24486f}
+.chip-v{background:var(--green-soft);color:var(--green-dark)}
+.chip-d{background:#f4ecdc;color:#7a5518}
+.chip-off{background:#f0f0ee;color:var(--muted)}
+.chip-u{background:#fff0d4;color:#8a5a00;border:1px solid #f0dfb8}
+.mgrid{margin-top:16px;border:1px solid #f0dfb8;background:#fffdf7;border-radius:10px;padding:14px}
+.mgridhead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.mgridhead .hint{margin-top:3px;max-width:640px}
+.mtable{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
+.mtable th{background:#8a6a20;color:#fff;padding:7px 10px;text-align:left;font-size:12px;font-weight:600}
+.mtable td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.mtable tbody tr:last-child td{border-bottom:none}
+.mcell{display:flex;align-items:center;gap:8px;margin:0;font-weight:400;cursor:pointer}
+.mcell input[type=checkbox]{width:16px;height:16px;accent-color:#8a5a00;cursor:pointer;margin:0;flex-shrink:0}
+.mtxt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.modebtn{border:1px solid #e3d6b8;background:#fff8e8;color:#8a5a00;border-radius:11px;padding:1px 9px;
+  font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;align-self:flex-start}
+.modebtn.full{background:#f6e3c4;border-color:#dcc394}
+.modebtn:hover:not(:disabled){border-color:#8a5a00}
+.modebtn:disabled{opacity:.4;cursor:default;background:#f5f5f3;border-color:var(--line);color:var(--muted)}
+.msub{font-size:11px;color:var(--muted);white-space:nowrap}
+.banner-info{background:var(--blue-soft);color:#2c4a72;border:1px solid #cfdcee}
+/* ---- report page ---- */
+#reportView{min-height:100vh;background:var(--bg)}
+.rtop{background:var(--green);color:#fff;padding:16px 26px;display:flex;align-items:center;
+  justify-content:space-between;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+.rtitle{display:flex;align-items:center;gap:14px}
+.rtitle h1{font-size:18px;font-weight:600}
+.rtitle p{font-size:12.5px;opacity:.85}
+.rtopbtns{display:flex;gap:8px;flex-wrap:wrap}
+.rtabs{display:flex;gap:2px;padding:0 26px;background:#fff;border-bottom:1px solid var(--line);
+  overflow-x:auto;position:sticky;top:66px;z-index:19}
+.rtab{background:none;border:none;padding:13px 18px;font-size:13.5px;cursor:pointer;color:var(--muted);
+  border-bottom:3px solid transparent;font-family:inherit;white-space:nowrap}
+.rtab:hover{color:var(--ink);background:#fafbfa}
+.rtab.active{color:var(--green);border-bottom-color:var(--green);font-weight:600}
+.rbody{padding:22px 26px 70px;max-width:1500px;margin:0 auto}
+.rsec{font-size:14.5px;font-weight:600;margin:22px 0 10px;color:var(--green-dark)}
+.rsec:first-child{margin-top:0}
+.dlbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  background:#fff;border:1px solid var(--line);border-left:4px solid var(--green);
+  border-radius:9px;padding:13px 16px;margin-bottom:6px}
+.rscroll{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:9px;background:#fff}
+.rscroll.tall{max-height:640px}
+.rtable{font-size:12.5px}
+.rtable th{position:sticky;top:0;z-index:2;background:var(--green);color:#fff;white-space:nowrap}
+.rtable td{padding:6px 10px}
+.rtable tfoot td{position:sticky;bottom:0;background:var(--green-soft);font-weight:600;
+  border-top:2px solid var(--green)}
+.rtable tr.rerr td{background:#fdf3f2}
+.rtable tr.rwarn td{background:#fffaee}
+.rtable tr.rinfo td{background:#f7f9fc}
+.rdet{background:#fff;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;overflow:hidden}
+.rdet summary{padding:11px 15px;cursor:pointer;display:flex;align-items:center;gap:12px;user-select:none}
+.rdet summary:hover{background:#fafbfa}
+.rdet summary .hint{margin-left:auto}
+.rdet .rscroll{border:none;border-top:1px solid var(--line);border-radius:0;max-height:380px}
+</style>
+</head>
+<body>
+
+<header id="setupHeader">
+  <div class="brand"><span class="logo">NB</span>
+    <div><h1>NutrioBox Dispatch</h1><p>Order working &amp; PACT import generator</p></div></div>
+  <span class="pill" id="voucherPill">Runs entirely in your browser</span>
+</header>
+
+<main id="setupView">
+<section class="card">
+  <div class="card-head"><span class="step">1</span><h2>Load the day's folder</h2></div>
+  <div class="drop" id="drop">
+    <strong>Click to choose the date folder</strong>
+    <span>or drag the files in</span>
+    <input type="file" id="picker" webkitdirectory directory multiple hidden>
+    <input type="file" id="filePicker" multiple hidden accept=".xlsx,.xlsm">
+  </div>
+  <p class="hint" style="margin-top:10px">Nothing is uploaded — files are read inside this tab only.
+    <a href="#" id="pickFiles" style="color:var(--green)">Choose individual files instead</a></p>
+  <div id="saveBackRow" style="margin-top:10px;display:none">
+    <button class="btn btn-ghost btn-sm" id="pickDirBtn" type="button">Connect the folder for saving</button>
+    <span class="hint" id="saveBackNote" style="margin-left:8px"></span>
+  </div>
+  <div id="loadResult"></div>
+  <div id="linkTeaser" style="margin-top:10px"></div>
+</section>
+
+<section class="card" id="linkCard" style="display:none">
+  <div class="card-head"><span class="step">&#9733;</span><h2>Product Master links</h2>
+    <button class="btn btn-ghost btn-sm" onclick="toggleLinks()" id="linkToggle" style="margin-left:auto">Open</button>
+  </div>
+  <p class="hint">A one-time job. Several master rows share a Product Name, so matching by name alone can
+     send PACT the wrong product. Pick the right master row once — by Product Code — and every future run
+     uses it. Links are kept in this browser; export them to move to another machine.</p>
+  <div id="linkBody" style="display:none">
+    <div class="grid-2" style="margin-bottom:8px">
+      <label>Search product<input type="text" id="linkFilter" placeholder="e.g. laccha" oninput="renderLinks()"></label>
+      <label style="align-self:end">
+        <span style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="linkOnlyRisk" onchange="renderLinks()" checked>
+          Only show items that need a decision
+        </span></label>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn btn-primary btn-sm" onclick="commitLinks(this)">Save links</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportLinks()">Export links (.json)</button>
+      <button class="btn btn-ghost btn-sm" onclick="$('linkImport').click()">Import links</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearLinks()">Clear all</button>
+      <input type="file" id="linkImport" hidden accept=".json">
+      <span class="hint" id="linkCount" style="align-self:center"></span>
+    </div>
+    <div id="linkTable"></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><span class="step">2</span><h2>Dispatch day</h2></div>
+  <div class="grid-2">
+    <label>Dispatch date <small>(day goods go out)</small><input type="date" id="dispatchDate"></label>
+    <label>Start voucher no. <span class="req">required</span>
+      <input type="number" id="startVoucher" placeholder="e.g. 896" min="1" oninput="updateGate()"></label>
+  </div>
+  <div id="dayBanner"></div>
+  <div class="modal" id="modal" onclick="if(event.target===this)closeSched()">
+    <div class="modalbox">
+      <div class="modalhead"><h3>Outlet dispatch schedule</h3>
+        <button class="modalx" onclick="closeSched()" title="Close">&times;</button></div>
+      <div class="modalbody" id="modalBody"></div>
+    </div>
+  </div>
+  <div class="opt confirmbox" id="confirmBox">
+    <input type="checkbox" id="dateOK" onchange="updateGate()">
+    <label for="dateOK">I have checked the working day and dispatch day above
+      <span class="sub">Tick to confirm. Changing the date clears this.</span></label>
+  </div>
+  <div class="opt">
+    <input type="checkbox" id="urgentOn" checked>
+    <label for="urgentOn">Urgent top-up when a category is <em>not</em> scheduled
+      <span class="sub">Outlet still flagged a few items critically low &rarr; send just those.
+        Skipped if the outlet filled in more than this share of the sheet (that is a routine stock count, not an urgent ask).</span></label>
+    <input type="number" id="urgentFill" value="20" min="1" max="100"><span class="hint">% filled</span>
+  </div>
+  <div class="opt">
+    <input type="checkbox" id="blankZero">
+    <label for="blankZero">Treat a blank on-hand cell as <strong>0</strong> and order it
+      <span class="sub">Only on categories that <em>are</em> scheduled today. A sheet the outlet never touched
+        (no value anywhere) is still skipped, so a forgotten sheet can never turn into a full order.</span></label>
+  </div>
+  <div class="opt" style="margin-top:-4px;background:#fff">
+    <span style="width:17px;flex-shrink:0"></span>
+    <label for="urgentMax">Only items at or below this on-hand count
+      <span class="sub">And the on-hand must still be under the ideal level. Blank cells never punch.</span></label>
+    <input type="number" id="urgentMax" value="2" min="0" max="99"><span class="hint">on hand</span>
+  </div>
+  <div id="scheduleResult"></div>
+</section>
+
+<section class="card">
+  <div class="card-head"><span class="step">3</span><h2>Additional items &amp; overrides</h2><span class="hint">optional</span></div>
+  <div class="tabs">
+    <button class="tab active" data-tab="add">Additional items</button>
+    <button class="tab" data-tab="na">NA / skip</button>
+    <button class="tab" data-tab="qty">Qty overrides</button>
+    <button class="tab" data-tab="alias">Name mapping <span id="aliasBadge"></span></button>
+  </div>
+  <div class="tab-body active" id="tab-add">
+    <p class="fmt">Pick the outlet, type the item. Each outlet gets its own voucher and its own tab on the
+      <strong>Additional challan</strong>.</p>
+    <div id="addRows"></div>
+    <div style="display:flex;gap:8px;margin:10px 0 6px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="addRow()">+ Add item</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearRows()">Clear all</button>
+      <span style="flex:1"></span>
+      <span class="hint" id="addCount"></span>
+    </div>
+    <details class="advanced"><summary>Paste as text instead</summary>
+      <p class="fmt">One per line: <code>Outlet | Category | Product | UOM | Qty</code></p>
+      <textarea id="additional" rows="5" placeholder="NB05 Shivalik | Packaging | Stapler pin big | Box | 1"
+        oninput="syncCount()"></textarea>
+      <p class="hint">Anything typed here is added to the rows above.</p>
+    </details>
+  </div>
+  <div class="tab-body" id="tab-na">
+    <p class="fmt">Skip for an outlet: <code>Outlet | text to match</code></p>
+    <textarea id="naItems" rows="6" placeholder="NB10 GGN SEC15 | banana"></textarea>
+  </div>
+  <div class="tab-body" id="tab-qty">
+    <p class="fmt">Force a quantity: <code>Outlet | Exact Product Name | Qty</code></p>
+    <textarea id="qtyOverrides" rows="6" placeholder="NB10 GGN SEC15 | Mozzarella Cheese | 1"></textarea>
+  </div>
+  <div class="tab-body" id="tab-alias">
+    <p class="fmt">Lock a product pairing permanently:
+      <code>Ideal Inventory name | name as written in outlet sheet</code><br>
+      Several outlet rows for one product — separate with <code>;</code> (on-hand added up).<br>
+      Use <code>SKIP</code> to tell the app never to match a product.</p>
+    <textarea id="aliases" rows="7" placeholder="Pesto Sauce (2 Pkt/Bunch) | Pesto Sauce (500 Gms*2Pkt)
+Dark Callebaut Chocolate (300ML) | dark cholacate
+Pizza Stool (100 Pcs) | SKIP"></textarea>
+    <p class="hint" style="margin-top:8px">Anything the app is unsure about is listed under
+      <strong>Names needing your confirmation</strong> after you run it — copy the suggested lines here once
+      and it will never ask again.</p>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><span class="step">4</span><h2>Run</h2></div>
+  <div class="actions">
+    <button class="btn btn-ghost refreshbtn" onclick="refreshData(false)">Refresh data</button>
+    <button class="btn btn-ghost" id="validateBtn" disabled>Validate only</button>
+    <button class="btn btn-primary" id="generateBtn" disabled>Generate all sheets</button>
+    <span class="spinner" id="spinner"></span>
+  </div>
+  <div class="gatemsg" id="gateMsg"></div>
+  <p class="hint" style="margin-top:8px">Files download to your Downloads folder — move them into <em>Final Outlet Order Sheet</em>.</p>
+</section>
+
+<section id="results"></section>
+</main>
+
+<div id="reportView" style="display:none">
+  <div class="rtop">
+    <div class="rtitle">
+      <span class="logo">NB</span>
+      <div><h1 id="rHead">Dispatch report</h1><p id="rSub"></p></div>
+    </div>
+    <div class="rtopbtns">
+      <button class="btn btn-ghost btn-sm refreshbtn" onclick="refreshData(true)">Refresh data</button>
+      <button class="btn btn-ghost btn-sm" onclick="dlAll()">Save all files</button>
+      <button class="btn btn-primary btn-sm" onclick="backToSetup()">Back to setup</button>
+    </div>
+  </div>
+  <div class="rtabs" id="rTabs"></div>
+  <div class="rbody" id="rBody"></div>
+</div>
+
+
+<script>
+/* ===================== FIXED CONFIG ===================== */
+const OUTLETS=['NB01 Rohini','NB02 KKD','NB03 Janakpuri','NB04 Dwarka','NB05 Shivalik',
+'NB06 Advant','NB07 Cloud Kitchen','NB08 Rajender Nagar','NB09 GGN PH II','NB10 GGN SEC15'];
+const RAW_COL={'NB05 Shivalik':2,'NB02 KKD':6,'NB04 Dwarka':10,'NB01 Rohini':14,'NB03 Janakpuri':18,
+'NB06 Advant':22,'NB08 Rajender Nagar':26,'NB09 GGN PH II':30,'NB10 GGN SEC15':34,'NB07 Cloud Kitchen':38};
+const OUTLET_ERP={'NB01 Rohini':'Nutriobox (Prashant Vihar)','NB02 KKD':'Nutriobox (Karkardooma)',
+'NB03 Janakpuri':'Nutriobox (Janakpuri)','NB04 Dwarka':'NutrioBox (Dwarka)','NB05 Shivalik':'Nutriobox (Shivalik)',
+'NB06 Advant':'Nutriobox (Noida)','NB07 Cloud Kitchen':'Nutriobox (Sector 63 Noida)',
+'NB08 Rajender Nagar':'Nutriobox (Rajinder Nagar)','NB09 GGN PH II':'NutrioBox ( DLF Phase 2)',
+'NB10 GGN SEC15':'NutrioBox (Sector 15, Gurugram)'};
+const FILE_PAT={'NB01 Rohini':['ROHINI','NB01'],'NB02 KKD':['KKD','NB02'],'NB03 Janakpuri':['JANAKPURI','NB03'],
+'NB04 Dwarka':['DWARKA','NB04'],'NB05 Shivalik':['SHIVALIK','NB05'],'NB06 Advant':['ADVANT','NOIDA','NB06'],
+'NB07 Cloud Kitchen':['CLOUD','NB07'],'NB08 Rajender Nagar':['B08','RJNDR','RAJENDER','NB08'],
+'NB09 GGN PH II':['GGN PH','NB09'],'NB10 GGN SEC15':['SEC15','SEC 15','GURUGRAM','NB10']};
+const SCHED_COLS={Monday:[1],Tuesday:[2],Wednesday:[3,4,5],Thursday:[6,7],Friday:[8,9],Saturday:[10],Sunday:[11,12,13]};
+const SCHED_ROWS={4:'NB01 Rohini',5:'NB02 KKD',6:'NB03 Janakpuri',7:'NB04 Dwarka',8:'NB05 Shivalik',
+9:'NB06 Advant',10:'NB08 Rajender Nagar',11:'NB09 GGN PH II',12:'NB10 GGN SEC15',13:'NB07 Cloud Kitchen'};
+const CATS=['Frozen','Vegetable','Dry Store','Packaging','Housekeeping'];
+/* The weekly dispatch schedule is fixed, so it is baked in here. This lets the
+   front page show the day's plan the moment you pick a date, before any folder
+   is loaded. If the folder's own schedule file is loaded it takes precedence. */
+const BUILTIN_SCHED={"Monday":{"NB01 Rohini":"2--","NB02 KKD":"2--","NB03 Janakpuri":"2--","NB04 Dwarka":"2--","NB05 Shivalik":"2--","NB06 Advant":"2--","NB08 Rajender Nagar":"2--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Tuesday":{"NB01 Rohini":"---","NB02 KKD":"---","NB03 Janakpuri":"---","NB04 Dwarka":"---","NB05 Shivalik":"---","NB06 Advant":"---","NB08 Rajender Nagar":"---","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Wednesday":{"NB01 Rohini":"1V-","NB02 KKD":"1V-","NB03 Janakpuri":"1VD","NB04 Dwarka":"1V-","NB05 Shivalik":"1V-","NB06 Advant":"1VD","NB08 Rajender Nagar":"1VD","NB09 GGN PH II":"1VD","NB10 GGN SEC15":"1V-","NB07 Cloud Kitchen":"1VD"},"Thursday":{"NB01 Rohini":"1-D","NB02 KKD":"1-D","NB03 Janakpuri":"1--","NB04 Dwarka":"1-D","NB05 Shivalik":"1-D","NB06 Advant":"1--","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Friday":{"NB01 Rohini":"2V-","NB02 KKD":"2V-","NB03 Janakpuri":"2V-","NB04 Dwarka":"2V-","NB05 Shivalik":"2V-","NB06 Advant":"2V-","NB08 Rajender Nagar":"2V-","NB09 GGN PH II":"1V-","NB10 GGN SEC15":"1V-","NB07 Cloud Kitchen":"1V-"},"Saturday":{"NB01 Rohini":"1--","NB02 KKD":"1--","NB03 Janakpuri":"1--","NB04 Dwarka":"1--","NB05 Shivalik":"1--","NB06 Advant":"1--","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Sunday":{"NB01 Rohini":"1V-","NB02 KKD":"1V-","NB03 Janakpuri":"1V-","NB04 Dwarka":"1V-","NB05 Shivalik":"1V-","NB06 Advant":"1V-","NB08 Rajender Nagar":"1V-","NB09 GGN PH II":"1V-","NB10 GGN SEC15":"1VD","NB07 Cloud Kitchen":"1V-"}};
+/* code is 3 chars: [0] frozen 2|1|-   [1] V or -   [2] D or - */
+function planFromCode(c){
+  c=(c||'---');
+  return {frozen:c[0]==='2'?'2D':c[0]==='1'?'1D':null, veg:c[1]==='V', dph:c[2]==='D'};
+}
+function builtinPlan(weekday){
+  const day=BUILTIN_SCHED[weekday]||{},plan={};
+  OUTLETS.forEach(o=>plan[o]=planFromCode(day[o]||'-'));
+  return plan;
+}
+/* the loaded file wins; otherwise fall back to the built-in copy */
+function planForWeekday(weekday){
+  return S.schedule ? readSchedule(weekday) : builtinPlan(weekday);
+}
+const OFFSCHED=f=>f==='urgent'||f==='manual';   /* line sent although its category is not scheduled */
+const DETAIL_TABS={'Frozen Single Day':'Frozen','Frozen Double Day':'Frozen','Vegetable':'Vegetable',
+'Dry Store':'Dry Store','Packaging':'Packaging','Housekeeping':'Housekeeping'};
+const ORDER_TAB={Frozen:'Frozen Order',Vegetable:'Vegetable Order','Dry Store':'Dry Store Order',
+Packaging:'Packaging Order',Housekeeping:'Housekeeping Order'};
+const BREAD_ITEMS=['Slider Buns (9 Pcs)','Brown Burger (4 Pcs)','Black Burger (4 Pcs)','Brownie (2 Pcs)','Whole Wheat Panini Bread (2 Pcs)'];
+const BROWNIE='Brownie (2 Pcs)';
+const NAME_FIX={'Brown Rice (10 Pkt/ Bunch)':'Brown Rice (10 Pkt/Bunch)','Chicken Breast (80 gm/10 Pcs)':'Chicken Breast (80 Gms/10 Pcs)',
+'Mushroom Ragout (500 Gms* 2 Pkt )':'Mushroom Ragout (500 Gms*2 Pkt )','Spring Onion (1Kg Pack)':'Spring Onion (1 Kg Pack)',
+'Masala Lemonade (300ML)':'Classic Masala Lemonade (300ML)','140g Basa Fish (10 Pkt/ Bunch)':'140g Basa Fish (10 Pkt/Bunch)',
+'Green Green Broccoli Soup ((315 ML*4 Pkts)':'Green Green Broccoli Soup (315 ML*4 Pkts)',
+'Beans & Corn Mixture (2 Pkt/Bunch)':'Beans & Corn Mixture (4 Pkt/Bunch)','Garlic (1 Kg)':'Garlic',
+'Clearly Clear Soup ((315 ML*4 Pkts)':'Clearly Clear Soup (315 ML*4 Pkts)','Ginger (500 Gm)':'Ginger',
+'Green Chilli (250 gms)':'Green Chilli (250 Gms)','Phenyl (Eazy Cleaner 5Kg)':'Phenyle (Eazy Cleaner 5Kg)',
+'Coffee Beans ( For Machine)':'Coffee Beans (for Machine)','Pesto Sauce (500 Gms*2Pkt)':'Pesto Sauce (2 Pkt/Bunch)',
+'Black Beans ':'Black Beans','Tomato Veggie Soup (315 ML*4 Pkts )':'Tomato Veggie Soup (315 ML*4 Pkts)',
+'Peri Peri Paneer (8 Pcs/Container)':'Paneer Peri-Peri-8 Pcs (6*1 cm)','Tamarind(imli)':'Tamarind (Imli)',
+'Spinach Corn Kebab (40 Gms/480 Gms)':'Spinach Corn Kebab -  (40 Gms/480 Gms)','Black Rasins (250 Gms)':'Black Rasins (Kishmish)',
+'Pineapple Twist (300ML)':'Pineapple Twist (300 Ml)','Milk (1 Ltr)':'Milk',
+'Rational Tablet: Green (30 Pkt/ Bunch)':'Rational Tablet (Green)','Rational Tablet: Blue (30 Pkt/ Bunch)':'Rational Tablet (Blue)'};
+const SKIP_ITEMS=new Set(['Coffee Cup Film (310 Pcs/Pkt)','Naphthalene balls','Day Book','Inventory sheet','Pen','Shift handover book']);
+const VP='AF/26-27/';
+
+/* ===================== EXCEL STYLE TOKENS ===================== */
+const C={green:'FF548235',greenDark:'FF2F6B34',head:'FFD9E1F2',yellow:'FFFFF2CC',
+red:'FFFFC7CE',okGreen:'FFC6EFCE',grey:'FFF2F2F2',amber:'FFFFEB9C',white:'FFFFFFFF'};
+const BORD={top:{style:'thin',color:{argb:'FFBFBFBF'}},left:{style:'thin',color:{argb:'FFBFBFBF'}},
+bottom:{style:'thin',color:{argb:'FFBFBFBF'}},right:{style:'thin',color:{argb:'FFBFBFBF'}}};
+const fill=argb=>({type:'pattern',pattern:'solid',fgColor:{argb}});
+function styleCell(c,{bold,color,bg,align,border=true,size,num,nowrap}={}){
+  if(bold||color||size) c.font={bold:!!bold,...(color?{color:{argb:color}}:{}),...(size?{size}:{})};
+  if(bg) c.fill=fill(bg);
+  c.alignment={vertical:'middle',horizontal:align||'left',wrapText:!nowrap};
+  if(border) c.border=BORD;
+  if(num) c.numFmt=num;
+}
+function headerRow(ws,rowNo,labels,widths){
+  const r=ws.getRow(rowNo);
+  labels.forEach((l,i)=>{const c=r.getCell(i+1);c.value=l;
+    styleCell(c,{bold:true,color:C.white,bg:C.green,align:'center'});});
+  r.height=26;
+  if(widths) ws.columns=widths.map(w=>({width:w}));
+}
+function titleRow(ws,rowNo,text,span,sub){
+  const c=ws.getCell(rowNo,1); c.value=text;
+  c.font={bold:true,size:13,color:{argb:C.white}}; c.fill=fill(C.greenDark);
+  c.alignment={vertical:'middle',horizontal:'center'};
+  ws.mergeCells(rowNo,1,rowNo,span); ws.getRow(rowNo).height=24;
+  if(sub){const s=ws.getCell(rowNo+1,1); s.value=sub;
+    s.font={italic:true,size:10,color:{argb:'FF555555'}};
+    s.alignment={horizontal:'center'}; ws.mergeCells(rowNo+1,1,rowNo+1,span);}
+}
+const LANDSCAPE={orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,
+horizontalCentered:true,margins:{left:0.3,right:0.3,top:0.4,bottom:0.4,header:0.2,footer:0.2}};
+function colLetter(n){let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26;}return s;}
+
+/* ===================== HELPERS ===================== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
+const fmtQty=v=>String(Math.round(num(v)*100)/100);
+const GENERIC=new Set(['sauce','dip','soup','chutney','oil','flour','chip','chips','seed','seeds','sugar','salt','powder','paste','bread','cheese']);
+function firstWord(name){
+  const t=String(name).toLowerCase().replace(/[()]/g,' ').split(/\s+/);
+  for(const x of t){const c=x.replace(/^[,.\-*/]+|[,.\-*/]+$/g,'');
+    if(/^[a-z]+$/.test(c)&&!GENERIC.has(c)&&c.length>2)return c;}
+  for(const x of t) if(/^[a-z]+$/.test(x)) return x;
+  return String(name).toLowerCase().slice(0,3);
+}
+/* Ratcliff-Obershelp — exact port of Python difflib.SequenceMatcher.ratio() */
+function _lm(a,b,alo,ahi,blo,bhi,b2j){
+  let bi=alo,bj=blo,bs=0,j2={};
+  for(let i=alo;i<ahi;i++){const nj={},idx=b2j[a[i]]||[];
+    for(const j of idx){if(j<blo)continue;if(j>=bhi)break;
+      const k=(j2[j-1]||0)+1;nj[j]=k;if(k>bs){bi=i-k+1;bj=j-k+1;bs=k;}}
+    j2=nj;}
+  while(bi>alo&&bj>blo&&a[bi-1]===b[bj-1]){bi--;bj--;bs++;}
+  while(bi+bs<ahi&&bj+bs<bhi&&a[bi+bs]===b[bj+bs])bs++;
+  return [bi,bj,bs];
+}
+const _rcache=new Map();
+function ratio(a,b){
+  const key=a+'\u0000'+b;
+  const hit=_rcache.get(key); if(hit!==undefined)return hit;
+  const v=_ratio(a,b);
+  if(_rcache.size<400000)_rcache.set(key,v);
+  return v;
+}
+function _ratio(a,b){
+  a=a.toLowerCase();b=b.toLowerCase();
+  if(a===b)return 1; if(!a.length||!b.length)return 0;
+  const b2j={};for(let j=0;j<b.length;j++)(b2j[b[j]]=b2j[b[j]]||[]).push(j);
+  let q=[[0,a.length,0,b.length]],t=0;
+  while(q.length){const [alo,ahi,blo,bhi]=q.pop();
+    const [i,j,k]=_lm(a,b,alo,ahi,blo,bhi,b2j);
+    if(k){t+=k; if(alo<i&&blo<j)q.push([alo,i,blo,j]); if(i+k<ahi&&j+k<bhi)q.push([i+k,ahi,j+k,bhi]);}}
+  return (2*t)/(a.length+b.length);
+}
+/* ---------- CONFLICT GUARD ----------------------------------------
+   Two names can be 90% similar and still be different products
+   ("Capsicum Green" vs "Capsicum Red").  Before accepting any fuzzy
+   match we check families of contrasting words: if both names carry a
+   word from the same family but the words differ, the match is refused
+   no matter how high the similarity.                                  */
+const CONFLICT_FAMILIES=[
+  {words:['green','red','black','white','brown','yellow','blue','orange','pink'],mode:'strict',label:'colour'},
+  {words:['small','big','large','mini','jumbo','regular'],mode:'strict',label:'size'},
+  {words:['fork','knife','spoon','stirrer'],mode:'strict',label:'cutlery type'},
+  {words:['veg','chicken','fish','paneer','mutton','egg','prawn'],mode:'strict',label:'protein'},
+  {words:['hot','cold','iced'],mode:'strict',label:'serve temp'},
+  /* Only words that genuinely mean a DIFFERENT product belong here.
+     Words that merely describe the same item differently — pudding /
+     seeds / base / mix — must stay out, or real matches get blocked. */
+  {words:['powder','beans','whole'],mode:'strict',label:'form'},
+  /* container words use subset logic: "Dip Bowl" vs "Dip Bowl + Lid" is a
+     legitimate combined SKU, but "Bowl" vs "Box" is not.               */
+  {words:['bowl','lid','box','bag','tray','cup','plate','carton','pouch','glass','jar','bottle'],
+   mode:'subset',label:'container'},
+];
+const CONTAINER_WORDS=['bowl','lid','box','bag','tray','cup','plate','carton','pouch','glass','jar','bottle','fork','knife','spoon'];
+const singular=w=>w.endsWith('s')&&w.length>3?w.slice(0,-1):w;
+/* One outlet row can legitimately serve two Ideal products when it is a
+   combined pack — "50ml Dip Bowl + Lid" covers both "Dip Bowl" and
+   "Dip Lids". True if the outlet name carries the container word of
+   every competing product.                                            */
+function isCombinedSku(outletName,products){
+  const O=new Set([...tokensOf(outletName)].map(singular));
+  const wanted=products.map(p=>[...tokensOf(p)].map(singular)
+    .filter(w=>CONTAINER_WORDS.includes(w)));
+  if(wanted.some(w=>!w.length))return false;
+  const distinct=new Set(wanted.map(w=>w.join('+')));
+  if(distinct.size<2)return false;              // not actually different parts
+  return wanted.every(ws=>ws.every(w=>O.has(w)));
+}
+function tokensOf(s){return new Set(String(s).toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean));}
+/* leading pack spec, e.g. "250ML Flat Bowl" -> 250 ; "7\" Fork" -> 7 */
+function leadSpec(s){const m=String(s).trim().match(/^(\d+(?:\.\d+)?)\s*(ml|ltr|l|kg|gms?|g|"|''|inch)?/i);return m?m[1]:null;}
+function conflicts(a,b){
+  const A=tokensOf(a),B=tokensOf(b);
+  for(const fam of CONFLICT_FAMILIES){
+    const inA=fam.words.filter(w=>A.has(w)),inB=fam.words.filter(w=>B.has(w));
+    if(!inA.length||!inB.length)continue;
+    if(fam.mode==='subset'){
+      const sa=new Set(inA),sb=new Set(inB);
+      const aSubB=inA.every(w=>sb.has(w)),bSubA=inB.every(w=>sa.has(w));
+      if(!aSubB&&!bSubA)return fam.label;      // e.g. bowl vs box
+    }else if(inA.join('|')!==inB.join('|')) return fam.label;
+  }
+  /* different leading pack size = different SKU (250ML vs 500ml bowl) */
+  const la=leadSpec(a),lb=leadSpec(b);
+  if(la&&lb&&la!==lb)return 'pack size';
+  return null;
+}
+
+/* ---------- SEQUENCE ALIGNMENT ------------------------------------
+   Your Ideal Inventory and the outlet sheets list products in nearly
+   the same order (Dry Store & Housekeeping 100%, Veg 97%, Packaging
+   94%, Frozen 85%). Aligning the two lists end-to-end — allowing for
+   inserted or removed lines — gives a second, independent signal:
+   a pair that BOTH reads similarly AND sits in the same place in the
+   running order is almost certainly the same product.               */
+function alignLists(A,B,gap=-0.35,floor=0.45){
+  const n=A.length,m=B.length;
+  if(!n||!m)return {};
+  /* Only cells near the diagonal are worth computing — the two lists
+     run in near-identical order, so a match never strays more than a
+     handful of rows. Caps the work at O(n × band).                  */
+  const band=Math.max(20,Math.abs(n-m)+12), NEG=-1e9;
+  const D=[],P=[];
+  for(let i=0;i<=n;i++){const r=new Float64Array(m+1).fill(NEG);D.push(r);P.push(new Uint8Array(m+1));}
+  D[0][0]=0;
+  for(let i=1;i<=n && i<=band;i++){D[i][0]=D[i-1][0]+gap;P[i][0]=1;}
+  for(let j=1;j<=m && j<=band;j++){D[0][j]=D[0][j-1]+gap;P[0][j]=2;}
+  const la=A.map(x=>x.toLowerCase()),lb=B.map(x=>x.toLowerCase());
+  for(let i=1;i<=n;i++){
+    const lo=Math.max(1,i-band), hi=Math.min(m,i+band);
+    for(let j=lo;j<=hi;j++){
+      const d=D[i-1][j-1]+(ratio(la[i-1],lb[j-1])-floor), u=D[i-1][j]+gap, l=D[i][j-1]+gap;
+      const b=Math.max(d,u,l); D[i][j]=b; P[i][j]=b===d?0:(b===u?1:2);
+    }
+  }
+  const pairs={};
+  let i=n,j=m;
+  while(i>0&&j>0){
+    if(P[i][j]===0){pairs[A[i-1]]=B[j-1];i--;j--;}
+    else if(P[i][j]===1)i--; else j--;
+  }
+  return pairs;
+}
+
+/* Auto-accept floor. Anything below this is held for your review
+   rather than guessed at. Confirm once via the Name mapping box and
+   the decision is remembered for every future run.                   */
+const AUTO_ACCEPT=0.75;   // name likeness alone
+const ALIGN_ACCEPT=0.50;  // name likeness WHEN the running order agrees
+/* Below this, with the running order disagreeing too, the product is
+   simply not on that outlet's sheet — reported, not asked about.    */
+const ASK_FLOOR=0.65;
+
+/* Returns {names:[...], score, why, block, candidates:[...]}
+   names may hold SEVERAL outlet rows — their on-hand is summed.       */
+/* ===== PACK-SIZE BRACKET TIER ==========================================
+   The Ideal Inventory sheet and the outlet sheets often describe the same
+   product with different pack sizes in the bracket:
+       Ideal : Pesto Sauce (2 Pkt/Bunch)
+       Outlet: Pesto Sauce (500 Gms*2Pkt)
+   Comparing the full strings scores ~0.70 and the match is lost. Comparing
+   the names with the brackets stripped resolves it. Accepted ONLY when the
+   stripped name hits exactly one row on that outlet's sheet - a unique hit
+   is the guard, so sibling SKUs that share a base name (Rational Tablet:
+   Green / Blue) never collapse into each other.                         */
+function baseName(s){
+  return String(s).replace(/\([^)]*\)/g,' ')
+                  .replace(/[^a-z0-9 ]/gi,' ')
+                  .toLowerCase().trim().replace(/\s+/g,' ');
+}
+/* Names that differ by more than the bracket. Ideal-sheet name -> outlet name. */
+const BUILTIN_ALIAS={'chia pudding':'chia seeds base'};
+
+function smartMatchEx(q,list,aliasMap,aligned){
+  const ql=q.toLowerCase().trim();
+  if(list.includes(q))return {names:[q],score:1,why:'exact'};
+  for(const c of list) if(c.toLowerCase().trim()===ql) return {names:[c],score:1,why:'exact'};
+  const al=aliasMap?aliasMap[ql]:undefined;
+  if(al!==undefined){
+    if(al===null) return {names:[],score:0,why:'skip'};
+    const want=Array.isArray(al)?al:[al];
+    const hits=want.map(w=>list.find(c=>c.toLowerCase().trim()===String(w).toLowerCase().trim())).filter(Boolean);
+    if(hits.length) return {names:hits,score:1,why:'alias'};
+  }
+  let qb=baseName(q);
+  if(BUILTIN_ALIAS[qb]) qb=BUILTIN_ALIAS[qb];
+  if(qb.length>=4){
+    const bh=list.filter(c=>baseName(c)===qb);
+    if(bh.length===1) return {names:[bh[0]],score:1,why:'pack size'};
+  }
+  const qf=firstWord(q); let best=null,br=0,blockedBest=null,bbr=0,bReason='';
+  const scored=[];
+  for(const c of list){
+    const clash=conflicts(q,c), r=ratio(ql,c.toLowerCase());
+    scored.push({name:c,score:r,clash:clash||''});
+    if(clash){ if(r>bbr){blockedBest=c;bbr=r;bReason=clash;} continue; }
+    if(firstWord(c)===qf){if(r>=0.4&&r>br){best=c;br=r;}}
+    else if(r>=0.85&&r>br){best=c;br=r;}}
+  scored.sort((x,y)=>y.score-x.score);
+  const cands=scored.slice(0,400);   /* full list - the review panel offers them all */
+  /* position corroborates: same place in the running order + a
+     reasonable name likeness = accept at a lower similarity bar     */
+  const alignedTo = aligned ? aligned[q] : undefined;
+  if(best && alignedTo === best && br >= ALIGN_ACCEPT)
+    return {names:[best],score:br,why:'aligned',candidates:cands};
+  if(best&&br>=AUTO_ACCEPT) return {names:[best],score:br,why:'fuzzy',candidates:cands};
+  if(best) return {names:[],score:br,why:'review',candidate:best,
+    aligned:alignedTo===best,candidates:cands};
+  if(blockedBest) return {names:[],score:bbr,why:'blocked',candidate:blockedBest,block:bReason,candidates:cands};
+  return {names:[],score:0,why:'none',candidates:cands};
+}
+function smartMatch(q,list){const r=smartMatchEx(q,list,null);return r.names&&r.names.length?r.names[0]:null;}
+
+/* Resolve every Ideal-Inventory product against one outlet's category
+   sheet. Records each decision and flags two Ideal products that land
+   on the same outlet row (double-count risk).                         */
+/* Live-punch rule: order only when ideal exceeds on-hand */
+const punch=(i,o,q)=>num(i)<=num(o)?0:num(q);
+/* Sheet -> array of rows (arrays), blanks preserved */
+function rows(wb,name){
+  const ws=wb.Sheets[name];
+  return ws?XLSX.utils.sheet_to_json(ws,{header:1,blankrows:true,defval:null}):[];
+}
+
+/* ===== CATEGORY WALL =====================================================
+   A product is only ever matched against the outlet's sheet for its OWN
+   category. A Frozen product can never bind to a Dry Store on-hand row, no
+   matter how alike the names are — the goods are different in nature.
+   Enforced structurally: readOnHand() buckets on-hand rows by sheet name and
+   buildDispatch() hands resolveMatches() nothing but onhand[outlet][cat].
+   crossCategoryProbe() below reports every look-alike the wall turned away. */
+const CATWALL_FLOOR=0.70;   /* only report look-alikes this similar or closer */
+/* Two cheap upper bounds on ratio(), lifted from difflib. Both are guaranteed
+   never to under-estimate, so anything they reject could not have cleared the
+   floor anyway. Lets the probe skip the O(n^2) matcher on ~95% of pairs. */
+const _cc=new Map();
+function charCounts(s){let c=_cc.get(s);if(c)return c;c=new Map();
+  for(const ch of s)c.set(ch,(c.get(ch)||0)+1);
+  if(_cc.size<20000)_cc.set(s,c);return c;}
+function ratioAtLeast(a,b,floor){
+  const la=a.length,lb=b.length,tot=la+lb;
+  if(!tot)return 0;
+  if(2*Math.min(la,lb)/tot<floor)return 0;          /* real_quick_ratio */
+  const A=charCounts(a),B=charCounts(b);
+  let m=0;const [S,L]=A.size<=B.size?[A,B]:[B,A];
+  for(const [ch,n] of S){const o=L.get(ch);if(o)m+=n<o?n:o;}
+  if(2*m/tot<floor)return 0;                         /* quick_ratio */
+  const r=ratio(a,b);
+  return r>=floor?r:0;
+}
+function crossCategoryProbe(unresolved,onhand,outlet,cat){
+  if(!unresolved.length)return [];
+  /* lowercase every foreign key once per call, not once per product */
+  const foreign=[];
+  for(const oc of CATS){
+    if(oc===cat)continue;
+    for(const k of Object.keys(onhand[outlet][oc]||{})) foreign.push({cat:oc,name:k,lc:k.toLowerCase()});
+  }
+  if(!foreign.length)return [];
+  const out=[];
+  for(const p of unresolved){
+    const pl=String(p).toLowerCase();
+    let best=null;
+    for(const f of foreign){
+      const s=ratioAtLeast(pl,f.lc,best?best.score:CATWALL_FLOOR);
+      if(s&&(!best||s>best.score))best={cat:f.cat,name:f.name,score:s};
+    }
+    if(best)out.push({outlet,cat,product:p,other:best.cat,name:best.name,score:best.score});
+  }
+  return out;
+}
+
+function resolveMatches(products,onhandKeys,aliasMap,outlet,cat){
+  const map={},review=[],absent=[],used={};
+  const aligned=alignLists(products,onhandKeys);
+  for(const name of products){
+    const res=smartMatchEx(name,onhandKeys,aliasMap,aligned);
+    map[name]=res;
+    (res.names||[]).forEach(n=>{(used[n]=used[n]||[]).push(name);});
+    if(res.why==='review'){
+      /* Only genuinely ambiguous pairings deserve your time. A weak
+         candidate that also sits elsewhere in the running order means
+         the product just isn't on this outlet's sheet.               */
+      if(res.aligned || res.score>=ASK_FLOOR)
+        review.push({outlet,cat,product:name,candidate:res.candidate||'',score:res.score,
+          why:res.why,block:res.block||'',candidates:res.candidates||[]});
+      else
+        absent.push({outlet,cat,product:name,candidate:res.candidate||'',
+          score:res.score,block:'name too different'});
+    }
+    else if(res.why==='blocked')
+      absent.push({outlet,cat,product:name,candidate:res.candidate||'',
+        score:res.score,block:res.block||''});
+  }
+  for(const [oh,list] of Object.entries(used)){
+    if(list.length<2)continue;
+    if(isCombinedSku(oh,list))continue;         // combined pack — both may read it
+    list.forEach(pr=>{
+      review.push({outlet,cat,product:pr,candidate:oh,score:map[pr].score,why:'duplicate',
+        block:'',candidates:map[pr].candidates||[]});
+      map[pr]={names:[],score:map[pr].score,why:'duplicate',candidate:oh};});
+  }
+  return {map,review,absent};
+}
+
+/* ===================== STATE / LOADING ===================== */
+const S={ideal:null,schedule:null,master:null,outlets:{},names:{},folder:'',files:null,manual:{},
+         dirHandle:null,dirName:'',pickerBlocked:false};
+let REPORT=null;
+async function refreshData(regen){
+  if(!S.files||!S.files.length){alert('Choose the date folder first.');return;}
+  const btns=document.querySelectorAll('.refreshbtn');
+  btns.forEach(b=>{b.disabled=true;b.textContent='Reading…';});
+  try{
+    await loadFiles(S.files);                 // re-reads the files from disk
+    if(regen) await run(false);
+    btns.forEach(b=>{b.textContent='Refreshed';setTimeout(()=>{b.textContent='Refresh data';b.disabled=false;},1400);});
+  }catch(e){
+    alert('Could not re-read the files — pick the folder again.\n\n'+e.message);
+    btns.forEach(b=>{b.textContent='Refresh data';b.disabled=false;});
+  }
+}
+/* ===== SAVE BACK INTO THE DAY'S FOLDER ==================================
+   A plain file input hands over file contents but never a writable path, so
+   "Save all" can only push through the browser's download folder. The File
+   System Access API does give a writable handle: the user points at the date
+   folder once, and from then on the app can create a subfolder inside it and
+   write every workbook straight there. Chrome and Edge support it; anywhere
+   else the old per-file download still runs, unchanged.                    */
+const CAN_SAVE_BACK = typeof window.showDirectoryPicker === 'function';
+async function pickDirectory(){
+  try{
+    const dh = await window.showDirectoryPicker({mode:'readwrite'});
+    const files=[];
+    for await (const [name,h] of dh.entries()){
+      if(h.kind!=='file') continue;
+      if(!/\.(xlsx|xlsm)$/i.test(name) || name.startsWith('~$')) continue;
+      files.push(await h.getFile());
+    }
+    if(!files.length){alert('No Excel files in that folder.');return;}
+    S.dirHandle=dh; S.dirName=dh.name;
+    await loadFiles(files);
+    S.folder=dh.name;                       /* loadFiles resets it */
+    showSaveBack();
+  }catch(e){
+    if(e.name==='AbortError') return;                  /* user cancelled */
+    /* Chrome refuses the writable picker on file:// pages. Say so plainly
+       and fall back to the read-only folder input so work is never blocked. */
+    S.pickerBlocked = true;
+    showSaveBack();
+    alert('This browser will not grant folder-write access to this page.\n\n'
+        + 'Load the app through "Start NutrioBox Dispatch.bat" (http://localhost:8765/) '
+        + 'rather than opening the .html file directly.\n\n'
+        + 'You can still click the drop zone above to choose the date folder and work '
+        + 'normally - the finished files will download instead.\n\n('+e.name+')');
+  }
+}
+function saveTargetText(){
+  if(S.dirHandle) return {ok:true, html:'Last saved to <strong>'+esc(S.dirName)+
+    ' &rsaquo; '+esc(outFolderName())+'</strong>. "Save all" asks where to put it each time.'};
+  if(!CAN_SAVE_BACK) return {ok:false, html:'Save all &rarr; your <strong>Downloads</strong> folder. '+
+    'This browser has no folder-write support — use Chrome or Edge to save into the date folder.'};
+  if(S.pickerBlocked || location.protocol==='file:') return {ok:false,
+    html:'Save all &rarr; your <strong>Downloads</strong> folder. '+
+    'A file:// page cannot be given write access — open the app from its https:// address '+
+    'to save into the date folder.'};
+  return {ok:false, html:'"Save all" will ask you to choose a folder, then create <strong>'+
+    esc(outFolderName())+'</strong> inside it.'};
+}
+function showSaveBack(){
+  const row=$('saveBackRow'); if(!row) return;
+  row.style.display='';
+  const note=$('saveBackNote'), btn=$('pickDirBtn');
+  const t=saveTargetText();
+  btn.textContent = S.dirHandle ? 'Change folder' : 'Connect the date folder';
+  btn.style.display = CAN_SAVE_BACK ? '' : 'none';
+  note.innerHTML = t.html;
+  note.style.color = t.ok ? 'var(--green)' : '';
+  const b=$('saveTargetBanner');
+  if(b) b.innerHTML='<div class="banner '+(t.ok?'banner-ok':'banner-warn')+'">'+t.html+'</div>';
+}
+/* Subfolder name: matches what the desktop working already produces. */
+function outFolderName(){
+  const v=$('dispatchDate').value;
+  if(!v) return 'Final Outlet Order Sheet';
+  const [y,m,d]=v.split('-');
+  return `Final Outlet Order Sheet ${d}-${m}-${y}`;
+}
+$('linkImport').onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{ const j=JSON.parse(await f.text());
+    if(typeof j!=='object'||Array.isArray(j))throw new Error('Not a links file.');
+    PLINK=j; saveLinks(); renderLinks();
+    alert('Imported '+Object.keys(j).length+' product links.');
+  }catch(err){alert('Could not read that links file.\n\n'+err.message);}
+  e.target.value='';
+};
+$('pickDirBtn').onclick=pickDirectory;
+$('drop').onclick=()=>$('picker').click();   /* plain folder input - always available */
+$('pickFiles').onclick=e=>{e.preventDefault();e.stopPropagation();$('filePicker').click();};
+$('picker').onchange=e=>loadFiles([...e.target.files]);
+$('filePicker').onchange=e=>loadFiles([...e.target.files]);
+['dragover','dragleave','drop'].forEach(ev=>$('drop').addEventListener(ev,e=>{
+  e.preventDefault();$('drop').classList.toggle('over',ev==='dragover');
+  if(ev==='drop')loadFiles([...e.dataTransfer.files]);}));
+
+async function loadFiles(files){
+  files=files.filter(f=>/\.(xlsx|xlsm)$/i.test(f.name)&&!f.name.startsWith('~$'));
+  S.files=files;
+  if(!files.length){$('loadResult').innerHTML=`<div class="banner banner-err">No Excel files found.</div>`;return;}
+  S.ideal=S.schedule=S.master=null;S.outlets={};S.names={};
+  const rel=files[0].webkitRelativePath||'';S.folder=rel?rel.split('/')[0]:'(selected files)';
+  for(const f of files){
+    const up=f.name.toUpperCase();
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    if(up.includes('IDEAL')&&!S.ideal){S.ideal=wb;S.names.ideal=f.name;}
+    else if(up.includes('SCHEDULE')&&!S.schedule){S.schedule=wb;S.names.schedule=f.name;}
+    else if(up.includes('PRODUCT MASTER')&&!S.master){S.master=wb;S.names.master=f.name;}
+    else for(const o of OUTLETS){
+      if(S.outlets[o])continue;
+      const hit=o==='NB07 Cloud Kitchen'?(up.includes('CLOUD')||up.includes('NB07')):FILE_PAT[o].some(p=>up.includes(p));
+      if(hit){S.outlets[o]=wb;S.names[o]=f.name;break;}
+    }
+  }
+  showSaveBack();
+  try{prepLinks();}catch(e){console.error(e);}
+  const fixed=[['Ideal Inventory',S.names.ideal],['Outlet Schedule',S.names.schedule],['Product Master',S.names.master]]
+    .map(([l,n])=>`<tr><td>${l}</td><td>${n?`<span class="tag tag-ok">Found</span> ${esc(n)}`:'<span class="tag tag-miss">MISSING</span>'}</td></tr>`).join('');
+  const ready=S.ideal&&S.schedule&&S.master;
+  $('drop').classList.toggle('loaded',!!ready);
+  $('loadResult').innerHTML=`<div style="margin-top:16px">
+    <p class="hint" style="margin-bottom:10px">Folder: <strong>${esc(S.folder)}</strong> · ${Object.keys(S.outlets).length}/10 outlet sheets loaded</p>
+    <table><tbody>${fixed}</tbody></table>
+    ${ready?'':'<div class="banner banner-err" style="margin-top:14px">Missing a required file — pick the full date folder.</div>'}</div>`;
+  updateGate();
+  if(ready)showSchedule();
+}
+
+/* ===================== SCHEDULE ===================== */
+function readSchedule(weekday){
+  const plan={};OUTLETS.forEach(o=>plan[o]={frozen:null,veg:false,dph:false});
+  if(!S.schedule)return plan;
+  const nm=S.schedule.SheetNames.find(n=>n.includes('requirement'))||S.schedule.SheetNames[0];
+  const R=rows(S.schedule,nm),cols=SCHED_COLS[weekday]||[];
+  for(const [ri,outlet] of Object.entries(SCHED_ROWS)){
+    const row=R[ri];if(!row)continue;
+    for(const c of cols){const v=row[c];if(!v)continue;
+      const t=String(v).trim().toLowerCase();if(t==='na')continue;
+      if(t.includes('2 day')&&t.includes('frozen'))plan[outlet].frozen='2D';
+      else if(t.includes('1 day')&&t.includes('frozen'))plan[outlet].frozen='1D';
+      else if(t.startsWith('veg'))plan[outlet].veg=true;
+      else if(t.includes('d/p/h'))plan[outlet].dph=true;}
+  }
+  return plan;
+}
+$('dispatchDate').onchange=()=>{$('dateOK').checked=false;showDayBanner();showSchedule();updateGate();};
+/* ---- manual punch grid: outlet x 3 groups, for categories NOT scheduled today ---- */
+const GROUPS=[['Frozen',['Frozen']],['Vegetable',['Vegetable']],
+              ['DS+PM+HK',['Dry Store','Packaging','Housekeeping']]];
+function groupOfTab(tab){
+  if(tab==='Frozen Single Day'||tab==='Frozen Double Day')return 'Frozen';
+  if(tab==='Vegetable')return 'Vegetable';
+  return 'DS+PM+HK';
+}
+function groupScheduled(p,g){
+  return g==='Frozen'?!!p.frozen : g==='Vegetable'?!!p.veg : !!p.dph;
+}
+function groupStats(outlet,g,health){
+  const cats=GROUPS.find(x=>x[0]===g)[1];
+  let total=0,filled=0,zero=0;
+  cats.forEach(c=>{const hh=(health[outlet]||{})[c];
+    if(hh){total+=hh.total;filled+=hh.filled;zero+=hh.zero;}});
+  return {total,filled,zero,fillPct:total?filled/total*100:0};
+}
+function manualKey(o,g){return o+'|'+g;}
+function manualDefaults(plan,health,cap){
+  OUTLETS.forEach(o=>GROUPS.forEach(([g])=>{
+    const k=manualKey(o,g),cur=S.manual[k];
+    if(cur&&cur.touched)return;                    /* never overwrite an explicit choice */
+    const avail=!!S.outlets[o]&&!groupScheduled(plan[o],g);
+    const st=avail?groupStats(o,g,health):null;
+    /* If the outlet entered anything at all on an unscheduled sheet, it wants stock.
+       How MUCH of the sheet they filled is not a reason to skip it — the normal
+       below-ideal rule then decides item by item. */
+    const on=!!(st&&st.total&&st.filled);
+    S.manual[k]={on,mode:'full',touched:false,avail};   /* same order criteria everywhere */
+  }));
+}
+function manualTick(el){
+  const k=el.dataset.k,m=S.manual[k];
+  m.on=el.checked;
+  if(m.on&&!m.touched)m.mode='full';   /* a box you tick yourself means "send the lot" */
+  m.touched=true; showSchedule();
+}
+function manualMode(k){const m=S.manual[k];m.mode=m.mode==='low'?'full':'low';m.touched=true;showSchedule();}
+function manualAll(on){
+  OUTLETS.forEach(o=>GROUPS.forEach(([g])=>{const m=S.manual[manualKey(o,g)];
+    if(m&&m.avail){m.on=on;m.touched=true;if(on)m.mode='full';}}));
+  showSchedule();
+}
+function manualReset(){Object.keys(S.manual).forEach(k=>delete S.manual[k]);showSchedule();}
+function manualGrid(plan,health,cap){
+  manualDefaults(plan,health,cap);
+  let anyAvail=false,onCount=0;
+  const body=OUTLETS.map(o=>{
+    const cells=GROUPS.map(([g])=>{
+      const p=plan[o],k=manualKey(o,g),m=S.manual[k];
+      if(groupScheduled(p,g)){
+        const lbl=g==='Frozen'?'Scheduled '+p.frozen:'Scheduled';
+        return `<td><span class="chip chip-v">${esc(lbl)}</span></td>`;}
+      if(!S.outlets[o]) return '<td><span class="chip chip-off">no file</span></td>';
+      anyAvail=true; if(m.on)onCount++;
+      const st=groupStats(o,g,health);
+      if(!st.total) return '<td><span class="chip chip-off">no sheet</span></td>';
+      const mode=m.mode==='low'?'Low stock only':'Full order';
+      const hint=`${st.fillPct.toFixed(0)}% filled · ${st.zero} at zero`;
+      return `<td><label class="mcell"><input type="checkbox" data-k="${esc(k)}" onchange="manualTick(this)"${m.on?' checked':''}>
+        <span class="mtxt"><button type="button" class="modebtn${m.mode==='full'?' full':''}"${m.on?'':' disabled'}
+          onclick="event.preventDefault();manualMode('${esc(k)}')" title="Click to switch">${mode}</button>
+        <span class="msub">${hint}</span></span></label></td>`;
+    }).join('');
+    return `<tr><td><strong>${esc(o)}</strong></td>${cells}</tr>`;}).join('');
+  if(!anyAvail)return '';
+  return `<div class="mgrid">
+    <div class="mgridhead">
+      <div><strong>Punch where nothing is scheduled</strong>
+        <div class="hint">Ticked automatically where the outlet filled in ${cap}% or less of a sheet — untick or change any of them.
+          <em>Low stock only</em> sends items at or under the on-hand cap; <em>Full order</em> sends everything below ideal.</div></div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="manualAll(true)">Tick all</button>
+        <button class="btn btn-ghost btn-sm" onclick="manualAll(false)">Clear</button>
+        <button class="btn btn-ghost btn-sm" onclick="manualReset()">Reset to auto</button></div>
+    </div>
+    <table class="mtable"><thead><tr><th>Outlet</th>
+      ${GROUPS.map(([g])=>`<th>${esc(g)}</th>`).join('')}</tr></thead>
+      <tbody>${body}</tbody></table>
+    <p class="hint" style="margin-top:8px">${onCount} unscheduled sheet(s) selected. Blank on-hand cells are never punched.</p>
+  </div>`;
+}
+
+const FULLDAY=x=>x.toLocaleDateString('en-US',{weekday:'long'});
+const FULLDATE=x=>x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+function showDayBanner(){
+  const v=$('dispatchDate').value;
+  if(!v){$('dayBanner').innerHTML='';return;}
+  const d=new Date(v+'T00:00:00'),w=new Date(d);w.setDate(w.getDate()-1);
+  const plan=planForWeekday(FULLDAY(w));
+  $('dayBanner').innerHTML=`<div class="daybar">
+    <div class="daycell"><div class="daylab">Working day</div>
+      <div class="dayname">${FULLDAY(w)}</div><div class="daydate">${FULLDATE(w)}</div></div>
+    <div class="dayarrow">&rarr;</div>
+    <div class="daycell disp"><div class="daylab">Dispatch day</div>
+      <div class="dayname">${FULLDAY(d)}</div><div class="daydate">${FULLDATE(d)}</div></div>
+  </div>
+  ${schedStrip(plan)}`;
+}
+
+/* ---- what is scheduled on the chosen day, as chips ---- */
+function schedCounts(plan){
+  const c={f2:[],f1:[],veg:[],dph:[],none:[]};
+  OUTLETS.forEach(o=>{const p=plan[o];
+    if(p.frozen==='2D')c.f2.push(o); else if(p.frozen==='1D')c.f1.push(o);
+    if(p.veg)c.veg.push(o);
+    if(p.dph)c.dph.push(o);
+    if(!p.frozen&&!p.veg&&!p.dph)c.none.push(o);});
+  return c;
+}
+function schedStrip(plan){
+  const c=schedCounts(plan);
+  const chip=(cls,icon,label,list)=>list.length
+    ? `<span class="schip ${cls}" title="${esc(list.join(', '))}"><b>${icon}</b> ${label}
+         <em>${list.length}</em></span>`
+    : `<span class="schip off"><b>${icon}</b> ${label} <em>no order</em></span>`;
+  return `<div class="schedstrip">
+    ${chip('f2','&#10052;','2-Day Frozen',c.f2)}
+    ${chip('f1','&#10052;','1-Day Frozen',c.f1)}
+    ${chip('vg','&#127793;','Vegetables',c.veg)}
+    ${chip('dp','&#128230;','Dry / Pack / HK',c.dph)}
+    <button class="schedbtn" onclick="openSched()">View outlet schedule</button>
+    <span class="hint" style="margin-left:auto">${S.schedule?'from the loaded schedule file':'standard weekly schedule'}</span>
+  </div>`;
+}
+function openSched(){
+  const v=$('dispatchDate').value; if(!v)return;
+  const d=new Date(v+'T00:00:00'),w=new Date(d);w.setDate(w.getDate()-1);
+  const plan=planForWeekday(FULLDAY(w));
+  const yes='<span class="tick">&#10003;</span>', no='<span class="dashm">&ndash;</span>';
+  const body=OUTLETS.map(o=>{const p=plan[o],idle=!p.frozen&&!p.veg&&!p.dph;
+    return `<tr class="${idle?'idle':''}"><td><strong>${esc(o)}</strong></td>
+      <td class="ctr">${p.frozen?`<span class="schip ${p.frozen==='2D'?'f2':'f1'} mini">${p.frozen==='2D'?'2-Day':'1-Day'}</span>`:no}</td>
+      <td class="ctr">${p.veg?yes:no}</td>
+      <td class="ctr">${p.dph?yes:no}</td>
+      <td class="hint">${idle?'No order scheduled':''}</td></tr>`;}).join('');
+  const c=schedCounts(plan);
+  $('modalBody').innerHTML=`
+    <p class="hint" style="margin-bottom:12px">Working <strong>${FULLDAY(w)} ${FULLDATE(w)}</strong>
+      &rarr; Dispatch <strong>${FULLDAY(d)} ${FULLDATE(d)}</strong></p>
+    <table class="schedtable"><thead><tr><th>Outlet</th><th class="ctr">Frozen</th>
+      <th class="ctr">Vegetables</th><th class="ctr">DS / PM / HK</th><th></th></tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td><strong>TOTAL</strong></td>
+        <td class="ctr"><strong>${c.f2.length} &times; 2-Day · ${c.f1.length} &times; 1-Day</strong></td>
+        <td class="ctr"><strong>${c.veg.length||'—'}</strong></td>
+        <td class="ctr"><strong>${c.dph.length||'—'}</strong></td><td></td></tr></tfoot>
+    </table>
+    <p class="hint" style="margin-top:10px">${S.schedule
+      ? 'Read from the Outlet schedule dispatch file in the folder you loaded.'
+      : 'Standard weekly schedule built into the app. Load the day\'s folder to use that file instead.'}</p>`;
+  $('modal').classList.add('on');
+}
+function closeSched(){$('modal').classList.remove('on');}
+/* nothing runs until the files are in, a voucher is typed and the day is confirmed */
+/* ===== PRODUCT LINK PICKER ============================================= */
+let LINK_ITEMS=[];             /* [{name, cat, auto, how, score}] */
+function linkProducts(){
+  /* every product that can reach the PACT import: all Ideal tabs */
+  const seen={},out=[];
+  for(const [tab,cat] of Object.entries(TAB_CAT||{})){
+    if(!S.ideal||!S.ideal.SheetNames.includes(tab))continue;
+    for(const r of rows(S.ideal,tab).slice(2)){
+      if(!r||!r[0])continue;
+      const n=String(r[0]).trim();
+      if(seen[n])continue; seen[n]=1;
+      out.push({name:n,cat:cat||tab});
+    }
+  }
+  return out;
+}
+function scoreRow(q,m){return ratio(q.toLowerCase(),m.name.toLowerCase());}
+function candidatesFor(name,limit){
+  const fx=NAME_FIX[name]||name, key=erpKey(fx);
+  const exact=MASTER_ROWS.filter(m=>m.name===fx);
+  const norm =MASTER_ROWS.filter(m=>erpKey(m.name)===key&&!exact.includes(m));
+  const rest =MASTER_ROWS.filter(m=>!exact.includes(m)&&!norm.includes(m))
+    .map(m=>({m,s:scoreRow(fx,m)})).filter(x=>x.s>=0.45)
+    .sort((a,b)=>b.s-a.s).slice(0,limit||20).map(x=>x.m);
+  return exact.concat(norm,rest);
+}
+function linkStatus(it){
+  const L=linkedRow(it.name);
+  if(L) return {tag:'linked',cls:'tag-ok',text:'Linked'};
+  const fx=NAME_FIX[it.name]||it.name;
+  if(SKIP_ITEMS.has(fx)) return {tag:'skip',cls:'tag-miss',text:'Not an ERP item'};
+  if(DUP_NAMES.has(fx))  return {tag:'dup',cls:'tag-warn',text:'Duplicate name in master'};
+  const c=candidatesFor(it.name,3);
+  if(!c.length)          return {tag:'none',cls:'tag-miss',text:'No master row found'};
+  if(c.length>1&&erpKey(c[0].name)===erpKey(c[1].name))
+                         return {tag:'dup',cls:'tag-warn',text:'Two master rows match'};
+  const sc=scoreRow(fx,c[0]);
+  if(c[0].name===fx||erpKey(c[0].name)===erpKey(fx))
+                         return {tag:'auto',cls:'tag-ok',text:'Auto (exact)'};
+  if(sc>=ERP_FLOOR)      return {tag:'auto',cls:'tag-ok',text:'Auto '+(sc*100).toFixed(0)+'%'};
+  return {tag:'weak',cls:'tag-warn',text:'Weak guess '+(sc*100).toFixed(0)+'%'};
+}
+function optLabel(m){
+  return m.name+'   —   '+(m.code||'no code')+(m.group?'   —   '+m.group:'')+(m.L1U?'   —   '+m.L1U:'');
+}
+function renderLinks(){
+  const body=$('linkTable'); if(!body)return;
+  const q=($('linkFilter').value||'').toLowerCase().trim();
+  const onlyRisk=$('linkOnlyRisk').checked;
+  let list=LINK_ITEMS;
+  if(q) list=list.filter(x=>x.name.toLowerCase().includes(q));
+  const rowsOut=[];
+  for(const it of list){
+    const st=linkStatus(it);
+    if(onlyRisk && (st.tag==='auto'||st.tag==='skip') && !PLINK[it.name]) continue;
+    const cands=candidatesFor(it.name,25);
+    const cur=PLINK[it.name]||'';
+    const opts=['<option value="">— leave to automatic matching —</option>']
+      .concat(cands.map(m=>`<option value="${esc(m.code)}"${m.code===cur?' selected':''}>${esc(optLabel(m))}</option>`));
+    if(cur&&!cands.some(m=>m.code===cur)&&MASTER_BY_CODE[cur])
+      opts.splice(1,0,`<option value="${esc(cur)}" selected>${esc(optLabel(MASTER_BY_CODE[cur]))}</option>`);
+    rowsOut.push(`<tr>
+      <td style="white-space:nowrap"><span class="tag ${st.cls}">${esc(st.text)}</span></td>
+      <td>${esc(it.name)}<div class="hint">${esc(it.cat)}</div></td>
+      <td><select style="width:100%" data-name="${esc(it.name)}"
+            onchange="setLink(this.dataset.name,this.value)">${opts.join('')}</select>
+          <button class="btn btn-ghost btn-sm" style="margin-top:4px" data-name="${esc(it.name)}"
+            onclick="searchAll(this.dataset.name,this)">Search whole master…</button></td>
+    </tr>`);
+  }
+  body.innerHTML = rowsOut.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Status</th><th>Product on the Ideal sheet</th>
+       <th>Master row to use (name — code — group — unit)</th></tr></thead>
+       <tbody>${rowsOut.join('')}</tbody></table></div>`
+    : `<div class="banner banner-ok">Nothing needs a decision${q?' for that search':''}.</div>`;
+  const n=Object.keys(PLINK).length;
+  $('linkCount').textContent = n? n+' link'+(n===1?'':'s')+' set' : 'no links set yet';
+}
+function setLink(name,code){ if(code)PLINK[name]=code; else delete PLINK[name]; renderLinks(); }
+function searchAll(name,btn){
+  const q=prompt('Search the whole Product Master for:','');
+  if(q===null)return;
+  const t=q.toLowerCase().trim();
+  const hits=MASTER_ROWS.filter(m=>m.name.toLowerCase().includes(t)||(m.code||'').toLowerCase().includes(t)).slice(0,60);
+  if(!hits.length){alert('Nothing in the master matches "'+q+'".');return;}
+  const sel=btn.parentElement.querySelector('select');
+  const cur=PLINK[name]||'';
+  sel.innerHTML=['<option value="">— leave to automatic matching —</option>']
+    .concat(hits.map(m=>`<option value="${esc(m.code)}"${m.code===cur?' selected':''}>${esc(optLabel(m))}</option>`)).join('');
+  sel.focus();
+}
+function commitLinks(btn){
+  if(saveLinks()&&btn){const t=btn.textContent;btn.textContent='Saved';
+    setTimeout(()=>btn.textContent=t,1600);}
+  renderLinks();
+}
+function exportLinks(){
+  const blob=new Blob([JSON.stringify(PLINK,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='nutriobox-product-links.json';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+function clearLinks(){
+  if(!confirm('Remove every saved product link?'))return;
+  PLINK={};saveLinks();renderLinks();
+}
+function toggleLinks(){
+  const b=$('linkBody'),t=$('linkToggle');
+  const open=b.style.display==='none';
+  b.style.display=open?'':'none'; t.textContent=open?'Close':'Open';
+  if(open)renderLinks();
+}
+function prepLinks(){
+  const card=$('linkCard'); if(!card)return;
+  if(!(S.ideal&&S.master)){card.style.display='none';$('linkTeaser').innerHTML='';return;}
+  readMaster();                       /* fills MASTER_ROWS / DUP_NAMES */
+  loadLinks();
+  LINK_ITEMS=linkProducts();
+  card.style.display='';
+  const risky=LINK_ITEMS.filter(it=>{const st=linkStatus(it);
+    return st.tag==='dup'||st.tag==='weak'||st.tag==='none';}).length;
+  $('linkTeaser').innerHTML = risky
+    ? `<div class="banner banner-warn">${risky} product${risky===1?'':'s'} could go to the wrong PACT row —
+        open <strong>Product Master links</strong> below and choose the right master row once.</div>`
+    : `<div class="banner banner-ok">Every product resolves to a single master row.</div>`;
+  renderLinks();
+}
+function updateGate(){
+  const ready=!!(S.ideal&&S.schedule&&S.master&&Object.keys(S.outlets).length);
+  const vEl=$('startVoucher'), v=parseInt(vEl.value,10);
+  const vOK=!isNaN(v)&&v>0;
+  const dOK=$('dateOK').checked;
+  vEl.classList.toggle('missing',!vOK&&vEl.value!=='');
+  $('confirmBox').classList.toggle('done',dOK);
+  $('validateBtn').disabled=!(ready&&dOK);
+  $('generateBtn').disabled=!(ready&&dOK&&vOK);
+  const why=[];
+  if(!ready)      why.push('pick the date folder');
+  if(!dOK)        why.push('confirm the working &amp; dispatch day');
+  if(!vOK)        why.push('enter a start voucher number');
+  $('gateMsg').innerHTML=why.length?'Still needed: '+why.join(' · '):'';
+  return {ready,vOK,dOK};
+}
+/* ---- outlet-wise additional requirement rows ---- */
+const ADD_CATS=['Frozen','Vegetable','Dry Store','Packaging','Housekeeping'];
+let ADD_SEQ=0;
+function addRow(pre){
+  const id=++ADD_SEQ;
+  const d=document.createElement('div');
+  d.className='addrow'; d.id='addrow'+id;
+  d.innerHTML='<select class="ar-outlet">'+OUTLETS.map(o=>'<option'+(pre&&pre.o===o?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select>'
+    +'<select class="ar-cat">'+ADD_CATS.map(c=>'<option'+(pre&&pre.c===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select>'
+    +'<input class="ar-name" placeholder="Product name" value="'+(pre?esc(pre.n):'')+'">'
+    +'<input class="ar-uom" placeholder="UOM" value="'+(pre?esc(pre.u):'')+'">'
+    +'<input class="ar-qty" type="number" min="0" step="any" placeholder="Qty" value="'+(pre&&pre.q!==undefined?pre.q:'')+'">'
+    +'<button class="ar-del" title="Remove" onclick="delRow('+id+')">&times;</button>';
+  $('addRows').appendChild(d);
+  d.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',syncCount));
+  syncCount();
+}
+function delRow(id){const e=$('addrow'+id);if(e)e.remove();syncCount();}
+function clearRows(){$('addRows').innerHTML='';$('additional').value='';syncCount();}
+function rowsToLines(){
+  const out=[];
+  document.querySelectorAll('.addrow').forEach(d=>{
+    const n=d.querySelector('.ar-name').value.trim(); if(!n)return;
+    const o=d.querySelector('.ar-outlet').value;
+    const c=d.querySelector('.ar-cat').value;
+    const u=d.querySelector('.ar-uom').value.trim()||'Pcs';
+    const q=d.querySelector('.ar-qty').value.trim()||'1';
+    out.push(o+' | '+c+' | '+n+' | '+u+' | '+q);
+  });
+  return out;
+}
+/* what the parser sees = the rows plus anything pasted as text */
+function additionalText(){
+  return rowsToLines().concat((($('additional')||{}).value||'').split('\n')).join('\n');
+}
+function syncCount(){
+  const [items,errs]=parseAdditional(additionalText());
+  const by={}; items.forEach(a=>by[a[0]]=(by[a[0]]||0)+1);
+  const n=items.length, outlets=Object.keys(by).length;
+  const bad=errs.length?'  ·  '+errs.length+' line(s) not understood':'';
+  $('addCount').textContent = n ? n+' item(s) · '+outlets+' outlet(s) · '+outlets+' extra voucher(s)'+bad
+                                : (bad?bad.trim():'');
+}
+
+function showSchedule(){
+  if(!S.schedule||!$('dispatchDate').value)return;
+  const d=new Date($('dispatchDate').value+'T00:00:00'),w=new Date(d);w.setDate(w.getDate()-1);
+  const plan=readSchedule(w.toLocaleDateString('en-US',{weekday:'long'}));
+  const fmt=x=>x.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  const body=OUTLETS.map(o=>{const p=plan[o],s=!!(p.frozen||p.veg||p.dph),g=!!S.outlets[o];
+    const tag=g?'<span class="tag tag-ok">Uploaded</span>':s?'<span class="tag tag-miss">MISSING</span>':'<span class="tag tag-off">Not needed</span>';
+    return `<tr><td>${o}</td><td>${p.frozen||'—'}</td><td>${p.veg?'Yes':'—'}</td><td>${p.dph?'Yes':'—'}</td><td>${tag}</td></tr>`;}).join('');
+  const miss=OUTLETS.filter(o=>{const p=plan[o];return (p.frozen||p.veg||p.dph)&&!S.outlets[o];});
+  $('scheduleResult').innerHTML=`<div style="margin-top:18px">
+    <p class="hint" style="margin-bottom:12px">Working <strong>${fmt(w)}</strong> → Dispatch <strong>${fmt(d)}</strong></p>
+    ${miss.length?`<div class="banner banner-warn">${miss.length} scheduled outlet file(s) missing: ${miss.join(', ')}</div>`
+                 :`<div class="banner banner-ok">All scheduled outlet files present</div>`}
+    <table><thead><tr><th>Outlet</th><th>Frozen</th><th>Veg</th><th>DS/PM/HK</th><th>On-hand file</th></tr></thead>
+    <tbody>${body}</tbody></table>
+    ${$('urgentOn').checked?manualGrid(plan,stockHealth(),num($('urgentFill').value)||20):''}</div>`;
+}
+['urgentOn','urgentFill','urgentMax'].forEach(id=>{const e=$(id);if(e)e.onchange=()=>{manualReset();};});
+
+/* ===================== READ INPUTS ===================== */
+function readOnHand(){
+  const oh={};OUTLETS.forEach(o=>{oh[o]={};CATS.forEach(c=>oh[o][c]={});});
+  for(const [outlet,wb] of Object.entries(S.outlets))
+    for(const cat of CATS){
+      if(!wb.SheetNames.includes(cat))continue;
+      /* Every row is kept, even one the outlet left blank. Dropping blanks
+         used to shrink the candidate list to a handful, so the matcher had
+         almost nothing to match against and the confirmation dropdown came
+         up nearly empty. Blank is stored as null - it still never punches,
+         because the sum below ignores nulls.                             */
+      for(const r of rows(wb,cat).slice(2)){
+        if(!r||!r[0])continue;
+        const raw=r[2];
+        const v=(raw===null||raw===undefined||raw==='')?null:parseFloat(raw);
+        oh[outlet][cat][String(r[0]).trim()] = (v===null||isNaN(v))?null:v;}
+    }
+  return oh;
+}
+/* The master holds several rows that share a Product Name — Laccha
+   Paratha-Nutriobox exists twice, for instance. Keying only by name lets the
+   last row silently win and PACT receives the wrong product. So every row is
+   kept, addressed by its Product Code, and MASTER_ROWS is what the link
+   picker and the unit conversion both read. `erp` (name-keyed) is retained
+   for the matching tiers, with DUP_NAMES marking the unsafe names.        */
+let MASTER_ROWS=[], MASTER_BY_CODE={}, DUP_NAMES=new Set();
+function readMaster(){
+  ERPIDX=null;   /* master may have changed — rebuild the index lazily */
+  const erp={},R=rows(S.master,S.master.SheetNames[0]);
+  MASTER_ROWS=[];MASTER_BY_CODE={};DUP_NAMES=new Set();
+  const seen={};
+  for(const r of R.slice(2)){
+    if(!r||!r[3])continue;
+    const n=v=>{if(v===null||v===undefined)return null;const x=parseFloat(String(v).replace(/,/g,''));return isNaN(x)?null:x;};
+    const name=String(r[3]).trim(), code=r[1]?String(r[1]).trim():'';
+    const rec={code,label:r[2]?String(r[2]).trim():'',name,group:r[4]?String(r[4]).trim():'',
+      vendor:r[5]?String(r[5]).trim():'',
+      L1U:r[6],L1R:n(r[7]),L2U:r[8],L2R:n(r[9]),L3U:r[10],L3R:n(r[11])};
+    MASTER_ROWS.push(rec);
+    if(code)MASTER_BY_CODE[code]=rec;
+    if(seen[name])DUP_NAMES.add(name); else seen[name]=1;
+    erp[name]={L1U:r[6],L1R:n(r[7]),L2U:r[8],L2R:n(r[9]),L3U:r[10],L3R:n(r[11])};}
+  return erp;
+}
+
+/* ===== PRODUCT LINKS ====================================================
+   A one-time, hand-made decision: this Ideal-Inventory product IS this
+   master row, identified by Product Code. Held in localStorage so it
+   survives reloads, and exportable as JSON so it can be moved between
+   machines or kept beside the sheets.                                    */
+const TAB_CAT={'Frozen Single Day':'Frozen','Frozen Double Day':'Frozen','Vegetable':'Vegetable',
+  'Dry Store':'Dry Store','Packaging':'Packaging','Housekeeping':'Housekeeping'};
+const PLINK_KEY='nutriobox_product_links_v1';
+/* Confirmed by hand, 17-Aug-2026. These ship with the app so a fresh browser,
+   a new machine or a cleared cache still resolves them correctly. Anything you
+   set yourself overrides the entry here. */
+const BUILTIN_LINKS={
+  'Spinach Corn Kebab (40 Gms/480 Gms)':'FG0061',   /* Nutriobox - Sukhna foods */
+  'Pineapple Twist (300ML)'            :'FG0016',   /* Nutriobox                */
+  'Black Grapes (250 Gms)'             :'RM0012',   /* RM-Chiller               */
+  'Quinoa'                             :'RM0276'    /* RM-Dry Store             */
+};
+let PLINK={};
+function loadLinks(){
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem(PLINK_KEY)||'{}');}catch(e){saved={};}
+  PLINK=Object.assign({},BUILTIN_LINKS,saved);
+  return PLINK;
+}
+function saveLinks(){
+  try{localStorage.setItem(PLINK_KEY,JSON.stringify(PLINK));return true;}
+  catch(e){alert('Could not save the links in this browser.\n\n'+e.message
+    +'\n\nUse "Export links" and keep the file beside your sheets instead.');return false;}
+}
+function linkedRow(name){
+  const c=PLINK[name];
+  return c && MASTER_BY_CODE[c] ? MASTER_BY_CODE[c] : null;
+}
+/* NEW — per-outlet/category stock health used by both new validations */
+function stockHealth(){
+  const h={};
+  for(const [outlet,wb] of Object.entries(S.outlets)){
+    h[outlet]={};
+    for(const cat of CATS){
+      if(!wb.SheetNames.includes(cat))continue;
+      let total=0,zero=0,blank=0;
+      for(const r of rows(wb,cat).slice(2)){
+        if(!r||!r[0])continue; total++;
+        if(r[2]===null||r[2]===undefined||r[2]==='') blank++;
+        else if(num(r[2])<=0) zero++;
+      }
+      const filled=total-blank;
+      h[outlet][cat]={total,zero,blank,filled,
+        zeroPct: total?(zero/total*100):0, blankPct: total?(blank/total*100):0,
+        fillPct: total?(filled/total*100):0};
+    }
+  }
+  return h;
+}
+
+/* ===================== DISPATCH ===================== */
+/* Which detail tab stands in for a category that is NOT scheduled today.
+   Frozen always tops up from the 1-day sheet — an urgent top-up is never a 2-day order. */
+function urgentTabFor(tab,p){
+  if(tab==='Frozen Single Day') return !p.frozen;
+  if(tab==='Frozen Double Day') return false;
+  if(tab==='Vegetable')         return !p.veg;
+  return !p.dph;                 /* Dry Store / Packaging / Housekeeping */
+}
+function buildDispatch(plan,onhand,missing,ov,health,bulkPct,aliasMap,urgCfg,manual,blankZero){
+  const disp={},bulk={},urgent={},urgSkip=[],review=[],absent=[],crossCat=[],matchMap={};
+  const maxOh=(urgCfg&&!isNaN(urgCfg.maxOh))?urgCfg.maxOh:2;
+  OUTLETS.forEach(o=>{disp[o]={};CATS.forEach(c=>disp[o][c]=[]);matchMap[o]={};});
+  for(const o of OUTLETS) for(const c of CATS){
+    const h=health[o]&&health[o][c];
+    if(bulkPct!==null && h && h.total && h.zeroPct>=bulkPct) bulk[o+'|'+c]=h;
+  }
+  /* product list per source tab */
+  const tabProducts={};
+  for(const tab of Object.keys(DETAIL_TABS)){
+    if(!S.ideal.SheetNames.includes(tab))continue;
+    tabProducts[tab]=rows(S.ideal,tab).slice(2)
+      .filter(r=>r&&r[0]).map(r=>String(r[0]).trim());
+  }
+  /* resolve names once per outlet+category, with duplicate detection */
+  for(const [tab,cat] of Object.entries(DETAIL_TABS)){
+    if(!tabProducts[tab])continue;
+    for(const outlet of OUTLETS){
+      if(missing.has(outlet))continue;
+      const p=plan[outlet];
+      const active=(tab==='Frozen Single Day'&&p.frozen==='1D')||(tab==='Frozen Double Day'&&p.frozen==='2D')
+                 ||(tab==='Vegetable'&&p.veg)||(['Dry Store','Packaging','Housekeeping'].includes(tab)&&p.dph);
+      /* NOT scheduled — the tick grid decides. Boxes are pre-ticked by the auto rule
+         but the user's choice always wins. */
+      if(!active){
+        if(!urgCfg||!urgentTabFor(tab,p))continue;
+        const hh=health[outlet]&&health[outlet][cat];
+        if(!hh||!hh.total||!hh.filled)continue;
+        const sel=manual?manual[outlet+'|'+groupOfTab(tab)]:null;
+        if(!sel||!sel.on){ urgSkip.push({outlet,cat,tab,h:hh}); continue; }
+        urgent[outlet+'|'+tab]=sel.mode==='full'?'full':'low';
+      }
+      /* CATEGORY WALL: only this category's on-hand rows are ever offered */
+      const {map,review:rv,absent:ab}=resolveMatches(tabProducts[tab],Object.keys(onhand[outlet][cat]),aliasMap,outlet,cat);
+      matchMap[outlet][tab]=map;
+      review.push(...rv); absent.push(...ab);
+      crossCat.push(...crossCategoryProbe(
+        tabProducts[tab].filter(n=>{const m=map[n];return !(m&&m.names&&m.names.length);}),
+        onhand,outlet,cat));
+    }
+  }
+  for(const [tab,cat] of Object.entries(DETAIL_TABS)){
+    if(!S.ideal.SheetNames.includes(tab))continue;
+    for(const r of rows(S.ideal,tab).slice(2)){
+      if(!r||!r[0])continue;
+      const name=String(r[0]).trim(),uom=r[1]||'';
+      for(const outlet of OUTLETS){
+        if(missing.has(outlet))continue;
+        const mm=matchMap[outlet][tab]; if(!mm)continue;
+        if((ov.na[outlet]||[]).some(t=>name.toLowerCase().includes(t.toLowerCase())))continue;
+        const forced=(ov.qty[outlet]||{})[name];
+        if(forced!==undefined){disp[outlet][cat].push([name,uom,forced,'override']);continue;}
+        const c=RAW_COL[outlet],ideal=r[c],order=r[c+2];
+        const res=mm[name];
+        let oh=undefined,blanked=false;
+        if(res&&res.names&&res.names.length){
+          let s=0,got=false;
+          res.names.forEach(n=>{const v=onhand[outlet][cat][n];if(v!==undefined&&v!==null){s+=v;got=true;}});
+          if(got)oh=s;
+        }
+        const umode=urgent[outlet+'|'+tab];                              // not scheduled — selected on the grid
+        if(oh===undefined){
+          /* Blank on-hand. Normally nothing is ordered. With the switch on we read it
+             as 0 — but only for a SCHEDULED category, and only if the outlet actually
+             filled something in on that sheet, so a forgotten sheet stays untouched. */
+          const hh=health[outlet]&&health[outlet][cat];
+          if(!(blankZero && !umode && hh && hh.filled>0))continue;
+          oh=0; blanked=true;
+        }
+        if(order===null||order===undefined||num(order)===0)continue;    // no order qty → no punch
+        if(umode){
+          if(umode==='low'){
+            const idn=num(ideal);
+            if(!(idn>0 && num(oh)<idn && num(oh)<=maxOh))continue;
+            disp[outlet][cat].push([name,uom,num(order),'urgent']); continue;
+          }
+          const qf=punch(ideal,oh,order);                                 // full order = normal below-ideal rule
+          if(qf>0)disp[outlet][cat].push([name,uom,qf,'manual']);
+          continue;
+        }
+        const q=punch(ideal,oh,order);
+        if(q>0)disp[outlet][cat].push([name,uom,q,blanked?'blank0':'']);
+      }
+    }
+  }
+  return {disp,bulk,urgent,urgSkip,review,absent,crossCat,matchMap};
+}
+
+/* ===================== VALIDATION ===================== */
+function validate(plan,onhand,disp,erp,additional,missing,health,bulk,bulkPct,urgent,urgSkip,urgCfg,blankZero){
+  const out=[];
+
+  OUTLETS.forEach(o=>{if(!missing.has(o))return;
+    const p=plan[o],s=!!(p.frozen||p.veg||p.dph);
+    out.push({sev:s?'ERROR':'INFO',check:'Missing outlet file',outlet:o,item:'',
+      detail:'On-hand file not loaded'+(s?' — outlet IS scheduled today':' — not scheduled today')});});
+
+  /* CHECK — urgent top-up on a non-dispatch day */
+  if(urgCfg){
+    const byKey={};
+    OUTLETS.forEach(o=>CATS.forEach(c=>{
+      const n=disp[o][c].filter(x=>OFFSCHED(x[3])).length;
+      if(n)byKey[o+'|'+c]=n;}));
+    Object.entries(byKey).forEach(([k,n])=>{const [o,c]=k.split('|');
+      const hh=(health[o]||{})[c]||{};
+      const full=disp[o][c].some(x=>x[3]==='manual');
+      out.push({sev:'WARNING',check:'Punched without a schedule',outlet:o,item:c,
+        detail:`${c} is NOT scheduled for this outlet today — selected on the punch grid in `
+             +`"${full?'Full order':'Low stock only'}" mode. ${n} item(s) sent. `
+             +`Sheet was ${(hh.fillPct||0).toFixed(0)}% filled (${hh.filled||0}/${hh.total||0})`
+             +(full?'':` — only items at or below ${urgCfg.maxOh} on hand and under ideal`)});});
+    (urgSkip||[]).forEach(u=>out.push({sev:'INFO',check:'Not punched — no schedule',outlet:u.outlet,item:u.cat,
+      detail:`${u.cat} is NOT scheduled today and the outlet filled ${u.h.fillPct.toFixed(0)}% of the sheet `
+           +`(${u.h.filled}/${u.h.total}, over the ${urgCfg.fillCap}% cap) — left unticked on the punch grid, nothing ordered. `
+           +`Tick it on the setup screen if you do want to send it.`}));
+  }
+
+  /* ---- Product Master resolution, one line per distinct problem ---- */
+  buildErpIndex(erp);
+  const seen=new Set(), erpSeen={};
+  const noteErp=(o,name)=>{
+    const fx=NAME_FIX[name]||name; const k=fx;
+    if(erpSeen[k]){if(!erpSeen[k].outlets.includes(o))erpSeen[k].outlets.push(o);return erpSeen[k].R;}
+    const R=resolveErp(name,erp); erpSeen[k]={R,name,outlets:[o]}; return R;
+  };
+  OUTLETS.forEach(o=>CATS.forEach(c=>disp[o][c].forEach(([name])=>{
+    if(seen.has(o+name))return; seen.add(o+name); noteErp(o,name);})));
+  additional.forEach(([o,,name])=>noteErp(o,name));
+  Object.values(erpSeen).forEach(({R,name,outlets})=>{
+    const who=outlets.length>1?`${outlets.length} outlets`:outlets[0];
+    if(R.how==='skip')
+      out.push({sev:'WARNING',check:'Not in ERP master',outlet:who,item:name,
+        detail:'Known non-ERP item — appears on the challan only, punch it by hand in PACT'});
+    else if(R.how==='none')
+      out.push({sev:'ERROR',check:'Not in ERP master',outlet:who,item:name,
+        detail:'Nothing resembling this name is in the Product Master — it will NOT import. '
+             +'Add it to the master, or punch it manually.'});
+    else if(R.how==='refused')
+      out.push({sev:'ERROR',check:'Master match refused',outlet:who,item:name,
+        detail:`Closest master product is "${R.candidates[0]}" at ${(R.score*100).toFixed(0)}% — below the `
+             +`${(ERP_FLOOR*100).toFixed(0)}% safety floor, so it was NOT imported. `
+             +`If it is the same product, add the exact name to the Product Master.`});
+    else if(R.how==='ambiguous')
+      out.push({sev:'ERROR',check:'Two master products match',outlet:who,item:name,
+        detail:`Matches ${R.candidates.length} master rows equally well — ${R.candidates.join(' · ')}. `
+             +`Not imported; pick one by using its exact name.`});
+    else if(R.how==='close')
+      out.push({sev:'WARNING',check:'Master name differs',outlet:who,item:name,
+        detail:`Imported as "${R.erp}" (${(R.score*100).toFixed(0)}% alike). Check it is the right product.`});
+    else if(R.how==='normalised')
+      out.push({sev:'INFO',check:'Master name differs',outlet:who,item:name,
+        detail:`Imported as "${R.erp}" — same words, different spelling or order.`});
+    else if(R.how==='alias')
+      out.push({sev:'INFO',check:'Master name differs',outlet:who,item:name,
+        detail:`Imported as "${R.erp}" via the built-in correction list.`});
+  });
+
+  /* CHECK — blank on-hand cells are not punched */
+  for(const [outlet,cats] of Object.entries(health)){
+    const p=plan[outlet];
+    for(const [cat,h] of Object.entries(cats)){
+      const active=(cat==='Frozen'&&p.frozen)||(cat==='Vegetable'&&p.veg)
+                 ||(['Dry Store','Packaging','Housekeeping'].includes(cat)&&p.dph);
+      if(!active||!h.blank)continue;
+      const zeroed=blankZero&&h.filled>0;
+      out.push({sev:h.blank===h.total?'ERROR':(zeroed?'INFO':'WARNING'),
+        check:zeroed?'Blank on-hand — read as 0':'Blank on-hand — not punched',outlet,item:cat,
+        detail:zeroed
+          ? `${h.blank} of ${h.total} rows left blank (${h.blankPct.toFixed(0)}%) — read as 0 and ORDERED, because "treat blank as 0" is on`
+          : (h.blank===h.total
+             ? `All ${h.total} rows left blank — the outlet has not filled this sheet in, so nothing is ordered`
+             : `${h.blank} of ${h.total} rows left blank (${h.blankPct.toFixed(0)}%) — those items are NOT ordered`)});
+    }
+  }
+
+  /* CHECK — low-stock sheets / full replenishment triggered */
+  for(const [outlet,cats] of Object.entries(health)){
+    const p=plan[outlet];
+    for(const [cat,h] of Object.entries(cats)){
+      const active=(cat==='Frozen'&&p.frozen)||(cat==='Vegetable'&&p.veg)
+                 ||(['Dry Store','Packaging','Housekeeping'].includes(cat)&&p.dph);
+      if(!active||!h.total)continue;
+    }
+  }
+  return out;
+}
+
+/* Turn unresolved name matches into validation issues */
+function addMatchIssues(issues,review,absent,crossCat){
+  const byKind={};
+  review.forEach(r=>{const k=r.why+'|'+r.product+'|'+r.candidate;
+    (byKind[k]=byKind[k]||{...r,n:0}).n++;});
+  Object.values(byKind).forEach(r=>{
+    const where=r.n>1?`${r.n} outlets`:r.outlet;
+    if(r.why==='review')
+      issues.push({sev:'ERROR',check:'Name needs confirming',outlet:where,item:r.product,
+        detail:`Closest outlet-sheet name is "${r.candidate}" at ${(r.score*100).toFixed(0)}% — too low to trust, so NOT ordered. Decide it in the review table.`});
+    else if(r.why==='duplicate')
+      issues.push({sev:'ERROR',check:'Two products, one on-hand row',outlet:where,item:r.product,
+        detail:`Also matches "${r.candidate}" — cannot tell them apart, so NOT ordered. Decide it in the review table.`});
+  });
+  /* A refused match simply means the product is not on that outlet's
+     sheet. Nothing to decide — recorded for the audit trail only.    */
+  const byAbs={};
+  (absent||[]).forEach(a=>{const k=a.product+'|'+a.candidate;
+    (byAbs[k]=byAbs[k]||{...a,n:0}).n++;});
+  Object.values(byAbs).forEach(a=>{
+    /* only cite a "nearest entry" when it is actually close enough to
+       be worth mentioning — otherwise it just reads as noise         */
+    const detail = (a.candidate && a.score>=0.55)
+      ? `Nearest entry "${a.candidate}" differs on ${a.block} — a different product, so nothing ordered.`
+      : `This product is not on the outlet's sheet, so nothing ordered.`;
+    issues.push({sev:'INFO',check:'Not listed in outlet sheet',
+      outlet:a.n>1?`${a.n} outlets`:a.outlet,item:a.product,detail});
+  });
+  /* CATEGORY WALL — a look-alike existed, but on a different category's sheet */
+  const byX={};
+  (crossCat||[]).forEach(x=>{const k=x.cat+'|'+x.product+'|'+x.other+'|'+x.name;
+    (byX[k]=byX[k]||{...x,n:0}).n++;});
+  Object.values(byX).sort((a,b)=>b.score-a.score).forEach(x=>{
+    issues.push({sev:'INFO',check:'Blocked — different category',
+      outlet:x.n>1?`${x.n} outlets`:x.outlet,item:x.product,
+      detail:`Not on the ${x.cat} sheet. "${x.name}" on the ${x.other} sheet is ${(x.score*100).toFixed(0)}% alike, `
+           +`but ${x.cat} and ${x.other} are different in nature so it was NOT used. `
+           +`If they really are the same product, move it onto the ${x.cat} sheet.`});
+  });
+}
+
+/* ===================== ERP ===================== */
+/* ===== PRODUCT MASTER MATCHING =========================================
+   Everything that lands in Outlet.xlsx goes through resolveErp(). It answers
+   in tiers, and only the first four tiers are allowed to import. A guess we
+   are not sure of is REFUSED, not quietly imported as the wrong product.
+
+     exact       name is in the master verbatim
+     alias       hand-curated correction (NAME_FIX)
+     normalised  same words, different spelling/plural/order/punctuation
+     close       >= ERP_FLOOR alike and nothing conflicts
+     ambiguous   normalises onto two master rows — you pick
+     refused     best guess below the floor — challan only
+     none        nothing resembling it in the master
+     skip        known non-ERP item, punched by hand
+   ===================================================================== */
+const ERP_FLOOR=0.90;   /* evidence: every correct guess scored >=92%,
+                           the one wrong guess (Soya chips->Soya Chunks) 76% */
+const ERP_SPELL={freshner:'freshener',graphs:'grapes',rasins:'raisin',kishmish:'raisin',
+  phenyle:'phenyl',pumkin:'pumpkin',brest:'breast',vinagrate:'vinaigrette',
+  cholacate:'chocolate',chocolat:'chocolate',
+  gms:'gm',gram:'gm',grams:'gm',ltr:'l',litre:'l',liter:'l',
+  pcs:'pc',pieces:'pc',piece:'pc',pkts:'pkt',packets:'pkt',packet:'pkt',pkt:'pkt',
+  nos:'no',bunches:'bunch',boxs:'box'};
+function erpSing(w){
+  if(ERP_SPELL[w])return ERP_SPELL[w];
+  if(w.length>3&&/(?:s|x|z|ch|sh)es$/.test(w))return ERP_SPELL[w.slice(0,-2)]||w.slice(0,-2);
+  if(w.length>4&&w.endsWith('ies'))return ERP_SPELL[w.slice(0,-3)+'y']||(w.slice(0,-3)+'y');
+  if(w.length>3&&w.endsWith('s')&&!w.endsWith('ss'))return ERP_SPELL[w.slice(0,-1)]||w.slice(0,-1);
+  return w;
+}
+/* word-order and punctuation independent key */
+function erpKey(s){
+  return String(s).toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/)
+    .filter(Boolean).map(erpSing).sort().join(' ');
+}
+let ERPIDX=null;
+function buildErpIndex(erp){
+  ERPIDX={};
+  for(const n of Object.keys(erp)){const k=erpKey(n);(ERPIDX[k]=ERPIDX[k]||[]).push(n);}
+  return ERPIDX;
+}
+function resolveErp(name,erp){
+  const L=linkedRow(name);                       /* your decision wins outright */
+  if(L) return {erp:L.name,code:L.code,row:L,how:'linked',score:1,candidates:[]};
+  if(SKIP_ITEMS.has(name))         return {erp:null,how:'skip',score:1,candidates:[]};
+  /* The verbatim name comes FIRST. An alias in NAME_FIX was written when the
+     master lacked that exact spelling; if the master now carries the name as
+     written, redirecting through the alias can land on a different - and
+     sometimes duplicated - product. Pineapple Twist (300ML) is exactly that:
+     it exists as FG0016, while the alias pointed at a pair of rows both
+     called Pineapple Twist (300 Ml), which is unresolvable.               */
+  if(erp[name] && !DUP_NAMES.has(name))
+    return {erp:name,how:'exact',score:1,candidates:[]};
+  const fx=NAME_FIX[name]||name;
+  if(SKIP_ITEMS.has(fx))          return {erp:null,how:'skip',score:1,candidates:[]};
+  if(erp[fx] && !DUP_NAMES.has(fx))
+    return {erp:fx,how:fx===name?'exact':'alias',score:1,candidates:[]};
+  /* a name shared by two master rows can never be resolved by name alone */
+  if(DUP_NAMES.has(fx)) return {erp:null,how:'ambiguous',score:1,
+    candidates:MASTER_ROWS.filter(m=>m.name===fx).map(m=>m.name+'  ['+m.code+' · '+(m.group||'')+']').slice(0,6)};
+  if(!ERPIDX)buildErpIndex(erp);
+  const c=ERPIDX[erpKey(fx)];
+  if(c&&c.length===1)             return {erp:c[0],how:'normalised',score:1,candidates:[]};
+  if(c&&c.length>1)               return {erp:null,how:'ambiguous',score:1,candidates:c.slice(0,6)};
+  const g=smartMatch(fx,Object.keys(erp));
+  if(!g)                          return {erp:null,how:'none',score:0,candidates:[]};
+  const s=ratio(fx.toLowerCase(),g.toLowerCase());
+  return s>=ERP_FLOOR ? {erp:g,how:'close',score:s,candidates:[]}
+                      : {erp:null,how:'refused',score:s,candidates:[g]};
+}
+/* kept for callers that only want the name */
+function erpName(name,erp){return resolveErp(name,erp).erp;}
+function convert(p,unit,qty,erp,row){
+  const i=row||erp[p]; if(!i)return [unit,unit,qty];
+  const u=(unit||'').trim().toLowerCase(),l1=(i.L1U||'').trim(),l2=(i.L2U||'').trim(),l3=(i.L3U||'').trim();
+  const base=l1||unit;
+  if(l3&&u===l3.toLowerCase())return[l3,base,qty*(i.L3R||1)];
+  if(l2&&u===l2.toLowerCase())return[l2,base,qty*(i.L2R||1)];
+  if(l1&&u===l1.toLowerCase())return[l1,base,qty];
+  if(l3)return[l3,base,qty*(i.L3R||1)];
+  if(l2)return[l2,base,qty*(i.L2R||1)];
+  return [base,base,qty];
+}
+
+/* ===================== PARSERS ===================== */
+function matchOutlet(t){t=t.trim().toLowerCase();
+  return OUTLETS.find(o=>o.toLowerCase()===t||o.split(' ')[0].toLowerCase()===t)||OUTLETS.find(o=>o.toLowerCase().includes(t))||null;}
+function parseAdditional(text){
+  const out=[],err=[];
+  text.split('\n').forEach((raw,i)=>{const l=raw.trim();if(!l||l.startsWith('#'))return;
+    const p=l.split('|').map(x=>x.trim());
+    if(p.length<3){err.push(`Line ${i+1}: need Outlet | Category | Product`);return;}
+    const o=matchOutlet(p[0]);if(!o){err.push(`Line ${i+1}: unknown outlet "${p[0]}"`);return;}
+    const cat=CATS.find(c=>c.toLowerCase()===p[1].toLowerCase()||c.toLowerCase().startsWith(p[1].toLowerCase().slice(0,3)));
+    if(!cat){err.push(`Line ${i+1}: unknown category "${p[1]}"`);return;}
+    const q=p[4]!==undefined&&p[4]!==''?parseFloat(p[4]):1;
+    if(isNaN(q)){err.push(`Line ${i+1}: qty "${p[4]}" is not a number`);return;}
+    out.push([o,cat,p[2],p[3]||'Pcs',q]);});
+  return [out,err];
+}
+function parseAliases(text){
+  const map={},err=[];
+  text.split('\n').forEach((raw,i)=>{const l=raw.trim();if(!l||l.startsWith('#'))return;
+    const p=l.split('|').map(x=>x.trim());
+    if(p.length<2){err.push(`Mapping line ${i+1}: need Ideal name | outlet name (or SKIP)`);return;}
+    if(/^skip$/i.test(p[1])){map[p[0].toLowerCase()]=null;return;}
+    const many=p[1].split(';').map(x=>x.trim()).filter(Boolean);
+    map[p[0].toLowerCase()]=many.length>1?many:many[0];});
+  return [map,err];
+}
+function parseOverrides(naT,qtyT){
+  const na={},qty={},err=[];
+  naT.split('\n').forEach((raw,i)=>{const l=raw.trim();if(!l||l.startsWith('#'))return;
+    const p=l.split('|').map(x=>x.trim());
+    if(p.length<2){err.push(`NA line ${i+1}: need Outlet | text`);return;}
+    const o=matchOutlet(p[0]);if(!o){err.push(`NA line ${i+1}: unknown outlet "${p[0]}"`);return;}
+    (na[o]=na[o]||[]).push(p[1]);});
+  qtyT.split('\n').forEach((raw,i)=>{const l=raw.trim();if(!l||l.startsWith('#'))return;
+    const p=l.split('|').map(x=>x.trim());
+    if(p.length<3){err.push(`Qty line ${i+1}: need Outlet | Product | Qty`);return;}
+    const o=matchOutlet(p[0]);if(!o){err.push(`Qty line ${i+1}: unknown outlet "${p[0]}"`);return;}
+    const v=parseFloat(p[2]);if(isNaN(v)){err.push(`Qty line ${i+1}: "${p[2]}" not a number`);return;}
+    (qty[o]=qty[o]||{})[p[1]]=v;});
+  return [{na,qty},err];
+}
+
+/* ===================== RUN ===================== */
+const outFiles=[];
+$('validateBtn').onclick=()=>run(true);
+$('generateBtn').onclick=()=>run(false);
+function run(dry){
+  if(!$('dispatchDate').value){alert('Pick a dispatch date first.');return;}
+  $('spinner').classList.add('on');$('validateBtn').disabled=$('generateBtn').disabled=true;
+  setTimeout(async()=>{try{await doRun(dry);}catch(e){
+    $('results').innerHTML=`<div class="card"><div class="banner banner-err">${esc(e.message)}</div></div>`;console.error(e);}
+    finally{$('spinner').classList.remove('on');updateGate();}},40);
+}
+
+async function doRun(dry){
+  outFiles.length=0;
+  const [additional,ae]=parseAdditional(additionalText());
+  const [ov,oe]=parseOverrides($('naItems').value,$('qtyOverrides').value);
+  const [aliasMap,le]=parseAliases($('aliases').value);
+  const allErr=ae.concat(oe).concat(le);
+  if(allErr.length){
+    $('results').innerHTML=`<div class="card"><div class="banner banner-err">Input errors</div>
+      <ul class="error-list">${allErr.map(e=>`<li>${esc(e)}</li>`).join('')}</ul></div>`;return;}
+
+  const d=new Date($('dispatchDate').value+'T00:00:00'),w=new Date(d);w.setDate(w.getDate()-1);
+  const f1=x=>x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const full=x=>f1(x)+' ('+x.toLocaleDateString('en-US',{weekday:'short'})+')';
+  const fileStr=x=>String(x.getDate()).padStart(2,'0')+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+x.getFullYear();
+  const workStr=full(w),dispStr=full(d),dFile=fileStr(d),dLabel=f1(d);
+
+  const plan=readSchedule(w.toLocaleDateString('en-US',{weekday:'long'}));
+  const onhand=readOnHand(),erp=readMaster(),health=stockHealth();
+  const missing=new Set(OUTLETS.filter(o=>!S.outlets[o]));
+  const bulkPct=null;   /* full-replenishment rule removed — the 20% figure only ever applied
+                           to UNSCHEDULED categories, which the punch grid handles */
+  const blankZero=$('blankZero').checked;
+  const urgCfg=$('urgentOn').checked?{fillCap:num($('urgentFill').value)||20,maxOh:num($('urgentMax').value)}:null;
+  if(urgCfg&&isNaN(urgCfg.maxOh))urgCfg.maxOh=2;
+  const {disp,bulk,urgent,urgSkip,review,absent,crossCat,matchMap}=buildDispatch(plan,onhand,missing,ov,health,bulkPct,aliasMap,urgCfg,S.manual,blankZero);
+  const issues=validate(plan,onhand,disp,erp,additional,missing,health,bulk,bulkPct,urgent,urgSkip,urgCfg,blankZero);
+  addMatchIssues(issues,review,absent,crossCat);
+
+  const vStart=parseInt($('startVoucher').value,10);
+  if(isNaN(vStart)||vStart<1)throw new Error('Enter a start voucher number before generating.');
+  let vn=vStart;
+  const vouchers=[];
+  /* challan key -> voucher, so every challan can print its own number */
+  const vmap={};
+  OUTLETS.forEach(o=>{if(disp[o].Frozen.length){vmap[o+'|Frozen']=VP+vn;vouchers.push([vn++,o,'Frozen '+(plan[o].frozen||'1D'),disp[o].Frozen]);}});
+  OUTLETS.forEach(o=>{if(disp[o].Vegetable.length){vmap[o+'|Vegetable']=VP+vn;vouchers.push([vn++,o,'Vegetable',disp[o].Vegetable]);}});
+  OUTLETS.forEach(o=>{const c=[...disp[o]['Dry Store'],...disp[o].Packaging,...disp[o].Housekeeping];
+    if(c.length){vmap[o+'|DPH']=VP+vn;vouchers.push([vn++,o,'DS+PM+HK',c]);}});
+  const addBy={};additional.forEach(([o,,n,u,q])=>(addBy[o]=addBy[o]||[]).push([n,u,q]));
+  Object.keys(addBy).forEach(o=>{vmap[o+'|Additional']=VP+vn;vouchers.push([vn++,o,'Additional',addBy[o]]);});
+
+  const erpRows=[],summary=[],skipped=[],erpMap=[];
+  buildErpIndex(erp);
+  vouchers.forEach(([n,outlet,label,items])=>{
+    const valid=[];
+    items.forEach(([name,uom,qty])=>{
+      const R=resolveErp(name,erp);
+      erpMap.push({voucher:VP+n,outlet,label,name,uom,qty,
+        erp:R.erp,how:R.how,score:R.score,candidates:R.candidates});
+      if(!R.erp){skipped.push({outlet,name,how:R.how,score:R.score,candidates:R.candidates,voucher:VP+n});return;}
+      const en=R.erp;
+      const [cu,bu,bq]=convert(en,uom,qty,erp,R.row);valid.push([en,cu,qty,bu,bq]);});
+    if(!valid.length)return;
+    valid.forEach(([en,cu,oq,bu,bq])=>erpRows.push([dLabel,VP,n,'Factory',OUTLET_ERP[outlet],en,cu,oq,bu,bq,'','']));
+    summary.push([VP+n,dLabel,outlet,label,valid.length,valid.reduce((s,x)=>s+x[2],0)]);});
+
+  /* bread */
+  const bread={};BREAD_ITEMS.forEach(b=>bread[b]={per:{},uom:'Pkt'});
+  ['Frozen Single Day','Frozen Double Day'].forEach(tab=>{
+    if(!S.ideal.SheetNames.includes(tab))return;
+    const want=tab==='Frozen Single Day'?'1D':'2D';
+    rows(S.ideal,tab).slice(2).forEach(r=>{
+      if(!r||!r[0])return;
+      const name=String(r[0]).trim(),b=BREAD_ITEMS.find(x=>ratio(name,x)>=0.9);
+      if(!b)return; if(r[1])bread[b].uom=r[1];
+      OUTLETS.forEach(o=>{
+        if(missing.has(o))return;
+        const urg=urgent[o+'|'+tab];
+        if(!urg&&plan[o].frozen!==want)return;
+        const c=RAW_COL[o],m=smartMatch(name,Object.keys(onhand[o].Frozen));
+        const oh=m?onhand[o].Frozen[m]:undefined; if(oh===undefined)return;
+        let q;
+        if(urg==='low')       q=(num(r[c])>0&&num(oh)<num(r[c])&&num(oh)<=(urgCfg?urgCfg.maxOh:2))?num(r[c+2]):0;
+        else if(urg==='full') q=punch(r[c],oh,r[c+2]);
+        else                  q=punch(r[c],oh,r[c+2]);
+        bread[b].per[o]=(bread[b].per[o]||0)+q;});});});
+  const breadTotals=BREAD_ITEMS.map(b=>{const t=Object.values(bread[b].per).reduce((a,x)=>a+x,0);
+    return {item:b,uom:bread[b].uom,qty:b===BROWNIE?t*2:t,dbl:b===BROWNIE};});
+
+  const ctx={workStr,dispStr,workDay:w.toLocaleDateString('en-US',{weekday:'long'}),
+    dispDay:d.toLocaleDateString('en-US',{weekday:'long'}),plan,disp,addBy,missing:[...missing],bulk,urgent,urgSkip,urgCfg};
+  if(dry){render({...ctx,issues,summary:[],breadTotals:[],dry:true,review});return;}
+
+  /* ============ WRITE STYLED WORKBOOKS ============ */
+  await writeOrderOutlet({plan,onhand,missing,disp,additional,ov,bulk,workStr,dispStr,dFile,matchMap,urgent,urgCfg,blankZero,health});
+  await writeChallans({plan,disp,addBy,dLabel,dFile,vmap});
+  await writeErpUpload(erpRows,dLabel);
+  await writeVoucherSummary(summary,dLabel);
+  await writeBread(bread,breadTotals,workStr,dispStr,dLabel);
+  await writeValidation(issues,plan,missing,summary,health,bulk,bulkPct,workStr,dispStr,dLabel,urgent,urgCfg,disp,erpMap);
+  await writeMatchReview(review,workStr,dispStr,dLabel);
+
+  REPORT={...ctx,issues,summary,breadTotals,review,absent,erpRows,erpMap,bread,vouchers,
+    vFrom:vStart,vTo:vn-1,files:outFiles.slice()};
+  render({...ctx,issues,summary,breadTotals,dry:false,review,
+    vFrom:REPORT.vFrom,vTo:REPORT.vTo});
+  showReport();
+  $('startVoucher').value=vn;
+  $('voucherPill').textContent='Last voucher: V'+(vn-1);
+}
+
+/* ===================== WORKBOOK WRITERS ===================== */
+async function save(wb,filename,kind){
+  const buf=await wb.xlsx.writeBuffer();
+  outFiles.push({name:filename,kind,blob:new Blob([buf],
+    {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})});
+}
+
+async function writeOrderOutlet({plan,onhand,missing,disp,additional,ov,bulk,workStr,dispStr,dFile,matchMap,urgent,urgCfg,blankZero,health}){
+  const wb=new ExcelJS.Workbook();
+  wb.creator='NutrioBox Dispatch';wb.created=new Date();
+  const title=`Working ${workStr} | Dispatch ${dispStr}`;
+
+  /* ---- Order Summary (formulas into the Order tabs) ---- */
+  const sum=wb.addWorksheet('Order Summary',{pageSetup:LANDSCAPE,views:[{state:'frozen',ySplit:4}]});
+  sum.columns=[{width:32},...OUTLETS.map(()=>({width:14})),{width:14}];
+  titleRow(sum,1,'DAILY ORDER SUMMARY — '+title,12);
+  const bits=[];
+  const n2=OUTLETS.filter(o=>plan[o].frozen==='2D'),n1=OUTLETS.filter(o=>plan[o].frozen==='1D');
+  const vg=OUTLETS.filter(o=>plan[o].veg),dp=OUTLETS.filter(o=>plan[o].dph);
+  if(n2.length)bits.push(`2-Day Frozen: ${n2.length}`); if(n1.length)bits.push(`1-Day Frozen: ${n1.length}`);
+  if(vg.length)bits.push(`Vegetable: ${vg.length}`); if(dp.length)bits.push(`DS/PM/HK: ${dp.map(o=>o.split(' ')[0]).join(', ')}`);
+
+  /* A category belongs in the Order tabs and the Summary if it is scheduled today
+     OR anything was actually punched for it — a top-up on an unscheduled sheet
+     still goes out on a challan, so it must be visible in the working sheet. */
+  const hasLines=cat=>OUTLETS.some(o=>(disp[o]&&disp[o][cat]||[]).length>0);
+  const catsPresent=[];
+  if(n1.length||n2.length||hasLines('Frozen'))catsPresent.push('Frozen');
+  if(vg.length||hasLines('Vegetable'))catsPresent.push('Vegetable');
+  if(dp.length||hasLines('Dry Store')||hasLines('Packaging')||hasLines('Housekeeping'))
+    catsPresent.push('Dry Store','Packaging','Housekeeping');
+  const extra=catsPresent.filter(c=>{
+    const sched=c==='Frozen'?(n1.length||n2.length):c==='Vegetable'?vg.length:dp.length;
+    return !sched&&hasLines(c);});
+  if(extra.length)bits.push(`Top-up (not scheduled): ${extra.join(', ')}`);
+  if(missing.size)bits.push(`Missing: ${[...missing].join(', ')}`);
+  const sub=sum.getCell(2,1);sub.value=bits.join('  |  ');
+  sub.font={italic:true,size:10,color:{argb:'FF555555'}};sum.mergeCells(2,1,2,12);
+  headerRow(sum,4,['Category',...OUTLETS,'Grand Total']);
+
+  /* Pre-compute how many rows each Order tab will hold, so the Summary can
+     point at that tab's exact GRAND TOTAL row instead of summing blindly. */
+  const detailRowOf={};
+  /* A detail tab is only worth listing if at least one outlet is actually taking
+     that tab today — otherwise Frozen Order would stack the 1-Day and 2-Day
+     sheets on top of each other and every frozen item would appear twice. */
+  const tabInUse=tab=>OUTLETS.some(o=>{
+    if(missing.has(o))return false;
+    const p=plan[o];
+    if(tab==='Frozen Single Day')return p.frozen==='1D'||!!(urgent&&urgent[o+'|'+tab]);
+    if(tab==='Frozen Double Day')return p.frozen==='2D';
+    if(tab==='Vegetable')        return p.veg||!!(urgent&&urgent[o+'|'+tab]);
+    return p.dph||!!(urgent&&urgent[o+'|'+tab]);
+  });
+  /* Which frozen tab is each outlet on today? Both frozen sheets carry the same
+     products in the same order, so the Frozen Order tab lists every product ONCE
+     and each outlet column simply reads from the tab that outlet is scheduled on. */
+  const frozenTabOf={};
+  OUTLETS.forEach(o=>{
+    if(missing.has(o))return;
+    const p=plan[o];
+    if(p.frozen==='2D')                       frozenTabOf[o]='Frozen Double Day';
+    else if(p.frozen==='1D')                  frozenTabOf[o]='Frozen Single Day';
+    else if(urgent&&urgent[o+'|Frozen Single Day']) frozenTabOf[o]='Frozen Single Day';
+  });
+  Object.entries(DETAIL_TABS).forEach(([tab,cat])=>{
+    if(!S.ideal.SheetNames.includes(tab))return;
+    if(!tabInUse(tab))return;
+    /* Frozen: only build the product list once, from whichever frozen tab is in use */
+    if(cat==='Frozen'&&detailRowOf.Frozen)return;
+    const list=detailRowOf[cat]=detailRowOf[cat]||[];
+    /* products are written into the detail tab from row 4 (r1 title, r2+r3 header) */
+    let dr=4;
+    rows(S.ideal,tab).slice(2).forEach(r=>{
+      if(!r||!r[0])return;
+      list.push({name:String(r[0]).trim(),uom:r[1]||'',tab,row:dr,
+                 perOutletTab:cat==='Frozen'?frozenTabOf:null});dr++;});
+  });
+  const orderTotalRow={};
+  catsPresent.forEach(cat=>{ orderTotalRow[cat]=4+(detailRowOf[cat]||[]).length; });
+
+  let sr=5;const sumRows=[];
+  catsPresent.forEach(cat=>{
+    const tab=ORDER_TAB[cat],tr=orderTotalRow[cat],r=sum.getRow(sr);
+    r.getCell(1).value=cat; styleCell(r.getCell(1),{});
+    for(let i=0;i<10;i++){
+      const cell=r.getCell(2+i);
+      cell.value={formula:`'${tab}'!${colLetter(3+i)}${tr}`};
+      styleCell(cell,{align:'center'});
+    }
+    const g=r.getCell(12);g.value={formula:`'${tab}'!N${tr}`};   /* Total moved to N (M = Additional Req.) */
+    styleCell(g,{bold:true,align:'center',bg:C.grey});
+    sumRows.push(sr);sr++;
+  });
+  if(additional.length){
+    const per={};OUTLETS.forEach(o=>per[o]=0);
+    additional.forEach(([o,,,,q])=>per[o]+=num(q));
+    const r=sum.getRow(sr);r.getCell(1).value='Additional (Add-on)';
+    styleCell(r.getCell(1),{bold:true});
+    OUTLETS.forEach((o,i)=>{const c=r.getCell(2+i);c.value=per[o]||0;
+      styleCell(c,{align:'center',bold:per[o]>0,bg:per[o]>0?C.yellow:undefined});});
+    const g=r.getCell(12);g.value={formula:`SUM(B${sr}:K${sr})`};
+    styleCell(g,{bold:true,align:'center',bg:C.yellow});
+    sumRows.push(sr);sr++;
+  }
+  const gr=sum.getRow(sr);gr.getCell(1).value='GRAND TOTAL';
+  styleCell(gr.getCell(1),{bold:true,bg:C.okGreen});
+  for(let i=0;i<11;i++){const c=gr.getCell(2+i);
+    const L=colLetter(2+i);
+    c.value={formula:`SUM(${L}${sumRows[0]}:${L}${sumRows[sumRows.length-1]})`};
+    styleCell(c,{bold:true,align:'center',bg:C.okGreen});}
+
+  /* ---- Additional Order ---- */
+  if(additional.length){
+    const ws=wb.addWorksheet('Additional Order',{pageSetup:LANDSCAPE});
+    ws.columns=[{width:22},{width:15},{width:55},{width:10},{width:10},{width:34}];
+    titleRow(ws,1,'ADDITIONAL ORDER — '+title,6);
+    headerRow(ws,3,['Outlet','Category','Product Name','UOM','Qty','Notes']);
+    let r=4,prev=null;
+    additional.forEach(([o,c,n,u,q])=>{
+      const nonErp=SKIP_ITEMS.has(NAME_FIX[n]||n),row=ws.getRow(r);
+      [o,c,n,u,q,nonErp?'Add-on — NOT in ERP, punch manually':'Add-on'].forEach((v,i)=>{
+        const cell=row.getCell(i+1);cell.value=v;
+        styleCell(cell,{align:i===3||i===4?'center':'left',
+          bg:nonErp?C.red:(o!==prev?C.yellow:undefined),bold:nonErp});});
+      prev=o;r++;});
+    const t=ws.getRow(r);t.getCell(1).value='TOTAL';
+    t.getCell(5).value={formula:`SUM(E4:E${r-1})`};
+    [1,2,3,4,5,6].forEach(i=>styleCell(t.getCell(i),{bold:true,bg:C.okGreen,align:i===5?'center':'left'}));
+  }
+
+  /* ---- Order tabs (live links into the detail tabs) ---- */
+  catsPresent.forEach(cat=>{
+    const tabName=ORDER_TAB[cat],items=detailRowOf[cat]||[];
+    if(!items.length)return;
+    const ws=wb.addWorksheet(tabName,{pageSetup:LANDSCAPE,views:[{state:'frozen',xSplit:2,ySplit:3}]});
+    /* cols: A name, B uom, C..L the 10 outlets, M Additional (you type here), N Total */
+    ws.columns=[{width:45},{width:9},...OUTLETS.map(()=>({width:12})),{width:16},{width:12}];
+    titleRow(ws,1,`${cat} — ${title}`,14);
+    headerRow(ws,3,['PRODUCT NAME','UOM',...OUTLETS,'Additional Req.','Total']);
+    /* make the manual column obvious */
+    const ah=ws.getRow(3).getCell(13);
+    styleCell(ah,{bold:true,color:C.white,bg:'FF8A5A00',align:'center'});
+    let r=4;
+    items.forEach(it=>{
+      const row=ws.getRow(r);
+      row.getCell(1).value={formula:`'${it.tab}'!A${it.row}`};
+      row.getCell(2).value={formula:`'${it.tab}'!B${it.row}`};
+      styleCell(row.getCell(1),{});styleCell(row.getCell(2),{align:'center'});
+      OUTLETS.forEach((o,i)=>{
+        const punchCol=colLetter(6+i*4);       // punch column in the detail tab
+        const c=row.getCell(3+i);
+        /* frozen: read the tab THIS outlet is scheduled on, so 1-Day and 2-Day
+           outlets sit side by side on a single row instead of two separate blocks */
+        const src=it.perOutletTab?(it.perOutletTab[o]||null):it.tab;
+        if(!src){c.value=null;styleCell(c,{align:'center',bg:C.grey});return;}
+        c.value={formula:`IF('${src}'!${punchCol}${it.row}="","",'${src}'!${punchCol}${it.row})`};
+        styleCell(c,{align:'center'});});
+      const ad=row.getCell(13);                // <- blank, yours to fill in
+      ad.value=null;
+      styleCell(ad,{align:'center',bg:C.yellow});
+      const t=row.getCell(14);
+      t.value={formula:`SUM(C${r}:M${r})`};    // total now includes your manual entry
+      styleCell(t,{bold:true,align:'center',bg:C.grey});
+      r++;});
+    const g=ws.getRow(r);g.getCell(1).value='GRAND TOTAL';
+    styleCell(g.getCell(1),{bold:true,bg:C.okGreen});styleCell(g.getCell(2),{bg:C.okGreen});
+    for(let i=0;i<12;i++){const L=colLetter(3+i),c=g.getCell(3+i);
+      c.value={formula:`SUM(${L}4:${L}${r-1})`};
+      styleCell(c,{bold:true,align:'center',bg:i===10?C.yellow:C.okGreen});}
+    ws.autoFilter={from:{row:3,column:1},to:{row:3,column:2}};
+  });
+
+  /* ---- Category detail tabs (Ideal / On Hand / Order / Punch formula) ---- */
+  for(const [tab,cat] of Object.entries(DETAIL_TABS)){
+    if(!S.ideal.SheetNames.includes(tab))continue;
+    const ws=wb.addWorksheet(tab,{pageSetup:LANDSCAPE,views:[{state:'frozen',xSplit:2,ySplit:2}]});
+    ws.columns=[{width:45},{width:9},...OUTLETS.flatMap(()=>[{width:9},{width:10},{width:9},{width:11}])];
+    const span=2+OUTLETS.length*4;
+    titleRow(ws,1,`Category: ${tab} — ${title}`,span);
+    // two-tier header: outlet name across 4 columns, then field names
+    const h1=ws.getRow(2),h2=ws.getRow(3);
+    h1.getCell(1).value='PRODUCT NAME';h1.getCell(2).value='UOM';
+    ws.mergeCells(2,1,3,1);ws.mergeCells(2,2,3,2);
+    styleCell(h1.getCell(1),{bold:true,color:C.white,bg:C.green,align:'center'});
+    styleCell(h1.getCell(2),{bold:true,color:C.white,bg:C.green,align:'center'});
+    OUTLETS.forEach((o,i)=>{
+      const c0=3+i*4;
+      h1.getCell(c0).value=o; ws.mergeCells(2,c0,2,c0+3);
+      styleCell(h1.getCell(c0),{bold:true,color:C.white,bg:C.greenDark,align:'center'});
+      ['Ideal','On Hand','Order','Punch Qty'].forEach((f,k)=>{
+        const c=h2.getCell(c0+k);c.value=f;
+        styleCell(c,{bold:true,color:C.white,bg:C.green,align:'center'});});});
+    h1.height=20;h2.height=22;
+
+    let r=4;
+    rows(S.ideal,tab).slice(2).forEach(src=>{
+      if(!src||!src[0])return;
+      const name=String(src[0]).trim(),row=ws.getRow(r);
+      row.getCell(1).value=name;row.getCell(2).value=src[1]||'';
+      styleCell(row.getCell(1),{});styleCell(row.getCell(2),{align:'center'});
+      OUTLETS.forEach((o,i)=>{
+        const c0=3+i*4,p=plan[o];
+        const active=(tab==='Frozen Single Day'&&p.frozen==='1D')||(tab==='Frozen Double Day'&&p.frozen==='2D')
+                   ||(tab==='Vegetable'&&p.veg)||(['Dry Store','Packaging','Housekeeping'].includes(tab)&&p.dph);
+        const umode=urgent&&urgent[o+'|'+tab], isUrg=!!umode;
+        const cells=[row.getCell(c0),row.getCell(c0+1),row.getCell(c0+2),row.getCell(c0+3)];
+        if((!active&&!isUrg)||missing.has(o)){cells.forEach(c=>styleCell(c,{align:'center',bg:C.grey}));return;}
+        const rc=RAW_COL[o],ideal=src[rc],order=src[rc+2];
+        const mm=matchMap&&matchMap[o]&&matchMap[o][tab];
+        const res=mm?mm[name]:null;
+        let oh=undefined;
+        if(res&&res.names&&res.names.length){
+          let s=0,got=false;
+          res.names.forEach(nn=>{const v=onhand[o][cat][nn];if(v!==undefined&&v!==null){s+=v;got=true;}});
+          if(got)oh=s;
+        }
+        cells[0].value=ideal??null; cells[1].value=oh??null; cells[2].value=order??null;
+        const IL=colLetter(c0),OL=colLetter(c0+1),RL=colLetter(c0+2);
+        const naHit=(ov.na[o]||[]).some(t=>name.toLowerCase().includes(t.toLowerCase()));
+        const forced=(ov.qty[o]||{})[name];
+        if(naHit){ cells[3].value=null; }
+        else if(forced!==undefined){ cells[3].value=forced; }
+        else if(order===null||order===undefined||num(order)===0){ cells[3].value=null; }
+        else if(oh===undefined&&!(blankZero&&!umode&&(health[o]||{})[cat]&&health[o][cat].filled>0)){ cells[3].value=null; }
+        else if(oh===undefined){ /* blank read as 0 → order the full qty */ cells[3].value={formula:`${RL}${r}`}; }
+        else if(umode==='low'){ cells[3].value={formula:
+          `IF(${OL}${r}="",0,IF(AND(N(${OL}${r})<N(${IL}${r}),N(${OL}${r})<=${urgCfg?urgCfg.maxOh:2}),${RL}${r},0))`}; }
+        else if(umode==='full'){ cells[3].value={formula:
+          `IF(${OL}${r}="",0,IF(N(${IL}${r})<=N(${OL}${r}),0,${RL}${r}))`}; }
+        else { cells[3].value={formula:`IF(N(${IL}${r})<=N(${OL}${r}),0,${RL}${r})`}; }
+        styleCell(cells[0],{align:'center'});
+        const blank0=oh===undefined&&cells[3].value!==null;
+        styleCell(cells[1],{align:'center',bg:oh===undefined?(blank0?C.amber:C.red):(num(oh)<=0?C.amber:undefined)});
+        styleCell(cells[2],{align:'center'});
+        styleCell(cells[3],{align:'center',bold:true,
+          bg:naHit?C.grey:forced!==undefined?C.yellow:isUrg?C.amber:undefined});
+      });
+      r++;});
+    ws.autoFilter={from:{row:3,column:1},to:{row:3,column:2}};
+  }
+  await save(wb,`Order Outlet_${dFile}.xlsx`,'Working sheet — live formulas, colour-coded');
+}
+
+function challanSheet(wb,outlet,items,label,dLabel,voucher){
+  /* one outlet = one printed page */
+  const ws=wb.addWorksheet(outlet.slice(0,31),{pageSetup:{...LANDSCAPE,fitToWidth:1,fitToHeight:1,scale:undefined}});
+  ws.properties.defaultRowHeight=15;
+  ws.columns=[{width:42},{width:9},{width:9},{width:3},{width:42},{width:9},{width:9},{width:3}];
+  const store=outlet.split(' ')[0]+'.'+outlet.split(' ').slice(1).join('');
+  titleRow(ws,1,`${store}  —  ${label}${voucher?'   |   Voucher '+voucher:''}`,8);
+  const info=[['Dispatch Date',dLabel,'Voucher No.',voucher||''],
+              ['Store',store+' - 1D','Vehicle No.',''],
+              ['Dispatch Manager','','Driver',''],
+              ['Packed By','','Received By',''],
+              ['Checked By','','','']];
+  let r=3;
+  info.forEach(([a,b,c,d])=>{
+    const row=ws.getRow(r);
+    row.getCell(1).value=a;row.getCell(2).value=b;row.getCell(5).value=c;row.getCell(6).value=d;
+    styleCell(row.getCell(1),{bold:true,bg:C.head,nowrap:true});styleCell(row.getCell(2),{nowrap:true});
+    styleCell(row.getCell(5),{bold:true,bg:C.head,nowrap:true});styleCell(row.getCell(6),{nowrap:true});
+    ws.mergeCells(r,2,r,3);ws.mergeCells(r,6,r,7);r++;});
+  r++;
+  headerRow(ws,r,['PRODUCT NAME','UOM','QTY','','PRODUCT NAME','UOM','QTY','']);
+  ws.getRow(r).height=15;
+  const hdr=r;r++;
+  const half=Math.ceil(items.length/2),L=items.slice(0,half),R=items.slice(half);
+  for(let i=0;i<Math.max(L.length,R.length);i++){
+    const a=L[i]||['','',''],b=R[i]||['','',''],row=ws.getRow(r);
+    const flagA=a[3],flagB=b[3];
+    [a[0],a[1],a[2],'',b[0],b[1],b[2],''].forEach((v,k)=>{
+      const c=row.getCell(k+1);c.value=v===''?null:v;
+      const fl=(k<3)?flagA:(k>3&&k<7)?flagB:null;
+      styleCell(c,{align:(k===1||k===2||k===5||k===6)?'center':'left',nowrap:true,
+        bg:OFFSCHED(fl)?C.amber:undefined});});
+    r++;}
+  /* every row the same height so the challan prints tight */
+  for(let k=1;k<=r+1;k++) ws.getRow(k).height=15;
+  ws.getRow(1).height=20;                       // title
+  const t=ws.getRow(r+1);
+  t.getCell(1).value=`Total lines: ${items.length}`;
+  t.getCell(3).value={formula:`SUM(C${hdr+1}:C${r-1})+SUM(G${hdr+1}:G${r-1})`};
+  t.getCell(5).value='Total qty';
+  styleCell(t.getCell(1),{bold:true,bg:C.okGreen});
+  styleCell(t.getCell(3),{bold:true,bg:C.okGreen,align:'center'});
+  styleCell(t.getCell(5),{bold:true,bg:C.okGreen});
+  return ws;
+}
+
+async function writeChallans({plan,disp,addBy,dLabel,dFile,vmap}){
+  const V=(o,k)=>(vmap&&vmap[o+'|'+k])||'';
+  const jobs=[
+    ['Frozen',null,`Challan_Frozen_${dFile}.xlsx`,'One tab per outlet'],
+    ['Vegetable','Vegetable',`Challan_Vegetable_${dFile}.xlsx`,'One tab per outlet'],
+    ['DPH','Dry Store / PM / HK',`Challan_DryStore_PM_HK_${dFile}.xlsx`,'Combined DS + PM + HK'],
+  ];
+  for(const [key,label,fname,kind] of jobs){
+    const wb=new ExcelJS.Workbook();let any=false;
+    for(const o of OUTLETS){
+      const items=key==='DPH'?[...disp[o]['Dry Store'],...disp[o].Packaging,...disp[o].Housekeeping]:disp[o][key];
+      if(!items.length)continue;
+      const allUrg=items.length&&items.every(x=>OFFSCHED(x[3]));
+      const base=key==='Frozen'?`Frozen (${plan[o].frozen||'1D'})`:label;
+      challanSheet(wb,o,items,allUrg?base+' — NOT A SCHEDULED DISPATCH (punched manually)':base,dLabel,V(o,key));any=true;}
+    if(any)await save(wb,fname,kind);
+  }
+  const keys=Object.keys(addBy);
+  if(keys.length){
+    const wb=new ExcelJS.Workbook();
+    keys.forEach(o=>challanSheet(wb,o,addBy[o].map(x=>[...x,'']),'Additional',dLabel,V(o,'Additional')));
+    await save(wb,`Challan_Additional_${dFile}.xlsx`,'Add-on items');
+  }
+}
+
+async function writeErpUpload(erpRows,dLabel){
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('Outlet',{views:[{state:'frozen',ySplit:1}]});
+  ws.columns=[{width:14},{width:12},{width:10},{width:12},{width:30},{width:45},
+              {width:14},{width:10},{width:12},{width:12},{width:10},{width:10}];
+  headerRow(ws,1,['Voucher Date','Prefix','Number','Location ','Location Transfer','Product Name',
+    'Converstion Units','OutletQty','Base Units','Base Qty','Unit Price','Value']);
+  erpRows.forEach((r,i)=>{
+    const row=ws.getRow(i+2);
+    r.forEach((v,k)=>{const c=row.getCell(k+1);c.value=v===''?null:v;
+      styleCell(c,{align:[2,7,9].includes(k)?'center':'left',border:false});});});
+  await save(wb,'Outlet.xlsx','PACT ERP import file');
+}
+
+async function writeVoucherSummary(summary,dLabel){
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('Voucher Summary',{pageSetup:LANDSCAPE,views:[{state:'frozen',ySplit:1}]});
+  ws.columns=[{width:22},{width:16},{width:22},{width:20},{width:12},{width:12}];
+  headerRow(ws,1,['Voucher No','Date','Outlet','Category','Line Count','Total Qty']);
+  summary.forEach((s,i)=>{const row=ws.getRow(i+2);
+    s.forEach((v,k)=>{const c=row.getCell(k+1);c.value=v;
+      styleCell(c,{align:k>=4?'center':'left'});});});
+  const r=summary.length+2,t=ws.getRow(r);
+  t.getCell(1).value='TOTAL';
+  t.getCell(5).value={formula:`SUM(E2:E${r-1})`};
+  t.getCell(6).value={formula:`SUM(F2:F${r-1})`};
+  [1,2,3,4,5,6].forEach(i=>styleCell(t.getCell(i),{bold:true,bg:C.okGreen,align:i>=5?'center':'left'}));
+  await save(wb,`Voucher Summary_${dLabel}.xlsx`,'One row per voucher');
+}
+
+async function writeBread(bread,totals,workStr,dispStr,dLabel){
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('Bread Order',{pageSetup:LANDSCAPE});
+  ws.columns=[{width:6},{width:40},{width:9},...OUTLETS.map(()=>({width:12})),{width:16}];
+  titleRow(ws,1,'BREAD ORDER — Working '+workStr+' | Dispatch '+dispStr,14);
+  headerRow(ws,3,['S.No','Product Name','UOM',...OUTLETS,'Total Order Qty']);
+  let r=4;
+  totals.forEach((b,i)=>{
+    const row=ws.getRow(r);
+    row.getCell(1).value=i+1;row.getCell(2).value=b.item;row.getCell(3).value=b.uom;
+    styleCell(row.getCell(1),{align:'center'});styleCell(row.getCell(2),{});
+    styleCell(row.getCell(3),{align:'center'});
+    OUTLETS.forEach((o,k)=>{const c=row.getCell(4+k);c.value=bread[b.item].per[o]||0;
+      styleCell(c,{align:'center'});});
+    const t=row.getCell(14);
+    t.value=b.dbl?{formula:`SUM(D${r}:M${r})*2`}:{formula:`SUM(D${r}:M${r})`};
+    styleCell(t,{bold:true,align:'center',bg:b.dbl?C.yellow:C.okGreen});
+    r++;});
+  const note=ws.getCell(r+1,2);
+  note.value='Brownie total is doubled automatically (×2).';
+  note.font={italic:true,size:10,color:{argb:'FF8A5A00'}};
+  await save(wb,`Bread Order_${dLabel}.xlsx`,'Brownie auto-doubled');
+}
+
+async function writeValidation(issues,plan,missing,summary,health,bulk,bulkPct,workStr,dispStr,dLabel,urgent,urgCfg,disp,erpMap){
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('Validation Report',{pageSetup:LANDSCAPE});
+  ws.columns=[{width:14},{width:26},{width:22},{width:26},{width:72},{width:11},{width:9},{width:9},{width:44}];
+  const errs=issues.filter(i=>i.sev==='ERROR'),warns=issues.filter(i=>i.sev==='WARNING');
+  titleRow(ws,1,'VALIDATION REPORT — Working '+workStr+' | Dispatch '+dispStr,6);
+  const st=ws.getCell(2,1);
+  st.value=errs.length?`FAILED — ${errs.length} error(s), ${warns.length} warning(s)`
+    :warns.length?`PASSED WITH WARNINGS — ${warns.length} warning(s)`:'ALL CHECKS PASSED';
+  st.font={bold:true,size:12};st.fill=fill(errs.length?C.red:warns.length?C.yellow:C.okGreen);
+  st.alignment={horizontal:'center'};ws.mergeCells(2,1,2,6);ws.getRow(2).height=22;
+
+  let r=4;
+  ws.getCell(r,1).value="TODAY'S SCHEDULE";ws.getCell(r,1).font={bold:true,size:11};r++;
+  headerRow(ws,r,['Outlet','Frozen','Vegetable','DS/PM/HK','On-hand file','']);r++;
+  OUTLETS.forEach(o=>{
+    const p=plan[o],got=!missing.has(o),row=ws.getRow(r);
+    [o,p.frozen||'—',p.veg?'Yes':'—',p.dph?'Yes':'—',got?'Uploaded':'MISSING',''].forEach((v,i)=>{
+      const c=row.getCell(i+1);c.value=v;
+      styleCell(c,{align:i===0?'left':'center',bg:i===4?(got?C.okGreen:C.red):undefined,bold:i===4});});
+    r++;});
+
+  r++;
+  ws.getCell(r,1).value='STOCK HEALTH';
+  ws.getCell(r,1).font={bold:true,size:11};r++;
+  headerRow(ws,r,['Outlet','Category','Scheduled','Items','Filled','% filled','At zero','% zero','Action']);r++;
+  Object.entries(health).forEach(([o,cats])=>Object.entries(cats).forEach(([cat,h])=>{
+    if(!h.total)return;
+    const p=plan[o];
+    const active=(cat==='Frozen'&&p.frozen)||(cat==='Vegetable'&&p.veg)
+               ||(['Dry Store','Packaging','Housekeeping'].includes(cat)&&p.dph);
+    const urgLines=(disp&&disp[o]&&disp[o][cat]||[]).filter(x=>OFFSCHED(x[3]));
+    const urgN=urgLines.length, urgFull=urgLines.some(x=>x[3]==='manual');
+    if(!active&&(!urgCfg||!h.filled))return;   /* untouched sheet on a non-dispatch day — no news */
+    const trig=false;
+    let action,bg;
+    if(active)            {action=trig?'FULL REPLENISHMENT':'Normal'; bg=trig?C.okGreen:undefined;}
+    else if(urgN)         {action=`PUNCHED MANUALLY (${urgFull?'full order':'low stock only'}) — ${urgN} item(s)`; bg=C.amber;}
+    else if(h.fillPct>urgCfg.fillCap)
+                          {action=`Not scheduled — ${h.fillPct.toFixed(0)}% filled, left unticked`; bg=C.grey;}
+    else                  {action='Not scheduled — nothing sent'; bg=C.grey;}
+    const row=ws.getRow(r);
+    [o,cat,active?'Yes':'No',h.total,h.filled,h.fillPct.toFixed(0)+'%',h.zero,h.zeroPct.toFixed(0)+'%',action]
+      .forEach((v,i)=>{const c=row.getCell(i+1);c.value=v;
+        styleCell(c,{align:i>=2?'center':'left',bold:i===8&&(trig||!!urgN),
+          bg:i===8?bg:(trig?C.yellow:(urgN?C.yellow:undefined))});});
+    r++;}));
+
+  r++;
+  ws.getCell(r,1).value='ISSUES FOUND';ws.getCell(r,1).font={bold:true,size:11};r++;
+  headerRow(ws,r,['Severity','Check','Outlet','Item','Detail','']);r++;
+  const rank={ERROR:0,WARNING:1,INFO:2};
+  [...issues].sort((a,b)=>rank[a.sev]-rank[b.sev]).forEach(i=>{
+    const row=ws.getRow(r);
+    [i.sev,i.check,i.outlet,i.item,i.detail,''].forEach((v,k)=>{
+      const c=row.getCell(k+1);c.value=v;
+      styleCell(c,{align:k===0?'center':'left',bold:k===0,
+        bg:k===0?(i.sev==='ERROR'?C.red:i.sev==='WARNING'?C.yellow:C.head):undefined});});
+    r++;});
+  if(!issues.length){const row=ws.getRow(r);row.getCell(1).value='No issues — all sheets aligned.';
+    styleCell(row.getCell(1),{bold:true,bg:C.okGreen});r++;}
+
+  r++;
+  ws.getCell(r,1).value='VOUCHERS GENERATED';ws.getCell(r,1).font={bold:true,size:11};r++;
+  headerRow(ws,r,['Voucher No','Date','Outlet','Category','Lines','Total Qty']);r++;
+  summary.forEach(s=>{const row=ws.getRow(r);
+    s.forEach((v,k)=>{const c=row.getCell(k+1);c.value=v;
+      styleCell(c,{align:k>=4?'center':'left'});});r++;});
+  /* ---- second sheet: exactly what every PACT line was matched to ---- */
+  if(erpMap&&erpMap.length){
+    const m=wb.addWorksheet('ERP Name Mapping',{pageSetup:LANDSCAPE});
+    m.columns=[{width:14},{width:22},{width:16},{width:46},{width:46},{width:15},{width:9},{width:8},{width:44}];
+    titleRow(m,1,'PRODUCT MASTER MATCHING — every line that goes into Outlet.xlsx',9);
+    const HOW={exact:['Exact',C.okGreen],alias:['Corrected',C.head],normalised:['Normalised',C.head],
+      close:['Close match',C.yellow],ambiguous:['AMBIGUOUS',C.red],refused:['REFUSED',C.red],
+      none:['NOT IN MASTER',C.red],skip:['Manual punch',C.grey]};
+    const tally={};erpMap.forEach(x=>tally[x.how]=(tally[x.how]||0)+1);
+    const sc=m.getCell(2,1);
+    sc.value=Object.entries(tally).map(([k,v])=>`${HOW[k]?HOW[k][0]:k}: ${v}`).join('    ·    ');
+    sc.font={bold:true,size:10};m.mergeCells(2,1,2,9);
+    let r=4;
+    headerRow(m,r,['Voucher','Outlet','Category','Sheet name','Imported into PACT as','Result','Alike','Qty','Note']);r++;
+    erpMap.forEach(x=>{
+      const [lbl,bg]=HOW[x.how]||[x.how,undefined];
+      const note = x.how==='refused'   ? `Best guess "${x.candidates[0]}" was below the ${(ERP_FLOOR*100).toFixed(0)}% floor — not imported`
+                 : x.how==='ambiguous' ? `Matches: ${x.candidates.join(' · ')}`
+                 : x.how==='none'      ? 'Add to Product Master, or punch by hand'
+                 : x.how==='skip'      ? 'Known non-ERP item — challan only'
+                 : x.how==='close'     ? 'Check this is the right product'
+                 : '';
+      const row=m.getRow(r);
+      [x.voucher,x.outlet,x.label,x.name,x.erp||'—',lbl,
+       x.how==='close'?(x.score*100).toFixed(0)+'%':'',x.qty,note].forEach((v,k)=>{
+        const c=row.getCell(k+1);c.value=v===''?null:v;
+        styleCell(c,{align:(k===5||k===6||k===7)?'center':'left',
+          bold:k===5&&['refused','ambiguous','none'].includes(x.how),
+          bg:(k===5)?bg:(!x.erp?C.red:undefined)});});
+      r++;});
+    m.autoFilter={from:{row:4,column:1},to:{row:4,column:9}};
+    m.views=[{state:'frozen',ySplit:4}];
+  }
+  await save(wb,`Validation Report_${dLabel}.xlsx`,'All checks, stock health, ERP name mapping');
+}
+
+async function writeMatchReview(review,workStr,dispStr,dLabel){
+  if(!review.length)return;
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('Product Name Review',{pageSetup:LANDSCAPE});
+  ws.columns=[{width:22},{width:14},{width:46},{width:46},{width:11},{width:44}];
+  titleRow(ws,1,'PRODUCT NAME REVIEW — Working '+workStr+' | Dispatch '+dispStr,6);
+  const note=ws.getCell(2,1);
+  note.value='These products were NOT ordered because the app could not safely identify them in the outlet sheet. '
+            +'Confirm each pairing once in the app under Name mapping and it will be remembered.';
+  note.font={italic:true,size:10,color:{argb:'FF8A5A00'}};
+  note.alignment={wrapText:true}; ws.mergeCells(2,1,2,6); ws.getRow(2).height=30;
+  headerRow(ws,4,['Outlet','Category','Ideal Inventory name','Closest outlet-sheet name','Match %','Why not used']);
+  let r=5;
+  const why={review:'Too low to trust — confirm or reject',
+             blocked:'Differs on a key attribute',
+             duplicate:'Two products matched the same on-hand row'};
+  [...review].sort((a,b)=>a.product.localeCompare(b.product)).forEach(v=>{
+    const row=ws.getRow(r);
+    const reason=(why[v.why]||v.why)+(v.block?` (${v.block})`:'');
+    [v.outlet,v.cat,v.product,v.candidate||'— no candidate —',
+     v.score?(v.score*100).toFixed(0)+'%':'—',reason].forEach((val,i)=>{
+      const c=row.getCell(i+1);c.value=val;
+      styleCell(c,{align:i===4?'center':'left',
+        bg:v.why==='duplicate'?C.red:v.why==='review'?C.yellow:C.head});});
+    r++;});
+  r++;
+  ws.getCell(r,1).value='COPY THESE LINES INTO “Name mapping” (edit or replace with SKIP where wrong)';
+  ws.getCell(r,1).font={bold:true};ws.mergeCells(r,1,r,6);r++;
+  const uniq=new Map();
+  review.forEach(v=>{if(v.candidate&&!uniq.has(v.product))uniq.set(v.product,v.candidate);});
+  uniq.forEach((cand,prod)=>{
+    const c=ws.getCell(r,1);c.value=`${prod} | ${cand}`;
+    c.font={name:'Consolas',size:10};ws.mergeCells(r,1,r,6);
+    styleCell(c,{bg:C.grey});r++;});
+  await save(wb,`Product Name Review_${dLabel}.xlsx`,'Names the app would not guess at');
+}
+
+/* ===================== REPORT PAGE ===================== */
+let RTAB='overview';
+function backToSetup(){
+  $('reportView').style.display='none';
+  $('setupView').style.display=''; $('setupHeader').style.display='';
+  window.scrollTo({top:0});
+}
+function showReport(){
+  if(!REPORT)return;
+  $('setupView').style.display='none'; $('setupHeader').style.display='none';
+  $('reportView').style.display='';
+  $('rHead').textContent='Dispatch '+REPORT.dispDay+' — '+REPORT.dispStr;
+  const e=REPORT.issues.filter(i=>i.sev==='ERROR').length;
+  const w=REPORT.issues.filter(i=>i.sev==='WARNING').length;
+  $('rSub').textContent=`Working ${REPORT.workStr} · vouchers V${REPORT.vFrom}–V${REPORT.vTo} · `
+    +(e?`${e} error(s), ${w} warning(s)`:(w?`${w} warning(s)`:'all checks passed'));
+  RTAB='overview'; drawTabs();
+  window.scrollTo({top:0});
+}
+function fileFor(frag){return (REPORT.files||[]).find(f=>f.name.toLowerCase().includes(frag.toLowerCase()));}
+function dlByName(frag){
+  const f=fileFor(frag); if(!f){alert('That file was not generated today.');return;}
+  const i=outFiles.indexOf(f); if(i>=0)dl(i);
+}
+function tabDef(){
+  const t=[['overview','Overview',''],
+           ['order','Order Outlet','Order Outlet'],
+           ['challan','Challans','Challan_'],
+           ['erp','PACT ERP + Vouchers','Outlet.xlsx'],
+           ['bread','Bread Order','Bread Order'],
+           ['erpmap','Master matching','Validation Report'],
+           ['valid','Validation','Validation Report']];
+  if((REPORT.review||[]).length) t.push(['names','Name review','Product Name Review']);
+  return t;
+}
+function drawTabs(){
+  $('rTabs').innerHTML=tabDef().map(([k,label])=>
+    `<button class="rtab${k===RTAB?' active':''}" onclick="setTab('${k}')">${esc(label)}</button>`).join('');
+  $('rBody').innerHTML=renderTab(RTAB);
+  $('rBody').scrollTop=0;
+}
+function setTab(k){RTAB=k;drawTabs();}
+
+function dlBar(frag,note){
+  const f=fileFor(frag);
+  return `<div class="dlbar"><div><strong>${f?esc(f.name):'not generated'}</strong>
+    <div class="hint">${esc(note||(f?f.kind:''))}</div></div>
+    ${f?`<button class="btn btn-primary btn-sm" onclick="dlByName('${esc(frag)}')">Download Excel</button>`:''}</div>`;
+}
+const CATG=[['Frozen',['Frozen']],['Vegetable',['Vegetable']],
+            ['Dry Store',['Dry Store']],['Packaging',['Packaging']],['Housekeeping',['Housekeeping']]];
+
+function renderTab(k){
+  if(k==='erpmap')return renderErpMap();
+  const R=REPORT;
+  if(k==='overview') return buildDashboard({...R,dry:false});
+
+  if(k==='order'){
+    let out=dlBar('Order Outlet','Working sheet — live formulas, colour coded');
+    CATG.forEach(([cat,keys])=>{
+      const names=new Map();
+      OUTLETS.forEach(o=>keys.forEach(kk=>(R.disp[o][kk]||[]).forEach(([n,u,q])=>{
+        if(!names.has(n))names.set(n,{uom:u,per:{}});
+        names.get(n).per[o]=(names.get(n).per[o]||0)+num(q);})));
+      if(!names.size)return;
+      const tot=OUTLETS.map(()=>0); let grand=0;
+      const rows=[...names.entries()].map(([n,inf])=>{
+        let t=0;const tds=OUTLETS.map((o,i)=>{const v=inf.per[o]||0;tot[i]+=v;t+=v;
+          return `<td class="numcell">${v?fmtQty(v):'<span class="dash">·</span>'}</td>`;}).join('');
+        grand+=t;
+        return `<tr><td>${esc(n)}</td><td class="numcell">${esc(inf.uom)}</td>${tds}
+          <td class="numcell tot">${fmtQty(t)}</td></tr>`;}).join('');
+      out+=`<h3 class="rsec">${cat} — ${names.size} products</h3>
+        <div class="rscroll"><table class="rtable"><thead><tr><th>Product</th><th>UOM</th>
+        ${OUTLETS.map(o=>`<th class="numcell">${o.split(' ')[0]}</th>`).join('')}
+        <th class="numcell">Total</th></tr></thead><tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="2"><strong>TOTAL</strong></td>
+        ${tot.map(v=>`<td class="numcell tot">${fmtQty(v)}</td>`).join('')}
+        <td class="numcell tot">${fmtQty(grand)}</td></tr></tfoot></table></div>`;
+    });
+    return out;
+  }
+
+  if(k==='challan'){
+    const groups=[['Frozen',['Frozen'],'Challan_Frozen'],
+                  ['Vegetable',['Vegetable'],'Challan_Vegetable'],
+                  ['Dry Store / PM / HK',['Dry Store','Packaging','Housekeeping'],'Challan_DryStore'],
+                  ['Additional',null,'Challan_Additional']];
+    let out='';
+    groups.forEach(([label,keys,frag])=>{
+      const per={};
+      if(keys) OUTLETS.forEach(o=>{const it=keys.flatMap(kk=>R.disp[o][kk]||[]); if(it.length)per[o]=it;});
+      else Object.entries(R.addBy||{}).forEach(([o,it])=>{if(it.length)per[o]=it;});
+      if(!Object.keys(per).length)return;
+      out+=`<h3 class="rsec">${esc(label)}</h3>`+dlBar(frag,`${Object.keys(per).length} outlet tab(s)`);
+      Object.entries(per).forEach(([o,items])=>{
+        const q=items.reduce((s,x)=>s+num(x[2]),0);
+        out+=`<details class="rdet"><summary><strong>${o}</strong>
+          <span class="hint">${items.length} items · ${fmtQty(q)} qty</span></summary>
+          <div class="rscroll"><table class="rtable"><thead><tr><th style="width:56px">#</th>
+          <th>Product</th><th style="width:80px">UOM</th><th style="width:80px" class="numcell">Qty</th></tr></thead>
+          <tbody>${items.map(([n,u,qq],i)=>`<tr><td>${i+1}</td><td>${esc(n)}</td>
+            <td>${esc(u)}</td><td class="numcell">${fmtQty(qq)}</td></tr>`).join('')}</tbody>
+          </table></div></details>`;});
+    });
+    return out||'<p class="hint">No challans generated.</p>';
+  }
+
+  if(k==='erp'){
+    let out=dlBar('Outlet.xlsx','PACT ERP import — upload this file directly');
+    out+=`<h3 class="rsec">Vouchers — V${R.vFrom} to V${R.vTo}</h3>
+      <div class="rscroll"><table class="rtable"><thead><tr><th>Voucher</th><th>Outlet</th>
+      <th>Category</th><th class="numcell">Lines</th><th class="numcell">Qty</th></tr></thead><tbody>
+      ${R.summary.map(s=>`<tr><td><strong>${esc(s[0])}</strong></td><td>${esc(s[2])}</td>
+        <td>${esc(s[3])}</td><td class="numcell">${s[4]}</td>
+        <td class="numcell">${fmtQty(s[5])}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="3"><strong>TOTAL</strong></td>
+      <td class="numcell tot">${R.summary.reduce((a,s)=>a+s[4],0)}</td>
+      <td class="numcell tot">${fmtQty(R.summary.reduce((a,s)=>a+num(s[5]),0))}</td></tr></tfoot></table></div>`;
+    out+=`<h3 class="rsec">Import rows — ${R.erpRows.length} lines</h3>
+      ${dlBar('Voucher Summary','One row per voucher')}
+      <div class="rscroll tall"><table class="rtable"><thead><tr>
+      <th>Voucher</th><th>Location Transfer</th><th>Product Name</th>
+      <th>Conv Unit</th><th class="numcell">Outlet Qty</th><th>Base Unit</th>
+      <th class="numcell">Base Qty</th></tr></thead><tbody>
+      ${R.erpRows.map(r=>`<tr><td>${esc(r[2])}</td><td>${esc(r[4])}</td><td>${esc(r[5])}</td>
+        <td>${esc(r[6])}</td><td class="numcell">${fmtQty(r[7])}</td><td>${esc(r[8])}</td>
+        <td class="numcell">${fmtQty(r[9])}</td></tr>`).join('')}</tbody></table></div>`;
+    return out;
+  }
+
+  if(k==='bread'){
+    let out=dlBar('Bread Order','Brownie doubled automatically');
+    const txt=R.breadTotals.map(b=>b.item.padEnd(36)+String(b.uom).padEnd(6)+fmtQty(b.qty)
+      +(b.dbl?'   (x2 applied)':'')).join('\n');
+    out+=`<div class="copy-row" style="margin:14px 0 10px">
+      <span class="hint">Copy &amp; paste to the bakery</span>
+      <button class="btn btn-ghost btn-sm" onclick="copyBread(this)">Copy</button></div>
+      <div class="bread" id="breadTxt">${esc(txt)}</div>`;
+    out+=`<h3 class="rsec">Per outlet</h3><div class="rscroll"><table class="rtable">
+      <thead><tr><th>Bread</th><th>UOM</th>${OUTLETS.map(o=>`<th class="numcell">${o.split(' ')[0]}</th>`).join('')}
+      <th class="numcell">Total</th></tr></thead><tbody>
+      ${R.breadTotals.map(b=>`<tr><td>${esc(b.item)}</td><td>${esc(b.uom)}</td>
+        ${OUTLETS.map(o=>`<td class="numcell">${fmtQty((R.bread[b.item].per[o]||0))}</td>`).join('')}
+        <td class="numcell tot">${fmtQty(b.qty)}</td></tr>`).join('')}</tbody></table></div>`;
+    return out;
+  }
+
+  if(k==='valid'){
+    const g=s=>R.issues.filter(i=>i.sev===s);
+    const blk=(t,arr,cls)=>arr.length?`<h3 class="rsec">${t} — ${arr.length}</h3>
+      <div class="rscroll"><table class="rtable"><thead><tr><th style="width:190px">Check</th>
+      <th style="width:150px">Outlet</th><th style="width:230px">Item</th><th>Detail</th></tr></thead>
+      <tbody>${arr.map(i=>`<tr class="${cls}"><td>${esc(i.check)}</td><td>${esc(i.outlet)}</td>
+        <td>${esc(i.item)}</td><td>${esc(i.detail)}</td></tr>`).join('')}</tbody></table></div>`:'';
+    return dlBar('Validation Report','All checks, stock health and issues')
+      +blk('Errors',g('ERROR'),'rerr')+blk('Warnings',g('WARNING'),'rwarn')
+      +blk('For information',g('INFO'),'rinfo')
+      +(R.issues.length?'':'<div class="banner banner-ok" style="margin-top:14px">All checks passed.</div>');
+  }
+
+  if(k==='names'){
+    const seen=new Map();
+    (R.review||[]).forEach(v=>{if(!seen.has(v.product))seen.set(v.product,v);});
+    return dlBar('Product Name Review','Names the app would not guess at')
+      +`<p class="hint" style="margin:12px 0">These were not ordered. Go back to setup to decide them —
+        your choices are remembered for every future run.</p>
+      <div class="rscroll"><table class="rtable"><thead><tr><th>Ideal Inventory product</th>
+      <th>Closest outlet name</th><th class="numcell">Match</th><th>Why</th></tr></thead><tbody>
+      ${[...seen.values()].map(v=>`<tr><td>${esc(v.product)}</td><td>${esc(v.candidate||'—')}</td>
+        <td class="numcell">${v.score?(v.score*100).toFixed(0)+'%':'—'}</td>
+        <td>${v.why==='duplicate'?'two products, one on-hand row':'below confidence floor'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  return '';
+}
+
+/* ===================== DASHBOARD ===================== */
+function renderErpMap(){
+  const M=REPORT.erpMap||[];
+  if(!M.length)return '<div class="card"><p class="hint">Nothing was imported this run.</p></div>';
+  const HOW={exact:['Exact','ok'],alias:['Corrected','info'],normalised:['Normalised','info'],
+    close:['Close match','warn'],ambiguous:['Ambiguous','miss'],refused:['Refused','miss'],
+    none:['Not in master','miss'],skip:['Manual punch','off']};
+  const tally={};M.forEach(x=>tally[x.how]=(tally[x.how]||0)+1);
+  const blocked=M.filter(x=>!x.erp&&x.how!=='skip');
+  const chips=Object.entries(tally).map(([k,v])=>{
+    const [lbl,cls]=HOW[k]||[k,'off'];
+    return `<span class="tag tag-${cls}" style="margin-right:6px">${esc(lbl)}: ${v}</span>`;}).join('');
+  const rowsHtml=M.map(x=>{
+    const [lbl,cls]=HOW[x.how]||[x.how,'off'];
+    const note = x.how==='refused'   ? `Best guess "${esc(x.candidates[0]||'')}" scored ${(x.score*100).toFixed(0)}% — under the ${(ERP_FLOOR*100).toFixed(0)}% floor`
+               : x.how==='ambiguous' ? `Matches: ${x.candidates.map(esc).join(' · ')}`
+               : x.how==='none'      ? 'Add it to the Product Master, or punch by hand'
+               : x.how==='skip'      ? 'Known non-ERP item — challan only'
+               : x.how==='close'     ? `${(x.score*100).toFixed(0)}% alike — check this is right`
+               : '';
+    return `<tr class="${!x.erp&&x.how!=='skip'?'sev-err':(x.how==='close'?'sev-warn':'')}">
+      <td>${esc(x.voucher)}</td><td>${esc(x.outlet)}</td><td>${esc(x.label)}</td>
+      <td>${esc(x.name)}</td>
+      <td>${x.erp?'<strong>'+esc(x.erp)+'</strong>':'<span class="dash">not imported</span>'}</td>
+      <td><span class="tag tag-${cls}">${esc(lbl)}</span></td>
+      <td class="numcell">${esc(String(x.qty))}</td>
+      <td class="hint">${note}</td></tr>`;}).join('');
+  return `<div class="card">
+    <div class="card-head"><h2>Product Master matching</h2>
+      <span class="hint">${M.length} line(s) — every one that goes into Outlet.xlsx</span></div>
+    <div style="margin-bottom:12px">${chips}</div>
+    ${blocked.length?`<div class="banner banner-err">${blocked.length} line(s) were NOT imported —
+      a guess below the ${(ERP_FLOOR*100).toFixed(0)}% safety floor is refused rather than sent to PACT as the wrong product.
+      They are on the challan; add them to the Product Master or punch them by hand.</div>`
+      :`<div class="banner banner-ok">Every line resolved to a Product Master row.</div>`}
+    <div class="rscroll"><table><thead><tr>
+      <th>Voucher</th><th>Outlet</th><th>Category</th><th>Name on the sheet</th>
+      <th>Imported into PACT as</th><th>Result</th><th class="numcell">Qty</th><th>Note</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    ${dlBar('Validation Report','Full mapping is the second sheet of the Validation Report')}
+  </div>`;
+}
+
+function buildDashboard(r){
+  if(!r.disp) return '';
+  const CATGROUPS=[['Frozen',['Frozen']],['Vegetable',['Vegetable']],
+                   ['Dry Store / Packing / Housekeeping',['Dry Store','Packaging','Housekeeping']]];
+  const per={},tot={};
+  CATGROUPS.forEach(([g])=>tot[g]={items:0,qty:0});
+  tot['Additional']={items:0,qty:0};
+  let anyAdd=false;
+  OUTLETS.forEach(o=>{
+    per[o]={};
+    CATGROUPS.forEach(([g,keys])=>{
+      let items=0,qty=0;
+      keys.forEach(k=>(r.disp[o][k]||[]).forEach(x=>{items++;qty+=num(x[2]);}));
+      per[o][g]={items,qty}; tot[g].items+=items; tot[g].qty+=qty;
+    });
+    const ad=(r.addBy&&r.addBy[o])||[];
+    const aq=ad.reduce((s,x)=>s+num(x[2]),0);
+    per[o]['Additional']={items:ad.length,qty:aq};
+    tot['Additional'].items+=ad.length; tot['Additional'].qty+=aq;
+    if(ad.length)anyAdd=true;
+  });
+  const groups=CATGROUPS.map(([g])=>g).concat(anyAdd?['Additional']:[]);
+  const grand={items:0,qty:0};
+  groups.forEach(g=>{grand.items+=tot[g].items;grand.qty+=tot[g].qty;});
+
+  /* urgent top-ups: categories NOT scheduled that still have items going out */
+  const urgN={};OUTLETS.forEach(o=>{urgN[o]={};CATS.forEach(c=>{
+    const L=(r.disp[o][c]||[]).filter(x=>OFFSCHED(x[3])); if(L.length)urgN[o][c]={n:L.length,full:L.some(x=>x[3]==='manual')};});});
+  const urgList=OUTLETS.filter(o=>Object.keys(urgN[o]).length);
+
+  const sched=o=>{
+    const p=r.plan[o],bits=[];
+    if(p.frozen)bits.push(`<span class="chip chip-f">Frozen ${p.frozen}</span>`);
+    if(p.veg)bits.push('<span class="chip chip-v">Veg</span>');
+    if(p.dph)bits.push('<span class="chip chip-d">DS/PM/HK</span>');
+    Object.entries(urgN[o]).forEach(([c,v])=>
+      bits.push(`<span class="chip chip-u" title="Not scheduled — punched from the grid (${v.full?'full order':'low stock only'})">${esc(c)} +${v.n}</span>`));
+    return bits.join(' ')||'<span class="chip chip-off">No dispatch</span>';
+  };
+
+  const body=OUTLETS.map(o=>{
+    const miss=(r.missing||[]).includes(o);
+    const rowTot=groups.reduce((s,g)=>s+per[o][g].qty,0);
+    const rowItm=groups.reduce((s,g)=>s+per[o][g].items,0);
+    const cells=groups.map(g=>{
+      const c=per[o][g];
+      return `<td class="numcell">${c.items?`<span class="qty">${fmtQty(c.qty)}</span>
+        <span class="items">${c.items} item${c.items===1?'':'s'}</span>`:'<span class="dash">—</span>'}</td>`;
+    }).join('');
+    return `<tr${miss?' class="rowmiss"':''}>
+      <td><strong>${o}</strong>${miss?' <span class="tag tag-miss">file missing</span>':''}</td>
+      <td>${sched(o)}</td>${cells}
+      <td class="numcell tot">${rowItm?`<span class="qty">${fmtQty(rowTot)}</span>
+        <span class="items">${rowItm} items</span>`:'<span class="dash">—</span>'}</td></tr>`;
+  }).join('');
+
+  const foot=groups.map(g=>`<td class="numcell tot"><span class="qty">${fmtQty(tot[g].qty)}</span>
+    <span class="items">${tot[g].items} items</span></td>`).join('');
+
+  const urgTotal=OUTLETS.reduce((s,o)=>s+Object.values(urgN[o]).reduce((a,v)=>a+v.n,0),0);
+  const urgBanner=urgList.length?`<div class="banner banner-warn" style="margin:0 0 14px">
+    <div><strong>${urgTotal} item${urgTotal===1?'':'s'} punched without a schedule</strong> on ${urgList.length} outlet(s) —
+    ${urgList.map(o=>esc(o)+' ('+Object.entries(urgN[o]).map(([c,v])=>esc(c)+' '+v.n).join(', ')+')').join(' · ')}.
+    <div class="hint" style="margin-top:3px">Selected on the punch grid. Each of these gets its own voucher and challan.</div></div></div>`
+    :(r.urgSkip&&r.urgSkip.length?`<div class="banner banner-info" style="margin:0 0 14px">
+    ${r.urgSkip.length} unscheduled sheet(s) were left unticked on the punch grid — nothing ordered for them.</div>`:'');
+
+  const active=OUTLETS.filter(o=>groups.some(g=>per[o][g].items>0)).length;
+  const kpi=[['Outlets dispatching',active+' of 10'],
+             ['Total quantity',fmtQty(grand.qty)],
+             ['Total line items',grand.items],
+             ['Vouchers',r.vFrom?`V${r.vFrom} – V${r.vTo}`:'—']];
+
+  return `${urgBanner}<div class="card dash">
+    <div class="dashhead">
+      <div><div class="dlabel">Working day</div>
+        <div class="dval">${esc(r.workDay)}</div><div class="dsub">${esc(r.workStr)}</div></div>
+      <div class="darrow">&rarr;</div>
+      <div><div class="dlabel">Dispatch day</div>
+        <div class="dval">${esc(r.dispDay)}</div><div class="dsub">${esc(r.dispStr)}</div></div>
+      <div class="kpis">${kpi.map(([k,v])=>
+        `<div class="kpi"><div class="kv">${esc(String(v))}</div><div class="kk">${esc(k)}</div></div>`).join('')}</div>
+    </div>
+    <table class="dashtable"><thead><tr>
+      <th>Outlet</th><th style="width:210px">Today's schedule</th>
+      ${groups.map(g=>`<th class="numcell">${esc(g)}</th>`).join('')}
+      <th class="numcell">Outlet total</th></tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td colspan="2"><strong>ALL OUTLETS</strong></td>${foot}
+        <td class="numcell tot"><span class="qty">${fmtQty(grand.qty)}</span>
+        <span class="items">${grand.items} items</span></td></tr></tfoot>
+    </table>
+    <p class="hint" style="margin-top:10px">Top figure is quantity dispatched · below it the number of line items.
+    ${urgList.length?' <span class="chip chip-u">+n</span> = category not scheduled today, punched from the grid.':''}</p>
+  </div>`;
+}
+
+/* ===================== RENDER ===================== */
+function toggleIssues(btn){
+  const ul=$('issueList'); if(!ul)return;
+  const open=ul.hasAttribute('hidden');
+  if(open)ul.removeAttribute('hidden'); else ul.setAttribute('hidden','');
+  btn.classList.toggle('open',open);
+  btn.querySelector('.caret').innerHTML=open?'&#9662;':'&#9656;';
+  btn.childNodes[2].textContent=(open?' Hide ':' Show all ')+ul.children.length+' check(s) ';
+}
+function render(r){
+  const errs=r.issues.filter(i=>i.sev==='ERROR'),warns=r.issues.filter(i=>i.sev==='WARNING'),infos=r.issues.filter(i=>i.sev==='INFO');
+  const banner=errs.length?`<div class="banner banner-err">Validation failed — ${errs.length} error(s), ${warns.length} warning(s)</div>`
+    :warns.length?`<div class="banner banner-warn">Passed with ${warns.length} warning(s)</div>`
+    :`<div class="banner banner-ok">All checks passed</div>`;
+  const list=[...errs,...warns,...infos].map(i=>{
+    const cls=i.sev==='ERROR'?'tag-miss':i.sev==='WARNING'?'tag-warn':'tag-info';
+    return `<li><span class="tag ${cls}">${i.sev}</span> <span class="who">${esc(i.outlet)}</span>
+      ${i.item?' — '+esc(i.item):''}<div class="what">${esc(i.check)}: ${esc(i.detail)}</div></li>`;}).join('');
+  const sumRows=r.summary.map(s=>`<tr><td>${esc(s[0])}</td><td>${esc(s[2])}</td><td>${esc(s[3])}</td><td>${s[4]}</td><td>${s[5]}</td></tr>`).join('');
+  const totQty=r.summary.reduce((a,s)=>a+num(s[5]),0);
+  const breadTxt=r.breadTotals.map(b=>b.item.padEnd(36)+String(b.uom).padEnd(6)+b.qty+(b.dbl?'   (×2 applied)':'')).join('\n');
+  const cards=outFiles.map((f,i)=>`<div class="file-item">
+    <div><div class="file-name">${esc(f.name)}</div><div class="file-kind">${esc(f.kind)}</div></div>
+    <button class="btn btn-ghost btn-sm" onclick="dl(${i})">Save</button></div>`).join('');
+  const bulkN=Object.keys(r.bulk||{}).length;
+  const rv=r.review||[];
+  const byProduct=new Map();
+  rv.forEach(v=>{ if(!byProduct.has(v.product)) byProduct.set(v.product,{...v,outlets:new Set()});
+                  byProduct.get(v.product).outlets.add(v.outlet); });
+  REVIEW_ROWS=[...byProduct.values()].sort((a,b)=>b.score-a.score);
+  DECISIONS={};
+  const rvRows=REVIEW_ROWS.map((v,i)=>{
+    const cls=v.why==='duplicate'?'tag-miss':v.why==='review'?'tag-warn':'tag-info';
+    const lbl=v.why==='duplicate'?'DUPLICATE':v.why==='review'?'CONFIRM':'REFUSED';
+    const opts=(v.candidates||[]).map(c=>`<option value="${esc(c.name)}"${c.name===v.candidate?' selected':''}>`
+      +`${esc(c.name)} — ${(c.score*100).toFixed(0)}%${c.clash?' [differs on '+esc(c.clash)+']':''}</option>`).join('');
+    const why=v.block?('differs on '+esc(v.block))
+      :(v.why==='duplicate'?'two products, one on-hand row':'below 75% confidence');
+    /* Product Master column: every master row is reachable, best guesses first */
+    const mCur=PLINK[v.product]||'';
+    const mCands=(typeof candidatesFor==='function')?candidatesFor(v.product,40):[];
+    let mOpts=['<option value="">— automatic —</option>']
+      .concat(mCands.map(m=>`<option value="${esc(m.code)}"${m.code===mCur?' selected':''}>`
+        +`${esc(m.name)} — ${esc(m.code||'no code')}${m.group?' — '+esc(m.group):''}</option>`));
+    if(mCur&&!mCands.some(m=>m.code===mCur)&&MASTER_BY_CODE[mCur])
+      mOpts.splice(1,0,`<option value="${esc(mCur)}" selected>${esc(optLabel(MASTER_BY_CODE[mCur]))}</option>`);
+    return `<tr id="rvrow${i}">
+      <td><input type="checkbox" class="rvchk" data-i="${i}" onchange="updateCount()"></td>
+      <td><strong>${esc(v.product)}</strong>
+          <div class="hint">${v.outlets.size} outlet(s) · ${esc(v.cat)}</div></td>
+      <td><input type="text" class="rvfind" placeholder="type to filter the list…"
+            oninput="filterSel(${i},this.value)">
+          <select class="rvsel" id="rvsel${i}" multiple size="1"
+            onfocus="this.size=Math.min(10,this.options.length)" onblur="this.size=1">${opts}</select>
+          <div class="hint">${(v.candidates||[]).length} product(s) on this outlet's ${esc(v.cat)} sheet ·
+            Ctrl-click for more than one — on-hand added up</div></td>
+      <td><select class="rvsel" data-name="${esc(v.product)}"
+            onchange="setLink(this.dataset.name,this.value)"
+            onfocus="this.size=Math.min(10,this.options.length)" onblur="this.size=1">${mOpts.join('')}</select>
+          <button class="btn btn-ghost btn-sm" style="margin-top:4px" data-name="${esc(v.product)}"
+            onclick="searchAll(this.dataset.name,this)">Search whole master…</button></td>
+      <td><span class="tag ${cls}">${lbl}</span><div class="hint">${why}</div></td>
+      <td class="rvact">
+        <button class="btn btn-primary btn-sm" onclick="decide(${i},'accept')">Use this</button>
+        <button class="btn btn-ghost btn-sm" onclick="decide(${i},'skip')">Never order</button>
+      </td></tr>`;}).join('');
+
+  $('results').innerHTML=`
+  ${buildDashboard(r)}
+  <div class="card"><div class="card-head"><h2>${r.dry?'Validation result':'Generated'}</h2>
+    <span class="hint">Working ${esc(r.workStr)} → Dispatch ${esc(r.dispStr)}</span></div>
+    ${banner}
+    ${bulkN?`<div class="banner banner-warn">Full replenishment applied to ${bulkN} outlet sheet(s) — every item ordered on those sheets</div>`:''}
+    ${list?`<button class="disclose" onclick="toggleIssues(this)">
+        <span class="caret">&#9656;</span> Show all ${errs.length+warns.length+infos.length} check(s)
+        <span class="hint" style="margin-left:6px">${errs.length} error &middot; ${warns.length} warning &middot; ${infos.length} info</span>
+      </button>
+      <ul class="error-list" id="issueList" hidden>${list}</ul>`:''}</div>
+  ${rvRows?`<div class="card"><div class="card-head"><h2>Names needing your confirmation</h2>
+    <span class="hint">${REVIEW_ROWS.length} product(s) not ordered — decide below, then re-run</span></div>
+    <div class="bulkbar">
+      <label class="bulkchk"><input type="checkbox" id="rvall" onchange="toggleAll(this)"> Select all</label>
+      <span class="hint" id="rvcount">none selected</span>
+      <span style="flex:1"></span>
+      <button class="btn btn-primary btn-sm" onclick="decideSelected('accept')">Use suggested</button>
+      <button class="btn btn-ghost btn-sm" onclick="decideSelected('skip')">Never order</button>
+      <button class="btn btn-ghost btn-sm" onclick="decideSelected('ignore')">Ignore this run</button>
+    </div>
+    <table class="rvtable"><thead><tr>
+      <th style="width:34px"></th><th>Ideal Inventory product</th>
+      <th style="width:27%">Match to outlet on-hand row</th>
+      <th style="width:27%">Product Master row (goes to PACT)</th>
+      <th style="width:13%">Status</th>
+      <th style="width:186px">Decision</th></tr></thead>
+    <tbody>${rvRows}</tbody></table>
+    <div class="applybar">
+      <span class="hint" id="rvdone">No decisions yet</span>
+      <button class="btn btn-primary" id="applyBtn" onclick="applyDecisions()" disabled>Apply &amp; re-run</button>
+    </div></div>`:''}
+  ${!r.dry&&sumRows?`<div class="card"><div class="card-head"><h2>Vouchers</h2>
+    <span class="hint">${r.summary.length} vouchers · ${totQty} total qty</span></div>
+    <table><thead><tr><th>Voucher</th><th>Outlet</th><th>Category</th><th>Lines</th><th>Qty</th></tr></thead>
+    <tbody>${sumRows}</tbody></table></div>`:''}
+  ${!r.dry&&breadTxt?`<div class="card"><div class="card-head"><h2>Bread order message</h2></div>
+    <div class="copy-row"><span class="hint">Copy &amp; paste to the bakery</span>
+    <button class="btn btn-ghost btn-sm" onclick="copyBread(this)">Copy</button></div>
+    <div class="bread" id="breadTxt">${esc(breadTxt)}</div></div>`:''}
+  ${!r.dry&&cards?`<div class="card"><div class="card-head"><h2>Files</h2>
+    <button class="btn btn-primary btn-sm" onclick="dlAll(this)" style="margin-left:auto">Save all — choose location…</button>
+    <button class="btn btn-ghost btn-sm" onclick="downloadZip(this)">Download as ZIP</button></div>
+    <div id="saveTargetBanner"></div><div id="saveMsg"></div>
+    <div class="files">${cards}</div></div>`:''}`;
+  try{showSaveBack();}catch(e){}
+  $('results').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ===== ZIP WRITER =======================================================
+   A browser page cannot create a subfolder inside Downloads - <a download>
+   strips path separators. One ZIP can, though: it carries its own folder,
+   so extracting drops a single tidy folder into Downloads. Stored, not
+   deflated - xlsx is already compressed, so deflating buys almost nothing
+   and costs a dependency.                                                */
+const _CRCT=(()=>{const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}
+  return t;})();
+function crc32(u8){let c=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++)c=_CRCT[(c^u8[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;}
+function dosTime(d){return ((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF;}
+function dosDate(d){return (((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;}
+async function makeZip(entries){
+  const enc=new TextEncoder(), now=new Date();
+  const tm=dosTime(now), dt=dosDate(now);
+  const parts=[], central=[]; let offset=0, n=0;
+  for(const e of entries){
+    const data=new Uint8Array(await e.blob.arrayBuffer());
+    const name=enc.encode(e.name), crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true); lh.setUint16(6,0,true);
+    lh.setUint16(8,0,true); lh.setUint16(10,tm,true); lh.setUint16(12,dt,true);
+    lh.setUint32(14,crc,true); lh.setUint32(18,data.length,true); lh.setUint32(22,data.length,true);
+    lh.setUint16(26,name.length,true); lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),name,data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true);
+    ch.setUint16(8,0,true); ch.setUint16(10,0,true); ch.setUint16(12,tm,true); ch.setUint16(14,dt,true);
+    ch.setUint32(16,crc,true); ch.setUint32(20,data.length,true); ch.setUint32(24,data.length,true);
+    ch.setUint16(28,name.length,true); ch.setUint16(30,0,true); ch.setUint16(32,0,true);
+    ch.setUint16(34,0,true); ch.setUint16(36,0,true); ch.setUint32(38,0,true);
+    ch.setUint32(42,offset,true);
+    central.push(new Uint8Array(ch.buffer),name);
+    offset+=30+name.length+data.length; n++;
+  }
+  const cdSize=central.reduce((s,p)=>s+p.length,0);
+  const eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true); eo.setUint16(4,0,true); eo.setUint16(6,0,true);
+  eo.setUint16(8,n,true); eo.setUint16(10,n,true);
+  eo.setUint32(12,cdSize,true); eo.setUint32(16,offset,true); eo.setUint16(20,0,true);
+  return new Blob([...parts,...central,new Uint8Array(eo.buffer)],{type:'application/zip'});
+}
+async function downloadZip(btn){
+  const folder=outFolderName();
+  const label=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Zipping…';}
+  try{
+    const blob=await makeZip(outFiles.map(f=>({name:folder+'/'+f.name,blob:f.blob})));
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=folder+'.zip'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),8000);
+    const box=$('saveMsg');
+    if(box) box.innerHTML='<div class="banner banner-ok">Downloaded <strong>'+esc(folder)+
+      '.zip</strong> — extract it and you get the folder <strong>'+esc(folder)+'</strong> with all '
+      +outFiles.length+' files inside.</div>';
+  }catch(e){ alert('Could not build the zip.\n\n'+e.message); }
+  if(btn){btn.disabled=false;btn.textContent=label;}
+}
+
+function dl(i){const f=outFiles[i],a=document.createElement('a');
+  a.href=URL.createObjectURL(f.blob);a.download=f.name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
+async function dlAll(btn,useSaved){
+  const folder=outFolderName(), label=btn?btn.textContent:'';
+  /* Ask where to put it. showDirectoryPicker IS the native "choose a
+     location" dialog - it returns a writable handle, which <a download>
+     never can. If it is unavailable or declined, fall back to the zip. */
+  let dh=null;
+  if(useSaved && S.dirHandle) dh=S.dirHandle;
+  else if(CAN_SAVE_BACK){
+    try{ dh=await window.showDirectoryPicker({mode:'readwrite'}); }
+    catch(e){
+      if(e.name==='AbortError') return;          /* user cancelled - do nothing */
+      dh=null;
+    }
+  }
+  if(!dh){ await downloadZip(btn); return; }
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving…';}
+    if(await dh.requestPermission({mode:'readwrite'})!=='granted')
+      throw new Error('Write permission was not granted for that folder.');
+    const sub=await dh.getDirectoryHandle(folder,{create:true});
+    for(const f of outFiles){
+      const fh=await sub.getFileHandle(f.name,{create:true});
+      const w=await fh.createWritable();
+      await w.write(f.blob); await w.close();
+    }
+    S.dirHandle=dh; S.dirName=dh.name; showSaveBack();
+    if(btn){btn.textContent='Saved';setTimeout(()=>{btn.textContent=label;btn.disabled=false;},2200);}
+    const box=$('saveMsg');
+    if(box) box.innerHTML='<div class="banner banner-ok">Saved '+outFiles.length+' files into <strong>'
+      +esc(dh.name)+' &rsaquo; '+esc(folder)+'</strong></div>';
+  }catch(e){
+    if(btn){btn.textContent=label;btn.disabled=false;}
+    alert('Could not write into that folder — downloading a zip instead.\n\n'+e.message);
+    await downloadZip(btn);
+  }
+}
+let REVIEW_ROWS=[], DECISIONS={};
+/* Type-to-filter over one row's option list. Options are hidden, never
+   removed, so a selection already made survives the filtering.        */
+function filterSel(i,q){
+  const sel=$('rvsel'+i); if(!sel)return;
+  const t=String(q||'').toLowerCase().trim();
+  let shown=0;
+  for(const o of sel.options){
+    const hit=!t||o.text.toLowerCase().includes(t);
+    o.hidden=!hit; if(hit)shown++;
+  }
+  sel.size=Math.min(10,Math.max(shown,1));
+}
+function toggleAll(cb){document.querySelectorAll('.rvchk').forEach(c=>c.checked=cb.checked);updateCount();}
+function updateCount(){const n=document.querySelectorAll('.rvchk:checked').length;
+  const el=$('rvcount'); if(el) el.textContent = n? n+' selected':'none selected';}
+function markRow(i,text,cls){
+  const row=$('rvrow'+i); if(!row)return;
+  row.querySelector('.rvact').innerHTML=`<span class="tag ${cls}">${text}</span>`+
+    `<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="undo(${i})">Undo</button>`;
+  row.style.opacity=.62; refreshApply();
+}
+function decide(i,action){
+  const v=REVIEW_ROWS[i]; if(!v)return;
+  if(action==='accept'){
+    const sel=$('rvsel'+i), picked=[...sel.selectedOptions].map(o=>o.value);
+    if(!picked.length){alert('Choose at least one outlet product first.');return;}
+    DECISIONS[v.product]={type:'accept',targets:picked};
+    markRow(i,picked.length>1?`Using ${picked.length} rows`:'Confirmed','tag-ok');
+  }else if(action==='skip'){
+    DECISIONS[v.product]={type:'skip'}; markRow(i,'Never order','tag-off');
+  }else{
+    DECISIONS[v.product]={type:'ignore'}; markRow(i,'Ignored','tag-info');
+  }
+}
+function decideSelected(action){
+  const picked=[...document.querySelectorAll('.rvchk:checked')].map(c=>+c.dataset.i);
+  if(!picked.length){alert('Tick some rows first.');return;}
+  picked.forEach(i=>decide(i,action));
+  const a=$('rvall'); if(a)a.checked=false; updateCount();
+}
+function undo(i){
+  const v=REVIEW_ROWS[i]; delete DECISIONS[v.product];
+  const row=$('rvrow'+i);
+  row.querySelector('.rvact').innerHTML=
+    `<button class="btn btn-primary btn-sm" onclick="decide(${i},'accept')">Use this</button>`+
+    `<button class="btn btn-ghost btn-sm" onclick="decide(${i},'skip')">Never order</button>`;
+  row.style.opacity=1; refreshApply();
+}
+function refreshApply(){
+  const n=Object.keys(DECISIONS).length;
+  const keep=Object.values(DECISIONS).filter(d=>d.type!=='ignore').length;
+  const d=$('rvdone'), b=$('applyBtn');
+  if(d) d.textContent = n? `${n} decision(s) — ${keep} will be remembered` : 'No decisions yet';
+  if(b) b.disabled = n===0;
+}
+function applyDecisions(){
+  const lines=[];
+  Object.entries(DECISIONS).forEach(([product,d])=>{
+    if(d.type==='accept') lines.push(`${product} | ${d.targets.join(' ; ')}`);
+    else if(d.type==='skip') lines.push(`${product} | SKIP`);
+  });
+  if(lines.length){const box=$('aliases');
+    box.value=(box.value.trim()?box.value.replace(/\s*$/,'')+'\n':'')+lines.join('\n');}
+  DECISIONS={}; run(false);
+}
+function useMapping(){
+  const box=$('aliases'),add=$('mapLines').textContent;
+  box.value=(box.value.trim()?box.value.replace(/\s*$/,'')+'\n':'')+add;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-body').forEach(x=>x.classList.remove('active'));
+  document.querySelector('[data-tab=alias]').classList.add('active');
+  $('tab-alias').classList.add('active');
+  $('aliasBadge').textContent='';
+  box.scrollIntoView({behavior:'smooth',block:'center'});box.focus();
+}
+function copyBread(b){navigator.clipboard.writeText($('breadTxt').textContent).then(()=>{
+  b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1600);});}
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-body').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');$('tab-'+t.dataset.tab).classList.add('active');});
+const localDate=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+(()=>{try{loadLinks();}catch(e){}
+ try{showSaveBack();}catch(e){}
+ const t=new Date();t.setDate(t.getDate()+1);$('dispatchDate').value=localDate(t);
+  showDayBanner();updateGate();
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSched();});})();
+</script>
+</body>
+</html>

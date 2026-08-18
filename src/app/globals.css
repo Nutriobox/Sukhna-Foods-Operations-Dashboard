@@ -449,7 +449,7 @@
   .home-logo{height:56px;width:auto;object-fit:contain;margin-bottom:16px}
   .home-head h1{font-size:30px;font-weight:800;color:var(--ink);letter-spacing:-.01em;margin:0}
   .home-head p{font-size:15px;color:var(--muted);margin:8px 0 0}
-  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;width:100%;max-width:840px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px;width:100%;max-width:1120px}
   @media (max-width:720px){.tiles{grid-template-columns:1fr}}
   .tile{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px 26px;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(15,23,42,.06);transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
   .tile:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(15,23,42,.12);border-color:#c7ecdd}
@@ -458,6 +458,9 @@
   .tile.stock .tile-ic svg{stroke:#0284c7}
   .tile.sales .tile-ic{background:var(--brand-soft)}
   .tile.sales .tile-ic svg{stroke:#059669}
+  a.tile{text-decoration:none;color:inherit}
+  .tile.dispatch .tile-ic{background:#fde7d6}
+  .tile.dispatch .tile-ic svg{stroke:#c2621a}
   .tile-ttl{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
   .tile-sub{font-size:13px;color:var(--muted);line-height:1.55;min-height:42px}
   .tile-meta{font-size:12px;font-weight:700;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 12px}
