@@ -104,36 +104,64 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     //     type-ahead fires, then pick the matching suggestion (a plain fill() sets
     //     the value without firing the events the dropdown needs, so nothing gets
     //     selected and the batch box never opens — that was the earlier bug).
-    const prodCell = page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i);
+    // Open the ProductName editor for THIS row. Prefer the column scoped by
+    // aria-describedby (GGE's proven approach) so we never type into a
+    // neighbouring cell; fall back to the accessible "Product Name" gridcell.
+    let prodCell = page.locator('.slick-cell[aria-describedby$="ProductName"]').nth(i);
+    if (!(await prodCell.count().catch(() => 0))) {
+      prodCell = page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i);
+    }
+    const editorLoc = () => page.locator('.slick-cell[aria-describedby$="ProductName"].editable input, .slick-cell.editable input, input.PactTextBoxEditor').first();
     await prodCell.scrollIntoViewIfNeeded().catch(() => {});
     await prodCell.click({ timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(350);
-    let pinput = page.locator('[id="10"], .slick-cell.editable input').first();
-    if (!(await pinput.isVisible().catch(() => false))) {
-      await prodCell.dblclick({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(300);
-      pinput = page.locator('[id="10"], .slick-cell.editable input').first();
+    await page.waitForTimeout(400);
+    if (!(await editorLoc().isVisible().catch(() => false))) { await prodCell.dblclick({ timeout: 4000 }).catch(() => {}); await page.waitForTimeout(350); }
+    if (!(await editorLoc().isVisible().catch(() => false))) { await prodCell.click().catch(() => {}); await page.keyboard.press('Enter').catch(() => {}); await page.waitForTimeout(350); }
+
+    // One-time diagnostics on the first item: is the editor open? what columns
+    // does the product row have? which suggestion containers exist after typing?
+    if (i === 0) {
+      const dg = await page.evaluate(() => {
+        const hdr = {}; document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
+        const row = [...document.querySelectorAll('.slick-row')].find(r => r.querySelector('.slick-cell.editable')) || document.querySelector('.slick-row');
+        const cells = row ? [...row.querySelectorAll('.slick-cell')].map(c => (c.getAttribute('aria-describedby') || '').replace(/^slickgrid_\d+/, '')).filter(Boolean).slice(0, 20) : [];
+        const editCount = document.querySelectorAll('.slick-cell.editable input').length;
+        const active = document.activeElement ? `${document.activeElement.tagName}#${document.activeElement.id || '-'}` : 'none';
+        return { cells, editCount, active };
+      }).catch(() => ({}));
+      console.log(`  [prod-diag] editorVisible=${await editorLoc().isVisible().catch(() => false)} editCount=${dg.editCount} active=${dg.active} cols=${JSON.stringify(dg.cells)}`);
     }
+
+    const dumpSuggest = async (tag) => {
+      const d = await page.evaluate(() => ({
+        sugDD: document.querySelectorAll('.List__dropdown--suggestions').length,
+        sugName: document.querySelectorAll('.suggestions__list-name').length,
+        listDD: document.querySelectorAll('.List__dropdown').length,
+        anyLi: document.querySelectorAll('ul li').length,
+      })).catch(() => ({}));
+      console.log(`  [sugg ${tag}] ${JSON.stringify(d)}`);
+    };
+
     const typeAndPick = async (query, label) => {
-      await pinput.click().catch(() => {});
-      await pinput.fill('').catch(() => {});
-      await pinput.pressSequentially(String(query), { delay: 70 }).catch(async () => { await page.keyboard.type(String(query)).catch(() => {}); });
-      await page.waitForTimeout(800);
+      const ed = editorLoc();
+      await ed.click().catch(() => {});
+      await ed.fill('').catch(() => {});
+      await ed.pressSequentially(String(query), { delay: 70 }).catch(async () => { await page.keyboard.type(String(query)).catch(() => {}); });
+      await page.waitForTimeout(950);
+      if (i === 0) await dumpSuggest(label);
       const res = await pickProduct(page, it.name);
       console.log(`  item[${i + 1}] typed ${label} "${query}" -> suggestions=${res.n} matched=${res.matched} chose="${res.text}"`);
+      if (res.ok && res.n > 0) { await page.locator('#revwebbody').press('Enter').catch(() => {}); await page.waitForTimeout(300); }
       return res;
     };
 
-    // Prefer the PACT product CODE (e.g. "RM0388"): it is unique and has no
-    // special characters, so it matches reliably. Fall back to a clean name
-    // prefix (letters/digits before the first "×"/bracket) if the code is
-    // missing or returns nothing.
+    // Prefer the PACT product CODE (unique, no special chars). Fall back to a
+    // clean name prefix (letters/digits before the first "×"/bracket).
     const pfx = typePrefix(search);
     let pr = { ok: false, n: 0 };
     if (it.code) pr = await typeAndPick(it.code, 'code');
     if (!pr.ok || pr.n === 0) pr = await typeAndPick(pfx, 'name-prefix');
-    await page.keyboard.press('Enter').catch(() => {});
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
     if (!pr.ok || pr.n === 0) { const m = `item[${i + 1}] product "${it.name}" (code ${it.code || 'n/a'}) — no PACT suggestion`; console.log('  ' + m); problems.push(m); continue; }
 
     // 4b. Purchase Unit Level dropdown -> select (L1).
