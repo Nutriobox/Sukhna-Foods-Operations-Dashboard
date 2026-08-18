@@ -154,20 +154,13 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   }
 
   for (let i = 0; i < bill.items.length; i++) {
-    // Approve Qty must equal Receipt Qty. Prefer the value PACT already shows in
-    // the Receipt Qty cell (exact match); fall back to the bill's receipt qty.
-    const receiptFromGrid = await readCellNum(i, receiptSuf);
+    // New PACT grid: no Receipt/Rejected columns. We simply type the received
+    // quantity (from the bill) straight into the Approve Qty cell. The batch box
+    // is opened later (section 6) by Enter on Approve Qty, then Enter on Base Qty.
+    const receiptFromGrid = await readCellNum(i, receiptSuf); // usually null now
     const aq = receiptFromGrid ?? bill.items[i].approveQty ?? bill.items[i].qty;
-    console.log(`  approve[${i + 1}] target = ${aq} (receiptGrid=${receiptFromGrid})`);
-    // Primary: type the Approve Qty straight into its cell (= Receipt Qty).
+    console.log(`  approve[${i + 1}] target = ${aq}`);
     if (approveSuf) await setCell(rowCell(i, approveSuf), aq, `approve[${i + 1}]`);
-    // If Approve Qty is still 0 (some builds compute it as Receipt - Rejected),
-    // zero the Rejected Qty cell so Approve auto-fills, then set Approve again.
-    const nowApprove = await readCellNum(i, approveSuf);
-    if (!nowApprove || nowApprove < (aq || 0) - 0.0001) {
-      if (rejectSuf) await setCell(rowCell(i, rejectSuf), 0, `reject[${i + 1}]`);
-      if (approveSuf) await setCell(rowCell(i, approveSuf), aq, `approve[${i + 1}]`);
-    }
   }
 
   // Log the row again so one run shows whether Approve Qty is now non-zero.
@@ -258,30 +251,41 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
     const openModal = () => page.locator('modal-container.show').last();
     const isOpen = async () => openModal().isVisible().catch(() => false);
 
-    // 6a. Open "Generate Batch Numbers": focus this row's Approve Qty cell and
-    //     press Enter 3 times (the exact manual sequence).
+    // 6a. Open the batch box the exact manual way:
+    //     press Enter on the Approve Qty cell, then Enter on the Base Qty cell.
+    const baseSuf = sufFor(['Base Qty', 'Base Quantity']);
+    const batchSuf = sufFor(['Batch No', 'Batch Number', 'Batch']);
+
+    // Enter on Approve Qty.
     if (approveSuf) {
       const ac = rowCell(i, approveSuf);
       await ac.scrollIntoViewIfNeeded().catch(() => {});
       await ac.click({ timeout: 6000 }).catch(() => {});
       await page.waitForTimeout(300);
-    }
-    for (let k = 0; k < 3 && !(await isOpen()); k++) {
       await page.keyboard.press('Enter').catch(() => {});
-      await page.waitForTimeout(700);
+      await page.waitForTimeout(600);
     }
 
-    // Fallback: if Enter didn't open it, click Base Qty / Batch No cell + Enter.
-    if (!(await isOpen())) {
-      const baseSuf = sufFor(['Base Qty', 'Base Quantity']);
-      const batchSuf = sufFor(['Batch No', 'Batch Number', 'Batch']);
-      for (const suf of [baseSuf, batchSuf]) {
-        if (!suf || (await isOpen())) continue;
-        await rowCell(i, suf).click({ timeout: 5000 }).catch(() => {});
-        await page.waitForTimeout(300);
-        await page.keyboard.press('Enter').catch(() => {});
-        await page.waitForTimeout(900);
-      }
+    // Enter on Base Qty -> opens the "Generate Batch Numbers" box.
+    if (!(await isOpen()) && baseSuf) {
+      const bc = rowCell(i, baseSuf);
+      await bc.scrollIntoViewIfNeeded().catch(() => {});
+      await bc.click({ timeout: 6000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      await page.keyboard.press('Enter').catch(() => {});
+      await page.waitForTimeout(900);
+    }
+
+    // Fallbacks: dblclick Base Qty, or click Batch No cell + Enter.
+    if (!(await isOpen()) && baseSuf) {
+      await rowCell(i, baseSuf).dblclick({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(900);
+    }
+    if (!(await isOpen()) && batchSuf) {
+      await rowCell(i, batchSuf).click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      await page.keyboard.press('Enter').catch(() => {});
+      await page.waitForTimeout(900);
     }
 
     if (!(await isOpen())) {
