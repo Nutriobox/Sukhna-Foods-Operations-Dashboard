@@ -239,4 +239,4 @@ async function createGoodsGateEntry(page, bill, { dryRun = true } = {}) {
   return { posted: true, grn };
 }
 
-module.exports = { createGoodsGateEntry, pickVendorSuggestion, normName };
+module.exports = { createGoodsGateEntry, pickVendorSuggestion, pickSuggestion, normName };

@@ -40,7 +40,7 @@ async function setStatus(patch) {
   const browser = await chromium.launch({ headless: true, args: ['--window-size=1920,1080'] });
   const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1920, height: 1080 } });
   const page = await context.newPage();
-  page.setDefaultTimeout(45000);
+  page.setDefaultTimeout(20000);
 
   // Save a screenshot + HTML dump so we can see what the headless browser saw.
   const fs = require('fs');

@@ -7,7 +7,7 @@
 //     set its quantity -> Save -> Post (+ Extra Fields date if PACT asks).
 
 const path = require('path');
-const { pickVendorSuggestion } = require('./gge');
+const { pickVendorSuggestion, pickSuggestion } = require('./gge');
 
 // "18/08/2026" -> "18"  (day-of-month, no leading zero) for the calendar picker.
 const dayOf = (dmy) => { const m = /^(\d{1,2})/.exec(String(dmy || '')); return m ? String(parseInt(m[1], 10)) : ''; };
@@ -60,27 +60,51 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     const mfgDay = dayOf(it.batch && it.batch.mfgDate);
     console.log(`  item[${i + 1}] "${search}" qty=${qty} level=${unitLevel} mfgDay=${mfgDay || '(none)'}`);
 
-    // 4a. Product Name cell -> type a few chars -> Enter to pick the first match.
-    await page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i)
-      .click({ timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(400);
-    const pinput = page.locator('[id="10"]').first();
-    await pinput.fill(search.slice(0, 8)).catch(async () => { await page.keyboard.type(search.slice(0, 8)).catch(() => {}); });
-    await page.waitForTimeout(700);
-    await pinput.press('Enter').catch(() => {});
-    await page.waitForTimeout(800);
+    // 4a. Product Name cell -> open editor -> type with REAL keystrokes so PACT's
+    //     type-ahead fires, then pick the matching suggestion (a plain fill() sets
+    //     the value without firing the events the dropdown needs, so nothing gets
+    //     selected and the batch box never opens — that was the earlier bug).
+    const prodCell = page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(i);
+    await prodCell.scrollIntoViewIfNeeded().catch(() => {});
+    await prodCell.click({ timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(350);
+    let pinput = page.locator('[id="10"], .slick-cell.editable input').first();
+    if (!(await pinput.isVisible().catch(() => false))) {
+      await prodCell.dblclick({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      pinput = page.locator('[id="10"], .slick-cell.editable input').first();
+    }
+    await pinput.click().catch(() => {});
+    await pinput.fill('').catch(() => {});
+    await pinput.pressSequentially(search, { delay: 60 }).catch(async () => { await page.keyboard.type(search).catch(() => {}); });
+    await page.waitForTimeout(600);
+    let picked = true;
+    await pickSuggestion(page, it.name).catch(() => { picked = false; });
+    await page.keyboard.press('Enter').catch(() => {});
+    await page.waitForTimeout(500);
+    if (!picked) { console.log(`  item[${i + 1}] product "${it.name}" not matched in PACT master — skipping row`); continue; }
 
     // 4b. Purchase Unit Level dropdown -> select (L1).
-    const lvlSel = page.locator('.slick-cell > .input_cntrl').first();
+    const lvlSel = page.locator('.slick-cell .input_cntrl, .slick-cell select').first();
     await lvlSel.selectOption(unitLevel).catch(() => {});
     await lvlSel.press('Enter').catch(() => {});
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(450);
 
-    // 4c. Quantity -> type it, then Enter, Enter -> opens the batch box.
-    const qed = page.locator('.PactTextBoxEditor, .slick-cell.editable input, input.editor-text').first();
+    // 4c. Quantity -> type it, Enter, Enter -> opens the batch box. After the
+    //     unit-level Enter the qty editor is usually active; if not, open the
+    //     Approve Qty cell explicitly.
+    let qed = page.locator('input.PactTextBoxEditor, .slick-cell.editable input, input.editor-text').first();
+    if (!(await qed.isVisible().catch(() => false))) {
+      const aqCell = page.getByRole('gridcell', { description: 'Approve Qty', exact: true }).nth(i);
+      await aqCell.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      await aqCell.dblclick({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      qed = page.locator('input.PactTextBoxEditor, .slick-cell.editable input, input.editor-text').first();
+    }
     await qed.fill(String(qty)).catch(async () => { await page.keyboard.type(String(qty)).catch(() => {}); });
     await qed.press('Enter').catch(() => {});
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
     await page.keyboard.press('Enter').catch(() => {});
     await page.waitForTimeout(1100);
 
