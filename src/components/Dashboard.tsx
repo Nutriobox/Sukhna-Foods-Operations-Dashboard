@@ -843,11 +843,12 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
     const toDMY = (v: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
     const items = lines.map((l, i) => {
       const prod = productByName(selProduct[i]) || matchProduct(l.billName).product;
-      const l1u = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || selUnit[i] || "");
-      // Push everything at L1 (base) level. Receipt Qty = Packing Size x Purchase Qty,
-      // i.e. the bill quantity converted straight to L1 base units.
-      const l1Factor = convFactor(prod, b.items[i].uom, l1u);
-      const receiptQty = l.qty != null ? l.qty * (l1Factor ?? 1) : 0;
+      const unit = selUnit[i] || "";
+      const l1u = prod.levels.L1 ? prod.levels.L1.u : (prod.units[0] || unit);
+      // Push everything at L1 (base) level. Receipt Qty = Packing Size x Purchase Qty.
+      const purchaseQty = l.qty != null ? l.qty * (convFactor(prod, b.items[i].uom, unit) ?? 1) : 0;
+      const packSize = convFactor(prod, unit, l1u);
+      const receiptQty = purchaseQty * (packSize ?? 1);
       const mfg = toDMY(batches[i]?.[0]?.mfg || "");
       return { search: prod.name, name: prod.name, unit: l1u, unitLevel: "L1", printLevel: "L1", qty: receiptQty, batch: mfg ? { mfgDate: mfg } : undefined };
     });
@@ -927,9 +928,8 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
             const unitInMaster = !!unit && prod.units.some((u) => canonUnit(u) === canonUnit(unit));
             const factor = convFactor(prod, it.uom, unit);
             const dispQty = l.qty != null ? l.qty * (factor ?? 1) : null;
-            const l1Factor = convFactor(prod, it.uom, l1Uom);
             const packSize = convFactor(prod, unit, l1Uom);            // L1 base units per purchase unit
-            const receiptQty = l.qty != null ? l.qty * (l1Factor ?? 1) : null;  // = packSize x purchase qty (L1)
+            const receiptQty = dispQty != null ? dispQty * (packSize ?? 1) : null;  // Packing Size x Purchase Qty (L1)
             const effQty = dispQty;
             const dispRate = l.rate != null ? l.rate / (factor ?? 1) : null;
             const splitMode = bs.length > 1;
