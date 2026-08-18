@@ -14,6 +14,7 @@ const dayOf = (dmy) => { const m = /^(\d{1,2})/.exec(String(dmy || '')); return 
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
+  const problems = [];   // collect per-item issues so we can report a real pass/fail
 
   // 1. Open Stock Inward (via the Flows menu if the link isn't already showing).
   const link = page.getByRole('link', { name: 'Stock Inward', exact: true }).first();
@@ -82,7 +83,7 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     await pickSuggestion(page, it.name).catch(() => { picked = false; });
     await page.keyboard.press('Enter').catch(() => {});
     await page.waitForTimeout(500);
-    if (!picked) { console.log(`  item[${i + 1}] product "${it.name}" not matched in PACT master — skipping row`); continue; }
+    if (!picked) { const m = `item[${i + 1}] product "${it.name}" not matched in PACT master`; console.log('  ' + m); problems.push(m); continue; }
 
     // 4b. Purchase Unit Level dropdown -> select (L1).
     const lvlSel = page.locator('.slick-cell .input_cntrl, .slick-cell select').first();
@@ -111,7 +112,8 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     // 4d. "Generate Batch Numbers" dialog.
     const dlg = page.locator('modal-container.show').last();
     if (!(await dlg.isVisible().catch(() => false))) {
-      console.log(`  batch[${i + 1}]: dialog did NOT open`);
+      const m = `batch[${i + 1}] "${it.name}": batch dialog did NOT open`;
+      console.log('  ' + m); problems.push(m);
       continue;
     }
 
@@ -210,8 +212,31 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
   }
 
   await page.screenshot({ path: path.join('/tmp', 'stockinward-after-post.png'), fullPage: true }).catch(() => {});
-  console.log('  Stock Inward post attempted.');
-  return { posted: true };
+
+  // Verify the voucher actually posted: PACT shows a green "Posted" status badge
+  // next to the title once it commits. Also treat a lingering validation/error
+  // toast or an open modal as "not posted".
+  await page.waitForTimeout(800);
+  const posted = await page.evaluate(() => {
+    const txt = (document.body.innerText || '');
+    const hasBadge = /\bPosted\b/i.test(txt);
+    const modalOpen = !!document.querySelector('modal-container.show');
+    const errToast = Array.from(document.querySelectorAll('.toast-error, .toast-message, .alert-danger, .swal2-html-container'))
+      .some((e) => (e.innerText || '').trim().length > 0);
+    return { hasBadge, modalOpen, errToast };
+  }).catch(() => ({ hasBadge: false, modalOpen: true, errToast: false }));
+
+  let ok = posted.hasBadge && !posted.modalOpen;
+  const reasons = [];
+  if (problems.length) reasons.push(problems.join('; '));
+  if (!posted.hasBadge) reasons.push('no "Posted" status shown after Post');
+  if (posted.modalOpen) reasons.push('a dialog was still open after Post');
+  if (posted.errToast) reasons.push('an error message was visible after Post');
+  // If any item failed to allocate, the whole voucher is not trustworthy.
+  if (problems.length) ok = false;
+
+  console.log(`  Stock Inward post result: posted=${ok} (badge=${posted.hasBadge} modal=${posted.modalOpen} err=${posted.errToast})`);
+  return { posted: ok, reason: reasons.join(' | ') };
 }
 
 module.exports = { createStockInward };
