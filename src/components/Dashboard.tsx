@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Bill, Item } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
-import { resolveLine, candidates, productByName, productCode, matchProduct, canonUnit, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
+import { resolveLine, productByName, productCode, matchProduct, canonUnit, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
 import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
@@ -789,7 +789,6 @@ function Combobox({ value, options, onChange, disabled, placeholder, codeFor }: 
 
 function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill; onClose: () => void; onConfirm: () => void; uploadItem: (id: number, i: number) => void; patchItem: (id: number, idx: number, patch: Partial<Item>) => void }) {
   const lines: PactLine[] = useMemo(() => b.items.map((it) => resolveLine(it)), [b]);
-  const cands = useMemo(() => b.items.map((_, i) => candidates(lines[i].billName)), [b]);
   const sup = useMemo(() => matchSupplier(b.vendorGst, b.vendor), [b]);
   const [ackNoSupplier, setAckNoSupplier] = useState(false);
   const [selSupplierName, setSelSupplierName] = useState<string>(sup.supplier ? sup.supplier.name : "");
@@ -2022,7 +2021,7 @@ const FLOW_GOTCHAS: string[] = [
   "The batch box opens on Enter: Approve Qty → Enter → Enter on Base Qty. There is no button for it, so the key sequence is exact by design.",
   "Approve Qty must equal Receipt Qty, or PACT records the line as 0.",
   "Two different actions: double-click _pushx.bat to DEPLOY code changes; the dashboard Confirm & Push TRIGGERS the actual PACT posting.",
-  'GitHub shows "done" but nothing in PACT? Open the job's step log (stored in the database) — it names the exact step that failed.',
+  'GitHub shows "done" but nothing in PACT? Open the step log for that job (stored in the database) — it names the exact step that failed.',
   "Timeouts: the background job caps at 25 minutes and each single click fails after 20 seconds, so it never hangs silently.",
   "Vendor / product not found is almost always a master-data gap in PACT (add it there and retry), not a dashboard bug.",
 ];
