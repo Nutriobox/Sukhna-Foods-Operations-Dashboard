@@ -238,36 +238,67 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     }
     console.log(`  batch[${i + 1}] manufactured date set=${dateSet} (${mfgDmy || 'n/a'})`);
 
-    // Save & Add -> creates the batch line.
+    // Footer shows "Added: X of Y" — how much of the received qty is allocated.
+    const footerText = async () => (((await dlg.getByText(/Added[:\s].*of/i).first().innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim());
+    const parseAdded = (t) => { const m = (t || '').match(/([\d.]+)\s*of\s*([\d.]+)/); return m ? { added: parseFloat(m[1]), total: parseFloat(m[2]) } : null; };
+
+    // One-time: dump the batch dialog's structure so we know its real fields.
+    if (i === 0) {
+      const dd = await dlg.evaluate((el) => ({
+        inputs: [...el.querySelectorAll('input')].map((x) => '#' + (x.id || '-')).slice(0, 16),
+        cols: [...el.querySelectorAll('.slick-header-column')].map((h) => (h.innerText || '').trim()).filter(Boolean),
+        btns: [...el.querySelectorAll('button')].map((b) => (b.innerText || b.title || '').trim()).filter(Boolean).slice(0, 16),
+      })).catch(() => ({}));
+      console.log(`  [batch-diag] inputs=${JSON.stringify(dd.inputs)} cols=${JSON.stringify(dd.cols)} btns=${JSON.stringify(dd.btns)}`);
+    }
+
+    // Make sure the top Qty field holds the full received quantity BEFORE we add
+    // the batch (so Save & Add allocates the full amount, not 0).
+    const qtyField = dlg.locator('#QTY, input[id*="QTY" i], input[id*="Qty" i]').first();
+    if (await qtyField.isVisible().catch(() => false)) {
+      await qtyField.fill(String(qty)).catch(() => {});
+      await page.waitForTimeout(200);
+    }
+
+    // Save & Add -> creates the batch line and allocates it.
     await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+    console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
+
+    // If still short, set the grid row's Quantity cell to fill the allocation.
+    let pf = parseAdded(await footerText());
+    if (!pf || pf.added + 0.001 < pf.total) {
+      const qCell = dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first();
+      await qCell.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      await qCell.dblclick({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      const qed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
+      await qed.fill(String((pf && pf.total) || qty)).catch(() => {});
+      await qed.press('Enter').catch(() => {});
+      await page.waitForTimeout(500);
+      console.log(`  batch[${i + 1}] after grid-qty: "${await footerText()}"`);
+    }
+
+    // Save (bottom) to commit + close the dialog.
+    await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 6000 }).catch(() => {});
     await page.waitForTimeout(1000);
 
-    // Pick the created batch number (last option in the grid dropdown).
-    await dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(400);
-    const bsel = dlg.locator('.slick-cell > .input_cntrl, .slick-cell select').first();
-    const nOpt = await bsel.locator('option').count().catch(() => 0);
-    if (nOpt > 1) {
-      await bsel.selectOption({ index: nOpt - 1 }).catch(() => {});
-      console.log(`  batch[${i + 1}] picked batch option ${nOpt - 1} of ${nOpt}`);
-    } else {
-      console.log(`  batch[${i + 1}] batch dropdown had ${nOpt} option(s)`);
+    // The dialog MUST close, or it blocks every following item. If Save left it
+    // open, log the footer (so we see why) and dismiss it so the run continues.
+    if (await page.locator('modal-container.show').count().catch(() => 0)) {
+      console.log(`  batch[${i + 1}] dialog still open after Save — footer: "${await footerText()}"`);
+      await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(600);
+      if (await page.locator('modal-container.show').count().catch(() => 0)) {
+        await dlg.getByRole('button', { name: /Close|Cancel/i }).first().click({ timeout: 3000 }).catch(() => {});
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(500);
+        problems.push(`batch[${i + 1}] "${it.name}": batch dialog would not save/close`);
+      }
     }
-    await page.waitForTimeout(400);
-
-    // Set the batch Quantity.
-    await dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(300);
-    const bqed = dlg.locator('.PactTextBoxEditor, .slick-cell input, input.editor-text').first();
-    await bqed.fill(String(qty)).catch(() => {});
-    await bqed.press('Enter').catch(() => {});
-    await page.waitForTimeout(400);
-
-    // Save & close the batch dialog (the "Save" button, not "Save & Add").
-    await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 6000 }).catch(() => {});
-    await dlg.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => console.log(`  batch[${i + 1}] dialog did not close after Save`));
-    await page.waitForTimeout(600);
-    console.log(`  batch[${i + 1}] done`);
+    const modalsOpen = await page.locator('modal-container.show').count().catch(() => 0);
+    console.log(`  batch[${i + 1}] done (modalsOpen=${modalsOpen})`);
   }
 
   if (dryRun) {
