@@ -142,27 +142,46 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       console.log(`  [sugg ${tag}] ${JSON.stringify(d)}`);
     };
 
-    const typeAndPick = async (query, label) => {
+    // Read what the ProductName cell currently shows (after the editor closes).
+    const readProdCell = async () => {
+      const t = ((await prodCell.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+      return t;
+    };
+    const wantNorm = normProd(it.name);
+
+    // Type a query, accept the highlighted match with Enter (exactly like the
+    // manual recording), then VERIFY the cell now holds the right product. This
+    // does not depend on locating a specific suggestion container.
+    const typeAndSelect = async (query, label) => {
       const ed = editorLoc();
       await ed.click().catch(() => {});
       await ed.fill('').catch(() => {});
       await ed.pressSequentially(String(query), { delay: 70 }).catch(async () => { await page.keyboard.type(String(query)).catch(() => {}); });
       await page.waitForTimeout(950);
       if (i === 0) await dumpSuggest(label);
-      const res = await pickProduct(page, it.name);
-      console.log(`  item[${i + 1}] typed ${label} "${query}" -> suggestions=${res.n} matched=${res.matched} chose="${res.text}"`);
-      if (res.ok && res.n > 0) { await page.locator('#revwebbody').press('Enter').catch(() => {}); await page.waitForTimeout(300); }
-      return res;
+      // First try clicking a suggestion if PACT rendered the known dropdown…
+      const res = await pickProduct(page, it.name).catch(() => ({ ok: false, n: 0 }));
+      // …but always also accept via keyboard: highlight the first row + Enter.
+      if (!(res.ok && res.n > 0)) { await page.keyboard.press('ArrowDown').catch(() => {}); await page.waitForTimeout(200); }
+      await page.keyboard.press('Enter').catch(() => {});
+      await page.waitForTimeout(600);
+      await page.locator('#revwebbody').press('Enter').catch(() => {});
+      await page.waitForTimeout(300);
+      const cell = await readProdCell();
+      const cn = normProd(cell);
+      const selected = cn.length > 2 && (cn === wantNorm || cn.includes(wantNorm) || wantNorm.includes(cn));
+      console.log(`  item[${i + 1}] ${label} "${query}" -> suggestions=${res.n} cell="${cell.slice(0, 44)}" selected=${selected}`);
+      return selected;
     };
 
     // Prefer the PACT product CODE (unique, no special chars). Fall back to a
     // clean name prefix (letters/digits before the first "×"/bracket).
     const pfx = typePrefix(search);
-    let pr = { ok: false, n: 0 };
-    if (it.code) pr = await typeAndPick(it.code, 'code');
-    if (!pr.ok || pr.n === 0) pr = await typeAndPick(pfx, 'name-prefix');
-    await page.waitForTimeout(400);
-    if (!pr.ok || pr.n === 0) { const m = `item[${i + 1}] product "${it.name}" (code ${it.code || 'n/a'}) — no PACT suggestion`; console.log('  ' + m); problems.push(m); continue; }
+    let selectedOk = false;
+    if (it.code) selectedOk = await typeAndSelect(it.code, 'code');
+    if (!selectedOk) selectedOk = await typeAndSelect(pfx, 'name-prefix');
+    await page.waitForTimeout(300);
+    if (!selectedOk) { const m = `item[${i + 1}] product "${it.name}" (code ${it.code || 'n/a'}) — could not select in PACT grid`; console.log('  ' + m); problems.push(m); continue; }
 
     // 4b. Purchase Unit Level dropdown -> select (L1).
     const lvlSel = page.locator('.slick-cell .input_cntrl, .slick-cell select').first();
