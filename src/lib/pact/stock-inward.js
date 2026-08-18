@@ -116,10 +116,19 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   const sufFor = (labels) => { for (const l of labels) if (rowMap.map[l]) return rowMap.map[l]; return ''; };
   const rejectSuf = sufFor(['Rejected Qty', 'Reject Qty', 'Rejected Quantity', 'Rejected']);
   const approveSuf = sufFor(['Approve Qty', 'Approved Qty', 'Approve Quantity', 'Accepted Qty']);
-  console.log('  [approveGrid] rejectSuf =', rejectSuf || '(none)', ' approveSuf =', approveSuf || '(none)');
+  const receiptSuf = sufFor(['Receipt Qty', 'Receipt Quantity', 'Received Qty', 'Recd Qty', 'Recpt Qty']);
+  console.log('  [approveGrid] rejectSuf =', rejectSuf || '(none)', ' approveSuf =', approveSuf || '(none)', ' receiptSuf =', receiptSuf || '(none)');
 
   const rowCell = (idx, suf) => page.locator('.slick-row').nth(idx)
     .locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
+
+  // Read the numeric text currently shown in a row/column cell (e.g. Receipt Qty).
+  const readCellNum = async (idx, suf) => {
+    if (!suf) return null;
+    const t = await rowCell(idx, suf).innerText().catch(() => '');
+    const n = parseFloat(String(t).replace(/[^0-9.]/g, ''));
+    return Number.isFinite(n) ? n : null;
+  };
 
   // Robustly type `value` into a slick numeric cell: click (select), then if no
   // editor opened, double-click; fill the editable input; commit with Enter.
@@ -145,11 +154,20 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   }
 
   for (let i = 0; i < bill.items.length; i++) {
-    const aq = bill.items[i].approveQty ?? bill.items[i].qty;
-    // Primary fix: zero the Rejected Qty so Approve Qty auto-computes to full.
-    if (rejectSuf) await setCell(rowCell(i, rejectSuf), 0, `reject[${i + 1}]`);
-    // Fallback: also try to set Approve Qty directly (no-op if computed/read-only).
+    // Approve Qty must equal Receipt Qty. Prefer the value PACT already shows in
+    // the Receipt Qty cell (exact match); fall back to the bill's receipt qty.
+    const receiptFromGrid = await readCellNum(i, receiptSuf);
+    const aq = receiptFromGrid ?? bill.items[i].approveQty ?? bill.items[i].qty;
+    console.log(`  approve[${i + 1}] target = ${aq} (receiptGrid=${receiptFromGrid})`);
+    // Primary: type the Approve Qty straight into its cell (= Receipt Qty).
     if (approveSuf) await setCell(rowCell(i, approveSuf), aq, `approve[${i + 1}]`);
+    // If Approve Qty is still 0 (some builds compute it as Receipt - Rejected),
+    // zero the Rejected Qty cell so Approve auto-fills, then set Approve again.
+    const nowApprove = await readCellNum(i, approveSuf);
+    if (!nowApprove || nowApprove < (aq || 0) - 0.0001) {
+      if (rejectSuf) await setCell(rowCell(i, rejectSuf), 0, `reject[${i + 1}]`);
+      if (approveSuf) await setCell(rowCell(i, approveSuf), aq, `approve[${i + 1}]`);
+    }
   }
 
   // Log the row again so one run shows whether Approve Qty is now non-zero.
@@ -235,81 +253,45 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
   for (let i = 0; i < bill.items.length; i++) {
     const it = bill.items[i];
     const b = it.batch || {};
-    const mfg = b.mfgDate || DEF_MFG;
-    const exp = b.expiryDate || DEF_EXP;
-    const baseQty = it.baseQty ?? null;
+    const mfg = b.mfgDate || DEF_MFG;   // Manufactured Date from the dashboard entry
 
-    // ---- open the "Generate Batch Numbers" dialog (self-diagnosing) ----------
-    // We don't yet know the exact trigger in headless, so log the grid columns,
-    // try several strategies, report which one opened the dialog, and dump the
-    // dialog HTML (or the row's cell structure if none worked) to the run log.
     const openModal = () => page.locator('modal-container.show').last();
     const isOpen = async () => openModal().isVisible().catch(() => false);
 
-    if (i === 0) {
-      try {
-        const cols = await page.evaluate(() =>
-          [...document.querySelectorAll('.slick-header-column')].map(h => (h.innerText || '').trim()).filter(Boolean));
-        console.log('  [si-columns]', JSON.stringify(cols));
-      } catch (e) { console.log('  [si-columns] failed:', e.message); }
-    }
-
-    // Map the SI item row's cells: header label -> aria-describedby suffix, by
-    // finding the .slick-row that actually contains the product (there are two
-    // grids on this screen — the empty template grid and the real approve grid).
-    const colMap = await page.evaluate(() => {
-      const hdr = {};
-      [...document.querySelectorAll('.slick-header-column')].forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
-      const rows = [...document.querySelectorAll('.slick-row')];
-      const row = rows.find(r => (r.innerText || '').trim().length > 3);
-      if (!row) return { cells: [] };
-      const cells = [...row.querySelectorAll('.slick-cell')].map(c => {
-        const db = c.getAttribute('aria-describedby') || '';
-        return { suffix: db.replace(/^slickgrid_\d+/, ''), label: hdr[db] || '', text: (c.innerText || '').trim().slice(0, 12) };
-      }).filter(c => c.label || c.text);
-      return { cells };
-    }).catch(() => ({ cells: [] }));
-    if (i === 0) console.log('  [si-colmap]', JSON.stringify(colMap.cells).slice(0, 1800));
-
-    const suffixFor = (label) => (colMap.cells.find(c => c.label === label) || {}).suffix;
-    const baseSuf = suffixFor('Base Qty');
-    const batchSuf = suffixFor('Batch No');
-    const approveSuf = suffixFor('Approve Qty');
-    const cell = (suf) => page.locator('.slick-row').nth(i).locator(`.slick-cell[aria-describedby$="${suf}"]`).first();
-
-    const strategies = [
-      ['click BaseQty + Enter', async () => { if (!baseSuf) throw 0; await cell(baseSuf).scrollIntoViewIfNeeded().catch(() => {}); await cell(baseSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
-      ['dblclick BaseQty', async () => { if (!baseSuf) throw 0; await cell(baseSuf).dblclick({ timeout: 5000 }); }],
-      ['click BatchNo + Enter', async () => { if (!batchSuf) throw 0; await cell(batchSuf).click({ timeout: 5000 }); await page.waitForTimeout(300); await page.keyboard.press('Enter'); }],
-      ['dblclick BatchNo', async () => { if (!batchSuf) throw 0; await cell(batchSuf).dblclick({ timeout: 5000 }); }],
-    ];
-    let opened = false, usedStrategy = '';
-    for (const [name, fn] of strategies) {
-      await fn().catch(() => {});
-      await page.waitForTimeout(1050);
-      if (await isOpen()) { opened = true; usedStrategy = name; break; }
-      // close any stray editor before next attempt
-      await page.keyboard.press('Escape').catch(() => {});
+    // 6a. Open "Generate Batch Numbers": focus this row's Approve Qty cell and
+    //     press Enter 3 times (the exact manual sequence).
+    if (approveSuf) {
+      const ac = rowCell(i, approveSuf);
+      await ac.scrollIntoViewIfNeeded().catch(() => {});
+      await ac.click({ timeout: 6000 }).catch(() => {});
       await page.waitForTimeout(300);
     }
-    console.log(`  batch[${i + 1}] open: ${opened ? 'OPENED via [' + usedStrategy + ']' : 'NOT OPENED'} (baseSuf=${baseSuf} batchSuf=${batchSuf})`);
-
-    if (i === 0 && opened) {
-      try {
-        const html = await openModal().evaluate(el => el.outerHTML);
-        console.log('  [batch-dialog HTML]', html.replace(/\s+/g, ' ').slice(0, 2600));
-      } catch (e) { console.log('  [diag] dialog dump failed:', e.message); }
+    for (let k = 0; k < 3 && !(await isOpen()); k++) {
+      await page.keyboard.press('Enter').catch(() => {});
+      await page.waitForTimeout(700);
     }
 
-    let dlg = openModal();
-    if (!opened) {
-      console.log(`  batch[${i + 1}]: dialog did not open`);
+    // Fallback: if Enter didn't open it, click Base Qty / Batch No cell + Enter.
+    if (!(await isOpen())) {
+      const baseSuf = sufFor(['Base Qty', 'Base Quantity']);
+      const batchSuf = sufFor(['Batch No', 'Batch Number', 'Batch']);
+      for (const suf of [baseSuf, batchSuf]) {
+        if (!suf || (await isOpen())) continue;
+        await rowCell(i, suf).click({ timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        await page.keyboard.press('Enter').catch(() => {});
+        await page.waitForTimeout(900);
+      }
+    }
+
+    if (!(await isOpen())) {
+      console.log(`  batch[${i + 1}]: Generate Batch Numbers dialog did NOT open`);
       continue;
     }
+    const dlg = openModal();
+    console.log(`  batch[${i + 1}] dialog opened`);
 
-    const footer = async () => (await dlg.getByText(/Added:.*of.*for/).first().innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-
-    // one-time: dump the pristine dialog
+    // one-time diagnostic dump of the pristine dialog
     if (i === 0) {
       try {
         const html = await dlg.evaluate((el) => el.outerHTML);
@@ -318,78 +300,28 @@ async function createStockInward(page, bill, { dryRun = true, targetGrn: grnOpt 
       } catch (e) { console.log('  [diag] dump failed:', String(e.message).split('\n')[0]); }
     }
 
-    // The dialog's inner grid columns are: 0=#, 1=Batch Number, 2=Mfg, 3=Expiry, 4=Quantity...
-    // Clicking row-1's Batch Number cell puts it in edit mode and reveals the dropdown of
-    // existing batches (your manual method). Pick the LAST option, then set Quantity.
-    const gridRow = dlg.locator('.slick-row').first();
-    const bnCell = gridRow.locator('.slick-cell').nth(1);
-    await bnCell.click({ timeout: 6000 }).catch((e) => console.log(`  batch[${i + 1}] BN cell click: ${String(e.message).split('\n')[0]}`));
-    await page.waitForTimeout(500);
+    // 6b. Create the batch: set Manufactured Date from the dashboard entry.
+    //     Expiry Date and Qty auto-fill in PACT, so leave them untouched.
+    let mfgField = dlg.locator('#MfgDate, #MfgryDate, #ManufacturingDate, input[id*="Mfg" i]').first();
+    if (!(await mfgField.count().catch(() => 0))) mfgField = dlg.locator('input[placeholder*="Manufact" i], input[name*="Mfg" i]').first();
+    await typeDate(mfgField, mfg);
+    console.log(`  batch[${i + 1}] set Manufactured Date = ${mfg}`);
 
-    if (i === 0) {
-      try {
-        const html2 = await dlg.evaluate((el) => el.outerHTML);
-        require('fs').writeFileSync(require('path').join(__dirname, '..', 'batch-editing.html'), html2);
-        console.log(`  [diag] wrote batch-editing.html (${html2.length} bytes)`);
-      } catch {}
-    }
+    // 6c. Save & Add (adds this batch line; qty pre-filled from Receipt/Base qty).
+    await dlg.getByText('Save & Add', { exact: false }).first()
+      .click({ timeout: 6000 })
+      .catch((e) => console.log(`  batch[${i + 1}] Save & Add: ${String(e.message).split('\n')[0]}`));
+    await page.waitForTimeout(1000);
+    const added = (await dlg.getByText(/Added:.*of.*for/).first().innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+    if (added) console.log(`  batch[${i + 1}] ${added}`);
 
-    // dropdown of existing batches inside the grid cell
-    let gsel = bnCell.locator('select').first();
-    if (!(await gsel.count().catch(() => 0))) gsel = dlg.locator('.slick-cell select, .slick-row select').first();
-    const hasDropdown = await gsel.count().catch(() => 0);
-    let usedExisting = false;
-
-    if (hasDropdown) {
-      const nOpt = await gsel.locator('option').count().catch(() => 0);
-      const lastTxt = await gsel.locator('option').nth(nOpt - 1).innerText().catch(() => '');
-      if (nOpt > 1) {
-        await gsel.selectOption({ index: nOpt - 1 }).catch((e) => console.log(`  batch[${i + 1}] dropdown select: ${String(e.message).split('\n')[0]}`));
-        await page.waitForTimeout(500);
-        usedExisting = true;
-        console.log(`  batch[${i + 1}] picked existing batch "${lastTxt.trim()}" (${nOpt} opts); footer: ${await footer()}`);
-      } else {
-        console.log(`  batch[${i + 1}] dropdown present but only ${nOpt} option(s) — will create new`);
-      }
-    } else {
-      console.log(`  batch[${i + 1}] no batch dropdown in grid cell`);
-    }
-
-    if (!usedExisting) {
-      // create a NEW batch via the top form
-      await typeDate(dlg.locator('#MfgDate').first(), mfg);
-      await typeDate(dlg.locator('#ExpiryDate').first(), exp);
-      await dlg.locator('#QTY').first().click().catch(() => {});
-      await page.waitForTimeout(300);
-      await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
-      await page.waitForTimeout(850);
-      console.log(`  batch[${i + 1}] created new batch; footer: ${await footer()}`);
-    }
-
-    // Ensure quantity allocated: parse "Added: ... X of Y ..." and fill the row Quantity if X < Y.
-    const parseFooter = (t) => { const m = (t || '').match(/([\d.]+)\s*of\s*([\d.]+)/); return m ? { added: parseFloat(m[1]), total: parseFloat(m[2]) } : null; };
-    {
-      let pf = parseFooter(await footer());
-      if (!pf || pf.added < pf.total) {
-        const wantQty = baseQty != null ? baseQty : (pf ? pf.total : (await dlg.locator('#QTY').first().inputValue().catch(() => ''))) || '';
-        const qtyCell = gridRow.locator('.slick-cell').nth(4); // 0=# 1=BatchNo 2=Mfg 3=Expiry 4=Quantity
-        await qtyCell.click({ timeout: 5000 }).catch(() => {});
-        await page.waitForTimeout(300);
-        const ed = dlg.locator('.slick-cell input, input.editor-text, .PactTextBoxEditor').first();
-        await ed.fill(String(wantQty)).catch((e) => console.log(`  batch[${i + 1}] qty fill: ${String(e.message).split('\n')[0]}`));
-        await ed.press('Enter').catch(() => {});
-        await page.waitForTimeout(500);
-        console.log(`  batch[${i + 1}] set grid qty ${wantQty}; footer: ${await footer()}`);
-      }
-    }
-
-    // Save & close the dialog
-    let saveBtn = dlg.locator('button.primary-btn-wicon:has(i.fa-floppy-disk)').first();
-    if (!(await saveBtn.count().catch(() => 0))) saveBtn = dlg.getByRole('button', { name: 'Save', exact: true }).last();
-    await saveBtn.click({ timeout: 6000 }).catch((e) => console.log(`  batch[${i + 1}] Save failed: ${String(e.message).split('\n')[0]}`));
+    // 6d. A second "Save" button appears — click it to commit and close the dialog.
+    let saveBtn = dlg.getByRole('button', { name: 'Save', exact: true }).last();
+    if (!(await saveBtn.count().catch(() => 0))) saveBtn = dlg.locator('button.primary-btn-wicon:has(i.fa-floppy-disk)').first();
+    await saveBtn.click({ timeout: 6000 }).catch((e) => console.log(`  batch[${i + 1}] Save: ${String(e.message).split('\n')[0]}`));
     await dlg.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => console.log(`  batch[${i + 1}] dialog did not close after Save`));
-    await page.waitForTimeout(550);
-    console.log(`  batch[${i + 1}] done`);
+    await page.waitForTimeout(600);
+    console.log(`  batch[${i + 1}] done (mfg=${mfg})`);
   }
 
   if (dryRun) {
