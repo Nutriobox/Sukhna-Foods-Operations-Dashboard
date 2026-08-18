@@ -1926,11 +1926,20 @@ function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () =>
   );
 }
 
-const FLOW_STEPS: { n: number; dash: { t: string; d: string }; pact: { t: string; d: string }; notes: string[] }[] = [
+const FLOW_ARCH: string[] = [
+  "1) A supplier bill arrives and AI reads it into line items, which land in the Invoice Inbox (stored in our database).",
+  "2) You open Upload to PACT, confirm the party, products, units, quantities and manufactured dates, then click Confirm & Push.",
+  "3) That does NOT click PACT directly. It saves a job in the database and signals GitHub to run the automation.",
+  "4) GitHub Actions starts a cloud computer, opens PACT in a headless (invisible) Chrome, and a Playwright script performs every click and keystroke exactly as a person would.",
+  "5) When done, the script checks that PACT shows Posted, and writes the full step-log back to the database so you can see the result on the dashboard — no need to open GitHub.",
+];
+
+const FLOW_STEPS: { n: number; dash: { t: string; d: string }; pact: { t: string; d: string }; how: string; notes: string[] }[] = [
   {
     n: 1,
-    dash: { t: "Bill lands in the Invoice Inbox", d: "The supplier bill is auto-read by AI and appears in the inbox. It runs 3 checks — stamp, buyer GST, and totals — and shows OK or Needs review." },
+    dash: { t: "Bill lands in the Invoice Inbox", d: "The supplier bill is read by AI into structured line items and appears in the inbox. Three checks run — receiving stamp, buyer GST, and totals — and it shows OK or Needs review." },
     pact: { t: "(nothing yet)", d: "PACT is not touched until you push." },
+    how: "How it works: the bill image is sent to a vision-AI endpoint (/api/extract-bill) that returns the line items as JSON, and a second endpoint (/api/verify-stamp) checks the stamp. The result is saved in the bills table in Supabase (our database).",
     notes: [
       "Only bills marked OK can be pushed to PACT.",
       "If extraction failed (AI busy), the bill shows an error — re-upload or retry.",
@@ -1938,77 +1947,84 @@ const FLOW_STEPS: { n: number; dash: { t: string; d: string }; pact: { t: string
   },
   {
     n: 2,
-    dash: { t: 'Click "Upload to Pact"', d: "Opens the Upload-to-PACT panel with each line item already matched against the PACT item master." },
-    pact: { t: "(preparing)", d: "Still nothing posted — this is the review screen." },
+    dash: { t: 'Click "Upload to Pact"', d: "Opens the Upload-to-PACT panel with each line item already matched against the PACT item master (product list)." },
+    pact: { t: "(preparing)", d: "Nothing is posted yet — this is the review screen where you confirm everything before it goes to PACT." },
+    how: "How it works: matching happens inside the browser against pact-catalog.json — a copy of the PACT product master (2,176 products, each with its PACT code). No PACT connection is made at this stage.",
     notes: [
       'A frozen "Uploaded to Pact · View" button means the bill was already pushed (read-only).',
-      "To redo an already-pushed bill it must be unlocked first.",
+      "To redo an already-pushed bill, it must be unlocked first.",
     ],
   },
   {
     n: 3,
-    dash: { t: "Party Name (supplier)", d: 'Auto-matched from the PACT supplier master — GSTIN first, then name. The "· PACT master" tag means it is the master name, not the bill wording. Fix it with the search dropdown if wrong.' },
-    pact: { t: "Vendor field (#100)", d: "The robot types the first few letters, waits for the type-ahead dropdown, and clicks the matching supplier." },
+    dash: { t: "Party Name (supplier)", d: 'Auto-matched from the PACT supplier master — GSTIN first, then name. The "· PACT master" tag confirms it is the master name, not the bill wording. Fix it with the search dropdown if wrong.' },
+    pact: { t: "Vendor field (#100)", d: "Playwright types the first few letters of the supplier, waits for PACT's type-ahead dropdown to appear, and clicks the matching supplier." },
+    how: "How it works: Playwright targets the vendor input by its id (#100) and types character-by-character using pressSequentially(). Real key events are required because PACT is an Angular app whose dropdown only appears in response to keydown/input events — a plain paste or .fill() sets the text without firing them, so no dropdown shows. Playwright then scores each suggestion in .List__dropdown--suggestions by word overlap and clicks the best match.",
     notes: [
-      "The dropdown only appears with real keystrokes — a paste/autofill will not trigger it.",
-      'The supplier must exist in PACT’s ledger, or it fails with "vendor not matched".',
+      "The supplier must exist in PACT's ledger, or it fails with \"vendor not matched\".",
+      "Matching ignores suffixes like Pvt/Ltd and punctuation, so small spelling differences still match.",
     ],
   },
   {
     n: 4,
-    dash: { t: "Product Name", d: 'Each line is the PACT master product shown with its code, e.g. "1 Kg LD Pouch (270×200)mm (RM0388)". Search by name OR code.' },
-    pact: { t: "Product Name grid cell", d: "The robot types the CODE (e.g. RM0388) and picks the suggestion." },
+    dash: { t: "Product Name", d: 'Each line is the PACT master product, shown with its code, e.g. "1 Kg LD Pouch (270×200)mm (RM0388)". You can search by name OR code.' },
+    pact: { t: "Product Name grid cell", d: "Playwright opens the Product Name cell in the item grid, types the product CODE, and picks the matching product." },
+    how: "How it works: the grid is a SlickGrid. Playwright clicks the Product Name cell (found via its column marker aria-describedby$=\"ProductName\") to open its inline editor, then types the code (e.g. RM0388) with real keystrokes. We use the CODE, not the name, because product names contain the × sign and brackets that break PACT's text lookup — the code is unique and plain, so it matches every time.",
     notes: [
-      "We match by CODE because product names contain × and brackets that break PACT’s name search.",
-      "The code is unique and clean, so it matches every time.",
+      "Sending the code avoids the × / bracket problem entirely.",
+      "If a product ever fails, it means that code is missing from the PACT item master.",
     ],
   },
   {
     n: 5,
-    dash: { t: "Unit & quantities", d: "Pick the Purchase Unit. Purchase Quantity is read-only; Receipt Quantity = Packing Size × Purchase Qty, pushed at level L1." },
-    pact: { t: "Unit level + Approve Qty", d: "Purchase Unit Level = L1, Purchase Unit set, and Approve Qty = the Receipt Qty." },
+    dash: { t: "Unit & quantities", d: "Pick the Purchase Unit. Purchase Quantity is read-only; Receipt Quantity = Packing Size × Purchase Qty, and everything is pushed at level L1 (the base unit)." },
+    pact: { t: "Unit level + Approve Qty", d: "Playwright sets Purchase Unit Level = L1 from the row's dropdown, then types the Approve Qty equal to the Receipt Qty into the numeric cell and commits it." },
+    how: "How it works: the unit-level cell holds a native <select>, so Playwright uses selectOption('L1'). The quantity cell opens a text editor (input.PactTextBoxEditor); Playwright fills it and presses Enter to commit. Approve Qty MUST equal Receipt Qty, otherwise PACT records the line as 0.",
     notes: [
-      "Approve Qty MUST equal Receipt Qty, or the line posts as 0.",
-      "Everything is pushed at the L1 (base) level.",
+      "All quantities are sent at the L1 (base) level to keep PACT consistent.",
     ],
   },
   {
     n: 6,
     dash: { t: "Manufactured date / batch", d: "Set the Manufactured Date for each batch (use Split if one line has multiple batches)." },
-    pact: { t: '"Generate Batch Numbers" box', d: "Approve Qty → Enter → Enter on Base Qty opens the box. Set the Manufactured Date (from the dashboard); Expiry + Qty auto-fill. Then Save & Add → pick the created batch → set qty → Save." },
+    pact: { t: '"Generate Batch Numbers" box', d: "Playwright presses Enter on Approve Qty, then Enter on Base Qty — that keystroke opens the batch box. It sets the Manufactured Date, clicks Save & Add, selects the created batch, sets its quantity, then Save." },
+    how: "How it works: the batch box is opened by the Enter key inside the grid (there is no button for it) — that is why the exact key sequence matters. The date uses PACT's calendar widget (app-pactextradatepicker); rather than typing (which is fussy about format and spaces), Playwright opens the calendar and clicks the day number. Expiry and quantity auto-fill inside PACT; we only supply the manufactured date.",
     notes: [
-      "Expiry is auto-calculated inside PACT; we only supply the manufactured date.",
-      "The batch box only opens after a product is actually selected.",
+      "Expiry is auto-calculated by PACT — we never type it.",
+      "The batch box only opens once a product is actually selected in the row.",
     ],
   },
   {
     n: 7,
-    dash: { t: 'Click "Confirm & Push to PACT"', d: "A job is queued and a background run drives PACT in a headless browser (no one has to sit and click)." },
-    pact: { t: "Login → Stock Inward → Post", d: 'Login (button labelled "Select") → Flows → Stock Inward → Voucher Prefix = Factory → fill vendor, bill no, bill date → products → batches → Post.' },
+    dash: { t: 'Click "Confirm & Push to PACT"', d: "Queues the job and hands it to the background automation — you do not have to sit and watch PACT." },
+    pact: { t: "Login → Stock Inward → Post", d: 'Playwright logs in (button labelled "Select"), opens Flows → Stock Inward, sets the location (Factory), fills vendor, bill no and bill date, adds the products and batches, then clicks Post.' },
+    how: "How it works: Confirm & Push sends the bill to /api/push-to-pact, which inserts a row in the pact_jobs table and fires a GitHub repository_dispatch event. The push-to-pact GitHub Actions workflow then runs scripts/run-pact-job.js on a cloud machine with headless Chromium driven by Playwright, using the PACT login stored in GitHub secrets. The login button's accessible name is \"Select\" and the page has no real <form>, so Playwright clicks #btnLogn and submits directly.",
     notes: [
-      'The PACT login button reads "Select", not "Login".',
       "A Voucher Prefix / Location popup asks for the location = Factory first.",
-      "The GGE (Goods Gate Entry) step was removed — this is Stock-Inward only.",
+      "The old Goods Gate Entry step was removed — this is Stock-Inward only.",
     ],
   },
   {
     n: 8,
-    dash: { t: "Result on the dashboard", d: 'The bill flips to "Uploaded to Pact" and the items are marked uploaded.' },
-    pact: { t: "Voucher shows Posted", d: 'The Stock Inward voucher shows the green "Posted" badge.' },
+    dash: { t: "Result on the dashboard", d: 'The bill flips to "Uploaded to Pact" and its items are marked uploaded.' },
+    pact: { t: "Voucher shows Posted", d: 'The Stock Inward voucher shows the green "Posted" badge in PACT.' },
+    how: "How it works: before declaring success, the script reads PACT's screen and confirms the word Posted is present. It then writes status (done/failed) plus the full step-by-step log back into the pact_jobs table, so any failure and its exact reason are visible from the database — no need to open GitHub.",
     notes: [
-      "The full step-by-step log is saved in the database (pact_jobs): status done/failed + the reason.",
-      "So a failure is visible without opening GitHub.",
+      "The step log names the exact step that failed, which makes fixing fast.",
     ],
   },
 ];
 
 const FLOW_GOTCHAS: string[] = [
-  "Bill date spacing: PACT’s date field is fussy about format/spaces, so the robot opens the calendar and clicks the day instead of typing.",
-  'GitHub shows "done" but nothing in PACT? Check pact_jobs.error for the step log — it names the exact step that failed.',
-  "A product won’t match? Confirm its code exists in the PACT item master (product names with × are expected — we search by code).",
-  "Two different actions: double-click _pushx.bat to DEPLOY code changes; the dashboard “Confirm & Push” TRIGGERS the actual PACT posting.",
-  "Timeouts: the background job caps at 25 minutes; each single click fails after 20 seconds so it never hangs silently.",
-  "Vendor / product not found is almost always a master-data gap in PACT, not a dashboard bug — add it in PACT and retry.",
+  "Real keystrokes, not paste: PACT's dropdowns only appear on real key events, so Playwright types character-by-character instead of pasting.",
+  "Match products by CODE: names contain × and brackets that break PACT's search; the code (e.g. RM0388) is unique and plain, so it always matches.",
+  "Dates via the calendar: PACT's date field is fussy about format and spaces, so Playwright opens the calendar and clicks the day instead of typing.",
+  "The batch box opens on Enter: Approve Qty → Enter → Enter on Base Qty. There is no button for it, so the key sequence is exact by design.",
+  "Approve Qty must equal Receipt Qty, or PACT records the line as 0.",
+  "Two different actions: double-click _pushx.bat to DEPLOY code changes; the dashboard Confirm & Push TRIGGERS the actual PACT posting.",
+  'GitHub shows "done" but nothing in PACT? Open the job's step log (stored in the database) — it names the exact step that failed.',
+  "Timeouts: the background job caps at 25 minutes and each single click fails after 20 seconds, so it never hangs silently.",
+  "Vendor / product not found is almost always a master-data gap in PACT (add it there and retry), not a dashboard bug.",
 ];
 
 function PactFlowDoc({ onClose }: { onClose: () => void }) {
@@ -2019,14 +2035,21 @@ function PactFlowDoc({ onClose }: { onClose: () => void }) {
           <span className="pbadge"><Icon n="file" size={15} /></span>
           <div className="pttl">
             <h2>PACT Flow Guide</h2>
-            <div className="sub">Every dashboard step and the PACT step it drives — so anyone can run it or fix it.</div>
+            <div className="sub">How the dashboard and PACT work together — the steps, and the logic behind each one — for anyone on the team.</div>
           </div>
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
         </div>
         <div className="flowbody">
+          <div className="flowintro">
+            <h3><Icon n="shield" size={15} /> How the whole thing works (in plain words)</h3>
+            <ol>
+              {FLOW_ARCH.map((a, i) => <li key={i}>{a}</li>)}
+            </ol>
+            <p className="flowintro-note">Everything below shows each dashboard step, the matching PACT step that <b>Playwright</b> (the automation) performs, and a &ldquo;How it works&rdquo; note explaining the logic behind that click.</p>
+          </div>
           <div className="flowcols-head">
             <span className="fch dash"><Icon n="file" size={14} /> On the dashboard</span>
-            <span className="fch pact"><Icon n="upload" size={14} /> In PACT (RevenU)</span>
+            <span className="fch pact"><Icon n="upload" size={14} /> In PACT — what Playwright does</span>
           </div>
           {FLOW_STEPS.map((st) => (
             <div className="flowrow" key={st.n}>
@@ -2042,6 +2065,7 @@ function PactFlowDoc({ onClose }: { onClose: () => void }) {
                   <div className="fcd">{st.pact.d}</div>
                 </div>
               </div>
+              <div className="flowhow"><Icon n="file" size={13} /><span>{st.how}</span></div>
               {st.notes.length > 0 && (
                 <ul className="flownotes">
                   {st.notes.map((nt, i) => <li key={i}>{nt}</li>)}
@@ -2057,7 +2081,7 @@ function PactFlowDoc({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="pfoot">
-          <span className="pstatus ok"><Icon n="shield" size={16} />Living document — kept in sync with the automation</span>
+          <span className="pstatus ok"><Icon n="shield" size={16} />Living document — kept in sync with the Playwright automation</span>
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
         </div>
       </div>

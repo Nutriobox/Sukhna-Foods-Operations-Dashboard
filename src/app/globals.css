@@ -665,3 +665,13 @@
   .flowcols-head .fch.pact { grid-column: 1; }
   .flowarrow { transform: rotate(90deg); height: 20px; }
 }
+
+/* ---- Flow guide: architecture intro + "how it works" strip ---- */
+.flowintro { border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); background: var(--brand-soft); border-radius: 12px; padding: 14px 16px; margin: 0 0 14px; }
+.flowintro h3 { display: flex; align-items: center; gap: 7px; font-size: 13.5px; margin: 0 0 8px; color: var(--brand); }
+.flowintro ol { margin: 0; padding-left: 20px; }
+.flowintro li { font-size: 12.5px; line-height: 1.6; margin: 4px 0; color: var(--ink); }
+.flowintro-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; line-height: 1.55; }
+.flowhow { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0 34px; padding: 9px 11px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 9px; }
+.flowhow svg { flex: 0 0 auto; margin-top: 2px; color: var(--brand); }
+.flowhow span { font-size: 12px; line-height: 1.55; color: var(--ink); }
