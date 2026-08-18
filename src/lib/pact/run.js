@@ -40,10 +40,12 @@ async function pushBillToPact(bill, { dryRun = false } = {}) {
     const grn = gge && gge.grn ? gge.grn : '';
     say(`GGE done. GRN = ${grn || '(not captured)'}`);
 
-    if (!dryRun && !grn) throw new Error('GGE posted but GRN was not captured — cannot link Stock Inward.');
+    // Stock Inward no longer links the GGE (that step was removed in PACT); it
+    // enters the product manually, so a missing GRN is not fatal.
+    if (!grn) say('No GRN captured — continuing (Stock Inward enters items manually).');
 
-    say('Stock Inward (linking GGE, allocating batches)...');
-    const si = await createStockInward(page, bill, { dryRun, targetGrn: grn });
+    say('Stock Inward (manual entry, batch allocation)...');
+    const si = await createStockInward(page, bill, { dryRun });
     say(`Stock Inward done (posted=${si && si.posted}).`);
 
     await context.close();
