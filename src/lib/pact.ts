@@ -8,6 +8,7 @@ import catalog from "./pact-catalog.json";
 export type Level = { u: string; s: number | null };
 export type PactProduct = {
   name: string;
+  code?: string | null;            // PACT product code (from the product master)
   units: string[];                 // purchase units (L1/L2/L3)
   levels: Record<string, Level>;   // { L1?, L2?, L3? }
   printLevel: string | null;       // default packaging level
@@ -16,6 +17,7 @@ export type PactProduct = {
 export const CATALOG = catalog as PactProduct[];
 const BY_NAME = new Map(CATALOG.map((p) => [p.name, p]));
 export const productByName = (name: string) => BY_NAME.get(name);
+export const productCode = (name: string): string => (BY_NAME.get(name)?.code || "");
 
 // Every distinct purchase unit that appears in the master (for the unit picker).
 export const ALL_UNITS: string[] = Array.from(

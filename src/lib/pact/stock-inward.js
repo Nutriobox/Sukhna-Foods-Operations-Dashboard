@@ -114,16 +114,27 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       await page.waitForTimeout(300);
       pinput = page.locator('[id="10"], .slick-cell.editable input').first();
     }
-    await pinput.click().catch(() => {});
-    await pinput.fill('').catch(() => {});
+    const typeAndPick = async (query, label) => {
+      await pinput.click().catch(() => {});
+      await pinput.fill('').catch(() => {});
+      await pinput.pressSequentially(String(query), { delay: 70 }).catch(async () => { await page.keyboard.type(String(query)).catch(() => {}); });
+      await page.waitForTimeout(800);
+      const res = await pickProduct(page, it.name);
+      console.log(`  item[${i + 1}] typed ${label} "${query}" -> suggestions=${res.n} matched=${res.matched} chose="${res.text}"`);
+      return res;
+    };
+
+    // Prefer the PACT product CODE (e.g. "RM0388"): it is unique and has no
+    // special characters, so it matches reliably. Fall back to a clean name
+    // prefix (letters/digits before the first "×"/bracket) if the code is
+    // missing or returns nothing.
     const pfx = typePrefix(search);
-    await pinput.pressSequentially(pfx, { delay: 70 }).catch(async () => { await page.keyboard.type(pfx).catch(() => {}); });
-    await page.waitForTimeout(800);
-    const pr = await pickProduct(page, it.name);
-    console.log(`  item[${i + 1}] typed "${pfx}" -> suggestions=${pr.n} matched=${pr.matched} chose="${pr.text}"`);
+    let pr = { ok: false, n: 0 };
+    if (it.code) pr = await typeAndPick(it.code, 'code');
+    if (!pr.ok || pr.n === 0) pr = await typeAndPick(pfx, 'name-prefix');
     await page.keyboard.press('Enter').catch(() => {});
     await page.waitForTimeout(500);
-    if (!pr.ok || pr.n === 0) { const m = `item[${i + 1}] product "${it.name}" — no PACT suggestion for prefix "${pfx}"`; console.log('  ' + m); problems.push(m); continue; }
+    if (!pr.ok || pr.n === 0) { const m = `item[${i + 1}] product "${it.name}" (code ${it.code || 'n/a'}) — no PACT suggestion`; console.log('  ' + m); problems.push(m); continue; }
 
     // 4b. Purchase Unit Level dropdown -> select (L1).
     const lvlSel = page.locator('.slick-cell .input_cntrl, .slick-cell select').first();

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Bill, Item } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
-import { resolveLine, candidates, productByName, matchProduct, canonUnit, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
+import { resolveLine, candidates, productByName, productCode, matchProduct, canonUnit, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
 import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
@@ -724,17 +724,32 @@ async function fetchStamp(scan: string): Promise<StampCheck> {
 // Searchable, alphabetically-sorted dropdown that always opens DOWNWARD.
 // Rendered into a body portal (position:fixed) so it is never clipped by the
 // scrolling modal, unlike a native <select> whose direction the browser picks.
-function Combobox({ value, options, onChange, disabled, placeholder }: { value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean; placeholder?: string }) {
+function Combobox({ value, options, onChange, disabled, placeholder, codeFor }: { value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean; placeholder?: string; codeFor?: (o: string) => string }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const sorted = useMemo(() => [...options].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" })), [options]);
+  // Google-style: when typing, show only matches (name OR code), ranked so the
+  // closest matches are at the top (starts-with > word-start > contains).
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return t ? sorted.filter((o) => o.toLowerCase().includes(t)) : sorted;
-  }, [sorted, q]);
+    if (!t) return sorted;
+    const rank = (o: string) => {
+      const name = o.toLowerCase();
+      const code = (codeFor ? codeFor(o) : "").toLowerCase();
+      if (name.startsWith(t) || (code && code.startsWith(t))) return 0;
+      if (name.split(/[^a-z0-9]+/).some((w) => w && w.startsWith(t))) return 1; // word-start match (no dynamic RegExp)
+      if (name.includes(t) || (code && code.includes(t))) return 2;
+      return 99;
+    };
+    return sorted
+      .map((o) => ({ o, r: rank(o) }))
+      .filter((x) => x.r < 99)
+      .sort((a, b) => a.r - b.r || a.o.localeCompare(b.o, "en", { sensitivity: "base" }))
+      .map((x) => x.o);
+  }, [sorted, q, codeFor]);
   const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (r) setRect({ left: r.left, top: r.bottom + 4, width: r.width }); };
   const openIt = () => { if (disabled) return; place(); setQ(""); setOpen(true); };
   useEffect(() => {
@@ -749,7 +764,7 @@ function Combobox({ value, options, onChange, disabled, placeholder }: { value: 
   return (
     <>
       <button type="button" ref={btnRef} className={"psel cbx-val" + (disabled ? " disabled" : "")} disabled={disabled} onClick={() => (open ? setOpen(false) : openIt())}>
-        <span className={value ? "cbx-txt" : "cbx-txt ph"}>{value || placeholder || "— select —"}</span>
+        <span className={value ? "cbx-txt" : "cbx-txt ph"}>{value ? (value + (codeFor && codeFor(value) ? ` (${codeFor(value)})` : "")) : (placeholder || "— select —")}</span>
         <span className="cbx-caret">▾</span>
       </button>
       {open && rect && createPortal(
@@ -758,7 +773,7 @@ function Combobox({ value, options, onChange, disabled, placeholder }: { value: 
           <div className="cbx-list">
             {filtered.length === 0 && <div className="cbx-empty">No matches</div>}
             {filtered.slice(0, 400).map((o) => (
-              <button type="button" key={o} className={"cbx-opt" + (o === value ? " sel" : "")} onClick={() => { onChange(o); setOpen(false); }}>{o}</button>
+              <button type="button" key={o} className={"cbx-opt" + (o === value ? " sel" : "")} onClick={() => { onChange(o); setOpen(false); }}>{o}{codeFor && codeFor(o) ? <span className="cbx-code"> ({codeFor(o)})</span> : null}</button>
             ))}
             {filtered.length > 400 && <div className="cbx-empty">Showing first 400 — keep typing to narrow.</div>}
           </div>
@@ -850,7 +865,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
       const packSize = convFactor(prod, unit, l1u);
       const receiptQty = purchaseQty * (packSize ?? 1);
       const mfg = toDMY(batches[i]?.[0]?.mfg || "");
-      return { search: prod.name, name: prod.name, unit: l1u, unitLevel: "L1", printLevel: "L1", qty: receiptQty, batch: mfg ? { mfgDate: mfg } : undefined };
+      return { search: prod.name, name: prod.name, code: prod.code || productCode(prod.name), unit: l1u, unitLevel: "L1", printLevel: "L1", qty: receiptQty, batch: mfg ? { mfgDate: mfg } : undefined };
     });
     const payload = {
       dryRun: false,
@@ -935,7 +950,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
             const splitMode = bs.length > 1;
             const batchSum = bs.reduce((a, x) => a + (typeof x.qty === "number" ? x.qty : 0), 0);
             const qtyOK = !splitMode || (effQty != null && Math.abs(batchSum - effQty) < 0.0001);
-            const prodOpts = ed ? allNames : (cands[i].map((c) => c.name).includes(selProduct[i]) ? cands[i].map((c) => c.name) : [selProduct[i], ...cands[i].map((c) => c.name)]);
+            const prodOpts = allNames; // always search the full PACT product master
             return (
               <div key={i} className={"pcard" + (matched ? "" : " err") + (done ? " done" : "")}>
                 <div className="pcard-top">
@@ -955,7 +970,7 @@ function PactUpload({ b, onClose, onConfirm, uploadItem, patchItem }: { b: Bill;
                 {/* Product line — purchase fields */}
                 <div className="pgrid">
                   <div className="pf"><span className="pk">Product Name{ed ? <span className="pedit"> · full master</span> : ""}</span>
-                    <Combobox value={selProduct[i]} options={prodOpts} disabled={done} onChange={(v) => pickProduct(i, v)} placeholder="Search product…" />
+                    <Combobox value={selProduct[i]} options={prodOpts} disabled={done} onChange={(v) => pickProduct(i, v)} placeholder="Search product or code…" codeFor={productCode} />
                   </div>
                   <div className="pf"><span className="pk">Purchase Unit{unit && !unitInMaster ? <span className="ureview" title="This unit is not one of the product's PACT units (e.g. Gms / Kg / Bags). Click Edit to pick a PACT unit."><Icon n="alert" size={11} />review</span> : ""}</span>
                     {ed
