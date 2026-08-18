@@ -12,6 +12,45 @@ const { pickVendorSuggestion, pickSuggestion } = require('./gge');
 // "18/08/2026" -> "18"  (day-of-month, no leading zero) for the calendar picker.
 const dayOf = (dmy) => { const m = /^(\d{1,2})/.exec(String(dmy || '')); return m ? String(parseInt(m[1], 10)) : ''; };
 
+// PACT product names often contain the multiplication sign "×" and brackets,
+// e.g. "1 Kg LD Pouch (270×200)mm". Typing those special chars into the lookup
+// breaks the type-ahead, so we type a clean prefix (letters/digits/space up to
+// the first special char) to trigger the dropdown, then match the suggestion by
+// a normalized comparison that treats "×" and "x" the same and ignores spacing.
+const typePrefix = (name) => {
+  const m = String(name || '').match(/^[A-Za-z0-9 ]+/);
+  let pfx = (m ? m[0] : String(name || '')).trim();
+  if (pfx.length < 3) pfx = String(name || '').slice(0, 6);
+  return pfx.slice(0, 16);
+};
+const normProd = (s) => String(s || '').toLowerCase().replace(/×/g, 'x').replace(/[^a-z0-9]/g, '');
+
+// Pick the product from PACT's suggestions dropdown. Returns how many options
+// were shown and whether we matched the exact product (vs. fell back to first).
+async function pickProduct(page, fullName) {
+  const want = normProd(fullName);
+  const dd = page.locator('.List__dropdown--suggestions');
+  await dd.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+  const opts = dd.locator('.suggestions__list-name');
+  let n = await opts.count().catch(() => 0);
+  if (!n) { // some builds render suggestions without the wrapper class
+    const alt = page.locator('.suggestions__list-name');
+    if (await alt.count().catch(() => 0)) { n = await alt.count(); return await pickFrom(alt, n, want); }
+    return { ok: false, n: 0, matched: false, text: '' };
+  }
+  return await pickFrom(opts, n, want);
+}
+async function pickFrom(opts, n, want) {
+  const texts = [];
+  let idx = -1;
+  for (let i = 0; i < n; i++) { const t = ((await opts.nth(i).innerText().catch(() => '')) || '').trim(); texts.push(t); if (normProd(t) === want) { idx = i; break; } }
+  if (idx < 0) for (let i = 0; i < n; i++) { const c = normProd(texts[i]); if (c && (c.includes(want) || want.includes(c))) { idx = i; break; } }
+  const matched = idx >= 0;
+  if (idx < 0) idx = 0; // fall back to the first suggestion
+  await opts.nth(idx).click({ timeout: 6000 }).catch(() => {});
+  return { ok: true, n, matched, text: texts[idx] || '' };
+}
+
 async function createStockInward(page, bill, { dryRun = true } = {}) {
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
@@ -77,13 +116,14 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     }
     await pinput.click().catch(() => {});
     await pinput.fill('').catch(() => {});
-    await pinput.pressSequentially(search, { delay: 60 }).catch(async () => { await page.keyboard.type(search).catch(() => {}); });
-    await page.waitForTimeout(600);
-    let picked = true;
-    await pickSuggestion(page, it.name).catch(() => { picked = false; });
+    const pfx = typePrefix(search);
+    await pinput.pressSequentially(pfx, { delay: 70 }).catch(async () => { await page.keyboard.type(pfx).catch(() => {}); });
+    await page.waitForTimeout(800);
+    const pr = await pickProduct(page, it.name);
+    console.log(`  item[${i + 1}] typed "${pfx}" -> suggestions=${pr.n} matched=${pr.matched} chose="${pr.text}"`);
     await page.keyboard.press('Enter').catch(() => {});
     await page.waitForTimeout(500);
-    if (!picked) { const m = `item[${i + 1}] product "${it.name}" not matched in PACT master`; console.log('  ' + m); problems.push(m); continue; }
+    if (!pr.ok || pr.n === 0) { const m = `item[${i + 1}] product "${it.name}" — no PACT suggestion for prefix "${pfx}"`; console.log('  ' + m); problems.push(m); continue; }
 
     // 4b. Purchase Unit Level dropdown -> select (L1).
     const lvlSel = page.locator('.slick-cell .input_cntrl, .slick-cell select').first();
