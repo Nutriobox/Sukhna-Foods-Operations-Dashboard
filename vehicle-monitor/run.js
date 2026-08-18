@@ -1,7 +1,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
-const { downloadReport } = require('./lib/download-report');
+const { downloadViaApi } = require('./lib/download-api');
 const { buildSummary, writeTargetExcel } = require('./lib/transform');
 const { uploadToSupabase } = require('./lib/upload');
 
@@ -26,14 +26,9 @@ async function main() {
     sourceXlsx = process.argv[fileArg + 1];
     console.log('Using local file:', sourceXlsx);
   } else {
-    const headless = String(process.env.HEADLESS).toLowerCase() === 'true';
-    const browser = await chromium.launch({ headless });
-    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, acceptDownloads: true });
-    const page = await ctx.newPage();
-    console.log('Downloading tracker report...');
-    sourceXlsx = await downloadReport(page, outDir);
-    await ctx.close(); await browser.close();
-    console.log('Downloaded:', sourceXlsx);
+    console.log('Fetching tracker data via OneLap API...');
+    sourceXlsx = await downloadViaApi(outDir);
+    console.log('Source report:', sourceXlsx);
   }
 
   console.log('Building summary' + (apiKey ? ' (with Google road names)' : ' (no Google key -> raw coords)') + '...');
@@ -42,7 +37,8 @@ async function main() {
   console.table(rows.map(r => ({ Veh: r['Vehicle No.'], From: r['Start Destination'], To: r['Finished Destination'],
     Dispatch: r['Dispatch Time'], Travel: r['Total Travel Time '], Remarks: r['Remarks'] })));
 
-  const outXlsx = path.join(outDir, `movement-summary-${Date.now()}.xlsx`);
+  const _rd = process.env.REPORT_DATE || (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })();
+  const outXlsx = path.join(outDir, `report-${_rd}.xlsx`);
   writeTargetExcel(rows, outXlsx);
   console.log('Wrote:', outXlsx);
 
