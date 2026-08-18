@@ -57,6 +57,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [pmOpen, setPmOpen] = useState(false);
   const [smOpen, setSmOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
+  const [flowOpen, setFlowOpen] = useState(false);
   const [soCreateOpen, setSoCreateOpen] = useState(false);
   const [priceOpen, setPriceOpen] = useState(false);
   const [exportedSO, setExportedSO] = useState<Set<string>>(new Set());
@@ -321,6 +322,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           )}
           <div className="spacer" />
           {view === "stock" && <>
+            <button className="pmbtn guide" onClick={() => setFlowOpen(true)} title="Step-by-step: how the dashboard maps to PACT"><Icon n="file" size={14} />PACT flow guide</button>
             <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
             <button className="pmbtn" onClick={() => setSmOpen(true)}><Icon n="mail" size={14} />View supplier master</button>
             <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
@@ -463,6 +465,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
 
       {/* Manual bill entry */}
       {billOpen && <BillEntry nextId={(bills.reduce((m, b) => Math.max(m, b.id), 0) || 0) + 1} onClose={() => setBillOpen(false)} onSave={addBill} />}
+      {flowOpen && <PactFlowDoc onClose={() => setFlowOpen(false)} />}
 
       {/* Manual sales order entry */}
       {soCreateOpen && <SalesOrderCreate nextDocNo={(() => { let mx = 0; salesOrders.forEach((o) => analyzeSO(o).docs.forEach((d) => { const n = parseInt(String(d).replace(/[^0-9]/g, ""), 10); if (isFinite(n) && n > mx) mx = n; })); return mx > 0 ? String(mx + 1) : ""; })()} onClose={() => setSoCreateOpen(false)} onSave={async (name, sheets) => { await addSalesOrder(name, sheets); setSoCreateOpen(false); }} />}
@@ -1917,6 +1920,145 @@ function BillEntry({ nextId, onClose, onSave }: { nextId: number; onClose: () =>
           {err && <span className="pstatus err" style={{ marginLeft: 8 }}><Icon n="alert" size={16} />{err}</span>}
           <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ padding: "10px 15px" }} onClick={submit}><Icon n="plus" size={14} />Add bill to dashboard</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const FLOW_STEPS: { n: number; dash: { t: string; d: string }; pact: { t: string; d: string }; notes: string[] }[] = [
+  {
+    n: 1,
+    dash: { t: "Bill lands in the Invoice Inbox", d: "The supplier bill is auto-read by AI and appears in the inbox. It runs 3 checks — stamp, buyer GST, and totals — and shows OK or Needs review." },
+    pact: { t: "(nothing yet)", d: "PACT is not touched until you push." },
+    notes: [
+      "Only bills marked OK can be pushed to PACT.",
+      "If extraction failed (AI busy), the bill shows an error — re-upload or retry.",
+    ],
+  },
+  {
+    n: 2,
+    dash: { t: 'Click "Upload to Pact"', d: "Opens the Upload-to-PACT panel with each line item already matched against the PACT item master." },
+    pact: { t: "(preparing)", d: "Still nothing posted — this is the review screen." },
+    notes: [
+      'A frozen "Uploaded to Pact · View" button means the bill was already pushed (read-only).',
+      "To redo an already-pushed bill it must be unlocked first.",
+    ],
+  },
+  {
+    n: 3,
+    dash: { t: "Party Name (supplier)", d: 'Auto-matched from the PACT supplier master — GSTIN first, then name. The "· PACT master" tag means it is the master name, not the bill wording. Fix it with the search dropdown if wrong.' },
+    pact: { t: "Vendor field (#100)", d: "The robot types the first few letters, waits for the type-ahead dropdown, and clicks the matching supplier." },
+    notes: [
+      "The dropdown only appears with real keystrokes — a paste/autofill will not trigger it.",
+      'The supplier must exist in PACT’s ledger, or it fails with "vendor not matched".',
+    ],
+  },
+  {
+    n: 4,
+    dash: { t: "Product Name", d: 'Each line is the PACT master product shown with its code, e.g. "1 Kg LD Pouch (270×200)mm (RM0388)". Search by name OR code.' },
+    pact: { t: "Product Name grid cell", d: "The robot types the CODE (e.g. RM0388) and picks the suggestion." },
+    notes: [
+      "We match by CODE because product names contain × and brackets that break PACT’s name search.",
+      "The code is unique and clean, so it matches every time.",
+    ],
+  },
+  {
+    n: 5,
+    dash: { t: "Unit & quantities", d: "Pick the Purchase Unit. Purchase Quantity is read-only; Receipt Quantity = Packing Size × Purchase Qty, pushed at level L1." },
+    pact: { t: "Unit level + Approve Qty", d: "Purchase Unit Level = L1, Purchase Unit set, and Approve Qty = the Receipt Qty." },
+    notes: [
+      "Approve Qty MUST equal Receipt Qty, or the line posts as 0.",
+      "Everything is pushed at the L1 (base) level.",
+    ],
+  },
+  {
+    n: 6,
+    dash: { t: "Manufactured date / batch", d: "Set the Manufactured Date for each batch (use Split if one line has multiple batches)." },
+    pact: { t: '"Generate Batch Numbers" box', d: "Approve Qty → Enter → Enter on Base Qty opens the box. Set the Manufactured Date (from the dashboard); Expiry + Qty auto-fill. Then Save & Add → pick the created batch → set qty → Save." },
+    notes: [
+      "Expiry is auto-calculated inside PACT; we only supply the manufactured date.",
+      "The batch box only opens after a product is actually selected.",
+    ],
+  },
+  {
+    n: 7,
+    dash: { t: 'Click "Confirm & Push to PACT"', d: "A job is queued and a background run drives PACT in a headless browser (no one has to sit and click)." },
+    pact: { t: "Login → Stock Inward → Post", d: 'Login (button labelled "Select") → Flows → Stock Inward → Voucher Prefix = Factory → fill vendor, bill no, bill date → products → batches → Post.' },
+    notes: [
+      'The PACT login button reads "Select", not "Login".',
+      "A Voucher Prefix / Location popup asks for the location = Factory first.",
+      "The GGE (Goods Gate Entry) step was removed — this is Stock-Inward only.",
+    ],
+  },
+  {
+    n: 8,
+    dash: { t: "Result on the dashboard", d: 'The bill flips to "Uploaded to Pact" and the items are marked uploaded.' },
+    pact: { t: "Voucher shows Posted", d: 'The Stock Inward voucher shows the green "Posted" badge.' },
+    notes: [
+      "The full step-by-step log is saved in the database (pact_jobs): status done/failed + the reason.",
+      "So a failure is visible without opening GitHub.",
+    ],
+  },
+];
+
+const FLOW_GOTCHAS: string[] = [
+  "Bill date spacing: PACT’s date field is fussy about format/spaces, so the robot opens the calendar and clicks the day instead of typing.",
+  'GitHub shows "done" but nothing in PACT? Check pact_jobs.error for the step log — it names the exact step that failed.',
+  "A product won’t match? Confirm its code exists in the PACT item master (product names with × are expected — we search by code).",
+  "Two different actions: double-click _pushx.bat to DEPLOY code changes; the dashboard “Confirm & Push” TRIGGERS the actual PACT posting.",
+  "Timeouts: the background job caps at 25 minutes; each single click fails after 20 seconds so it never hangs silently.",
+  "Vendor / product not found is almost always a master-data gap in PACT, not a dashboard bug — add it in PACT and retry.",
+];
+
+function PactFlowDoc({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pmodal flowmodal">
+        <div className="phead">
+          <span className="pbadge"><Icon n="file" size={15} /></span>
+          <div className="pttl">
+            <h2>PACT Flow Guide</h2>
+            <div className="sub">Every dashboard step and the PACT step it drives — so anyone can run it or fix it.</div>
+          </div>
+          <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
+        </div>
+        <div className="flowbody">
+          <div className="flowcols-head">
+            <span className="fch dash"><Icon n="file" size={14} /> On the dashboard</span>
+            <span className="fch pact"><Icon n="upload" size={14} /> In PACT (RevenU)</span>
+          </div>
+          {FLOW_STEPS.map((st) => (
+            <div className="flowrow" key={st.n}>
+              <span className="flownum">{st.n}</span>
+              <div className="flowpair">
+                <div className="flowcell dash">
+                  <div className="fct">{st.dash.t}</div>
+                  <div className="fcd">{st.dash.d}</div>
+                </div>
+                <div className="flowarrow"><Icon n="arrowRight" size={16} /></div>
+                <div className="flowcell pact">
+                  <div className="fct">{st.pact.t}</div>
+                  <div className="fcd">{st.pact.d}</div>
+                </div>
+              </div>
+              {st.notes.length > 0 && (
+                <ul className="flownotes">
+                  {st.notes.map((nt, i) => <li key={i}>{nt}</li>)}
+                </ul>
+              )}
+            </div>
+          ))}
+          <div className="flowgotchas">
+            <h3><Icon n="alert" size={15} /> Gotchas &amp; troubleshooting</h3>
+            <ul>
+              {FLOW_GOTCHAS.map((g, i) => <li key={i}>{g}</li>)}
+            </ul>
+          </div>
+        </div>
+        <div className="pfoot">
+          <span className="pstatus ok"><Icon n="shield" size={16} />Living document — kept in sync with the automation</span>
+          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
