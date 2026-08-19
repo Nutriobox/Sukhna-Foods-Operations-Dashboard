@@ -242,13 +242,30 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       // INLINE batch: fill the Mfg Date and Batch No cells directly in the row.
       const mfgDmyI = (it.batch && it.batch.mfgDate) || '';
       const batchNo = 'B' + String(mfgDmyI).replace(/[^0-9]/g, '').slice(0, 6) + (it.code ? '-' + it.code : '');
-      // Mfg Date
+      // Mfg Date — open the cell editor and try several entry methods.
+      await gcell('Mfg Date').scrollIntoViewIfNeeded().catch(() => {});
+      await gcell('Mfg Date').click({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(200);
       await gcell('Mfg Date').dblclick({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(250);
-      let ded = page.locator('input.PactTextBoxEditor, .slick-cell.editable input, app-pactextradatepicker input').first();
-      if (await ded.isVisible({ timeout: 1200 }).catch(() => false)) {
+      await page.waitForTimeout(350);
+      if (i === 0) {
+        const md = await page.evaluate(() => {
+          const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+          const inputs = [...document.querySelectorAll('input')].filter(vis).map(x => `#${x.id || '-'}|${x.type || ''}|${(x.className || '').trim().slice(0, 24)}|ph=${x.getAttribute('placeholder') || ''}`).slice(0, 14);
+          const cals = [...document.querySelectorAll('.List__button, .fa-calendar, app-pactextradatepicker, .datepicker, ngb-datepicker')].filter(vis).map(e => e.tagName.toLowerCase() + '.' + (e.className || '').trim().slice(0, 24)).slice(0, 8);
+          return { inputs, cals };
+        }).catch(() => ({}));
+        console.log('  [mfgdate-diag]', JSON.stringify(md));
+      }
+      let ded = page.locator('.slick-cell.editable input, input.PactTextBoxEditor, input.editor-text, app-pactextradatepicker input, input[id*="Date" i], input[placeholder*="/" i]').first();
+      if (await ded.isVisible({ timeout: 1200 }).catch(() => false) && !(await ded.getAttribute('readonly').catch(() => null))) {
         await ded.fill('').catch(() => {}); await ded.pressSequentially(mfgDmyI, { delay: 25 }).catch(() => {}); await ded.press('Enter').catch(() => {});
-      } else if (mfgDay) {
+        await page.waitForTimeout(250);
+      }
+      // If still no value, try a calendar picker: open it, then click the day.
+      if (!((await gcell('Mfg Date').innerText().catch(() => '')) || '').trim() && mfgDay) {
+        const calBtn = page.locator('.List__button, .fa-calendar, .input-group-append').first();
+        if (await calBtn.isVisible({ timeout: 800 }).catch(() => false)) { await calBtn.click().catch(() => {}); await page.waitForTimeout(400); }
         await page.getByText(mfgDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
       }
       await page.waitForTimeout(400);
