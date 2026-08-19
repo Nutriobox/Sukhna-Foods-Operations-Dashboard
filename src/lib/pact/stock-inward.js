@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] v8: Case-2 pick last batch + set Quantity cell + Save');
+  console.log('  [SI build] v9: Case-2 pick batch + set L1 qty + Save&Add + Save');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -392,6 +392,10 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       await bqed.fill('').catch(() => {}); await bqed.fill(String(qty)).catch(() => {}); await bqed.press('Enter').catch(() => {});
       await page.waitForTimeout(500);
       console.log(`  batch[${i + 1}] after CASE-2 set qty: "${await footerText()}"`);
+      // then Save & Add to add the allocation (the outer Save commits + closes).
+      await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(1100);
+      console.log(`  batch[${i + 1}] after CASE-2 Save&Add: "${await footerText()}"`);
     }
 
     // Save the popup (button labelled " Save").
