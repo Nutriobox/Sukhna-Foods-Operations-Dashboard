@@ -364,30 +364,34 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       await page.getByRole('button', { name: /^\s*(OK|Ok|Close|Yes)\s*$/ }).first().click({ timeout: 2000 }).catch(() => {});
       await page.locator('.swal2-confirm, .toast-close-button, .close').first().click({ timeout: 1500 }).catch(() => {});
       await page.waitForTimeout(400);
-      // select the last batch from the Batch Number dropdown in the grid
+      // click the Batch Number cell -> its dropdown -> select the LAST batch.
       await dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(500);
       let bcombo = dlg.locator('.slick-cell select, .slick-cell .input_cntrl').first();
       if (!(await bcombo.count().catch(() => 0))) bcombo = dlg.locator('select').last();
       const nopt = await bcombo.locator('option').count().catch(() => 0);
+      let pickedTxt = '';
       if (nopt > 1) {
+        pickedTxt = ((await bcombo.locator('option').nth(nopt - 1).innerText().catch(() => '')) || '').trim();
         await bcombo.selectOption({ index: nopt - 1 }).catch(() => {});
-        await bcombo.press('Enter').catch(() => {});
-        await page.waitForTimeout(400);
-        console.log(`  batch[${i + 1}] picked last batch (of ${nopt} options)`);
+        await page.waitForTimeout(500);
+        console.log(`  batch[${i + 1}] picked last batch "${pickedTxt}" (of ${nopt})`);
       } else {
         console.log(`  batch[${i + 1}] batch dropdown had ${nopt} option(s)`);
       }
-      // set the Quantity (L1) on the batch row
-      await dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+      // commit the batch selection by clicking another cell (recording clicks Expiry).
+      await dlg.getByRole('gridcell', { description: 'Expiry Date', exact: true }).first().click({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      // set the Quantity (L1) on the batch row — dbl-click to open the editor.
+      const qCell = dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first();
+      await qCell.click({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(200);
+      await qCell.dblclick({ timeout: 4000 }).catch(() => {});
       await page.waitForTimeout(300);
       const bqed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
-      await bqed.fill(String(qty)).catch(() => {}); await bqed.press('Enter').catch(() => {});
-      await page.waitForTimeout(400);
-      // Save & Add to commit the allocation
-      await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 5000 }).catch(() => {});
-      await page.waitForTimeout(1000);
-      console.log(`  batch[${i + 1}] after CASE-2 Save&Add: "${await footerText()}"`);
+      await bqed.fill('').catch(() => {}); await bqed.fill(String(qty)).catch(() => {}); await bqed.press('Enter').catch(() => {});
+      await page.waitForTimeout(500);
+      console.log(`  batch[${i + 1}] after CASE-2 set qty: "${await footerText()}"`);
     }
 
     // Save the popup (button labelled " Save").
