@@ -326,50 +326,69 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       console.log(`  [batch-diag] inputs=${JSON.stringify(dd.inputs)} cols=${JSON.stringify(dd.cols)} btns=${JSON.stringify(dd.btns)}`);
     }
 
-    // Make sure the top Qty field holds the full received quantity BEFORE we add
-    // the batch (so Save & Add allocates the full amount, not 0).
+    // This popup has a top form (#MfgDate #ExpiryDate #QTY) and buttons
+    // Search/Filter/Save/Close (no "Save & Add" on this variant). Set the
+    // Quantity, ensure an Expiry, then Save to create + allocate the batch.
     const qtyField = dlg.locator('#QTY, input[id*="QTY" i], input[id*="Qty" i]').first();
     if (await qtyField.isVisible().catch(() => false)) {
-      await qtyField.fill(String(qty)).catch(() => {});
-      await page.waitForTimeout(200);
+      await qtyField.click().catch(() => {});
+      await qtyField.fill('').catch(() => {});
+      await qtyField.pressSequentially(String(qty), { delay: 20 }).catch(async () => { await qtyField.fill(String(qty)).catch(() => {}); });
+      await qtyField.press('Tab').catch(() => {});
+      await page.waitForTimeout(300);
+      console.log(`  batch[${i + 1}] set #QTY=${qty} (now="${await qtyField.inputValue().catch(() => '')}")`);
     }
-
-    // Save & Add -> creates the batch line and allocates it.
-    await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
-    await page.waitForTimeout(1200);
-    console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
-
-    // If still short, set the grid row's Quantity cell to fill the allocation.
-    let pf = parseAdded(await footerText());
-    if (!pf || pf.added + 0.001 < pf.total) {
-      const qCell = dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first();
-      await qCell.click({ timeout: 5000 }).catch(() => {});
-      await page.waitForTimeout(250);
-      await qCell.dblclick({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(250);
-      const qed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
-      await qed.fill(String((pf && pf.total) || qty)).catch(() => {});
-      await qed.press('Enter').catch(() => {});
-      await page.waitForTimeout(500);
-      console.log(`  batch[${i + 1}] after grid-qty: "${await footerText()}"`);
-    }
-
-    // Save (bottom) to commit + close the dialog.
-    await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 6000 }).catch(() => {});
-    await page.waitForTimeout(1000);
-
-    // The dialog MUST close, or it blocks every following item. If Save left it
-    // open, log the footer (so we see why) and dismiss it so the run continues.
-    if (await page.locator('modal-container.show').count().catch(() => 0)) {
-      console.log(`  batch[${i + 1}] dialog still open after Save — footer: "${await footerText()}"`);
-      await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 3000 }).catch(() => {});
-      await page.waitForTimeout(600);
-      if (await page.locator('modal-container.show').count().catch(() => 0)) {
-        await dlg.getByRole('button', { name: /Close|Cancel/i }).first().click({ timeout: 3000 }).catch(() => {});
-        await page.keyboard.press('Escape').catch(() => {});
-        await page.waitForTimeout(500);
-        problems.push(`batch[${i + 1}] "${it.name}": batch dialog would not save/close`);
+    // Expiry: if empty, give a far-future date so a required-expiry rule cannot
+    // block Save (dd/mm/yyyy, mfg year + 2).
+    const expField = dlg.locator('#ExpiryDate, input[id*="Expiry" i]').first();
+    if (await expField.isVisible().catch(() => false)) {
+      const cur = ((await expField.inputValue().catch(() => '')) || '').trim();
+      const parts = String(mfgDmy).split('/');
+      if (!cur && parts.length === 3) {
+        const exp = `${parts[0]}/${parts[1]}/${parseInt(parts[2], 10) + 2}`;
+        await expField.click().catch(() => {}); await expField.fill('').catch(() => {});
+        await expField.pressSequentially(exp, { delay: 20 }).catch(() => {}); await expField.press('Tab').catch(() => {});
+        await page.waitForTimeout(200);
       }
+    }
+    console.log(`  batch[${i + 1}] before Save: "${await footerText()}"`);
+
+    // If a "Save & Add" exists (other product variant), click it first.
+    const saveAdd = dlg.getByText('Save & Add', { exact: false }).first();
+    if (await saveAdd.isVisible().catch(() => false)) {
+      await saveAdd.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(1000);
+      console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
+    }
+
+    // Click the real Save button (create + allocate the batch, then close).
+    await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 6000 }).catch(() => {});
+    await page.waitForTimeout(1300);
+    console.log(`  batch[${i + 1}] after Save: "${await footerText()}" open=${(await page.locator('modal-container.show').count().catch(() => 0)) > 0}`);
+
+    // If still open and NOT allocated, try setting the batch-grid Quantity cell.
+    if ((await page.locator('modal-container.show').count().catch(() => 0)) > 0) {
+      const pf = parseAdded(await footerText());
+      if (!pf || pf.added + 0.001 < pf.total) {
+        const qCell = dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first();
+        await qCell.dblclick({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        const qed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
+        await qed.fill(String((pf && pf.total) || qty)).catch(() => {}); await qed.press('Enter').catch(() => {});
+        await page.waitForTimeout(400);
+        await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1000);
+        console.log(`  batch[${i + 1}] after grid-qty+Save: "${await footerText()}"`);
+      }
+    }
+
+    // Ensure the dialog is gone before the next item.
+    if ((await page.locator('modal-container.show').count().catch(() => 0)) > 0) {
+      const ff = await footerText();
+      await dlg.getByRole('button', { name: /Close|Cancel/i }).first().click({ timeout: 3000 }).catch(() => {});
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(500);
+      problems.push(`batch[${i + 1}] "${it.name}": batch would not save (${ff || 'no footer'})`);
     }
     const modalsOpen = await page.locator('modal-container.show').count().catch(() => 0);
     console.log(`  batch[${i + 1}] done (modalsOpen=${modalsOpen})`);
