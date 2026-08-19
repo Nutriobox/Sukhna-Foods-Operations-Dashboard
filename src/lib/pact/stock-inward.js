@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] v7: two-case batch (new: mfg+exp+1yr+qty; duplicate: pick last batch+qty) + Save&Add + Save');
+  console.log('  [SI build] v8: Case-2 pick last batch + set Quantity cell + Save');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
