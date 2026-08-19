@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] v5: recording-based (Bill+ExtraFields dates, calendar Mfg, Save&Add, allocate qty, Save)');
+  console.log('  [SI build] v6: set #MfgDate #ExpiryDate #QTY explicitly then Save&Add');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -307,56 +307,74 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       continue;
     }
 
-    // Batch popup (from the working recording): set Mfg Date via the popup's
-    // calendar, Save & Add, allocate the quantity to the batch row, then Save.
+    // Batch popup. The top form has #MfgDate #ExpiryDate #QTY. For "Save & Add"
+    // to allocate the FULL amount (not 0), all three must be set. We set them by
+    // typing (most reliable), log the values, then Save & Add + Save.
     const footerText = async () => (((await dlg.getByText(/Added[:\s].*of/i).first().innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim());
     const mfgDmy = (it.batch && it.batch.mfgDate) || '';
     const popupDay = dayOf(mfgDmy) || mfgDay || todayDay;
+    const parts = String(mfgDmy).split('/');
+    const expDmy = (parts.length === 3) ? `${parts[0]}/${parts[1]}/${parseInt(parts[2], 10) + 2}` : '';
 
     if (i === 0) {
       const dd = await dlg.evaluate((el) => ({
-        inputs: [...el.querySelectorAll('input')].map((x) => '#' + (x.id || '-')).slice(0, 12),
-        cols: [...el.querySelectorAll('.slick-header-column')].map((h) => (h.innerText || '').trim()).filter(Boolean),
-        btns: [...el.querySelectorAll('button')].map((b) => (b.innerText || b.title || '').trim()).filter(Boolean).slice(0, 12),
+        inputs: [...el.querySelectorAll('input')].map((x) => '#' + (x.id || '-') + (x.readOnly ? '(ro)' : '')).slice(0, 12),
+        btns: [...el.querySelectorAll('button, a')].map((b) => (b.innerText || b.title || '').trim()).filter(Boolean).slice(0, 16),
       })).catch(() => ({}));
-      console.log(`  [batch-diag] inputs=${JSON.stringify(dd.inputs)} cols=${JSON.stringify(dd.cols)} btns=${JSON.stringify(dd.btns)}`);
+      console.log(`  [batch-diag] inputs=${JSON.stringify(dd.inputs)} btns=${JSON.stringify(dd.btns)}`);
     }
 
-    // 1) Mfg Date via the popup calendar -> click the day.
-    await dlg.locator('.ng-star-inserted > div > .List__button, app-pactextradatepicker .List__button, .Pact_TimerControl .List__button').first().click({ timeout: 4000 }).catch(() => {});
-    await page.waitForTimeout(500);
-    await dlg.getByText(popupDay, { exact: true }).first().click({ timeout: 3000 })
-      .catch(async () => { await page.getByText(popupDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {}); });
-    await page.waitForTimeout(400);
-    console.log(`  batch[${i + 1}] mfg day ${popupDay} set`);
+    const typeInto = async (sel, val) => {
+      const f = dlg.locator(sel).first();
+      if (!(await f.isVisible().catch(() => false))) return '';
+      if (await f.getAttribute('readonly').catch(() => null)) return '(readonly)';
+      await f.click().catch(() => {}); await f.fill('').catch(() => {});
+      await f.pressSequentially(String(val), { delay: 20 }).catch(async () => { await f.fill(String(val)).catch(() => {}); });
+      await f.press('Tab').catch(() => {});
+      await page.waitForTimeout(200);
+      return (await f.inputValue().catch(() => '')) || '';
+    };
+    const mfgVal = mfgDmy ? await typeInto('#MfgDate, input[id*="Mfg" i]', mfgDmy) : '';
+    // If typing the Mfg date didn't take, use the calendar day.
+    if (mfgDmy && !/\d/.test(mfgVal)) {
+      await dlg.locator('.ng-star-inserted > div > .List__button, app-pactextradatepicker .List__button').first().click({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      await page.getByText(popupDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    const expVal = expDmy ? await typeInto('#ExpiryDate, input[id*="Expiry" i]', expDmy) : '';
+    const qtyVal = await typeInto('#QTY, input[id*="QTY" i], input[id*="Qty" i]', qty);
+    console.log(`  batch[${i + 1}] popup set -> mfg="${mfgVal}" exp="${expVal}" qty="${qtyVal}"`);
 
-    // 2) Save & Add -> adds the batch row.
+    // Save & Add -> add + allocate the batch.
     await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(1300);
     console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
 
-    // 3) Allocate the quantity: click Batch Number cell (pick the created batch
-    //    from the dropdown if present), then set the Quantity cell = full qty.
-    await dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(400);
-    const bcombo = dlg.locator('.slick-cell select, .slick-cell .input_cntrl').first();
-    if (await bcombo.count().catch(() => 0)) {
-      const nopt = await bcombo.locator('option').count().catch(() => 0);
-      if (nopt > 1) { await bcombo.selectOption({ index: nopt - 1 }).catch(() => {}); await bcombo.press('Enter').catch(() => {}); await page.waitForTimeout(400); }
+    // If not fully allocated, allocate in the batch grid (pick batch + set qty).
+    const parseAdded = (t) => { const m = (t || '').match(/([\d.]+)\s*of\s*([\d.]+)/); return m ? { added: parseFloat(m[1]), total: parseFloat(m[2]) } : null; };
+    let pf = parseAdded(await footerText());
+    if (!pf || pf.added + 0.001 < pf.total) {
+      await dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      const bcombo = dlg.locator('.slick-cell select, .slick-cell .input_cntrl').first();
+      if (await bcombo.count().catch(() => 0)) {
+        const nopt = await bcombo.locator('option').count().catch(() => 0);
+        if (nopt > 1) { await bcombo.selectOption({ index: nopt - 1 }).catch(() => {}); await bcombo.press('Enter').catch(() => {}); await page.waitForTimeout(400); }
+      }
+      await dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      const bqed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
+      await bqed.fill(String((pf && pf.total) || qty)).catch(() => {}); await bqed.press('Enter').catch(() => {});
+      await page.waitForTimeout(500);
+      console.log(`  batch[${i + 1}] after grid-allocate: "${await footerText()}"`);
     }
-    await dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(300);
-    const bqed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
-    await bqed.fill(String(qty)).catch(() => {});
-    await bqed.press('Enter').catch(() => {});
-    await page.waitForTimeout(500);
-    console.log(`  batch[${i + 1}] after allocate: "${await footerText()}"`);
 
-    // 4) Save the popup.
+    // Save the popup (button labelled " Save").
     await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 6000 }).catch(() => {});
     await page.waitForTimeout(1300);
 
-    // Ensure the popup closed before the next item.
+    // Ensure closed before next item.
     if ((await page.locator('modal-container.show').count().catch(() => 0)) > 0) {
       const ff = await footerText();
       await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 3000 }).catch(() => {});
