@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] v9: Case-2 pick batch + set L1 qty + Save&Add + Save');
+  console.log('  [SI build] v10: batch dropdown scoped to Batch Number cell (not filter operator)');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -364,20 +364,33 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       await page.getByRole('button', { name: /^\s*(OK|Ok|Close|Yes)\s*$/ }).first().click({ timeout: 2000 }).catch(() => {});
       await page.locator('.swal2-confirm, .toast-close-button, .close').first().click({ timeout: 1500 }).catch(() => {});
       await page.waitForTimeout(400);
-      // click the Batch Number cell -> its dropdown -> select the LAST batch.
-      await dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+      // Click the Batch Number GRID CELL and use the dropdown INSIDE that cell
+      // (not the Search/Filter operator dropdowns elsewhere in the popup).
+      const bnCell = dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first();
+      await bnCell.click({ timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(500);
-      let bcombo = dlg.locator('.slick-cell select, .slick-cell .input_cntrl').first();
-      if (!(await bcombo.count().catch(() => 0))) bcombo = dlg.locator('select').last();
-      const nopt = await bcombo.locator('option').count().catch(() => 0);
+      // Prefer a select scoped to the batch cell; else pick the select whose
+      // options look like batches (contain '/' or digits), not filter operators.
+      let bcombo = bnCell.locator('select, [role="combobox"]').first();
+      if (!(await bcombo.count().catch(() => 0))) {
+        const sels = dlg.locator('.slick-cell select, .slick-row select');
+        const n = await sels.count().catch(() => 0);
+        for (let k = 0; k < n; k++) {
+          const optxt = ((await sels.nth(k).locator('option').allInnerTexts().catch(() => [])) || []).join('|');
+          if (/\d{3,}|\//.test(optxt) && !/greater|less|equal|contains|between/i.test(optxt)) { bcombo = sels.nth(k); break; }
+        }
+      }
+      const opts = (await bcombo.locator('option').allInnerTexts().catch(() => [])) || [];
+      const nopt = opts.length;
       let pickedTxt = '';
       if (nopt > 1) {
-        pickedTxt = ((await bcombo.locator('option').nth(nopt - 1).innerText().catch(() => '')) || '').trim();
+        pickedTxt = (opts[nopt - 1] || '').trim();
         await bcombo.selectOption({ index: nopt - 1 }).catch(() => {});
+        await bcombo.press('Enter').catch(() => {});
         await page.waitForTimeout(500);
-        console.log(`  batch[${i + 1}] picked last batch "${pickedTxt}" (of ${nopt})`);
+        console.log(`  batch[${i + 1}] picked last batch "${pickedTxt}" (opts: ${JSON.stringify(opts.slice(0, 3))}..${JSON.stringify(opts.slice(-2))})`);
       } else {
-        console.log(`  batch[${i + 1}] batch dropdown had ${nopt} option(s)`);
+        console.log(`  batch[${i + 1}] batch dropdown had ${nopt} option(s): ${JSON.stringify(opts.slice(0, 6))}`);
       }
       // commit the batch selection by clicking another cell (recording clicks Expiry).
       await dlg.getByRole('gridcell', { description: 'Expiry Date', exact: true }).first().click({ timeout: 4000 }).catch(() => {});
