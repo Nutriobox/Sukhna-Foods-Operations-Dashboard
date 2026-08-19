@@ -205,16 +205,27 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     await qed.press('Enter').catch(() => {});
     await page.waitForTimeout(400);
 
-    // Open the "Generate Batch Numbers" box. It opens on Enter inside the grid;
-    // try Enter, then Enter on the Base Qty cell, then a double-click on Base Qty.
+    // Open the "Generate Batch Numbers" box. The row has inline Batch No / Mfg
+    // Date columns, and the standard PACT trigger is the Batch No cell. Try each
+    // plausible trigger, checking for the modal after each, and log which worked.
     const batchOpen = async () => ((await page.locator('modal-container.show').count().catch(() => 0)) > 0);
-    const baseCell = page.getByRole('gridcell', { description: 'Base Qty', exact: true }).nth(i);
-    for (let a = 0; a < 4 && !(await batchOpen()); a++) {
-      if (a === 0) { await page.keyboard.press('Enter').catch(() => {}); }
-      else if (a === 1) { await baseCell.click({ timeout: 4000 }).catch(() => {}); await page.waitForTimeout(200); await page.keyboard.press('Enter').catch(() => {}); }
-      else if (a === 2) { await baseCell.dblclick({ timeout: 4000 }).catch(() => {}); }
-      else { await qed.press('Enter').catch(() => {}); await page.keyboard.press('Enter').catch(() => {}); }
+    const cellBy = (label) => page.getByRole('gridcell', { description: label, exact: true }).nth(i);
+    const attempts = [
+      ['Enter', async () => { await page.keyboard.press('Enter'); }],
+      ['BatchNo click+Enter', async () => { await cellBy('Batch No').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
+      ['BatchNo dblclick', async () => { await cellBy('Batch No').dblclick({ timeout: 4000 }); }],
+      ['BaseQty click+Enter', async () => { await cellBy('Base Qty').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
+      ['ApproveQty click+Enter', async () => { await cellBy('Approve Qty').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
+      ['MfgDate click+Enter', async () => { await cellBy('Mfg Date').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
+      ['MfgDate dblclick', async () => { await cellBy('Mfg Date').dblclick({ timeout: 4000 }); }],
+    ];
+    for (const [name, fn] of attempts) {
+      if (await batchOpen()) break;
+      await fn().catch(() => {});
       await page.waitForTimeout(650);
+      if (await batchOpen()) { console.log(`  batch[${i + 1}] opened via ${name}`); break; }
+      await page.keyboard.press('Escape').catch(() => {}); // clear any stray editor before next try
+      await page.waitForTimeout(150);
     }
     if (i === 0 && !(await batchOpen())) {
       const rd = await page.evaluate(() => {
