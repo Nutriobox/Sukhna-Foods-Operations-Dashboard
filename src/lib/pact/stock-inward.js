@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] v6: set #MfgDate #ExpiryDate #QTY explicitly then Save&Add');
+  console.log('  [SI build] v7: two-case batch (new: mfg+exp+1yr+qty; duplicate: pick last batch+qty) + Save&Add + Save');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -314,7 +314,7 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     const mfgDmy = (it.batch && it.batch.mfgDate) || '';
     const popupDay = dayOf(mfgDmy) || mfgDay || todayDay;
     const parts = String(mfgDmy).split('/');
-    const expDmy = (parts.length === 3) ? `${parts[0]}/${parts[1]}/${parseInt(parts[2], 10) + 2}` : '';
+    const expDmy = (parts.length === 3) ? `${parts[0]}/${parts[1]}/${parseInt(parts[2], 10) + 1}` : '';
 
     if (i === 0) {
       const dd = await dlg.evaluate((el) => ({
@@ -351,23 +351,43 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     await page.waitForTimeout(1300);
     console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
 
-    // If not fully allocated, allocate in the batch grid (pick batch + set qty).
+    // CASE 2 (duplicate batch): if Save & Add didn't allocate (footer still 0) or
+    // PACT shows a "duplicate" error, then a batch already exists — pick the LAST
+    // batch code from the grid dropdown, set the Qty (L1), and Save & Add again.
     const parseAdded = (t) => { const m = (t || '').match(/([\d.]+)\s*of\s*([\d.]+)/); return m ? { added: parseFloat(m[1]), total: parseFloat(m[2]) } : null; };
+    const pageText = async () => (await page.evaluate(() => document.body.innerText || '').catch(() => ''));
     let pf = parseAdded(await footerText());
-    if (!pf || pf.added + 0.001 < pf.total) {
+    const dup = /duplicate|already\s*exist/i.test(await pageText());
+    if (dup || !pf || pf.added + 0.001 < pf.total) {
+      console.log(`  batch[${i + 1}] CASE-2 (duplicate=${dup}) -> select existing batch`);
+      // dismiss any error popup/toast first
+      await page.getByRole('button', { name: /^\s*(OK|Ok|Close|Yes)\s*$/ }).first().click({ timeout: 2000 }).catch(() => {});
+      await page.locator('.swal2-confirm, .toast-close-button, .close').first().click({ timeout: 1500 }).catch(() => {});
+      await page.waitForTimeout(400);
+      // select the last batch from the Batch Number dropdown in the grid
       await dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(400);
-      const bcombo = dlg.locator('.slick-cell select, .slick-cell .input_cntrl').first();
-      if (await bcombo.count().catch(() => 0)) {
-        const nopt = await bcombo.locator('option').count().catch(() => 0);
-        if (nopt > 1) { await bcombo.selectOption({ index: nopt - 1 }).catch(() => {}); await bcombo.press('Enter').catch(() => {}); await page.waitForTimeout(400); }
+      let bcombo = dlg.locator('.slick-cell select, .slick-cell .input_cntrl').first();
+      if (!(await bcombo.count().catch(() => 0))) bcombo = dlg.locator('select').last();
+      const nopt = await bcombo.locator('option').count().catch(() => 0);
+      if (nopt > 1) {
+        await bcombo.selectOption({ index: nopt - 1 }).catch(() => {});
+        await bcombo.press('Enter').catch(() => {});
+        await page.waitForTimeout(400);
+        console.log(`  batch[${i + 1}] picked last batch (of ${nopt} options)`);
+      } else {
+        console.log(`  batch[${i + 1}] batch dropdown had ${nopt} option(s)`);
       }
+      // set the Quantity (L1) on the batch row
       await dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(300);
       const bqed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
-      await bqed.fill(String((pf && pf.total) || qty)).catch(() => {}); await bqed.press('Enter').catch(() => {});
-      await page.waitForTimeout(500);
-      console.log(`  batch[${i + 1}] after grid-allocate: "${await footerText()}"`);
+      await bqed.fill(String(qty)).catch(() => {}); await bqed.press('Enter').catch(() => {});
+      await page.waitForTimeout(400);
+      // Save & Add to commit the allocation
+      await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(1000);
+      console.log(`  batch[${i + 1}] after CASE-2 Save&Add: "${await footerText()}"`);
     }
 
     // Save the popup (button labelled " Save").
