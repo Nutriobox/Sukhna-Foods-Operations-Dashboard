@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] v10: batch dropdown scoped to Batch Number cell (not filter operator)');
+  console.log('  [SI build] v11: calendar mfg date + case2 add-row(+) + structure dump');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -324,27 +324,21 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       console.log(`  [batch-diag] inputs=${JSON.stringify(dd.inputs)} btns=${JSON.stringify(dd.btns)}`);
     }
 
-    const typeInto = async (sel, val) => {
-      const f = dlg.locator(sel).first();
-      if (!(await f.isVisible().catch(() => false))) return '';
-      if (await f.getAttribute('readonly').catch(() => null)) return '(readonly)';
-      await f.click().catch(() => {}); await f.fill('').catch(() => {});
-      await f.pressSequentially(String(val), { delay: 20 }).catch(async () => { await f.fill(String(val)).catch(() => {}); });
-      await f.press('Tab').catch(() => {});
-      await page.waitForTimeout(200);
-      return (await f.inputValue().catch(() => '')) || '';
-    };
-    const mfgVal = mfgDmy ? await typeInto('#MfgDate, input[id*="Mfg" i]', mfgDmy) : '';
-    // If typing the Mfg date didn't take, use the calendar day.
-    if (mfgDmy && !/\d/.test(mfgVal)) {
-      await dlg.locator('.ng-star-inserted > div > .List__button, app-pactextradatepicker .List__button').first().click({ timeout: 3000 }).catch(() => {});
-      await page.waitForTimeout(400);
-      await page.getByText(popupDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
-      await page.waitForTimeout(300);
+    // Set Mfg Date via the popup CALENDAR (a real click; Angular ignores a typed
+    // date, which is why Save & Add kept allocating 0). Open the picker, click day.
+    await dlg.locator('app-pactextradatepicker .List__button, .ng-star-inserted > div > .List__button, .Pact_TimerControl .List__button').first().click({ timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    let dayClicked = await dlg.getByText(popupDay, { exact: true }).first().click({ timeout: 2500 }).then(() => true).catch(() => false);
+    if (!dayClicked) dayClicked = await page.getByText(popupDay, { exact: true }).first().click({ timeout: 2500 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(400);
+    // Qty: only set if the popup's #QTY is empty/0 (recording leaves it pre-filled).
+    const qtyF = dlg.locator('#QTY, input[id*="QTY" i]').first();
+    let qtyVal = '';
+    if (await qtyF.isVisible().catch(() => false)) {
+      qtyVal = ((await qtyF.inputValue().catch(() => '')) || '').trim();
+      if (!qtyVal || parseFloat(qtyVal) === 0) { await qtyF.click().catch(() => {}); await qtyF.fill(String(qty)).catch(() => {}); await qtyF.press('Tab').catch(() => {}); qtyVal = ((await qtyF.inputValue().catch(() => '')) || '').trim(); }
     }
-    const expVal = expDmy ? await typeInto('#ExpiryDate, input[id*="Expiry" i]', expDmy) : '';
-    const qtyVal = await typeInto('#QTY, input[id*="QTY" i], input[id*="Qty" i]', qty);
-    console.log(`  batch[${i + 1}] popup set -> mfg="${mfgVal}" exp="${expVal}" qty="${qtyVal}"`);
+    console.log(`  batch[${i + 1}] mfg-calendar day=${popupDay} clicked=${dayClicked} qty="${qtyVal}"`);
 
     // Save & Add -> add + allocate the batch.
     await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
@@ -360,6 +354,17 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     const dup = /duplicate|already\s*exist/i.test(await pageText());
     if (dup || !pf || pf.added + 0.001 < pf.total) {
       console.log(`  batch[${i + 1}] CASE-2 (duplicate=${dup}) -> select existing batch`);
+      if (i === 0) {
+        const st = await dlg.evaluate((el) => ({
+          selects: [...el.querySelectorAll('select')].map((sl) => [...sl.querySelectorAll('option')].map((o) => (o.innerText || '').trim()).slice(0, 4).join('|')).slice(0, 8),
+          plusBtns: [...el.querySelectorAll('.btnMetroDiv, button, a, i')].map((b) => (b.className || '') + '::' + (b.innerText || b.title || '').trim()).filter((x) => /metro|plus|add|fa-plus|\+/i.test(x)).slice(0, 8),
+          gridRows: [...el.querySelectorAll('.slick-row')].map((r) => (r.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60)).slice(0, 6),
+        })).catch(() => ({}));
+        console.log(`  [case2-diag] selects=${JSON.stringify(st.selects)} plus=${JSON.stringify(st.plusBtns)} rows=${JSON.stringify(st.gridRows)}`);
+      }
+      // Some products need a "+" add-row button before the batch dropdown exists.
+      await dlg.locator('.row > .btnMetroDiv, .btnMetroDiv').first().click({ timeout: 2500 }).catch(() => {});
+      await page.waitForTimeout(500);
       // dismiss any error popup/toast first
       await page.getByRole('button', { name: /^\s*(OK|Ok|Close|Yes)\s*$/ }).first().click({ timeout: 2000 }).catch(() => {});
       await page.locator('.swal2-confirm, .toast-close-button, .close').first().click({ timeout: 1500 }).catch(() => {});
