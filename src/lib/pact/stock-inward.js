@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] batch-v4: suffix targeting + inline batch fallback');
+  console.log('  [SI build] v5: recording-based (Bill+ExtraFields dates, calendar Mfg, Save&Add, allocate qty, Save)');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -91,6 +91,24 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
   await tab.locator('#BillNo').first().fill(String(bill.billNo)).catch(() => {});
   await tab.locator('#BillNo').first().press('Enter').catch(() => {});
   await page.waitForTimeout(600);
+
+  // 3b. Bill Date + a required date on the "Extra Fields" tab (both set in the
+  //     working recording). Use the manufactured day the user picked (= today).
+  const todayDay = dayOf(bill.items[0] && bill.items[0].batch && bill.items[0].batch.mfgDate) || String((new Date()).getDate());
+  await tab.locator('#BillDate').first().click({ timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.getByText(todayDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const exTab = tab.getByRole('tab', { name: 'Extra Fields' }).first();
+  if (await exTab.isVisible().catch(() => false)) {
+    await exTab.click().catch(() => {});
+    await page.waitForTimeout(700);
+    await tab.locator('.tab-pane.active app-pactextradatepicker .List__button, app-pactextradatepicker .List__button').first().click({ timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    await page.getByText(todayDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    console.log('  set Bill Date + Extra Fields date to day ' + todayDay);
+  }
 
   // 4. Add each product row, then create/allocate its batch.
   for (let i = 0; i < bill.items.length; i++) {
@@ -289,109 +307,67 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       continue;
     }
 
-    // Set the Manufactured date. Try typing DMY into the picker input first;
-    // otherwise open the calendar and click the day (recording's method).
-    const mfgDmy = (it.batch && it.batch.mfgDate) || '';
-    let dateSet = false;
-    if (mfgDmy) {
-      const dinput = dlg.locator('app-pactextradatepicker input, input#MfgDate, input[id*="Mfg" i]').first();
-      if (await dinput.isVisible().catch(() => false) && !(await dinput.getAttribute('readonly').catch(() => null))) {
-        await dinput.fill('').catch(() => {});
-        await dinput.pressSequentially(mfgDmy, { delay: 25 }).catch(() => {});
-        await page.waitForTimeout(300);
-        dateSet = true;
-      }
-      if (!dateSet && mfgDay) {
-        await dlg.locator('app-pactextradatepicker .List__button').first().click({ timeout: 4000 }).catch(() => {});
-        await page.waitForTimeout(500);
-        await dlg.getByText(mfgDay, { exact: true }).first().click({ timeout: 4000 })
-          .catch(async () => { await page.getByText(mfgDay, { exact: true }).first().click({ timeout: 4000 }).catch(() => {}); });
-        await page.waitForTimeout(400);
-        dateSet = true;
-      }
-    }
-    console.log(`  batch[${i + 1}] manufactured date set=${dateSet} (${mfgDmy || 'n/a'})`);
-
-    // Footer shows "Added: X of Y" — how much of the received qty is allocated.
+    // Batch popup (from the working recording): set Mfg Date via the popup's
+    // calendar, Save & Add, allocate the quantity to the batch row, then Save.
     const footerText = async () => (((await dlg.getByText(/Added[:\s].*of/i).first().innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim());
-    const parseAdded = (t) => { const m = (t || '').match(/([\d.]+)\s*of\s*([\d.]+)/); return m ? { added: parseFloat(m[1]), total: parseFloat(m[2]) } : null; };
+    const mfgDmy = (it.batch && it.batch.mfgDate) || '';
+    const popupDay = dayOf(mfgDmy) || mfgDay || todayDay;
 
-    // One-time: dump the batch dialog's structure so we know its real fields.
     if (i === 0) {
       const dd = await dlg.evaluate((el) => ({
-        inputs: [...el.querySelectorAll('input')].map((x) => '#' + (x.id || '-')).slice(0, 16),
+        inputs: [...el.querySelectorAll('input')].map((x) => '#' + (x.id || '-')).slice(0, 12),
         cols: [...el.querySelectorAll('.slick-header-column')].map((h) => (h.innerText || '').trim()).filter(Boolean),
-        btns: [...el.querySelectorAll('button')].map((b) => (b.innerText || b.title || '').trim()).filter(Boolean).slice(0, 16),
+        btns: [...el.querySelectorAll('button')].map((b) => (b.innerText || b.title || '').trim()).filter(Boolean).slice(0, 12),
       })).catch(() => ({}));
       console.log(`  [batch-diag] inputs=${JSON.stringify(dd.inputs)} cols=${JSON.stringify(dd.cols)} btns=${JSON.stringify(dd.btns)}`);
     }
 
-    // This popup has a top form (#MfgDate #ExpiryDate #QTY) and buttons
-    // Search/Filter/Save/Close (no "Save & Add" on this variant). Set the
-    // Quantity, ensure an Expiry, then Save to create + allocate the batch.
-    const qtyField = dlg.locator('#QTY, input[id*="QTY" i], input[id*="Qty" i]').first();
-    if (await qtyField.isVisible().catch(() => false)) {
-      await qtyField.click().catch(() => {});
-      await qtyField.fill('').catch(() => {});
-      await qtyField.pressSequentially(String(qty), { delay: 20 }).catch(async () => { await qtyField.fill(String(qty)).catch(() => {}); });
-      await qtyField.press('Tab').catch(() => {});
-      await page.waitForTimeout(300);
-      console.log(`  batch[${i + 1}] set #QTY=${qty} (now="${await qtyField.inputValue().catch(() => '')}")`);
-    }
-    // Expiry: if empty, give a far-future date so a required-expiry rule cannot
-    // block Save (dd/mm/yyyy, mfg year + 2).
-    const expField = dlg.locator('#ExpiryDate, input[id*="Expiry" i]').first();
-    if (await expField.isVisible().catch(() => false)) {
-      const cur = ((await expField.inputValue().catch(() => '')) || '').trim();
-      const parts = String(mfgDmy).split('/');
-      if (!cur && parts.length === 3) {
-        const exp = `${parts[0]}/${parts[1]}/${parseInt(parts[2], 10) + 2}`;
-        await expField.click().catch(() => {}); await expField.fill('').catch(() => {});
-        await expField.pressSequentially(exp, { delay: 20 }).catch(() => {}); await expField.press('Tab').catch(() => {});
-        await page.waitForTimeout(200);
-      }
-    }
-    console.log(`  batch[${i + 1}] before Save: "${await footerText()}"`);
+    // 1) Mfg Date via the popup calendar -> click the day.
+    await dlg.locator('.ng-star-inserted > div > .List__button, app-pactextradatepicker .List__button, .Pact_TimerControl .List__button').first().click({ timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    await dlg.getByText(popupDay, { exact: true }).first().click({ timeout: 3000 })
+      .catch(async () => { await page.getByText(popupDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {}); });
+    await page.waitForTimeout(400);
+    console.log(`  batch[${i + 1}] mfg day ${popupDay} set`);
 
-    // If a "Save & Add" exists (other product variant), click it first.
-    const saveAdd = dlg.getByText('Save & Add', { exact: false }).first();
-    if (await saveAdd.isVisible().catch(() => false)) {
-      await saveAdd.click({ timeout: 5000 }).catch(() => {});
-      await page.waitForTimeout(1000);
-      console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
-    }
+    // 2) Save & Add -> adds the batch row.
+    await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+    console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
 
-    // Click the real Save button (create + allocate the batch, then close).
+    // 3) Allocate the quantity: click Batch Number cell (pick the created batch
+    //    from the dropdown if present), then set the Quantity cell = full qty.
+    await dlg.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    const bcombo = dlg.locator('.slick-cell select, .slick-cell .input_cntrl').first();
+    if (await bcombo.count().catch(() => 0)) {
+      const nopt = await bcombo.locator('option').count().catch(() => 0);
+      if (nopt > 1) { await bcombo.selectOption({ index: nopt - 1 }).catch(() => {}); await bcombo.press('Enter').catch(() => {}); await page.waitForTimeout(400); }
+    }
+    await dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    const bqed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
+    await bqed.fill(String(qty)).catch(() => {});
+    await bqed.press('Enter').catch(() => {});
+    await page.waitForTimeout(500);
+    console.log(`  batch[${i + 1}] after allocate: "${await footerText()}"`);
+
+    // 4) Save the popup.
     await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 6000 }).catch(() => {});
     await page.waitForTimeout(1300);
-    console.log(`  batch[${i + 1}] after Save: "${await footerText()}" open=${(await page.locator('modal-container.show').count().catch(() => 0)) > 0}`);
 
-    // If still open and NOT allocated, try setting the batch-grid Quantity cell.
-    if ((await page.locator('modal-container.show').count().catch(() => 0)) > 0) {
-      const pf = parseAdded(await footerText());
-      if (!pf || pf.added + 0.001 < pf.total) {
-        const qCell = dlg.getByRole('gridcell', { description: 'Quantity', exact: true }).first();
-        await qCell.dblclick({ timeout: 4000 }).catch(() => {});
-        await page.waitForTimeout(300);
-        const qed = dlg.locator('input.PactTextBoxEditor, .slick-cell.editable input, .slick-cell input').first();
-        await qed.fill(String((pf && pf.total) || qty)).catch(() => {}); await qed.press('Enter').catch(() => {});
-        await page.waitForTimeout(400);
-        await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 4000 }).catch(() => {});
-        await page.waitForTimeout(1000);
-        console.log(`  batch[${i + 1}] after grid-qty+Save: "${await footerText()}"`);
-      }
-    }
-
-    // Ensure the dialog is gone before the next item.
+    // Ensure the popup closed before the next item.
     if ((await page.locator('modal-container.show').count().catch(() => 0)) > 0) {
       const ff = await footerText();
-      await dlg.getByRole('button', { name: /Close|Cancel/i }).first().click({ timeout: 3000 }).catch(() => {});
-      await page.keyboard.press('Escape').catch(() => {});
-      await page.waitForTimeout(500);
-      problems.push(`batch[${i + 1}] "${it.name}": batch would not save (${ff || 'no footer'})`);
+      await dlg.getByRole('button', { name: /^\s*Save\s*$/ }).last().click({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(800);
+      if ((await page.locator('modal-container.show').count().catch(() => 0)) > 0) {
+        await dlg.getByRole('button', { name: /Close|Cancel/i }).first().click({ timeout: 3000 }).catch(() => {});
+        await page.keyboard.press('Escape').catch(() => {});
+        problems.push(`batch[${i + 1}] "${it.name}": batch would not save (${ff || 'no footer'})`);
+      }
     }
-    const modalsOpen = await page.locator('modal-container.show').count().catch(() => 0);
-    console.log(`  batch[${i + 1}] done (modalsOpen=${modalsOpen})`);
+    console.log(`  batch[${i + 1}] done (modalsOpen=${await page.locator('modal-container.show').count().catch(() => 0)})`);
   }
 
   if (dryRun) {
