@@ -52,6 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
+  console.log('  [SI build] batch-v4: suffix targeting + inline batch fallback');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -205,42 +206,69 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     await qed.press('Enter').catch(() => {});
     await page.waitForTimeout(400);
 
-    // Open the "Generate Batch Numbers" box. The row has inline Batch No / Mfg
-    // Date columns, and the standard PACT trigger is the Batch No cell. Try each
-    // plausible trigger, checking for the modal after each, and log which worked.
-    const batchOpen = async () => ((await page.locator('modal-container.show').count().catch(() => 0)) > 0);
+    // Reliable header-label -> aria-describedby suffix map (getByRole did not
+    // reliably match the Batch No / Mfg Date cells; suffix targeting does).
+    const suffixMap = await page.evaluate(() => {
+      const hdr = {}; document.querySelectorAll('.slick-header-column').forEach(h => { const t = (h.innerText || '').trim(); if (t) hdr[h.id] = t; });
+      const map = {};
+      document.querySelectorAll('.slick-row .slick-cell').forEach(c => { const db = c.getAttribute('aria-describedby') || ''; const label = hdr[db]; if (label && !map[label]) map[label] = db.replace(/^slickgrid_\d+/, ''); });
+      return map;
+    }).catch(() => ({}));
     const cellBy = (label) => page.getByRole('gridcell', { description: label, exact: true }).nth(i);
-    const attempts = [
+    const gcell = (label) => { const suf = suffixMap[label]; return suf ? page.locator('.slick-row').nth(i).locator('.slick-cell[aria-describedby$="' + suf + '"]').first() : cellBy(label); };
+    const batchOpen = async () => ((await page.locator('modal-container.show').count().catch(() => 0)) > 0);
+
+    // Try to open the "Generate Batch Numbers" popup (used by some products).
+    const openSeq = [
+      ['BatchNo dblclick', async () => { await gcell('Batch No').scrollIntoViewIfNeeded().catch(() => {}); await gcell('Batch No').dblclick({ timeout: 4000 }); }],
+      ['BatchNo click+Enter', async () => { await gcell('Batch No').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
+      ['MfgDate dblclick', async () => { await gcell('Mfg Date').dblclick({ timeout: 4000 }); }],
+      ['BaseQty click+Enter', async () => { await gcell('Base Qty').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
       ['Enter', async () => { await page.keyboard.press('Enter'); }],
-      ['BatchNo click+Enter', async () => { await cellBy('Batch No').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
-      ['BatchNo dblclick', async () => { await cellBy('Batch No').dblclick({ timeout: 4000 }); }],
-      ['BaseQty click+Enter', async () => { await cellBy('Base Qty').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
-      ['ApproveQty click+Enter', async () => { await cellBy('Approve Qty').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
-      ['MfgDate click+Enter', async () => { await cellBy('Mfg Date').click({ timeout: 4000 }); await page.waitForTimeout(200); await page.keyboard.press('Enter'); }],
-      ['MfgDate dblclick', async () => { await cellBy('Mfg Date').dblclick({ timeout: 4000 }); }],
     ];
-    for (const [name, fn] of attempts) {
-      if (await batchOpen()) break;
+    let openedVia = '';
+    for (const [name, fn] of openSeq) {
+      if (await batchOpen()) { openedVia = 'already'; break; }
       await fn().catch(() => {});
       await page.waitForTimeout(650);
-      if (await batchOpen()) { console.log(`  batch[${i + 1}] opened via ${name}`); break; }
-      await page.keyboard.press('Escape').catch(() => {}); // clear any stray editor before next try
-      await page.waitForTimeout(150);
+      if (await batchOpen()) { openedVia = name; break; }
     }
-    if (i === 0 && !(await batchOpen())) {
-      const rd = await page.evaluate(() => {
-        const hdr = {}; document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
-        const row = [...document.querySelectorAll('.slick-row')].find(r => (r.innerText || '').trim().length > 3);
-        return row ? [...row.querySelectorAll('.slick-cell')].map(c => [hdr[c.getAttribute('aria-describedby')] || '', (c.innerText || '').trim().slice(0, 10)]).filter(x => x[0]) : [];
-      }).catch(() => []);
-      console.log('  [batch-open-diag row]', JSON.stringify(rd));
-    }
+    console.log(`  batch[${i + 1}] open: ${openedVia ? 'POPUP via ' + openedVia : 'no popup -> inline'}`);
 
-    // 4d. "Generate Batch Numbers" dialog.
     const dlg = page.locator('modal-container.show').last();
-    if (!(await dlg.isVisible().catch(() => false))) {
-      const m = `batch[${i + 1}] "${it.name}": batch dialog did NOT open`;
-      console.log('  ' + m); problems.push(m);
+    const modalOpened = await dlg.isVisible().catch(() => false);
+
+    if (!modalOpened) {
+      // INLINE batch: fill the Mfg Date and Batch No cells directly in the row.
+      const mfgDmyI = (it.batch && it.batch.mfgDate) || '';
+      const batchNo = 'B' + String(mfgDmyI).replace(/[^0-9]/g, '').slice(0, 6) + (it.code ? '-' + it.code : '');
+      // Mfg Date
+      await gcell('Mfg Date').dblclick({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      let ded = page.locator('input.PactTextBoxEditor, .slick-cell.editable input, app-pactextradatepicker input').first();
+      if (await ded.isVisible({ timeout: 1200 }).catch(() => false)) {
+        await ded.fill('').catch(() => {}); await ded.pressSequentially(mfgDmyI, { delay: 25 }).catch(() => {}); await ded.press('Enter').catch(() => {});
+      } else if (mfgDay) {
+        await page.getByText(mfgDay, { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+      }
+      await page.waitForTimeout(400);
+      // Batch No (only if still empty)
+      const bText = ((await gcell('Batch No').innerText().catch(() => '')) || '').trim();
+      if (!bText) {
+        await gcell('Batch No').dblclick({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(250);
+        const bed = page.locator('input.PactTextBoxEditor, .slick-cell.editable input').first();
+        if (await bed.isVisible({ timeout: 1200 }).catch(() => false)) { await bed.fill(batchNo).catch(() => {}); await bed.press('Enter').catch(() => {}); }
+      }
+      await page.waitForTimeout(400);
+      const after = await page.evaluate((sufPN) => {
+        const hdr = {}; document.querySelectorAll('.slick-header-column').forEach(h => { const t = (h.innerText || '').trim(); if (t) hdr[h.id] = t; });
+        const row = [...document.querySelectorAll('.slick-row')].find(r => r.querySelector('.slick-cell[aria-describedby$="' + sufPN + '"]'));
+        const get = (lbl) => { let v = ''; row && row.querySelectorAll('.slick-cell').forEach(c => { if (hdr[c.getAttribute('aria-describedby')] === lbl) v = (c.innerText || '').trim(); }); return v; };
+        return { mfg: get('Mfg Date'), batch: get('Batch No'), exp: get('Exp Date') };
+      }, suffixMap['Product Name'] || 'ProductName').catch(() => ({}));
+      console.log(`  batch[${i + 1}] inline -> mfg="${after.mfg}" batch="${after.batch}" exp="${after.exp}"`);
+      if (!after.mfg && !after.batch) problems.push(`batch[${i + 1}] "${it.name}": could not set batch (no popup, inline failed)`);
       continue;
     }
 
