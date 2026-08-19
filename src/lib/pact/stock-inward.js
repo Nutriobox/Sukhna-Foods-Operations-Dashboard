@@ -203,9 +203,27 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     }
     await qed.fill(String(qty)).catch(async () => { await page.keyboard.type(String(qty)).catch(() => {}); });
     await qed.press('Enter').catch(() => {});
-    await page.waitForTimeout(500);
-    await page.keyboard.press('Enter').catch(() => {});
-    await page.waitForTimeout(1100);
+    await page.waitForTimeout(400);
+
+    // Open the "Generate Batch Numbers" box. It opens on Enter inside the grid;
+    // try Enter, then Enter on the Base Qty cell, then a double-click on Base Qty.
+    const batchOpen = async () => ((await page.locator('modal-container.show').count().catch(() => 0)) > 0);
+    const baseCell = page.getByRole('gridcell', { description: 'Base Qty', exact: true }).nth(i);
+    for (let a = 0; a < 4 && !(await batchOpen()); a++) {
+      if (a === 0) { await page.keyboard.press('Enter').catch(() => {}); }
+      else if (a === 1) { await baseCell.click({ timeout: 4000 }).catch(() => {}); await page.waitForTimeout(200); await page.keyboard.press('Enter').catch(() => {}); }
+      else if (a === 2) { await baseCell.dblclick({ timeout: 4000 }).catch(() => {}); }
+      else { await qed.press('Enter').catch(() => {}); await page.keyboard.press('Enter').catch(() => {}); }
+      await page.waitForTimeout(650);
+    }
+    if (i === 0 && !(await batchOpen())) {
+      const rd = await page.evaluate(() => {
+        const hdr = {}; document.querySelectorAll('.slick-header-column').forEach(h => { hdr[h.id] = (h.innerText || '').trim(); });
+        const row = [...document.querySelectorAll('.slick-row')].find(r => (r.innerText || '').trim().length > 3);
+        return row ? [...row.querySelectorAll('.slick-cell')].map(c => [hdr[c.getAttribute('aria-describedby')] || '', (c.innerText || '').trim().slice(0, 10)]).filter(x => x[0]) : [];
+      }).catch(() => []);
+      console.log('  [batch-open-diag row]', JSON.stringify(rd));
+    }
 
     // 4d. "Generate Batch Numbers" dialog.
     const dlg = page.locator('modal-container.show').last();
