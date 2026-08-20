@@ -52,7 +52,7 @@ async function pickFrom(opts, n, want) {
 }
 
 async function createStockInward(page, bill, { dryRun = true } = {}) {
-  console.log('  [SI build] v11: calendar mfg date + case2 add-row(+) + structure dump');
+  console.log('  [SI build] v12: mfg picker=first datepicker + log #MfgDate + post-Save&Add grid dump');
   const tab = page.getByRole('tabpanel').filter({ hasText: 'Stock Inward' });
   const problems = [];   // collect per-item issues so we can report a real pass/fail
 
@@ -324,13 +324,18 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
       console.log(`  [batch-diag] inputs=${JSON.stringify(dd.inputs)} btns=${JSON.stringify(dd.btns)}`);
     }
 
-    // Set Mfg Date via the popup CALENDAR (a real click; Angular ignores a typed
-    // date, which is why Save & Add kept allocating 0). Open the picker, click day.
-    await dlg.locator('app-pactextradatepicker .List__button, .ng-star-inserted > div > .List__button, .Pact_TimerControl .List__button').first().click({ timeout: 4000 }).catch(() => {});
+    // Set Mfg Date via the FIRST date picker in the popup (the Mfg one). Open its
+    // calendar and click the day inside the opened calendar dropdown.
+    const mfgPicker = dlg.locator('app-pactextradatepicker').first().locator('.List__button').first();
+    await mfgPicker.click({ timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(600);
-    let dayClicked = await dlg.getByText(popupDay, { exact: true }).first().click({ timeout: 2500 }).then(() => true).catch(() => false);
-    if (!dayClicked) dayClicked = await page.getByText(popupDay, { exact: true }).first().click({ timeout: 2500 }).then(() => true).catch(() => false);
+    // click the day inside the visible calendar dropdown (avoid other '19's).
+    let dayClicked = await page.locator('.List__dropdown, ngb-datepicker, .datepicker, .owl-dt-container').getByText(popupDay, { exact: true }).first().click({ timeout: 2500 }).then(() => true).catch(() => false);
+    if (!dayClicked) dayClicked = await dlg.getByText(popupDay, { exact: true }).first().click({ timeout: 2000 }).then(() => true).catch(() => false);
+    if (!dayClicked) dayClicked = await page.getByText(popupDay, { exact: true }).first().click({ timeout: 2000 }).then(() => true).catch(() => false);
     await page.waitForTimeout(400);
+    const mfgNow = ((await dlg.locator('#MfgDate').first().inputValue().catch(() => '')) || '').trim();
+    console.log(`  batch[${i + 1}] mfg picker clicked=${dayClicked} #MfgDate="${mfgNow}"`);
     // Qty: only set if the popup's #QTY is empty/0 (recording leaves it pre-filled).
     const qtyF = dlg.locator('#QTY, input[id*="QTY" i]').first();
     let qtyVal = '';
@@ -344,6 +349,17 @@ async function createStockInward(page, bill, { dryRun = true } = {}) {
     await dlg.getByText('Save & Add', { exact: false }).first().click({ timeout: 6000 }).catch(() => {});
     await page.waitForTimeout(1300);
     console.log(`  batch[${i + 1}] after Save&Add: "${await footerText()}"`);
+    if (i === 0) {
+      const g = await dlg.evaluate((el) => {
+        const hdr = {}; el.querySelectorAll('.slick-header-column').forEach((h) => { hdr[h.id] = (h.innerText || '').trim(); });
+        return [...el.querySelectorAll('.slick-row')].map((r) => {
+          let bn = '';
+          r.querySelectorAll('.slick-cell').forEach((c) => { if (hdr[c.getAttribute('aria-describedby')] === 'Batch Number') bn = (c.innerText || '').trim(); });
+          return bn;
+        }).filter((x) => x !== undefined).slice(0, 8);
+      }).catch(() => []);
+      console.log(`  [postSA-grid] batchNoCells=${JSON.stringify(g)}`);
+    }
 
     // CASE 2 (duplicate batch): if Save & Add didn't allocate (footer still 0) or
     // PACT shows a "duplicate" error, then a batch already exists — pick the LAST
