@@ -1179,117 +1179,192 @@ function PrintLabel({ b, printed, onClose, onPrinted }: { b: Bill; printed?: boo
 }
 
 function SalesOrderScan() {
-  type QNode = { id: string; label: string; qty: number };
-  type BNode = { id: string; code: string; qtys: QNode[] };
-  type INode = { code: string; name: string; batches: BNode[] };
-  // Seed sample so the Item -> Batch -> Quantity structure is visible before a
-  // live PACT inventory fetch is wired.
-  const seed: INode[] = [
-    { code: "RM0274", name: "Protein Chocolate Powder", batches: [
-      { id: "b1", code: "B1 · RD0274/1", qtys: [{ id: "q1", label: "Q1", qty: 4000 }, { id: "q2", label: "Q2", qty: 3000 }] },
-      { id: "b2", code: "B2 · RD0274/2", qtys: [{ id: "q3", label: "Q3", qty: 2500 }] },
-    ] },
-    { code: "RM0265", name: "Plain Protein Powder", batches: [
-      { id: "b3", code: "B1 · RD0265/1", qtys: [{ id: "q4", label: "Q1", qty: 6000 }] },
-    ] },
+  type Row = {
+    id: string;
+    productCode: string;
+    productName: string;
+    hsn: string;
+    warehouse: string;
+    salesUnitLevel: string;
+    unit: string;
+    quantity: number;
+    unitPrice: string;
+    salesRate: string;
+    gstTaxType: string;
+    batchNumber: string;
+    mfgDate: string;
+    expDate: string;
+  };
+
+  const DASH = "—";
+  const COLS = [
+    "Product code", "Product name", "GST HSN", "Warehouse", "Sales unit level",
+    "Unit", "Quantity", "Unit price", "Sales rate", "GST tax type",
+    "Batch number", "Manufacture date", "Expiry date",
   ];
-  const [items, setItems] = useState<INode[]>(seed);
+
+  // Parse a GS1-128 barcode (common on packaged food) into its fields. Falls
+  // back to treating the whole string as a plain product code / name for the
+  // Honeywell keyboard-wedge scanners that just type the code + Enter.
+  const parseScan = (raw: string) => {
+    const s = (raw || "").trim();
+    const out: { code?: string; batch?: string; mfg?: string; exp?: string; qty?: number } = {};
+    if (!s) return out;
+    const ymd = (d: string) => (d && d.length === 6 ? "20" + d.slice(0, 2) + "-" + d.slice(2, 4) + "-" + d.slice(4, 6) : "");
+    const GS = String.fromCharCode(29); // FNC1 / group separator
+    const looksGs1 = /^(01)\d{14}/.test(s) || s.indexOf(GS) >= 0;
+    if (looksGs1) {
+      for (let seg of s.split(GS)) {
+        while (seg.length) {
+          if (seg.startsWith("01") && seg.length >= 16) { out.code = seg.slice(2, 16); seg = seg.slice(16); }
+          else if (seg.startsWith("11") && seg.length >= 8) { out.mfg = ymd(seg.slice(2, 8)); seg = seg.slice(8); }
+          else if (seg.startsWith("17") && seg.length >= 8) { out.exp = ymd(seg.slice(2, 8)); seg = seg.slice(8); }
+          else if (seg.startsWith("10")) { out.batch = seg.slice(2); seg = ""; }
+          else if (seg.startsWith("30") || seg.startsWith("37")) { out.qty = parseInt(seg.slice(2), 10) || undefined; seg = ""; }
+          else { break; }
+        }
+      }
+    } else {
+      out.code = s;
+    }
+    return out;
+  };
+
+  const [rows, setRows] = useState<Row[]>([]);
   const [scan, setScan] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [opened, setOpened] = useState(false);
   const [note, setNote] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => { if (opened) inputRef.current?.focus(); }, [opened]);
   const uid = () => Math.random().toString(36).slice(2, 9);
 
   const onScan = (raw: string) => {
-    const code = (raw || "").trim();
-    if (!code) return;
-    const prod = CATALOG.find((p) => (p.code || "").toLowerCase() === code.toLowerCase())
-      || CATALOG.find((p) => p.name.toLowerCase().includes(code.toLowerCase()));
-    const pcode = prod ? (prod.code || code) : code;
-    const name = prod ? prod.name : `Unknown item (${code})`;
-    setItems((prev) => {
-      const idx = prev.findIndex((it) => it.code === pcode);
-      if (idx >= 0) {
+    const p = parseScan(raw);
+    const key = (p.code || "").trim();
+    if (!key) return;
+    // Validate against the product master: match by PACT code first, then name.
+    const prod = CATALOG.find((x) => (x.code || "").toLowerCase() === key.toLowerCase())
+      || CATALOG.find((x) => x.name.toLowerCase().includes(key.toLowerCase()));
+    const pcode = prod ? (prod.code || key) : key;
+    const level = (prod && prod.printLevel) || "L1";
+    const unit = (prod && ((prod.levels && prod.levels[level] && prod.levels[level].u) || (prod.units && prod.units[0]))) || DASH;
+    const batch = p.batch || DASH;
+    const addQty = p.qty && p.qty > 0 ? p.qty : 1;
+
+    setRows((prev) => {
+      const i = prev.findIndex((r) => r.productCode === pcode && r.batchNumber === batch);
+      if (i >= 0) {
         const copy = prev.slice();
-        const it = { ...copy[idx] };
-        const batches = it.batches.slice();
-        if (!batches.length) batches.push({ id: uid(), code: "B1 · scan", qtys: [] });
-        const b0 = { ...batches[0] };
-        b0.qtys = [...b0.qtys, { id: uid(), label: "Q" + (b0.qtys.length + 1), qty: 1 }];
-        batches[0] = b0; it.batches = batches; copy[idx] = it;
+        copy[i] = { ...copy[i], quantity: copy[i].quantity + addQty };
         return copy;
       }
-      return [...prev, { code: pcode, name, batches: [{ id: uid(), code: "B1 · scan", qtys: [{ id: uid(), label: "Q1", qty: 1 }] }] }];
+      const row: Row = {
+        id: uid(),
+        productCode: pcode,                                       // from scan (after validation)
+        productName: prod ? prod.name : "Unknown item (" + key + ")", // from product master
+        hsn: DASH,                                                // auto (product master / live fetch)
+        warehouse: "Main Store",                                  // auto (default warehouse)
+        salesUnitLevel: level,                                    // auto (product master)
+        unit,                                                     // auto (product master)
+        quantity: addQty,                                         // from scan (after validation)
+        unitPrice: DASH,                                          // auto (live fetch)
+        salesRate: DASH,                                          // auto (live fetch)
+        gstTaxType: "GST",                                        // auto (default)
+        batchNumber: batch,                                       // from scan (after validation)
+        mfgDate: p.mfg || DASH,                                   // auto / from scan
+        expDate: p.exp || DASH,                                   // auto / from scan
+      };
+      return [...prev, row];
     });
     setScan("");
   };
 
+  const removeRow = (id: string) => setRows((prev) => prev.filter((r) => r.id !== id));
+
   const fetchInventory = () => {
     setNote(apiKey
-      ? "Honeywell key saved for this session. Live PACT inventory fetch will replace the sample tree with real Item → Batch → Quantity data once the PACT inventory API endpoint is connected."
-      : "Live PACT inventory fetch will populate real batches & quantities here once the PACT inventory API is connected (the API request to PACTSOFT is already drafted). Scanning already works below via the Honeywell keyboard-wedge — no key required for that.");
+      ? "Honeywell key saved for this session. Once the PACT inventory API is connected, live GST HSN, unit price, sales rate, batch number and manufacture / expiry dates will auto-fill the blank (—) columns for every scanned line."
+      : "Fetch is ready. The PACT inventory API (request already drafted for PACTSOFT) will auto-fill the blank (—) columns — GST HSN, unit price, sales rate, batch number and manufacture / expiry dates — from live PACT stock. Scanning already fills product code, name, unit, sales unit level and quantity below.");
   };
 
-  const grand = items.reduce((a, it) => a + it.batches.reduce((b, bt) => b + bt.qtys.reduce((c, q) => c + q.qty, 0), 0), 0);
+  const totalQty = rows.reduce((a, r) => a + r.quantity, 0);
 
   return (
     <div className="content soscan">
       <div className="soscan-head">
         <div>
-          <h2>Sales Order &mdash; Scan &amp; Inventory</h2>
-          <p>Scan food-item barcodes (Honeywell) and view live PACT stock as an Item &rarr; Batch &rarr; Quantity tree.</p>
+          <h2>Sales Order</h2>
+          <p>Scan food-item barcodes (Honeywell) to build the order. Open <b>Select sales order</b> for the PACT-style product-details grid.</p>
         </div>
-        <button className="btn btn-primary" onClick={fetchInventory}><Icon n="refresh" size={15} />Fetch live inventory from PACT</button>
+        {!opened
+          ? <button className="btn btn-primary" onClick={() => setOpened(true)}><Icon n="inbox" size={15} />Select sales order</button>
+          : <button className="btn btn-ghost" onClick={() => setOpened(false)}>&larr; Back</button>}
       </div>
 
-      <div className="soscan-bar">
-        <div className="scanbox">
-          <Icon n="search" size={16} />
-          <input ref={inputRef} value={scan} placeholder="Scan a barcode, or type a product code / name, then press Enter…"
-            onChange={(e) => setScan(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") onScan(scan); }} />
-          <button className="btn btn-ghost" style={{ padding: "8px 14px" }} onClick={() => onScan(scan)}>Add</button>
-        </div>
-        <div className="keybox" title="Only needed for Honeywell's cloud SDK; keyboard-wedge scanning works without it.">
-          <Icon n="lock" size={14} />
-          <input value={apiKey} placeholder="Honeywell API key (optional — cloud SDK)" onChange={(e) => setApiKey(e.target.value)} />
-        </div>
-        <span className="soscan-total">Total on hand: <b>{grand.toLocaleString("en-IN")}</b></span>
-      </div>
-
-      {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
-
-      <div className="tree">
-        {items.map((it) => (
-          <div className="tree-item" key={it.code}>
-            <div className="node node-item">
-              <span className="node-t">{it.name}</span>
-              <span className="node-s">{it.code} · {it.batches.reduce((a, b) => a + b.qtys.reduce((x, q) => x + q.qty, 0), 0).toLocaleString("en-IN")} on hand</span>
+      {!opened ? (
+        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. Scan barcodes there — each validated item becomes a row with its PACT product code, name, unit, sales unit level and quantity. GST HSN, unit price, sales rate, batch number and manufacture / expiry dates auto-fill from live PACT stock once the inventory API is connected.</span></div>
+      ) : (
+        <>
+          <div className="soscan-bar">
+            <div className="scanbox">
+              <Icon n="search" size={16} />
+              <input ref={inputRef} value={scan} placeholder="Scan a barcode, or type a product code / name, then press Enter…"
+                onChange={(e) => setScan(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onScan(scan); }} />
+              <button className="btn btn-ghost" style={{ padding: "8px 14px" }} onClick={() => onScan(scan)}>Add</button>
             </div>
-            <div className="branchcol">
-              {it.batches.map((b) => (
-                <div className="tree-batch" key={b.id}>
-                  <span className="hconn" />
-                  <div className="node node-batch">
-                    <span className="node-t">{b.code}</span>
-                    <span className="node-s">{b.qtys.reduce((x, q) => x + q.qty, 0).toLocaleString("en-IN")} in batch</span>
-                  </div>
-                  <div className="qtycol">
-                    {b.qtys.map((q) => (
-                      <div className="tree-qty" key={q.id}>
-                        <span className="hconn" />
-                        <div className="node node-qty"><span className="node-t">{q.label}</span><span className="node-s">{q.qty.toLocaleString("en-IN")}</span></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="keybox" title="Only needed for Honeywell's cloud SDK; keyboard-wedge scanning works without it.">
+              <Icon n="lock" size={14} />
+              <input value={apiKey} placeholder="Honeywell API key (optional — cloud SDK)" onChange={(e) => setApiKey(e.target.value)} />
             </div>
+            <button className="btn btn-primary" onClick={fetchInventory}><Icon n="refresh" size={15} />Fetch live inventory from PACT</button>
           </div>
-        ))}
-        {!items.length && <div className="soscan-empty">Scan a barcode to begin.</div>}
-      </div>
+
+          {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
+
+          <div className="so-gridwrap">
+            <table className="so-grid">
+              <thead>
+                <tr>
+                  <th className="so-rownum">#</th>
+                  {COLS.map((c) => <th key={c}>{c}</th>)}
+                  <th aria-label="Remove"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.id} className={r.productName.startsWith("Unknown") ? "so-unknown" : ""}>
+                    <td className="so-rownum">{i + 1}</td>
+                    <td className="so-mono">{r.productCode}</td>
+                    <td className="so-name">{r.productName}</td>
+                    <td>{r.hsn}</td>
+                    <td>{r.warehouse}</td>
+                    <td>{r.salesUnitLevel}</td>
+                    <td>{r.unit}</td>
+                    <td className="so-num">{r.quantity.toLocaleString("en-IN")}</td>
+                    <td className="so-num">{r.unitPrice}</td>
+                    <td className="so-num">{r.salesRate}</td>
+                    <td>{r.gstTaxType}</td>
+                    <td className="so-mono">{r.batchNumber}</td>
+                    <td>{r.mfgDate}</td>
+                    <td>{r.expDate}</td>
+                    <td><button className="so-del" title="Remove line" onClick={() => removeRow(r.id)}>&times;</button></td>
+                  </tr>
+                ))}
+                {!rows.length && (
+                  <tr><td className="so-empty" colSpan={COLS.length + 2}>Scan a barcode to add the first line.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="soscan-foot">
+            <span className="soscan-total">Lines: <b>{rows.length}</b></span>
+            <span className="soscan-total">Total quantity: <b>{totalQty.toLocaleString("en-IN")}</b></span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
