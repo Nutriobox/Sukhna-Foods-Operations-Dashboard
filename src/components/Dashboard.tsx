@@ -64,7 +64,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [priceVer, setPriceVer] = useState(0);
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set());
   const [printId, setPrintId] = useState<number | null>(null);
-  const [view, setView] = useState<"home" | "stock" | "sales">("home");
+  const [view, setView] = useState<"home" | "stock" | "sales" | "salesorder">("home");
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [soActive, setSoActive] = useState<string | null>(null);
   const soInputRef = useRef<HTMLInputElement | null>(null);
@@ -313,7 +313,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="brandlogo" src="/logo.png" alt="Sukhna Foods" />
           <button className="homebtn" onClick={() => setView("home")}><Icon n="home" size={15} />Home</button>
-          <span className="brand-div">{view === "sales" ? "Sales Order Creation" : "Stock Inward & Bill Uploader"}</span>
+          <span className="brand-div">{view === "sales" ? "Sales Order Creation" : view === "salesorder" ? "Sales Order \u2014 Scan & Inventory" : "Stock Inward & Bill Uploader"}</span>
           {view === "stock" && (
             <div className="search">
               <Icon n="search" />
@@ -341,7 +341,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           <div className="tb-av" title={`${BUYER_NAME}`}>S</div>
         </div>
 
-        {view === "sales"
+        {view === "salesorder"
+          ? <SalesOrderScan />
+          : view === "sales"
           ? <SalesPage key={"so" + priceVer} orders={salesOrders} onUpload={() => soInputRef.current?.click()} supaOk={!!supabase} exportedIds={exportedSO} onExport={markExported} />
           : (
         <div className="content">
@@ -1176,7 +1178,123 @@ function PrintLabel({ b, printed, onClose, onPrinted }: { b: Bill; printed?: boo
   );
 }
 
-function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void; counts: { bills: number; so: number } }) {
+function SalesOrderScan() {
+  type QNode = { id: string; label: string; qty: number };
+  type BNode = { id: string; code: string; qtys: QNode[] };
+  type INode = { code: string; name: string; batches: BNode[] };
+  // Seed sample so the Item -> Batch -> Quantity structure is visible before a
+  // live PACT inventory fetch is wired.
+  const seed: INode[] = [
+    { code: "RM0274", name: "Protein Chocolate Powder", batches: [
+      { id: "b1", code: "B1 · RD0274/1", qtys: [{ id: "q1", label: "Q1", qty: 4000 }, { id: "q2", label: "Q2", qty: 3000 }] },
+      { id: "b2", code: "B2 · RD0274/2", qtys: [{ id: "q3", label: "Q3", qty: 2500 }] },
+    ] },
+    { code: "RM0265", name: "Plain Protein Powder", batches: [
+      { id: "b3", code: "B1 · RD0265/1", qtys: [{ id: "q4", label: "Q1", qty: 6000 }] },
+    ] },
+  ];
+  const [items, setItems] = useState<INode[]>(seed);
+  const [scan, setScan] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [note, setNote] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  const uid = () => Math.random().toString(36).slice(2, 9);
+
+  const onScan = (raw: string) => {
+    const code = (raw || "").trim();
+    if (!code) return;
+    const prod = CATALOG.find((p) => (p.code || "").toLowerCase() === code.toLowerCase())
+      || CATALOG.find((p) => p.name.toLowerCase().includes(code.toLowerCase()));
+    const pcode = prod ? (prod.code || code) : code;
+    const name = prod ? prod.name : `Unknown item (${code})`;
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.code === pcode);
+      if (idx >= 0) {
+        const copy = prev.slice();
+        const it = { ...copy[idx] };
+        const batches = it.batches.slice();
+        if (!batches.length) batches.push({ id: uid(), code: "B1 · scan", qtys: [] });
+        const b0 = { ...batches[0] };
+        b0.qtys = [...b0.qtys, { id: uid(), label: "Q" + (b0.qtys.length + 1), qty: 1 }];
+        batches[0] = b0; it.batches = batches; copy[idx] = it;
+        return copy;
+      }
+      return [...prev, { code: pcode, name, batches: [{ id: uid(), code: "B1 · scan", qtys: [{ id: uid(), label: "Q1", qty: 1 }] }] }];
+    });
+    setScan("");
+  };
+
+  const fetchInventory = () => {
+    setNote(apiKey
+      ? "Honeywell key saved for this session. Live PACT inventory fetch will replace the sample tree with real Item → Batch → Quantity data once the PACT inventory API endpoint is connected."
+      : "Live PACT inventory fetch will populate real batches & quantities here once the PACT inventory API is connected (the API request to PACTSOFT is already drafted). Scanning already works below via the Honeywell keyboard-wedge — no key required for that.");
+  };
+
+  const grand = items.reduce((a, it) => a + it.batches.reduce((b, bt) => b + bt.qtys.reduce((c, q) => c + q.qty, 0), 0), 0);
+
+  return (
+    <div className="content soscan">
+      <div className="soscan-head">
+        <div>
+          <h2>Sales Order &mdash; Scan &amp; Inventory</h2>
+          <p>Scan food-item barcodes (Honeywell) and view live PACT stock as an Item &rarr; Batch &rarr; Quantity tree.</p>
+        </div>
+        <button className="btn btn-primary" onClick={fetchInventory}><Icon n="refresh" size={15} />Fetch live inventory from PACT</button>
+      </div>
+
+      <div className="soscan-bar">
+        <div className="scanbox">
+          <Icon n="search" size={16} />
+          <input ref={inputRef} value={scan} placeholder="Scan a barcode, or type a product code / name, then press Enter…"
+            onChange={(e) => setScan(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") onScan(scan); }} />
+          <button className="btn btn-ghost" style={{ padding: "8px 14px" }} onClick={() => onScan(scan)}>Add</button>
+        </div>
+        <div className="keybox" title="Only needed for Honeywell's cloud SDK; keyboard-wedge scanning works without it.">
+          <Icon n="lock" size={14} />
+          <input value={apiKey} placeholder="Honeywell API key (optional — cloud SDK)" onChange={(e) => setApiKey(e.target.value)} />
+        </div>
+        <span className="soscan-total">Total on hand: <b>{grand.toLocaleString("en-IN")}</b></span>
+      </div>
+
+      {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
+
+      <div className="tree">
+        {items.map((it) => (
+          <div className="tree-item" key={it.code}>
+            <div className="node node-item">
+              <span className="node-t">{it.name}</span>
+              <span className="node-s">{it.code} · {it.batches.reduce((a, b) => a + b.qtys.reduce((x, q) => x + q.qty, 0), 0).toLocaleString("en-IN")} on hand</span>
+            </div>
+            <div className="branchcol">
+              {it.batches.map((b) => (
+                <div className="tree-batch" key={b.id}>
+                  <span className="hconn" />
+                  <div className="node node-batch">
+                    <span className="node-t">{b.code}</span>
+                    <span className="node-s">{b.qtys.reduce((x, q) => x + q.qty, 0).toLocaleString("en-IN")} in batch</span>
+                  </div>
+                  <div className="qtycol">
+                    {b.qtys.map((q) => (
+                      <div className="tree-qty" key={q.id}>
+                        <span className="hconn" />
+                        <div className="node node-qty"><span className="node-t">{q.label}</span><span className="node-s">{q.qty.toLocaleString("en-IN")}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!items.length && <div className="soscan-empty">Scan a barcode to begin.</div>}
+      </div>
+    </div>
+  );
+}
+
+function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "salesorder") => void; counts: { bills: number; so: number } }) {
   return (
     <div className="home">
       <div className="home-head">
@@ -1207,6 +1325,13 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales") => void
           <span className="tile-meta">Manual · opens the dispatch app</span>
           <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
         </a>
+        <button className="tile salesorder" onClick={() => onOpen("salesorder")}>
+          <span className="tile-ic"><Icon n="inbox" size={30} /></span>
+          <span className="tile-ttl">Sales Order</span>
+          <span className="tile-sub">Scan food-item barcodes (Honeywell) and see live PACT inventory as an Item &rarr; Batch &rarr; Quantity tree.</span>
+          <span className="tile-meta">Barcode scan · live inventory</span>
+          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+        </button>
       </div>
     </div>
   );

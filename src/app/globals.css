@@ -678,3 +678,37 @@
 .flowhow { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0 34px; padding: 9px 11px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 9px; }
 .flowhow svg { flex: 0 0 auto; margin-top: 2px; color: var(--brand); }
 .flowhow span { font-size: 12px; line-height: 1.55; color: var(--ink); }
+
+/* ---- Sales Order — Scan & Inventory (4th tile + Item→Batch→Qty tree) ---- */
+.tile.salesorder .tile-ic { background: #ede9fe; }
+.tile.salesorder .tile-ic svg { stroke: #7c3aed; }
+.soscan { display: flex; flex-direction: column; gap: 16px; }
+.soscan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.soscan-head h2 { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+.soscan-head p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.soscan-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.scanbox { display: flex; align-items: center; gap: 8px; background: #fff; border: 2px solid var(--brand); border-radius: 12px; padding: 6px 10px; flex: 1 1 360px; box-shadow: 0 2px 8px rgba(124,58,237,.08); }
+.scanbox svg { color: var(--brand); flex: 0 0 auto; }
+.scanbox input { flex: 1; border: none; outline: none; font-size: 14px; font-family: inherit; background: transparent; color: var(--ink); }
+.keybox { display: flex; align-items: center; gap: 7px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 10px; padding: 7px 10px; flex: 1 1 260px; }
+.keybox svg { color: var(--muted); flex: 0 0 auto; }
+.keybox input { flex: 1; border: none; outline: none; background: transparent; font-size: 12.5px; font-family: inherit; color: var(--ink); }
+.soscan-total { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.soscan-total b { color: var(--ink); }
+.soscan-note { display: flex; gap: 8px; align-items: flex-start; background: color-mix(in srgb, #e2900a 8%, var(--surface)); border: 1px solid color-mix(in srgb, #e2900a 40%, transparent); border-radius: 10px; padding: 10px 13px; font-size: 12.5px; color: var(--ink); line-height: 1.5; }
+.soscan-note svg { color: #b06a00; flex: 0 0 auto; margin-top: 2px; }
+.soscan-empty { color: var(--muted); font-size: 13px; padding: 30px; text-align: center; }
+/* tree */
+.tree { display: flex; flex-direction: column; gap: 18px; overflow-x: auto; padding: 4px 2px 20px; }
+.tree-item { display: flex; align-items: center; gap: 0; }
+.node { border-radius: 12px; padding: 10px 14px; min-width: 150px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 2px 8px rgba(15,23,42,.06); }
+.node-t { font-weight: 700; font-size: 13px; color: var(--ink); }
+.node-s { font-size: 11.5px; color: var(--muted); }
+.node-item { background: #ede9fe; border: 1px solid #c4b5fd; border-left: 4px solid #7c3aed; }
+.node-batch { background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); border-left: 4px solid var(--brand); min-width: 140px; }
+.node-qty { background: #fff; border: 1px solid var(--border); border-left: 4px solid #0284c7; min-width: 92px; }
+.branchcol, .qtycol { display: flex; flex-direction: column; gap: 12px; }
+.tree-batch, .tree-qty { display: flex; align-items: center; }
+.hconn { width: 34px; height: 2px; background: var(--border); flex: 0 0 auto; position: relative; }
+.hconn::before { content: ""; position: absolute; left: 0; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: var(--border); transform: translate(-4px,-50%); }
+@media (max-width: 640px) { .node { min-width: 120px; } .hconn { width: 18px; } }
