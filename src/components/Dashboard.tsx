@@ -1178,22 +1178,76 @@ function PrintLabel({ b, printed, onClose, onPrinted }: { b: Bill; printed?: boo
   );
 }
 
+// ---- Batchwise report (real-time PACT inventory) types & parser ----
+type SoBatch = {
+  batchNumber: string; warehouse: string; unit: string;
+  available: number; rate: string; exp: string; mfg: string; expTs: number; name: string;
+};
+type SoIndex = Record<string, SoBatch[]>;
+
+function soParseDmy(s: string): number {
+  const m = /(\d{1,2})[\/\-]([A-Za-z]{3,})[\/\-](\d{2,4})/.exec(s || "");
+  if (!m) return 8.64e15;
+  const mon = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(m[2].slice(0, 3).toLowerCase());
+  if (mon < 0) return 8.64e15;
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  return new Date(y, mon, Number(m[1])).getTime();
+}
+
+// Parse a PACT "BatchWise Stock Analysis" export (HTML table saved as .xls).
+function soParseReport(html: string): { idx: SoIndex; products: number; batches: number } {
+  const idx: SoIndex = {};
+  let batches = 0;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const tables = Array.from(doc.querySelectorAll("table"));
+  let best: HTMLTableElement | null = null; let bestRows = 0;
+  for (const tb of tables) { const n = tb.querySelectorAll("tr").length; if (n > bestRows) { bestRows = n; best = tb as HTMLTableElement; } }
+  if (!best) return { idx, products: 0, batches: 0 };
+  const trs = Array.from(best.querySelectorAll("tr"));
+  let hi = -1; let cols: string[] = [];
+  for (let i = 0; i < trs.length; i++) {
+    const cells = Array.from(trs[i].querySelectorAll("th,td")).map((c) => (c.textContent || "").trim());
+    if (cells.some((c) => /product\s*code/i.test(c))) { hi = i; cols = cells; break; }
+  }
+  if (hi < 0) return { idx, products: 0, batches: 0 };
+  const col = (re: RegExp) => cols.findIndex((c) => re.test(c));
+  const cCode = col(/product\s*code/i), cName = col(/product\s*name/i), cBatch = col(/batch/i),
+    cWh = col(/warehouse/i), cUnit = col(/unit/i), cQty = col(/quantity/i), cRate = col(/^\s*rate/i),
+    cExp = col(/exp/i), cMfg = col(/mfg/i);
+  for (let i = hi + 1; i < trs.length; i++) {
+    const cells = Array.from(trs[i].querySelectorAll("td")).map((c) => (c.textContent || "").trim());
+    const code = (cells[cCode] || "").trim();
+    if (!/^[A-Za-z]{2}\d/.test(code)) continue;
+    const qty = parseFloat((cells[cQty] || "0").replace(/,/g, "")) || 0;
+    const exp = cells[cExp] || "—";
+    const b: SoBatch = {
+      batchNumber: cells[cBatch] || "—",
+      warehouse: cells[cWh] || "—",
+      unit: cells[cUnit] || "—",
+      available: qty,
+      rate: (cells[cRate] || "").trim(),
+      exp,
+      mfg: cells[cMfg] || "—",
+      expTs: soParseDmy(exp),
+      name: cells[cName] || "",
+    };
+    (idx[code] = idx[code] || []).push(b);
+    batches++;
+  }
+  const now = Date.now();
+  for (const k in idx) idx[k].sort((a, z) => {
+    // Non-expired first (FEFO), expired batches sink to the bottom.
+    const ae = a.expTs < now ? 1 : 0, ze = z.expTs < now ? 1 : 0;
+    return ae - ze || a.expTs - z.expTs;
+  });
+  return { idx, products: Object.keys(idx).length, batches };
+}
+
 function SalesOrderScan() {
   type Row = {
-    id: string;
-    productCode: string;
-    productName: string;
-    hsn: string;
-    warehouse: string;
-    salesUnitLevel: string;
-    unit: string;
-    quantity: number;
-    unitPrice: string;
-    salesRate: string;
-    gstTaxType: string;
-    batchNumber: string;
-    mfgDate: string;
-    expDate: string;
+    id: string; productCode: string; productName: string; hsn: string;
+    salesUnitLevel: string; gstTaxType: string; salesRate: string;
+    dispatchQty: number; batches: SoBatch[]; sel: number; found: boolean;
   };
 
   const DASH = "—";
@@ -1203,15 +1257,13 @@ function SalesOrderScan() {
     "Batch number", "Manufacture date", "Expiry date",
   ];
 
-  // Parse a GS1-128 barcode (common on packaged food) into its fields. Falls
-  // back to treating the whole string as a plain product code / name for the
-  // Honeywell keyboard-wedge scanners that just type the code + Enter.
+  // Parse a GS1-128 barcode into fields; fall back to a plain product code / name.
   const parseScan = (raw: string) => {
     const s = (raw || "").trim();
     const out: { code?: string; batch?: string; mfg?: string; exp?: string; qty?: number } = {};
     if (!s) return out;
     const ymd = (d: string) => (d && d.length === 6 ? "20" + d.slice(0, 2) + "-" + d.slice(2, 4) + "-" + d.slice(4, 6) : "");
-    const GS = String.fromCharCode(29); // FNC1 / group separator
+    const GS = String.fromCharCode(29);
     const looksGs1 = /^(01)\d{14}/.test(s) || s.indexOf(GS) >= 0;
     if (looksGs1) {
       for (let seg of s.split(GS)) {
@@ -1235,67 +1287,73 @@ function SalesOrderScan() {
   const [apiKey, setApiKey] = useState("");
   const [opened, setOpened] = useState(false);
   const [note, setNote] = useState("");
+  const [inv, setInv] = useState<SoIndex>({});
+  const [invMeta, setInvMeta] = useState<{ file: string; products: number; batches: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (opened) inputRef.current?.focus(); }, [opened]);
   const uid = () => Math.random().toString(36).slice(2, 9);
+  const nf = (n: number) => n.toLocaleString("en-IN");
+
+  const onImport = (file: File) => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const { idx, products, batches } = soParseReport(String(rd.result || ""));
+        if (!products) { setNote("Could not read any batches from that file. Export the BatchWise Stock Analysis from PACT (Excel) and import that .xls."); return; }
+        setInv(idx);
+        setInvMeta({ file: file.name, products, batches });
+        setNote("");
+      } catch {
+        setNote("That file could not be parsed. Please import the BatchWise Stock Analysis .xls exported from PACT.");
+      }
+    };
+    rd.readAsText(file);
+  };
 
   const onScan = (raw: string) => {
     const p = parseScan(raw);
     const key = (p.code || "").trim();
     if (!key) return;
-    // Validate against the product master: match by PACT code first, then name.
+    if (!invMeta) { setNote("Import the batchwise report from PACT first — that is the real-time inventory each scan is matched against."); return; }
+    // Match the scanned code against the product master (for name / HSN / level)…
     const prod = CATALOG.find((x) => (x.code || "").toLowerCase() === key.toLowerCase())
       || CATALOG.find((x) => x.name.toLowerCase().includes(key.toLowerCase()));
     const pcode = prod ? (prod.code || key) : key;
+    // …and pull its live batches from the imported batchwise report.
+    const batches = inv[pcode] || inv[key] || [];
+    const found = batches.length > 0;
     const level = (prod && prod.printLevel) || "L1";
-    const unit = (prod && ((prod.levels && prod.levels[level] && prod.levels[level].u) || (prod.units && prod.units[0]))) || DASH;
-    const batch = p.batch || DASH;
+    let sel = 0;
+    if (p.batch && found) { const j = batches.findIndex((b) => b.batchNumber === p.batch); if (j >= 0) sel = j; }
+    const name = (prod && prod.name) || (found && batches[0].name) || ("Unknown item (" + key + ")");
     const addQty = p.qty && p.qty > 0 ? p.qty : 1;
 
     setRows((prev) => {
-      const i = prev.findIndex((r) => r.productCode === pcode && r.batchNumber === batch);
-      if (i >= 0) {
-        const copy = prev.slice();
-        copy[i] = { ...copy[i], quantity: copy[i].quantity + addQty };
-        return copy;
-      }
+      const i = prev.findIndex((r) => r.productCode === pcode && r.sel === sel);
+      if (i >= 0) { const c = prev.slice(); c[i] = { ...c[i], dispatchQty: c[i].dispatchQty + addQty }; return c; }
       const row: Row = {
-        id: uid(),
-        productCode: pcode,                                       // from scan (after validation)
-        productName: prod ? prod.name : "Unknown item (" + key + ")", // from product master
-        hsn: DASH,                                                // auto (product master / live fetch)
-        warehouse: "Main Store",                                  // auto (default warehouse)
-        salesUnitLevel: level,                                    // auto (product master)
-        unit,                                                     // auto (product master)
-        quantity: addQty,                                         // from scan (after validation)
-        unitPrice: DASH,                                          // auto (live fetch)
-        salesRate: DASH,                                          // auto (live fetch)
-        gstTaxType: "GST",                                        // auto (default)
-        batchNumber: batch,                                       // from scan (after validation)
-        mfgDate: p.mfg || DASH,                                   // auto / from scan
-        expDate: p.exp || DASH,                                   // auto / from scan
+        id: uid(), productCode: pcode, productName: name, hsn: DASH,
+        salesUnitLevel: level, gstTaxType: "GST", salesRate: DASH,
+        dispatchQty: addQty, batches, sel, found,
       };
       return [...prev, row];
     });
     setScan("");
   };
 
+  const setSel = (id: string, sel: number) => setRows((prev) => prev.map((r) => r.id === id ? { ...r, sel } : r));
+  const setQty = (id: string, q: number) => setRows((prev) => prev.map((r) => r.id === id ? { ...r, dispatchQty: q } : r));
   const removeRow = (id: string) => setRows((prev) => prev.filter((r) => r.id !== id));
 
-  const fetchInventory = () => {
-    setNote(apiKey
-      ? "Honeywell key saved for this session. Once the PACT inventory API is connected, live GST HSN, unit price, sales rate, batch number and manufacture / expiry dates will auto-fill the blank (—) columns for every scanned line."
-      : "Fetch is ready. The PACT inventory API (request already drafted for PACTSOFT) will auto-fill the blank (—) columns — GST HSN, unit price, sales rate, batch number and manufacture / expiry dates — from live PACT stock. Scanning already fills product code, name, unit, sales unit level and quantity below.");
-  };
-
-  const totalQty = rows.reduce((a, r) => a + r.quantity, 0);
+  const totalQty = rows.reduce((a, r) => a + (r.dispatchQty || 0), 0);
 
   return (
     <div className="content soscan">
       <div className="soscan-head">
         <div>
           <h2>Sales Order</h2>
-          <p>Scan food-item barcodes (Honeywell) to build the order. Open <b>Select sales order</b> for the PACT-style product-details grid.</p>
+          <p>Import the PACT batchwise report (real-time inventory), then scan food-item barcodes (Honeywell). Each scan is matched batch-by-batch against that live stock.</p>
         </div>
         {!opened
           ? <button className="btn btn-primary" onClick={() => setOpened(true)}><Icon n="inbox" size={15} />Select sales order</button>
@@ -1303,9 +1361,16 @@ function SalesOrderScan() {
       </div>
 
       {!opened ? (
-        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. Scan barcodes there — each validated item becomes a row with its PACT product code, name, unit, sales unit level and quantity. GST HSN, unit price, sales rate, batch number and manufacture / expiry dates auto-fill from live PACT stock once the inventory API is connected.</span></div>
+        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. First import the batchwise report exported from PACT, then scan barcodes — each validated item pulls its real batch, warehouse, on-hand quantity, unit price and manufacture / expiry dates from that live report.</span></div>
       ) : (
         <>
+          <div className="soscan-bar">
+            <input ref={fileRef} type="file" accept=".xls,.xlsx,.html,.htm" style={{ display: "none" }}
+              onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onImport(f); e.currentTarget.value = ""; }} />
+            <button className="btn btn-primary" onClick={() => fileRef.current?.click()}><Icon n="refresh" size={15} />{invMeta ? "Re-import batchwise report" : "Import batchwise report (from PACT)"}</button>
+            {invMeta && <span className="so-invchip"><Icon n="check" size={13} />Live inventory: <b>{nf(invMeta.products)}</b> products · <b>{nf(invMeta.batches)}</b> batches<span className="so-invfile">{invMeta.file}</span></span>}
+          </div>
+
           <div className="soscan-bar">
             <div className="scanbox">
               <Icon n="search" size={16} />
@@ -1318,7 +1383,6 @@ function SalesOrderScan() {
               <Icon n="lock" size={14} />
               <input value={apiKey} placeholder="Honeywell API key (optional — cloud SDK)" onChange={(e) => setApiKey(e.target.value)} />
             </div>
-            <button className="btn btn-primary" onClick={fetchInventory}><Icon n="refresh" size={15} />Fetch live inventory from PACT</button>
           </div>
 
           {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
@@ -1333,27 +1397,41 @@ function SalesOrderScan() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.id} className={r.productName.startsWith("Unknown") ? "so-unknown" : ""}>
-                    <td className="so-rownum">{i + 1}</td>
-                    <td className="so-mono">{r.productCode}</td>
-                    <td className="so-name">{r.productName}</td>
-                    <td>{r.hsn}</td>
-                    <td>{r.warehouse}</td>
-                    <td>{r.salesUnitLevel}</td>
-                    <td>{r.unit}</td>
-                    <td className="so-num">{r.quantity.toLocaleString("en-IN")}</td>
-                    <td className="so-num">{r.unitPrice}</td>
-                    <td className="so-num">{r.salesRate}</td>
-                    <td>{r.gstTaxType}</td>
-                    <td className="so-mono">{r.batchNumber}</td>
-                    <td>{r.mfgDate}</td>
-                    <td>{r.expDate}</td>
-                    <td><button className="so-del" title="Remove line" onClick={() => removeRow(r.id)}>&times;</button></td>
-                  </tr>
-                ))}
+                {rows.map((r, i) => {
+                  const b = r.batches[r.sel];
+                  const over = b ? r.dispatchQty > b.available : false;
+                  return (
+                    <tr key={r.id} className={!r.found ? "so-unknown" : ""}>
+                      <td className="so-rownum">{i + 1}</td>
+                      <td className="so-mono">{r.productCode}</td>
+                      <td className="so-name">{r.productName}</td>
+                      <td>{r.hsn}</td>
+                      <td>{b ? b.warehouse : DASH}</td>
+                      <td>{r.salesUnitLevel}</td>
+                      <td>{b ? b.unit : DASH}</td>
+                      <td className="so-num">
+                        <input className={"so-qtyin" + (over ? " over" : "")} type="number" min={0} value={r.dispatchQty}
+                          onChange={(e) => setQty(r.id, parseFloat(e.target.value) || 0)} />
+                        {b && <span className="so-avail">of {nf(b.available)}</span>}
+                      </td>
+                      <td className="so-num">{b ? b.rate : DASH}</td>
+                      <td className="so-num">{r.salesRate}</td>
+                      <td>{r.gstTaxType}</td>
+                      <td>
+                        {r.found
+                          ? <select className="so-batchsel" value={r.sel} onChange={(e) => setSel(r.id, Number(e.target.value))}>
+                              {r.batches.map((bt, j) => <option key={bt.batchNumber + j} value={j}>{bt.batchNumber} · {bt.warehouse} · {nf(bt.available)} · exp {bt.exp}</option>)}
+                            </select>
+                          : <span className="so-nostock">No stock in report</span>}
+                      </td>
+                      <td>{b ? b.mfg : DASH}</td>
+                      <td>{b ? b.exp : DASH}</td>
+                      <td><button className="so-del" title="Remove line" onClick={() => removeRow(r.id)}>&times;</button></td>
+                    </tr>
+                  );
+                })}
                 {!rows.length && (
-                  <tr><td className="so-empty" colSpan={COLS.length + 2}>Scan a barcode to add the first line.</td></tr>
+                  <tr><td className="so-empty" colSpan={COLS.length + 2}>{invMeta ? "Scan a barcode to add the first line." : "Import the batchwise report, then scan a barcode."}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1361,7 +1439,7 @@ function SalesOrderScan() {
 
           <div className="soscan-foot">
             <span className="soscan-total">Lines: <b>{rows.length}</b></span>
-            <span className="soscan-total">Total quantity: <b>{totalQty.toLocaleString("en-IN")}</b></span>
+            <span className="soscan-total">Total quantity: <b>{nf(totalQty)}</b></span>
           </div>
         </>
       )}
