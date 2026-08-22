@@ -1,142 +1,65 @@
-// Scheduled PACT inventory sync (GitHub Actions entrypoint).
+// On-demand PACT inventory sync (GitHub Actions entrypoint).
 //
-// Logs into PACT with a real Chromium, pulls the "BatchWise Stock Analysis"
-// report as its full Excel/HTML export, parses every batch, and writes ONE new
-// snapshot row to Supabase (public.inventory_snapshots). The dashboard reads the
-// latest snapshot so the Sales Order grid always matches live PACT stock.
+// Logs into PACT with a real Chromium (to obtain a valid Bearer token + session
+// cookie), then replays the BatchWise Stock Analysis report's own data call
+//   POST /PACTALLUSUREAPI/api/Report/ReportDataSet
+// and writes ONE snapshot row to Supabase (public.inventory_snapshots). No UI
+// clicking — the request template was captured from a real report load, so this
+// is fast and stable. The dashboard reads the latest snapshot.
 //
-// Why the export (not the on-screen grid): PACT renders the grid with SlickGrid,
-// which only keeps the visible ~30 rows in the DOM. The "Export to Excel" output
-// is the complete table — that is what we ingest.
-//
-// Env (GitHub Actions secrets):
-//   PACT_USER, PACT_PASSWORD/PACT_PASS, PACT_URL
-//   SUPABASE_URL, SUPABASE_SERVICE_KEY
-//   INV_REPORT_EXPORT_URL  — (preferred) the URL that returns the full HTML/Excel
-//                            export of the BatchWise Stock Analysis. Captured once
-//                            from the browser's Network tab when you click Export.
-//   INV_REPORT_URL         — (fallback) the report page URL; the script opens it
-//                            and clicks an Export/Excel button, capturing the file.
+// The "Quantity" mirrors the BatchWise report exactly (gross received qty per
+// lot, matching the Excel export). Env: PACT_USER, PACT_PASS/PACT_PASSWORD,
+// PACT_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY.
 
 const { chromium } = require('playwright');
 const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
 const { login } = require('../src/lib/pact/login');
+
+// Exact ReportDataSet request body captured from a real report load (base64 so
+// the embedded SQL / newlines survive verbatim). Date + UserID are re-injected
+// at run time. Re-record (record-inventory.bat) if PACT changes this report.
+const BODY_B64 = "eyJVc2VySUQiOiIxMDA4MCIsIkxhbmdJRCI6IjEiLCJpc1JlcG9ydERCIjowLCJRdWVyeUNvZGUiOiJSUFRTVF84MSIsInAxIjoiXG5kZWNsYXJlIEBUbyBmbG9hdFxuc2V0IEBUbz1DT05WRVJUKEZMT0FULENPTlZFUlQoREFURVRJTUUsJzIyIEF1ZyAyMDI2JykpXG4gICAgICAgICAgICBTRUxFQ1QgUC5Qcm9kdWN0SUQsUC5Qcm9kdWN0TmFtZSxCLkJhdGNoTnVtYmVyLEIuQmF0Y2hJRCxELkludkRvY0RldGFpbHNJRCxDT05WRVJUKERBVEVUSU1FLEIuRXhwaXJ5RGF0ZSkgRXhwRGF0ZSxDT05WRVJUKERBVEVUSU1FLEIuTWZnRGF0ZSkgTWZnRGF0ZSxELlVPTUNvbnZlcnRlZFF0eSBRdWFudGl0eSxELlN0b2NrVmFsdWUvRC5VT01Db252ZXJ0ZWRRdHkgUmF0ZSxELlZvdWNoZXJObyBEb2NObyxDT05WRVJUKERBVEVUSU1FLEQuRG9jRGF0ZSkgRG9jRGF0ZSxEb2N1bWVudFR5cGUuRG9jdW1lbnROYW1lIEFTIFtDMGQ5NTc4OWQzMGQyNDk2ODkzZGYzZTZkMGNhNzIyZTZdLFQxLk5hbWUgQVMgW0NhZGQ5ZjVkNDM1NjY0Y2U0YjFmMmU1OGI3YTE1Y2Y1MF0sVDIuUHJvZHVjdENvZGUgQVMgW0M0MGI3MDU1YjkyYTQ0ZmE2OGZiNThlMWYyZDEwZDkxOF0sVDIuUHJvZHVjdE5hbWUgQVMgW0NmZDMzMGFjYTJhMWY0NGJlODcxNmYxMDYzNjRiM2NjZl0sVDMuQmFzZU5hbWUgQVMgW0NiNDk2YzM5YzYzMDc0MmRiOTY4MmIwNDQ3NzQ1MThjM11cbkZST00gW0lOVl9Eb2NEZXRhaWxzXSBEIHdpdGgobm9sb2NrKVxuSU5ORVIgSk9JTiBJTlZfQmF0Y2hlcyBCIHdpdGgobm9sb2NrKSBPTiBELkJhdGNoSUQ9Qi5CYXRjaElEXG5JTk5FUiBKT0lOIFtJTlZfUHJvZHVjdF0gUCB3aXRoKG5vbG9jaykgT04gQi5Qcm9kdWN0SUQ9UC5Qcm9kdWN0SUQgSU5ORVIgSk9JTiBDT01fRG9jQ0NEYXRhIERDQyBXSVRIKE5PTE9DSykgT04gRENDLkludkRvY0RldGFpbHNJRD1ELkludkRvY0RldGFpbHNJRCAgTEVGVCBKT0lOIEFETV9Eb2N1bWVudFR5cGVzIEFTIERvY3VtZW50VHlwZSB3aXRoKG5vbG9jaykgT04gRG9jdW1lbnRUeXBlLkNvc3RDZW50ZXJJRD1ELkNvc3RDZW50ZXJJRCBMRUZUIEpPSU4gQ09NX0NDNTAwMDkgQVMgVDEgd2l0aChub2xvY2spIE9OIFQxLk5vZGVJRD1EQ0MuZGNDQ05JRDkgTEVGVCBKT0lOIElOVl9Qcm9kdWN0IEFTIFQyIHdpdGgobm9sb2NrKSBPTiBUMi5Qcm9kdWN0SUQ9UC5Qcm9kdWN0SUQgTEVGVCBKT0lOIENPTV9VT00gQVMgVDMgd2l0aChub2xvY2spIE9OIFQzLlVPTUlEPVAuVU9NSURcbldIRVJFIEQuQmF0Y2hJRD4xIGFuZCBELlZvdWNoZXJUeXBlPTEgQU5EIEQuSXNRdHlJZ25vcmVkPTAgYW5kIEQuU3RhdHVzSUQ9MzY5IEFORCBEQ0MuZGNDQ05JRDkgSU4gKDEsMTUsMjEsMTEsMTgsMjIsOCwxMywyMCwxMCw5LDE3LDE2LDE0LDEyLDE5KSBBTkQgRENDLmRjQ0NOSUQyIElOICgxMiwxNiwyMSwyMiwyMywyNCwyNSwyNiwyNywyOCwyOSwzMCkgQU5EIEQuRG9jRGF0ZTw9QFRvIE9yZGVyIEJ5IFAuUHJvZHVjdE5hbWUsQmF0Y2hOdW1iZXIsQi5CYXRjaElELEIuTWZnRGF0ZSxELkRvY0RhdGUsRC5SYXRlXHRzZWxlY3QgRC5SZWZJbnZEb2NEZXRhaWxzSUQsc3VtKEQuVU9NQ29udmVydGVkUXR5KSBRdHkgZnJvbSBJTlZfRG9jRGV0YWlscyBEIHdpdGgobm9sb2NrKSBJTk5FUiBKT0lOIENPTV9Eb2NDQ0RhdGEgRENDIFdJVEgoTk9MT0NLKSBPTiBEQ0MuSW52RG9jRGV0YWlsc0lEPUQuSW52RG9jRGV0YWlsc0lEICB3aGVyZSBELkJhdGNoSUQ+MSBhbmQgRC5Wb3VjaGVyVHlwZT0tMSBBTkQgRC5Jc1F0eUlnbm9yZWQ9MCBhbmQgRC5TdGF0dXNJRD0zNjkgQU5EIERDQy5kY0NDTklEOSBJTiAoMSwxNSwyMSwxMSwxOCwyMiw4LDEzLDIwLDEwLDksMTcsMTYsMTQsMTIsMTkpIEFORCBEQ0MuZGNDQ05JRDIgSU4gKDEyLDE2LDIxLDIyLDIzLDI0LDI1LDI2LDI3LDI4LDI5LDMwKSBBTkQgRC5Eb2NEYXRlPD1AVG8gZ3JvdXAgYnkgRC5SZWZJbnZEb2NEZXRhaWxzSUQiLCJwMiI6IjB+MSIsInAzIjoiIn0=";
 
 const RUN_LOG = [];
 const _log = console.log.bind(console);
 console.log = (...a) => { try { RUN_LOG.push(a.map(String).join(' ')); } catch {} _log(...a); };
-const logTail = (n = 60) => RUN_LOG.slice(-n).join('\n').slice(-3500);
+const logTail = (n = 50) => RUN_LOG.slice(-n).join('\n').slice(-3000);
 
 const sb = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } })
   : null;
 
-// ---- HTML export parser (Node, no DOM) -------------------------------------
-function decodeEntities(s) {
-  return String(s)
-    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
-    .replace(/\s+/g, ' ').trim();
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Business date in IST (Actions runs in UTC) as 'D Mon YYYY' for the @To param.
+function istToken() {
+  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+  return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
-function cellsOf(rowHtml) {
-  const out = [];
-  const re = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
-  let m;
-  while ((m = re.exec(rowHtml))) out.push(decodeEntities(m[1].replace(/<[^>]+>/g, ' ')));
-  return out;
+// ISO '2026-05-09T00:00:00' -> '09/May/2026' (matches the Excel export style).
+function isoDMY(s) {
+  if (!s) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
+  if (!m) return '—';
+  return `${m[3]}/${MON[Number(m[2]) - 1]}/${m[1]}`;
 }
-function parseExport(html) {
-  // Pick the <table> with the most rows (the data grid).
-  const tables = html.match(/<table[\s\S]*?<\/table>/gi) || [];
-  let best = '', bestRows = 0;
-  for (const t of tables) {
-    const n = (t.match(/<tr[\s>]/gi) || []).length;
-    if (n > bestRows) { bestRows = n; best = t; }
-  }
-  const scope = best || html;
-  const rows = scope.match(/<tr[\s\S]*?<\/tr>/gi) || [];
-  let header = null, cIdx = {};
-  const norm = (s) => s.toLowerCase();
-  const find = (cells, re) => cells.findIndex((c) => re.test(norm(c)));
-  const data = [];
-  for (const r of rows) {
-    const cells = cellsOf(r);
-    if (!header) {
-      if (cells.some((c) => /product\s*code/i.test(c))) {
-        header = cells;
-        cIdx = {
-          code: find(cells, /product\s*code/), name: find(cells, /product\s*name/),
-          batch: find(cells, /batch/), wh: find(cells, /warehouse/), unit: find(cells, /unit/),
-          qty: find(cells, /quantity/), rate: find(cells, /^\s*rate/), exp: find(cells, /exp/), mfg: find(cells, /mfg/),
-        };
-      }
-      continue;
-    }
-    const code = (cells[cIdx.code] || '').trim();
-    if (!/^[A-Za-z]{2}\d/.test(code)) continue;
-    const qty = parseFloat((cells[cIdx.qty] || '0').replace(/,/g, '')) || 0;
-    data.push({
-      code,
-      name: cells[cIdx.name] || '',
-      batch: cells[cIdx.batch] || '—',
-      warehouse: cells[cIdx.wh] || '—',
-      unit: cells[cIdx.unit] || '—',
-      qty,
-      rate: (cells[cIdx.rate] || '').trim(),
-      exp: cells[cIdx.exp] || '—',
-      mfg: cells[cIdx.mfg] || '—',
-    });
-  }
-  const products = new Set(data.map((d) => d.code)).size;
-  return { data, products, batches: data.length, headerFound: !!header };
+function jwtUserId(bearer) {
+  try {
+    const p = JSON.parse(Buffer.from(bearer.split(' ')[1].split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+    const uniq = String(p.unique_name || p.UserName || '');
+    return uniq.split(',')[1] || '';
+  } catch { return ''; }
 }
 
-// ---- Get the report export HTML --------------------------------------------
-async function fetchReportHtml(page) {
-  const exportUrl = process.env.INV_REPORT_EXPORT_URL;
-  if (exportUrl) {
-    console.log('[report] GET export URL (with logged-in session cookies)');
-    const resp = await page.context().request.get(exportUrl, { timeout: 60000, ignoreHTTPSErrors: true });
-    console.log('[report] export status', resp.status());
-    return await resp.text();
-  }
-  const reportUrl = process.env.INV_REPORT_URL;
-  if (reportUrl) {
-    console.log('[report] open report page and click Export');
-    await page.goto(reportUrl, { waitUntil: 'load', timeout: 60000 });
-    await page.waitForTimeout(2500);
-    // Best-effort: click a Generate/Show button first, then an Excel/Export one.
-    for (const label of [/generate|show|view|search/i]) {
-      await page.getByRole('button', { name: label }).first().click({ timeout: 3000 }).catch(() => {});
-    }
-    await page.waitForTimeout(2000);
-    const clickExport = async () => {
-      const tries = [
-        () => page.getByRole('button', { name: /excel|export/i }).first().click({ timeout: 4000 }),
-        () => page.getByTitle(/excel|export/i).first().click({ timeout: 4000 }),
-        () => page.locator('[class*="excel" i], [id*="excel" i], [class*="export" i]').first().click({ timeout: 4000 }),
-      ];
-      for (const t of tries) { try { await t(); return true; } catch {} }
-      return false;
-    };
-    const dl = await Promise.race([
-      page.waitForEvent('download', { timeout: 20000 }).then((d) => d).catch(() => null),
-      (async () => { await clickExport(); return null; })(),
-    ]);
-    if (dl) {
-      const p = await dl.path();
-      console.log('[report] captured download', dl.suggestedFilename());
-      return fs.readFileSync(p, 'utf8');
-    }
-    console.log('[report] no download event — reading current page HTML as fallback');
-    return await page.content();
-  }
-  throw new Error('Neither INV_REPORT_EXPORT_URL nor INV_REPORT_URL is set. Configure the BatchWise Stock Analysis export URL (see scripts/sync-inventory.js header).');
-}
+// Report column aliases (from the report definition captured in the request).
+const F = {
+  code: 'C40b7055b92a44fa68fb58e1f2d10d918',   // Product Code
+  name2: 'Cfd330aca2a1f44be8716f106364b3ccf',  // Product Name
+  wh: 'Cadd9f5d435664ce4b1f2e58b7a15cf50',     // Warehouse
+  unit: 'Cb496c39c630742db9682b044774518c3',   // Unit (base UOM)
+};
 
 async function writeSnapshot(patch) {
-  if (!sb) { console.log('[supabase] not configured; skipping write'); return; }
+  if (!sb) { console.log('[supabase] not configured; skipping'); return; }
   const { error } = await sb.from('inventory_snapshots').insert(patch);
   if (error) console.log('[supabase] insert failed:', error.message);
   else console.log('[supabase] snapshot inserted:', patch.status, patch.batches, 'batches');
@@ -148,20 +71,69 @@ async function writeSnapshot(patch) {
   const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 } });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
+
+  // Capture the Bearer token + API root from the app's own requests during login.
+  let bearer = null, apiRoot = null;
+  page.on('request', (req) => {
+    const u = req.url();
+    if (!apiRoot && /PACTALLUSUREAPI\/api\//i.test(u)) apiRoot = u.slice(0, u.toLowerCase().indexOf('/api/'));
+    const a = req.headers()['authorization'];
+    if (!bearer && a && /^Bearer /i.test(a)) bearer = a;
+  });
+
   try {
     await login(page);
     console.log('Logged in.');
-    const html = await fetchReportHtml(page);
-    const { data, products, batches, headerFound } = parseExport(html);
-    if (!headerFound) throw new Error('Export parsed but no "Product Code" header row found — the export URL may be wrong or the session expired. First 300 chars: ' + html.slice(0, 300));
-    if (!batches) throw new Error('Export parsed, header found, but 0 batch rows matched. Check the report filters (all warehouses).');
-    console.log(`Parsed ${batches} batches across ${products} products.`);
-    await writeSnapshot({ synced_at: new Date().toISOString(), products, batches, source: 'pact-batchwise', status: 'ok', data });
+    await page.waitForTimeout(1500);
+    if (!bearer) {
+      // Nudge the app to issue an authenticated call if none seen yet.
+      await page.reload({ waitUntil: 'networkidle' }).catch(() => {});
+      await page.waitForTimeout(1500);
+    }
+    if (!bearer) throw new Error('Could not capture a Bearer token after login (the report API needs it).');
+
+    if (!apiRoot) {
+      // Derive from PACT_URL origin as a fallback.
+      const origin = new URL(process.env.PACT_URL || 'http://140.245.255.130:8443/').origin;
+      apiRoot = origin + '/PACTALLUSUREAPI';
+    }
+    const REPORT_URL = apiRoot + '/api/Report/ReportDataSet';
+    const userId = jwtUserId(bearer);
+    console.log('[report] url=' + REPORT_URL + ' userId=' + (userId || '(kept from template)'));
+
+    let body = Buffer.from(BODY_B64, 'base64').toString('utf8');
+    body = body.replace(/'(\d{1,2} [A-Za-z]{3} \d{4})'/, "'" + istToken() + "'");
+    if (userId) body = body.replace(/"UserID":"\d+"/, '"UserID":"' + userId + '"');
+
+    const resp = await page.context().request.post(REPORT_URL, {
+      headers: { Authorization: bearer, 'Content-Type': 'application/json', Accept: 'application/json, text/plain, */*' },
+      data: body, timeout: 120000, ignoreHTTPSErrors: true,
+    });
+    if (!resp.ok()) throw new Error('ReportDataSet HTTP ' + resp.status() + ' ' + (await resp.text().catch(() => '')).slice(0, 200));
+    const json = await resp.json();
+    const inward = (json.Tables && json.Tables[0]) || [];
+    if (!inward.length) throw new Error('ReportDataSet returned 0 rows (Tables[0] empty).');
+
+    const rows = inward.map((r) => ({
+      code: String(r[F.code] || '').trim(),
+      name: String(r.ProductName || r[F.name2] || ''),
+      batch: String(r.BatchNumber || '—'),
+      warehouse: String(r[F.wh] || '—'),
+      unit: String(r[F.unit] || '—'),
+      qty: Number(r.Quantity) || 0,
+      rate: r.Rate != null ? Number(r.Rate).toFixed(2) : '',
+      exp: isoDMY(r.ExpDate),
+      mfg: isoDMY(r.MfgDate),
+    })).filter((x) => x.code);
+
+    const products = new Set(rows.map((r) => r.code)).size;
+    console.log(`Parsed ${rows.length} batches across ${products} products.`);
+    await writeSnapshot({ synced_at: new Date().toISOString(), products, batches: rows.length, source: 'pact-batchwise-api', status: 'ok', data: rows });
     console.log('SYNC DONE.');
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
     console.log('SYNC FAILED:', msg.slice(0, 300));
-    await writeSnapshot({ synced_at: new Date().toISOString(), products: 0, batches: 0, source: 'pact-batchwise', status: 'failed', error: (msg + '\n--- log ---\n' + logTail()).slice(0, 3500), data: [] });
+    await writeSnapshot({ synced_at: new Date().toISOString(), products: 0, batches: 0, source: 'pact-batchwise-api', status: 'failed', error: (msg + '\n--- log ---\n' + logTail()).slice(0, 3500), data: [] });
     process.exitCode = 1;
   } finally {
     await browser.close().catch(() => {});

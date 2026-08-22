@@ -41,6 +41,4 @@ jobs:
           PACT_URL: ${{ secrets.PACT_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          INV_REPORT_EXPORT_URL: ${{ secrets.INV_REPORT_EXPORT_URL }}
-          INV_REPORT_URL: ${{ secrets.INV_REPORT_URL }}
         run: node scripts/sync-inventory.js
