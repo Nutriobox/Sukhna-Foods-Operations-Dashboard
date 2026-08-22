@@ -1427,7 +1427,7 @@ function SalesOrderScan() {
       <div className="soscan-head">
         <div>
           <h2>Sales Order</h2>
-          <p>Live inventory syncs from PACT automatically. Scan food-item barcodes (Honeywell) — each scan is matched batch-by-batch against current stock.</p>
+          <p>Click <b>Sync inventory from PACT</b> to pull live stock, then scan food-item barcodes (Honeywell) — each scan is matched batch-by-batch against that inventory.</p>
         </div>
         {!opened
           ? <button className="btn btn-primary" onClick={() => setOpened(true)}><Icon n="inbox" size={15} />Select sales order</button>
@@ -1435,14 +1435,14 @@ function SalesOrderScan() {
       </div>
 
       {!opened ? (
-        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. Inventory syncs from PACT automatically every few minutes — you can also <b>Sync now</b> or import a file. Then scan barcodes; each validated item pulls its real batch, warehouse, on-hand quantity, unit price and manufacture / expiry dates from live stock.</span></div>
+        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. Inside, click <b>Sync inventory from PACT</b> to pull the live batchwise stock (or import a file), then scan barcodes; each validated item pulls its real batch, warehouse, on-hand quantity, unit price and manufacture / expiry dates from that inventory.</span></div>
       ) : (
         <>
           <div className="soscan-bar">
             <input ref={fileRef} type="file" accept=".xls,.xlsx,.html,.htm" style={{ display: "none" }}
               onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onImport(f); e.currentTarget.value = ""; }} />
-            <button className="btn btn-primary" onClick={fetchLatest}><Icon n="refresh" size={15} />Fetch latest inventory</button>
-            <button className="btn btn-ghost" onClick={syncNow} disabled={syncing}><Icon n="refresh" size={15} />{syncing ? "Syncing from PACT…" : "Sync now from PACT"}</button>
+            <button className="btn btn-primary" onClick={syncNow} disabled={syncing}><Icon n="refresh" size={15} />{syncing ? "Syncing from PACT…" : "Sync inventory from PACT"}</button>
+            <button className="btn btn-ghost" onClick={fetchLatest}>Load last synced</button>
             <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Import file instead</button>
             {invMeta && <span className="so-invchip"><Icon n="check" size={13} />Live inventory: <b>{nf(invMeta.products)}</b> products · <b>{nf(invMeta.batches)}</b> batches{syncedAt ? <span className="so-invfile">synced {fmtSynced(syncedAt)}</span> : <span className="so-invfile">{invMeta.file}</span>}</span>}
           </div>

@@ -1,14 +1,11 @@
 name: sync-inventory
 
-# Keeps public.inventory_snapshots in sync with PACT's BatchWise Stock Analysis
-# so the Sales Order grid always reflects live stock.
-#   - schedule: every 15 minutes
+# Pulls PACT's BatchWise Stock Analysis into public.inventory_snapshots.
+# ON-DEMAND ONLY — it runs when triggered, never on a timer:
+#   - repository_dispatch(sync-inventory): the dashboard "Sync inventory from PACT" button
 #   - workflow_dispatch: manual run from the Actions tab
-#   - repository_dispatch(sync-inventory): the dashboard "Sync now" button
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
   repository_dispatch:
     types: [sync-inventory]
