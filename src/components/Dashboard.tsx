@@ -1243,6 +1243,29 @@ function soParseReport(html: string): { idx: SoIndex; products: number; batches:
   return { idx, products: Object.keys(idx).length, batches };
 }
 
+// Build the same batch index from already-parsed snapshot rows
+// ({ code, name, batch, warehouse, unit, qty, rate, exp, mfg }) fetched from
+// Supabase (public.inventory_snapshots.data).
+function soIndexFromRows(rows: Array<Record<string, unknown>>): { idx: SoIndex; products: number; batches: number } {
+  const idx: SoIndex = {};
+  let batches = 0;
+  for (const r of rows || []) {
+    const code = String(r.code || "").trim();
+    if (!code) continue;
+    const exp = String(r.exp || "—");
+    const b: SoBatch = {
+      batchNumber: String(r.batch || "—"), warehouse: String(r.warehouse || "—"),
+      unit: String(r.unit || "—"), available: Number(r.qty) || 0, rate: String(r.rate || ""),
+      exp, mfg: String(r.mfg || "—"), expTs: soParseDmy(exp), name: String(r.name || ""),
+    };
+    (idx[code] = idx[code] || []).push(b);
+    batches++;
+  }
+  const now = Date.now();
+  for (const k in idx) idx[k].sort((a, z) => { const ae = a.expTs < now ? 1 : 0, ze = z.expTs < now ? 1 : 0; return ae - ze || a.expTs - z.expTs; });
+  return { idx, products: Object.keys(idx).length, batches };
+}
+
 function SalesOrderScan() {
   type Row = {
     id: string; productCode: string; productName: string; hsn: string;
@@ -1289,9 +1312,11 @@ function SalesOrderScan() {
   const [note, setNote] = useState("");
   const [inv, setInv] = useState<SoIndex>({});
   const [invMeta, setInvMeta] = useState<{ file: string; products: number; batches: number } | null>(null);
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (opened) inputRef.current?.focus(); }, [opened]);
+  useEffect(() => { if (opened) { inputRef.current?.focus(); if (!invMeta && supabase) fetchLatest(); } }, [opened]); // eslint-disable-line react-hooks/exhaustive-deps
   const uid = () => Math.random().toString(36).slice(2, 9);
   const nf = (n: number) => n.toLocaleString("en-IN");
 
@@ -1311,11 +1336,60 @@ function SalesOrderScan() {
     rd.readAsText(file);
   };
 
+  const fmtSynced = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const mins = Math.round((Date.now() - d.getTime()) / 60000);
+    if (mins <= 0) return "just now";
+    if (mins === 1) return "1 min ago";
+    if (mins < 60) return mins + " min ago";
+    return d.toLocaleString("en-IN");
+  };
+
+  // Load the latest PACT inventory snapshot from Supabase.
+  const fetchLatest = async () => {
+    if (!supabase) { setNote("Live inventory isn't configured for this dashboard yet — import the exported .xls instead."); return; }
+    setNote("Loading latest inventory from PACT…");
+    try {
+      const { data, error } = await supabase.from("inventory_snapshots")
+        .select("synced_at,products,batches,data").eq("status", "ok")
+        .order("synced_at", { ascending: false }).limit(1).maybeSingle();
+      if (error || !data) { setNote("No inventory snapshot yet. Click Sync now from PACT (or import a file)."); return; }
+      const { idx, products, batches } = soIndexFromRows((data.data as Array<Record<string, unknown>>) || []);
+      setInv(idx); setInvMeta({ file: "PACT live sync", products, batches }); setSyncedAt(data.synced_at); setNote("");
+    } catch { setNote("Could not load inventory from Supabase."); }
+  };
+
+  // Trigger a fresh PACT export (GitHub Actions), then poll for the new snapshot.
+  const syncNow = async () => {
+    setSyncing(true);
+    setNote("Sync requested — pulling the batchwise report from PACT (about 1–2 min). It will refresh here automatically.");
+    try {
+      const r = await fetch("/api/sync-inventory", { method: "POST" });
+      const j = await r.json().catch(() => ({} as { ok?: boolean; error?: string }));
+      if (!r.ok || !j.ok) { setNote("Couldn't start the sync: " + (j.error || r.status) + ". Check GH_DISPATCH_TOKEN / GH_REPO on the server."); setSyncing(false); return; }
+      const from = syncedAt;
+      let tries = 0;
+      const iv = setInterval(async () => {
+        tries++;
+        if (!supabase) { setSyncing(false); clearInterval(iv); return; }
+        const { data } = await supabase.from("inventory_snapshots")
+          .select("synced_at,products,batches,data").eq("status", "ok")
+          .order("synced_at", { ascending: false }).limit(1).maybeSingle();
+        if (data && data.synced_at !== from) {
+          const { idx, products, batches } = soIndexFromRows((data.data as Array<Record<string, unknown>>) || []);
+          setInv(idx); setInvMeta({ file: "PACT live sync", products, batches }); setSyncedAt(data.synced_at);
+          setNote(""); setSyncing(false); clearInterval(iv);
+        } else if (tries > 50) { setSyncing(false); setNote("Sync is taking longer than usual — click Fetch latest inventory in a moment."); clearInterval(iv); }
+      }, 3000);
+    } catch { setSyncing(false); setNote("Sync trigger failed."); }
+  };
+
   const onScan = (raw: string) => {
     const p = parseScan(raw);
     const key = (p.code || "").trim();
     if (!key) return;
-    if (!invMeta) { setNote("Import the batchwise report from PACT first — that is the real-time inventory each scan is matched against."); return; }
+    if (!invMeta) { setNote("No inventory loaded yet — click Fetch latest inventory (or Sync now from PACT), then scan again."); return; }
     // Match the scanned code against the product master (for name / HSN / level)…
     const prod = CATALOG.find((x) => (x.code || "").toLowerCase() === key.toLowerCase())
       || CATALOG.find((x) => x.name.toLowerCase().includes(key.toLowerCase()));
@@ -1353,7 +1427,7 @@ function SalesOrderScan() {
       <div className="soscan-head">
         <div>
           <h2>Sales Order</h2>
-          <p>Import the PACT batchwise report (real-time inventory), then scan food-item barcodes (Honeywell). Each scan is matched batch-by-batch against that live stock.</p>
+          <p>Live inventory syncs from PACT automatically. Scan food-item barcodes (Honeywell) — each scan is matched batch-by-batch against current stock.</p>
         </div>
         {!opened
           ? <button className="btn btn-primary" onClick={() => setOpened(true)}><Icon n="inbox" size={15} />Select sales order</button>
@@ -1361,14 +1435,16 @@ function SalesOrderScan() {
       </div>
 
       {!opened ? (
-        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. First import the batchwise report exported from PACT, then scan barcodes — each validated item pulls its real batch, warehouse, on-hand quantity, unit price and manufacture / expiry dates from that live report.</span></div>
+        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. Inventory syncs from PACT automatically every few minutes — you can also <b>Sync now</b> or import a file. Then scan barcodes; each validated item pulls its real batch, warehouse, on-hand quantity, unit price and manufacture / expiry dates from live stock.</span></div>
       ) : (
         <>
           <div className="soscan-bar">
             <input ref={fileRef} type="file" accept=".xls,.xlsx,.html,.htm" style={{ display: "none" }}
               onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onImport(f); e.currentTarget.value = ""; }} />
-            <button className="btn btn-primary" onClick={() => fileRef.current?.click()}><Icon n="refresh" size={15} />{invMeta ? "Re-import batchwise report" : "Import batchwise report (from PACT)"}</button>
-            {invMeta && <span className="so-invchip"><Icon n="check" size={13} />Live inventory: <b>{nf(invMeta.products)}</b> products · <b>{nf(invMeta.batches)}</b> batches<span className="so-invfile">{invMeta.file}</span></span>}
+            <button className="btn btn-primary" onClick={fetchLatest}><Icon n="refresh" size={15} />Fetch latest inventory</button>
+            <button className="btn btn-ghost" onClick={syncNow} disabled={syncing}><Icon n="refresh" size={15} />{syncing ? "Syncing from PACT…" : "Sync now from PACT"}</button>
+            <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Import file instead</button>
+            {invMeta && <span className="so-invchip"><Icon n="check" size={13} />Live inventory: <b>{nf(invMeta.products)}</b> products · <b>{nf(invMeta.batches)}</b> batches{syncedAt ? <span className="so-invfile">synced {fmtSynced(syncedAt)}</span> : <span className="so-invfile">{invMeta.file}</span>}</span>}
           </div>
 
           <div className="soscan-bar">

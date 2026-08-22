@@ -1,0 +1,49 @@
+name: sync-inventory
+
+# Keeps public.inventory_snapshots in sync with PACT's BatchWise Stock Analysis
+# so the Sales Order grid always reflects live stock.
+#   - schedule: every 15 minutes
+#   - workflow_dispatch: manual run from the Actions tab
+#   - repository_dispatch(sync-inventory): the dashboard "Sync now" button
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [sync-inventory]
+
+concurrency:
+  group: pact-inventory-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Cache Playwright browser (Chromium 1.49.1)
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.49.1
+      - name: Install Chromium (skips download on cache hit)
+        run: npx playwright install --with-deps chromium
+      - name: Sync inventory from PACT
+        env:
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
+          PACT_URL: ${{ secrets.PACT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          INV_REPORT_EXPORT_URL: ${{ secrets.INV_REPORT_EXPORT_URL }}
+          INV_REPORT_URL: ${{ secrets.INV_REPORT_URL }}
+        run: node scripts/sync-inventory.js
