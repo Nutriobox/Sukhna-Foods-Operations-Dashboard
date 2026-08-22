@@ -296,10 +296,17 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const pactActive = pactId != null ? bills.find((b) => b.id === pactId) || null : null;
   const printActive = printId != null ? bills.find((b) => b.id === printId) || null : null;
 
-  if (view === "home") {
+  if (view === "home" || view === "salesorder") {
     return (
       <div className="app">
         <HomeScreen onOpen={setView} counts={{ bills: kpis.total, so: salesOrders.length }} />
+        {view === "salesorder" && (
+          <div className="so-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setView("home"); }}>
+            <div className="so-panel">
+              <SalesOrderScan onClose={() => setView("home")} />
+            </div>
+          </div>
+        )}
         <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
       </div>
     );
@@ -341,9 +348,7 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           <div className="tb-av" title={`${BUYER_NAME}`}>S</div>
         </div>
 
-        {view === "salesorder"
-          ? <SalesOrderScan />
-          : view === "sales"
+        {view === "sales"
           ? <SalesPage key={"so" + priceVer} orders={salesOrders} onUpload={() => soInputRef.current?.click()} supaOk={!!supabase} exportedIds={exportedSO} onExport={markExported} />
           : (
         <div className="content">
@@ -1266,7 +1271,7 @@ function soIndexFromRows(rows: Array<Record<string, unknown>>): { idx: SoIndex; 
   return { idx, products: Object.keys(idx).length, batches };
 }
 
-function SalesOrderScan() {
+function SalesOrderScan({ onClose }: { onClose: () => void }) {
   type Row = {
     id: string; productCode: string; productName: string; hsn: string;
     salesUnitLevel: string; gstTaxType: string; salesRate: string;
@@ -1308,7 +1313,8 @@ function SalesOrderScan() {
   const [rows, setRows] = useState<Row[]>([]);
   const [scan, setScan] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [opened, setOpened] = useState(false);
+  const [showInv, setShowInv] = useState(false);
+  const [invQuery, setInvQuery] = useState("");
   const [note, setNote] = useState("");
   const [inv, setInv] = useState<SoIndex>({});
   const [invMeta, setInvMeta] = useState<{ file: string; products: number; batches: number } | null>(null);
@@ -1316,7 +1322,7 @@ function SalesOrderScan() {
   const [syncing, setSyncing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (opened) { inputRef.current?.focus(); if (!invMeta && supabase) fetchLatest(); } }, [opened]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { inputRef.current?.focus(); if (!invMeta && supabase) fetchLatest(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const uid = () => Math.random().toString(36).slice(2, 9);
   const nf = (n: number) => n.toLocaleString("en-IN");
 
@@ -1422,30 +1428,36 @@ function SalesOrderScan() {
 
   const totalQty = rows.reduce((a, r) => a + (r.dispatchQty || 0), 0);
 
+  const invList = useMemo(() => {
+    const out: Array<{ code: string } & SoBatch> = [];
+    for (const code in inv) for (const b of inv[code]) out.push({ code, ...b });
+    return out;
+  }, [inv]);
+  const invFiltered = useMemo(() => {
+    const q = invQuery.trim().toLowerCase();
+    if (!q) return invList;
+    return invList.filter((r) => r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.batchNumber.toLowerCase().includes(q) || r.warehouse.toLowerCase().includes(q));
+  }, [invList, invQuery]);
+
   return (
-    <div className="content soscan">
-      <div className="soscan-head">
+    <div className="soscan sopanel">
+      <div className="sopanel-head">
         <div>
           <h2>Sales Order</h2>
-          <p>Click <b>Sync inventory from PACT</b> to pull live stock, then scan food-item barcodes (Honeywell) — each scan is matched batch-by-batch against that inventory.</p>
+          <p>Sync live PACT stock, then scan food-item barcodes (Honeywell) — each scan is matched batch-by-batch against that inventory.</p>
         </div>
-        {!opened
-          ? <button className="btn btn-primary" onClick={() => setOpened(true)}><Icon n="inbox" size={15} />Select sales order</button>
-          : <button className="btn btn-ghost" onClick={() => setOpened(false)}>&larr; Back</button>}
+        <button className="so-close" title="Close" onClick={onClose}><Icon n="x" size={18} /></button>
       </div>
 
-      {!opened ? (
-        <div className="soscan-note"><Icon n="alert" size={15} /><span>Click <b>Select sales order</b> to open the product-details grid. Inside, click <b>Sync inventory from PACT</b> to pull the live batchwise stock (or import a file), then scan barcodes; each validated item pulls its real batch, warehouse, on-hand quantity, unit price and manufacture / expiry dates from that inventory.</span></div>
-      ) : (
-        <>
-          <div className="soscan-bar">
-            <input ref={fileRef} type="file" accept=".xls,.xlsx,.html,.htm" style={{ display: "none" }}
-              onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onImport(f); e.currentTarget.value = ""; }} />
-            <button className="btn btn-primary" onClick={syncNow} disabled={syncing}><Icon n="refresh" size={15} />{syncing ? "Syncing from PACT…" : "Sync inventory from PACT"}</button>
-            <button className="btn btn-ghost" onClick={fetchLatest}>Load last synced</button>
-            <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Import file instead</button>
-            {invMeta && <span className="so-invchip"><Icon n="check" size={13} />Live inventory: <b>{nf(invMeta.products)}</b> products · <b>{nf(invMeta.batches)}</b> batches{syncedAt ? <span className="so-invfile">synced {fmtSynced(syncedAt)}</span> : <span className="so-invfile">{invMeta.file}</span>}</span>}
-          </div>
+      <div className="soscan-bar">
+        <input ref={fileRef} type="file" accept=".xls,.xlsx,.html,.htm" style={{ display: "none" }}
+          onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onImport(f); e.currentTarget.value = ""; }} />
+        <button className="btn btn-primary" onClick={syncNow} disabled={syncing}><Icon n="refresh" size={15} />{syncing ? "Syncing from PACT…" : "Sync inventory from PACT"}</button>
+        <button className="btn btn-ghost" onClick={fetchLatest}>Load last synced</button>
+        <button className="btn btn-ghost" onClick={() => setShowInv(true)} disabled={!invMeta} title={invMeta ? "View the full synced inventory" : "Sync inventory first"}><Icon n="eye" size={15} />View inventory</button>
+        <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Import file</button>
+        {invMeta && <span className="so-invchip"><Icon n="check" size={13} />Live inventory: <b>{nf(invMeta.products)}</b> products · <b>{nf(invMeta.batches)}</b> batches{syncedAt ? <span className="so-invfile">synced {fmtSynced(syncedAt)}</span> : <span className="so-invfile">{invMeta.file}</span>}</span>}
+      </div>
 
           <div className="soscan-bar">
             <div className="scanbox">
@@ -1463,7 +1475,7 @@ function SalesOrderScan() {
 
           {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
 
-          <div className="so-gridwrap">
+      <div className="so-gridwrap sopanel-grid">
             <table className="so-grid">
               <thead>
                 <tr>
@@ -1513,11 +1525,48 @@ function SalesOrderScan() {
             </table>
           </div>
 
-          <div className="soscan-foot">
-            <span className="soscan-total">Lines: <b>{rows.length}</b></span>
-            <span className="soscan-total">Total quantity: <b>{nf(totalQty)}</b></span>
+      <div className="soscan-foot">
+        <span className="soscan-total">Lines: <b>{rows.length}</b></span>
+        <span className="soscan-total">Total quantity: <b>{nf(totalQty)}</b></span>
+      </div>
+
+      {showInv && (
+        <div className="inv-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowInv(false); }}>
+          <div className="inv-panel">
+            <div className="inv-head">
+              <div><h3>Live inventory</h3><span className="inv-sub">{nf(invMeta ? invMeta.products : 0)} products · {nf(invMeta ? invMeta.batches : 0)} batches{syncedAt ? " · synced " + fmtSynced(syncedAt) : ""}</span></div>
+              <button className="so-close" onClick={() => setShowInv(false)}><Icon n="x" size={18} /></button>
+            </div>
+            <div className="inv-searchbar">
+              <Icon n="search" size={15} />
+              <input autoFocus value={invQuery} placeholder="Search product code, name, batch or warehouse…" onChange={(e) => setInvQuery(e.target.value)} />
+              <span className="inv-count">{nf(invFiltered.length)} rows</span>
+            </div>
+            <div className="inv-gridwrap">
+              <table className="so-grid">
+                <thead><tr><th className="so-rownum">#</th><th>Product code</th><th>Product name</th><th>Batch number</th><th>Warehouse</th><th>Unit</th><th>Quantity</th><th>Unit price</th><th>Manufacture date</th><th>Expiry date</th></tr></thead>
+                <tbody>
+                  {invFiltered.slice(0, 2000).map((r, i) => (
+                    <tr key={r.code + r.batchNumber + i}>
+                      <td className="so-rownum">{i + 1}</td>
+                      <td className="so-mono">{r.code}</td>
+                      <td className="so-name">{r.name}</td>
+                      <td className="so-mono">{r.batchNumber}</td>
+                      <td>{r.warehouse}</td>
+                      <td>{r.unit}</td>
+                      <td className="so-num">{nf(r.available)}</td>
+                      <td className="so-num">{r.rate}</td>
+                      <td>{r.mfg}</td>
+                      <td>{r.exp}</td>
+                    </tr>
+                  ))}
+                  {!invFiltered.length && <tr><td className="so-empty" colSpan={10}>No matching stock.</td></tr>}
+                </tbody>
+              </table>
+              {invFiltered.length > 2000 && <div className="inv-more">Showing first 2,000 of {nf(invFiltered.length)} — refine your search to narrow.</div>}
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -1557,7 +1606,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         <button className="tile salesorder" onClick={() => onOpen("salesorder")}>
           <span className="tile-ic"><Icon n="inbox" size={30} /></span>
           <span className="tile-ttl">Sales Order</span>
-          <span className="tile-sub">Scan food-item barcodes (Honeywell) and see live PACT inventory as an Item &rarr; Batch &rarr; Quantity tree.</span>
+          <span className="tile-sub">Scan food-item barcodes (Honeywell) against live PACT inventory — batch, warehouse, quantity, price &amp; expiry per line.</span>
           <span className="tile-meta">Barcode scan · live inventory</span>
           <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
         </button>
