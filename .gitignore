@@ -23,3 +23,6 @@ pact-worker/gge-buttons.json
 vehicle-monitor/*.png
 vehicle-monitor/*.html
 vehicle-monitor/report-fields.json
+pact-inventory.har
+pact-inventory-steps.js
+auth.json
