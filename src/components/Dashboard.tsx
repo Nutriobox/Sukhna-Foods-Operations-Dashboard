@@ -296,17 +296,10 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const pactActive = pactId != null ? bills.find((b) => b.id === pactId) || null : null;
   const printActive = printId != null ? bills.find((b) => b.id === printId) || null : null;
 
-  if (view === "home" || view === "salesorder") {
+  if (view === "home") {
     return (
       <div className="app">
         <HomeScreen onOpen={setView} counts={{ bills: kpis.total, so: salesOrders.length }} />
-        {view === "salesorder" && (
-          <div className="so-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setView("home"); }}>
-            <div className="so-panel">
-              <SalesOrderScan onClose={() => setView("home")} />
-            </div>
-          </div>
-        )}
         <div className={"toast" + (toast.show ? " show" : "")}><Icon n="check" size={16} /><span>{toast.msg}</span></div>
       </div>
     );
@@ -348,7 +341,9 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
           <div className="tb-av" title={`${BUYER_NAME}`}>S</div>
         </div>
 
-        {view === "sales"
+        {view === "salesorder"
+          ? <SalesOrderScan />
+          : view === "sales"
           ? <SalesPage key={"so" + priceVer} orders={salesOrders} onUpload={() => soInputRef.current?.click()} supaOk={!!supabase} exportedIds={exportedSO} onExport={markExported} />
           : (
         <div className="content">
@@ -1271,7 +1266,7 @@ function soIndexFromRows(rows: Array<Record<string, unknown>>): { idx: SoIndex; 
   return { idx, products: Object.keys(idx).length, batches };
 }
 
-function SalesOrderScan({ onClose }: { onClose: () => void }) {
+function SalesOrderScan({ onClose }: { onClose?: () => void }) {
   type Row = {
     id: string; productCode: string; productName: string; hsn: string;
     salesUnitLevel: string; gstTaxType: string; salesRate: string;
@@ -1440,13 +1435,13 @@ function SalesOrderScan({ onClose }: { onClose: () => void }) {
   }, [invList, invQuery]);
 
   return (
-    <div className="soscan sopanel">
-      <div className="sopanel-head">
+    <div className="content soscan">
+      <div className="soscan-head">
         <div>
           <h2>Sales Order</h2>
           <p>Sync live PACT stock, then scan food-item barcodes (Honeywell) — each scan is matched batch-by-batch against that inventory.</p>
         </div>
-        <button className="so-close" title="Close" onClick={onClose}><Icon n="x" size={18} /></button>
+        {onClose && <button className="btn btn-ghost" onClick={onClose}>&larr; Back</button>}
       </div>
 
       <div className="soscan-bar">
@@ -1475,7 +1470,7 @@ function SalesOrderScan({ onClose }: { onClose: () => void }) {
 
           {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
 
-      <div className="so-gridwrap sopanel-grid">
+          <div className="so-gridwrap">
             <table className="so-grid">
               <thead>
                 <tr>
