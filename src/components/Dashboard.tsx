@@ -69,6 +69,15 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
   const [soActive, setSoActive] = useState<string | null>(null);
   const soInputRef = useRef<HTMLInputElement | null>(null);
   const persistSO = (list: SalesOrder[]) => { try { window.localStorage.setItem("sf_sales_orders", JSON.stringify(list)); } catch { /* ignore */ } };
+  // Deep link: open the app directly on the Sales Order screen (used by the
+  // installed Android app / "Add to Home screen" — start_url is /?app=so).
+  useEffect(() => {
+    try {
+      const a = (new URLSearchParams(window.location.search).get("app") || "").toLowerCase();
+      if (a === "so" || a === "salesorder" || a === "sales-order") setView("salesorder");
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     try { const raw = window.localStorage.getItem("sf_so_exported"); if (raw) setExportedSO(new Set(JSON.parse(raw))); } catch { /* ignore */ }
     if (loadStoredPrices()) setPriceVer((v) => v + 1);

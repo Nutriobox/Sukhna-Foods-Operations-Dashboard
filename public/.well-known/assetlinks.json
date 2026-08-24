@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sukhnafoods.salesorder",
+      "sha256_cert_fingerprints": [
+        "BB:14:33:FC:EC:EC:66:18:C3:3F:B3:AF:15:E0:39:CE:7B:BC:4D:4B:67:42:88:D0:BE:C9:E2:F9:D1:08:DC:8C"
+      ]
+    }
+  }
+]
