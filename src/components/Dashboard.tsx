@@ -1276,10 +1276,10 @@ function soIndexFromRows(rows: Array<Record<string, unknown>>): { idx: SoIndex; 
 }
 
 function SalesOrderScan({ onClose }: { onClose?: () => void }) {
-  type Row = {
-    id: string; productCode: string; productName: string; hsn: string;
-    salesUnitLevel: string; gstTaxType: string; salesRate: string;
-    dispatchQty: number; batches: SoBatch[]; sel: number; found: boolean;
+  type OrderLine = {
+    id: number; productCode: string; productName: string; hsn: string; warehouse: string;
+    salesUnitLevel: string; unit: string; quantity: number; unitPrice: string; salesRate: string;
+    gstTaxType: string; batchNumber: string; mfgDate: string; expiryDate: string;
   };
 
   const DASH = "—";
@@ -1314,7 +1314,7 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
     return out;
   };
 
-  const [rows, setRows] = useState<Row[]>([]);
+  const [order, setOrder] = useState<OrderLine[]>([]);
   const [scan, setScan] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [showInv, setShowInv] = useState(false);
@@ -1326,9 +1326,28 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
   const [syncing, setSyncing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); if (!invMeta && supabase) fetchLatest(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const uid = () => Math.random().toString(36).slice(2, 9);
   const nf = (n: number) => n.toLocaleString("en-IN");
+
+  useEffect(() => { inputRef.current?.focus(); if (!invMeta && supabase) fetchLatest(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- Shared order (lives in Supabase via /api/order; polled so scans from the
+  // Android app appear here live, and vice-versa) ----
+  const orderApi = async (method: string, body?: unknown, qs = "") => {
+    const r = await fetch("/api/order" + qs, {
+      method,
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return r.json().catch(() => ({} as { ok?: boolean; lines?: OrderLine[] }));
+  };
+  const fetchOrder = async () => {
+    try { const j = await orderApi("GET"); if (j.ok && Array.isArray(j.lines)) setOrder(j.lines); } catch { /* offline / not deployed yet */ }
+  };
+  useEffect(() => {
+    fetchOrder();
+    const iv = setInterval(fetchOrder, 3000);
+    return () => clearInterval(iv);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onImport = (file: File) => {
     const rd = new FileReader();
@@ -1395,42 +1414,54 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
     } catch { setSyncing(false); setNote("Sync trigger failed."); }
   };
 
-  const onScan = (raw: string) => {
+  const onScan = async (raw: string) => {
     const p = parseScan(raw);
     const key = (p.code || "").trim();
     if (!key) return;
-    if (!invMeta) { setNote("No inventory loaded yet — click Fetch latest inventory (or Sync now from PACT), then scan again."); return; }
-    // Match the scanned code against the product master (for name / HSN / level)…
+    if (!invMeta) { setNote("No inventory loaded yet — click Sync inventory from PACT (or Load last synced), then scan again."); return; }
     const prod = CATALOG.find((x) => (x.code || "").toLowerCase() === key.toLowerCase())
       || CATALOG.find((x) => x.name.toLowerCase().includes(key.toLowerCase()));
     const pcode = prod ? (prod.code || key) : key;
-    // …and pull its live batches from the imported batchwise report.
     const batches = inv[pcode] || inv[key] || [];
     const found = batches.length > 0;
     const level = (prod && prod.printLevel) || "L1";
     let sel = 0;
     if (p.batch && found) { const j = batches.findIndex((b) => b.batchNumber === p.batch); if (j >= 0) sel = j; }
+    const b = batches[sel];
     const name = (prod && prod.name) || (found && batches[0].name) || ("Unknown item (" + key + ")");
     const addQty = p.qty && p.qty > 0 ? p.qty : 1;
-
-    setRows((prev) => {
-      const i = prev.findIndex((r) => r.productCode === pcode && r.sel === sel);
-      if (i >= 0) { const c = prev.slice(); c[i] = { ...c[i], dispatchQty: c[i].dispatchQty + addQty }; return c; }
-      const row: Row = {
-        id: uid(), productCode: pcode, productName: name, hsn: DASH,
-        salesUnitLevel: level, gstTaxType: "GST", salesRate: DASH,
-        dispatchQty: addQty, batches, sel, found,
-      };
-      return [...prev, row];
-    });
     setScan("");
+    await orderApi("POST", {
+      productCode: pcode, productName: name, hsn: DASH, warehouse: b ? b.warehouse : DASH,
+      salesUnitLevel: level, unit: b ? b.unit : DASH, quantity: addQty, unitPrice: b ? b.rate : DASH,
+      salesRate: DASH, gstTaxType: "GST", batchNumber: b ? b.batchNumber : "", mfgDate: b ? b.mfg : DASH,
+      expiryDate: b ? b.exp : DASH, source: "web",
+    });
+    fetchOrder();
   };
 
-  const setSel = (id: string, sel: number) => setRows((prev) => prev.map((r) => r.id === id ? { ...r, sel } : r));
-  const setQty = (id: string, q: number) => setRows((prev) => prev.map((r) => r.id === id ? { ...r, dispatchQty: q } : r));
-  const removeRow = (id: string) => setRows((prev) => prev.filter((r) => r.id !== id));
+  const setQty = async (id: number, q: number) => {
+    setOrder((prev) => prev.map((l) => l.id === id ? { ...l, quantity: q } : l));
+    await orderApi("PATCH", { id, quantity: q });
+  };
+  const setBatch = async (line: OrderLine, batchNumber: string) => {
+    const b = (inv[line.productCode] || []).find((x) => x.batchNumber === batchNumber);
+    setOrder((prev) => prev.map((l) => l.id === line.id
+      ? { ...l, batchNumber, ...(b ? { warehouse: b.warehouse, unit: b.unit, unitPrice: b.rate, mfgDate: b.mfg, expiryDate: b.exp } : {}) }
+      : l));
+    await orderApi("PATCH", { id: line.id, batchNumber, ...(b ? { warehouse: b.warehouse, unit: b.unit, unitPrice: b.rate, mfgDate: b.mfg, expiryDate: b.exp } : {}) });
+  };
+  const removeLine = async (id: number) => {
+    setOrder((prev) => prev.filter((l) => l.id !== id));
+    await orderApi("DELETE", undefined, "?id=" + id);
+  };
+  const clearOrder = async () => {
+    if (!order.length) return;
+    setOrder([]);
+    await orderApi("DELETE", undefined, "?all=1");
+  };
 
-  const totalQty = rows.reduce((a, r) => a + (r.dispatchQty || 0), 0);
+  const totalQty = order.reduce((a, l) => a + (Number(l.quantity) || 0), 0);
 
   const invList = useMemo(() => {
     const out: Array<{ code: string } & SoBatch> = [];
@@ -1448,7 +1479,7 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
       <div className="soscan-head">
         <div>
           <h2>Sales Order</h2>
-          <p>Sync live PACT stock, then scan food-item barcodes (Honeywell) — each scan is matched batch-by-batch against that inventory.</p>
+          <p>Sync live PACT stock, then scan food-item barcodes (Honeywell). This order is <b>shared live</b> with the scanner app — scans on either show here instantly.</p>
         </div>
         {onClose && <button className="btn btn-ghost" onClick={onClose}>&larr; Back</button>}
       </div>
@@ -1463,75 +1494,79 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
         {invMeta && <span className="so-invchip"><Icon n="check" size={13} />Live inventory: <b>{nf(invMeta.products)}</b> products · <b>{nf(invMeta.batches)}</b> batches{syncedAt ? <span className="so-invfile">synced {fmtSynced(syncedAt)}</span> : <span className="so-invfile">{invMeta.file}</span>}</span>}
       </div>
 
-          <div className="soscan-bar">
-            <div className="scanbox">
-              <Icon n="search" size={16} />
-              <input ref={inputRef} value={scan} placeholder="Scan a barcode, or type a product code / name, then press Enter…"
-                onChange={(e) => setScan(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") onScan(scan); }} />
-              <button className="btn btn-ghost" style={{ padding: "8px 14px" }} onClick={() => onScan(scan)}>Add</button>
-            </div>
-            <div className="keybox" title="Only needed for Honeywell's cloud SDK; keyboard-wedge scanning works without it.">
-              <Icon n="lock" size={14} />
-              <input value={apiKey} placeholder="Honeywell API key (optional — cloud SDK)" onChange={(e) => setApiKey(e.target.value)} />
-            </div>
-          </div>
+      <div className="soscan-bar">
+        <div className="scanbox">
+          <Icon n="search" size={16} />
+          <input ref={inputRef} value={scan} placeholder="Scan a barcode, or type a product code / name, then press Enter…"
+            onChange={(e) => setScan(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") onScan(scan); }} />
+          <button className="btn btn-ghost" style={{ padding: "8px 14px" }} onClick={() => onScan(scan)}>Add</button>
+        </div>
+        <div className="keybox" title="Only needed for Honeywell's cloud SDK; keyboard-wedge scanning works without it.">
+          <Icon n="lock" size={14} />
+          <input value={apiKey} placeholder="Honeywell API key (optional — cloud SDK)" onChange={(e) => setApiKey(e.target.value)} />
+        </div>
+      </div>
 
-          {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
+      {note && <div className="soscan-note"><Icon n="alert" size={15} /><span>{note}</span></div>}
 
-          <div className="so-gridwrap">
-            <table className="so-grid">
-              <thead>
-                <tr>
-                  <th className="so-rownum">#</th>
-                  {COLS.map((c) => <th key={c}>{c}</th>)}
-                  <th aria-label="Remove"></th>
+      <div className="so-gridwrap">
+        <table className="so-grid">
+          <thead>
+            <tr>
+              <th className="so-rownum">#</th>
+              {COLS.map((c) => <th key={c}>{c}</th>)}
+              <th aria-label="Remove"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.map((l, i) => {
+              const batches = inv[l.productCode] || [];
+              const selBatch = batches.find((b) => b.batchNumber === l.batchNumber);
+              const avail = selBatch ? selBatch.available : null;
+              const over = avail != null && l.quantity > avail;
+              const unknown = /^Unknown item/.test(l.productName || "");
+              return (
+                <tr key={l.id} className={unknown ? "so-unknown" : ""}>
+                  <td className="so-rownum">{i + 1}</td>
+                  <td className="so-mono">{l.productCode}</td>
+                  <td className="so-name">{l.productName}</td>
+                  <td>{l.hsn || DASH}</td>
+                  <td>{l.warehouse || DASH}</td>
+                  <td>{l.salesUnitLevel || DASH}</td>
+                  <td>{l.unit || DASH}</td>
+                  <td className="so-num">
+                    <input className={"so-qtyin" + (over ? " over" : "")} type="number" min={0} value={l.quantity}
+                      onChange={(e) => setQty(l.id, parseFloat(e.target.value) || 0)} />
+                    {avail != null && <span className="so-avail">of {nf(avail)}</span>}
+                  </td>
+                  <td className="so-num">{l.unitPrice || DASH}</td>
+                  <td className="so-num">{l.salesRate || DASH}</td>
+                  <td>{l.gstTaxType || DASH}</td>
+                  <td>
+                    {batches.length
+                      ? <select className="so-batchsel" value={l.batchNumber} onChange={(e) => setBatch(l, e.target.value)}>
+                          {batches.map((bt, j) => <option key={bt.batchNumber + j} value={bt.batchNumber}>{bt.batchNumber} · {bt.warehouse} · {nf(bt.available)} · exp {bt.exp}</option>)}
+                        </select>
+                      : <span className="so-mono">{l.batchNumber || <span className="so-nostock">No stock in report</span>}</span>}
+                  </td>
+                  <td>{l.mfgDate || DASH}</td>
+                  <td>{l.expiryDate || DASH}</td>
+                  <td><button className="so-del" title="Remove line" onClick={() => removeLine(l.id)}>&times;</button></td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => {
-                  const b = r.batches[r.sel];
-                  const over = b ? r.dispatchQty > b.available : false;
-                  return (
-                    <tr key={r.id} className={!r.found ? "so-unknown" : ""}>
-                      <td className="so-rownum">{i + 1}</td>
-                      <td className="so-mono">{r.productCode}</td>
-                      <td className="so-name">{r.productName}</td>
-                      <td>{r.hsn}</td>
-                      <td>{b ? b.warehouse : DASH}</td>
-                      <td>{r.salesUnitLevel}</td>
-                      <td>{b ? b.unit : DASH}</td>
-                      <td className="so-num">
-                        <input className={"so-qtyin" + (over ? " over" : "")} type="number" min={0} value={r.dispatchQty}
-                          onChange={(e) => setQty(r.id, parseFloat(e.target.value) || 0)} />
-                        {b && <span className="so-avail">of {nf(b.available)}</span>}
-                      </td>
-                      <td className="so-num">{b ? b.rate : DASH}</td>
-                      <td className="so-num">{r.salesRate}</td>
-                      <td>{r.gstTaxType}</td>
-                      <td>
-                        {r.found
-                          ? <select className="so-batchsel" value={r.sel} onChange={(e) => setSel(r.id, Number(e.target.value))}>
-                              {r.batches.map((bt, j) => <option key={bt.batchNumber + j} value={j}>{bt.batchNumber} · {bt.warehouse} · {nf(bt.available)} · exp {bt.exp}</option>)}
-                            </select>
-                          : <span className="so-nostock">No stock in report</span>}
-                      </td>
-                      <td>{b ? b.mfg : DASH}</td>
-                      <td>{b ? b.exp : DASH}</td>
-                      <td><button className="so-del" title="Remove line" onClick={() => removeRow(r.id)}>&times;</button></td>
-                    </tr>
-                  );
-                })}
-                {!rows.length && (
-                  <tr><td className="so-empty" colSpan={COLS.length + 2}>{invMeta ? "Scan a barcode to add the first line." : "Import the batchwise report, then scan a barcode."}</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              );
+            })}
+            {!order.length && (
+              <tr><td className="so-empty" colSpan={COLS.length + 2}>{invMeta ? "Scan a barcode to add the first line." : "Sync the inventory, then scan a barcode."}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <div className="soscan-foot">
-        <span className="soscan-total">Lines: <b>{rows.length}</b></span>
+        <span className="soscan-total">Lines: <b>{order.length}</b></span>
         <span className="soscan-total">Total quantity: <b>{nf(totalQty)}</b></span>
+        {order.length > 0 && <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={clearOrder}>Clear order</button>}
       </div>
 
       {showInv && (
