@@ -1,10 +1,10 @@
 // On-demand PACT "Pending Sales Order Quantity" sync (GitHub Actions entrypoint).
 //
 // The report's data call (ReportDataSet, RPT022) uses a single-use encrypted
-// token that PACT's server rejects on replay (HTTP 500). So instead of replaying
-// it, we DRIVE the report's own UI — open report 10255 exactly like the recording
-// did — and INTERCEPT the ReportDataSet response the page fires itself (valid
-// token). That JSON is parsed, grouped per sales order, and written to
+// token that PACT rejects on replay (HTTP 500). So we DRIVE the report UI like
+// the recording did (open report 10255, pick the filter, then Refresh/Export to
+// make the page run the report) and INTERCEPT the ReportDataSet response the page
+// fires itself. That JSON is parsed, grouped per sales order, and written to
 // public.pending_sales_orders (read by /api/sales-orders).
 //
 // Env: PACT_USER, PACT_PASS/PACT_PASSWORD, PACT_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY.
@@ -13,7 +13,6 @@ const { chromium } = require('playwright');
 const { createClient } = require('@supabase/supabase-js');
 const { login } = require('../src/lib/pact/login');
 
-// Report column IDs (from ReportDefnXML of report 10255).
 const C = {
   soNo:    'C0af47abff2984bff901d04570195996a',
   account: 'C41ab7906cda44cf9b36a9eff7a133833',
@@ -51,17 +50,15 @@ async function fullRefresh(orders, diag) {
   if (ins.error) log('[supabase] insert failed:', ins.error.message);
   else log('[supabase] wrote', orders.length, 'orders' + (diag ? ' (+diag)' : ''));
 }
-
-// Try a list of locator factories in order; click the first that resolves.
 async function clickFirst(page, factories, label, timeout) {
   for (const f of factories) {
     try {
       const loc = f();
-      await loc.first().waitFor({ state: 'visible', timeout: timeout || 8000 });
-      await loc.first().click({ timeout: timeout || 8000 });
+      await loc.first().waitFor({ state: 'visible', timeout: timeout || 6000 });
+      await loc.first().click({ timeout: timeout || 6000 });
       log('[ui] clicked ' + label);
       return true;
-    } catch (e) { /* try next */ }
+    } catch (e) { /* next */ }
   }
   log('[ui] could NOT click ' + label);
   return false;
@@ -70,22 +67,22 @@ async function clickFirst(page, factories, label, timeout) {
 (async () => {
   if (!process.env.PACT_PASSWORD && process.env.PACT_PASS) process.env.PACT_PASSWORD = process.env.PACT_PASS;
   const browser = await chromium.launch({ headless: true, args: ['--window-size=1680,1050'] });
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 } });
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 }, acceptDownloads: true });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
 
-  // Capture the report's own ReportDataSet response (the one carrying the SO grid).
-  let dataText = null;
+  let dataText = null, seen = 0;
   page.on('response', async (resp) => {
     try {
-      if (dataText) return;
       if (!/\/api\/Report\/ReportDataSet/i.test(resp.url())) return;
       if (resp.request().method() !== 'POST') return;
-      const clen = Number(resp.headers()['content-length'] || 0);
-      if (clen && clen < 5000) return;            // skip the small prepare/validate calls
-      const t = await resp.text();
-      if (t && t.length > 5000 && t.indexOf(C.soNo) >= 0) { dataText = t; log('[capture] got ReportDataSet body bytes=' + t.length); }
-    } catch (e) { /* ignore */ }
+      seen++;
+      const clen = resp.headers()['content-length'] || '?';
+      log('[resp] ReportDataSet #' + seen + ' status=' + resp.status() + ' clen=' + clen);
+      if (dataText) return;
+      const t = await resp.text().catch((e) => { log('[resp] text() failed: ' + String(e).slice(0, 60)); return ''; });
+      if (t && t.length > 5000 && t.indexOf(C.soNo) >= 0) { dataText = t; log('[capture] matched data body bytes=' + t.length); }
+    } catch (e) { log('[resp] handler error ' + String(e).slice(0, 60)); }
   });
 
   try {
@@ -93,7 +90,6 @@ async function clickFirst(page, factories, label, timeout) {
     log('Logged in.');
     await page.waitForTimeout(2500);
 
-    // Open BI -> List of Reports.
     await clickFirst(page, [
       () => page.getByRole('listitem', { name: 'BI' }).locator('i'),
       () => page.getByRole('listitem', { name: 'BI' }),
@@ -106,7 +102,6 @@ async function clickFirst(page, factories, label, timeout) {
     ], 'List of Reports');
     await page.waitForTimeout(1800);
 
-    // Search "pending" and open the report.
     try {
       const search = page.getByRole('textbox', { name: 'Search...' });
       await search.first().fill('pending');
@@ -115,15 +110,10 @@ async function clickFirst(page, factories, label, timeout) {
     } catch (e) { log('[ui] search skipped: ' + String(e.message).slice(0, 60)); }
     await page.waitForTimeout(1800);
 
-    await clickFirst(page, [
-      () => page.getByText('Pending Sales Order Quantity'),
-    ], 'report (dblclick)').then(async (ok) => {
-      // clickFirst does a single click; ensure a double-click to open.
-      try { await page.getByText('Pending Sales Order Quantity').first().dblclick({ timeout: 8000 }); log('[ui] dblclicked report'); } catch (e) { log('[ui] dblclick skipped: ' + String(e.message).slice(0, 60)); }
-    });
+    try { await page.getByText('Pending Sales Order Quantity').first().dblclick({ timeout: 8000 }); log('[ui] dblclicked report'); }
+    catch (e) { log('[ui] dblclick skipped: ' + String(e.message).slice(0, 60)); }
     await page.waitForTimeout(3000);
 
-    // Filter dialog: select the SO-No group then OK (matches the recording; returns all orders).
     try { await page.getByText('FSOD-26-27/').first().click({ timeout: 8000 }); log('[ui] picked filter node'); }
     catch (e) { log('[ui] filter node skipped: ' + String(e.message).slice(0, 60)); }
     await clickFirst(page, [
@@ -131,11 +121,23 @@ async function clickFirst(page, factories, label, timeout) {
       () => page.getByRole('button', { name: ' OK' }),
       () => page.getByText('OK', { exact: true }),
     ], 'OK');
+    await page.waitForTimeout(3000);
 
-    // Wait for the report to run and its data response to be captured.
+    // The report often needs an explicit run. Try Refresh, then Regenerate, then Export.
+    if (!dataText) { await clickFirst(page, [() => page.getByRole('button', { name: /Refresh/i }), () => page.getByText('Refresh', { exact: true })], 'Refresh'); await page.waitForTimeout(6000); }
+    if (!dataText) { await clickFirst(page, [() => page.getByRole('button', { name: /Regenerate/i }), () => page.getByText('Regenerate', { exact: true })], 'Regenerate'); await page.waitForTimeout(8000); }
+    if (!dataText) {
+      // Export path (what the recording used): Export -> Grid XLS -> Export
+      if (await clickFirst(page, [() => page.getByRole('button', { name: /Export/i }), () => page.getByText('Export')], 'Export')) {
+        await page.waitForTimeout(1500);
+        try { await page.locator('app-pactradio').filter({ hasText: 'Grid XLS' }).getByRole('radio').check({ timeout: 5000 }); log('[ui] chose Grid XLS'); } catch (e) { log('[ui] Grid XLS skip: ' + String(e.message).slice(0, 50)); }
+        await clickFirst(page, [() => page.getByRole('button', { name: 'Export', exact: true })], 'Export (confirm)');
+      }
+    }
+
     log('[ui] waiting for report data…');
     for (let i = 0; i < 90 && !dataText; i++) await page.waitForTimeout(1000);
-    if (!dataText) throw new Error('ReportDataSet response was not captured after opening the report (UI flow may have changed).');
+    if (!dataText) throw new Error('ReportDataSet data not captured. ReportDataSet responses seen=' + seen + '. Report UI may need a different trigger.');
 
     const json = JSON.parse(dataText);
     const { rows, tableIndex } = findDataTable(json);
