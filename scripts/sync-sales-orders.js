@@ -1,11 +1,10 @@
 // On-demand PACT "Pending Sales Order Quantity" sync (GitHub Actions entrypoint).
 //
-// Logs into PACT, then REPLAYS the exact API sequence the browser used to open
-// report 10255 and fetch its data (captured via record-sales-orders.bat):
-//   RPT010 open -> GetReport -> GetCategoryandField -> GetReportFields x3 ->
-//   GetCostCenterSummary (filter) x2 -> ReportDataSet RPT022 (the 36MB data).
-// The report needs its open sequence to run first in the same session, otherwise
-// the data call returns HTTP 500. Rows are grouped per sales order and written to
+// The report's data call (ReportDataSet, RPT022) uses a single-use encrypted
+// token that PACT's server rejects on replay (HTTP 500). So instead of replaying
+// it, we DRIVE the report's own UI — open report 10255 exactly like the recording
+// did — and INTERCEPT the ReportDataSet response the page fires itself (valid
+// token). That JSON is parsed, grouped per sales order, and written to
 // public.pending_sales_orders (read by /api/sales-orders).
 //
 // Env: PACT_USER, PACT_PASS/PACT_PASSWORD, PACT_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY.
@@ -13,9 +12,6 @@
 const { chromium } = require('playwright');
 const { createClient } = require('@supabase/supabase-js');
 const { login } = require('../src/lib/pact/login');
-
-// The captured request sequence (base64 JSON). Last entry is the data call.
-const REPLAY_B64 = "W3sibWV0aG9kIjoiUE9TVCIsInBhdGgiOiIvYXBpL1JlcG9ydC9SZXBvcnREYXRhU2V0IiwiYm9keSI6IntcIlVzZXJJRFwiOlwiMTAwODBcIixcIkxhbmdJRFwiOlwiMVwiLFwiaXNSZXBvcnREQlwiOjAsXCJRdWVyeUNvZGVcIjpcIlJQVDAxMFwiLFwicDFcIjpcIjEwMjU1XCIsXCJwMlwiOlwiXCIsXCJwM1wiOlwiXCJ9In0seyJtZXRob2QiOiJHRVQiLCJwYXRoIjoiL2FwaS9SZXBvcnQvR2V0UmVwb3J0P3BhcmFtPVswLDEwMjU1LCUyMjEwMDgwJTIyLCUyMjUxOSUyMiwxXSIsImJvZHkiOm51bGx9LHsibWV0aG9kIjoiR0VUIiwicGF0aCI6Ii9hcGkvUmVwb3J0L0dldENhdGVnb3J5YW5kRmllbGQ/cGFyYW09Wy0xLDAsMSwwLCUyMjEwMDgwJTIyLDFdIiwiYm9keSI6bnVsbH0seyJtZXRob2QiOiJHRVQiLCJwYXRoIjoiL2FwaS9SZXBvcnQvR2V0UmVwb3J0RmllbGRzP3BhcmFtPVs0MDAsMCwlMjIxMDA4MCUyMiwxXSIsImJvZHkiOm51bGx9LHsibWV0aG9kIjoiR0VUIiwicGF0aCI6Ii9hcGkvUmVwb3J0L0dldFJlcG9ydEZpZWxkcz9wYXJhbT1bNDEwNjQsMCwlMjIxMDA4MCUyMiwxXSIsImJvZHkiOm51bGx9LHsibWV0aG9kIjoiR0VUIiwicGF0aCI6Ii9hcGkvUmVwb3J0L0dldFJlcG9ydEZpZWxkcz9wYXJhbT1bNDEwNjUsMCwlMjIxMDA4MCUyMiwxXSIsImJvZHkiOm51bGx9LHsibWV0aG9kIjoiR0VUIiwicGF0aCI6Ii9hcGkvQ29tbW9uL0dldENvc3RDZW50ZXJHcmlkVmlld0xpc3Q/VXNlcklEPTEwMDgwJlJvbGVJRD01MTkmTGFuZ3VhZ2VJRD0xJkNvc3RDZW50ZXJJRD01MDAyMyZJc1JlcG9ydERCPWZhbHNlIiwiYm9keSI6bnVsbH0seyJtZXRob2QiOiJQT1NUIiwicGF0aCI6Ii9hcGkvQ29tbW9uL0dldENvc3RDZW50ZXJTdW1tYXJ5IiwiYm9keSI6IntcInAxXCI6LTEsXCJMYW5nSURcIjpcIjFcIixcInAyXCI6ZmFsc2UsXCJhbFwiOlwiSWpjNTRZMjNPWFV0TWVHTnR6bDFNVEF3TU9HTnR6bDE0WTIzT1hYaGpiYzVkZUdOdHpsMU1PR050emwxTURFdmFtRnVMekU1TUREaGpiYzVkZUdOdHpsMTRZMjNPWFV3NFkyM09YVXc0WTIzT1hWbVlXeHpaU0k9XCJ9In0seyJtZXRob2QiOiJHRVQiLCJwYXRoIjoiL2FwaS9Db21tb24vR2V0Q29zdENlbnRlckdyaWRWaWV3TGlzdD9Vc2VySUQ9MTAwODAmUm9sZUlEPTUxOSZMYW5ndWFnZUlEPTEmQ29zdENlbnRlcklEPTUwMDAyJklzUmVwb3J0REI9ZmFsc2UiLCJib2R5IjpudWxsfSx7Im1ldGhvZCI6IlBPU1QiLCJwYXRoIjoiL2FwaS9Db21tb24vR2V0Q29zdENlbnRlclN1bW1hcnkiLCJib2R5Ijoie1wicDFcIjotMSxcIkxhbmdJRFwiOlwiMVwiLFwicDJcIjpmYWxzZSxcImFsXCI6XCJJall3NFkyM09YVXRNZUdOdHpsMU1UQXdNT0dOdHpsMVFTNUpjMGR5YjNWd1BURWdUMUlnUVM1T2IyUmxTVVFnU1U0Z0tERXlMREUyTERJeExESXlMREl6TERJMExESTFMREkyTERJM0xESTRMREk1TERNd0tlR050emwxNFkyM09YVXhNaXd4Tml3eU1Td3lNaXd5TXl3eU5Dd3lOU3d5Tml3eU55d3lPQ3d5T1N3ek1PR050emwxTU9HTnR6bDFNREV2YW1GdUx6RTVNRERoamJjNWRlR050emwxNFkyM09YVXc0WTIzT1hVdzRZMjNPWFZtWVd4elpTST1cIn0ifSx7Im1ldGhvZCI6IlBPU1QiLCJwYXRoIjoiL2FwaS9SZXBvcnQvUmVwb3J0RGF0YVNldCIsImJvZHkiOiJ7XCJVc2VySURcIjpcIjEwMDgwXCIsXCJMYW5nSURcIjpcIjFcIixcImlzUmVwb3J0REJcIjowLFwiUXVlcnlDb2RlXCI6XCJSUFQwMjJcIixcInAxXCI6XCJXMlhPVFdQV0tIU3tObTdqZFlXaVkyT3lbWVsyUDRIa1xcXFxvW3tRVmkyW29cXFxcb1FWQ3pcXFxcRkMyUFZleU9WbTNRVm00W1gydVhGT3dTWVBsZDVYd2ZHN2pkWVdpWTJPMk9ZSGtQfG15UG9QbVtWUzJbNFs3W2xPNFtWbm5cXFxcb1s1W1ZHfE98aXxPMzJ1WEZTd1dKTHhcXFxcSlhsZkc3amRZV2lZMk96T1ZEalxcXFxJTGtQWVRsW29PMlxcXFxWbTRbVlhsUEZDN1tsV3pcXFxcRkhrXFxcXElYa1BIMnVYRlt3XFxcXElQUWZZMjdLSHZGXFxcXElHe1BGRzVcXFxcb1c3XFxcXEZcXFxca1BJXFxcXG5bVml6UHxHMltsQ3tbbFN7T3xXNVxcXFxWSGZORzdYVkd5aVkyT3tQWU97W1lLN1FGWG1PbG0yUG9PMlFWV3tbVkN8TzRHM1tsbXxcXFxcb0xrUDMydVZuWE9WRURkU3xLNU9WU3tQSUc1UFlHelBsU3pPbFs2UElHelxcXFxGWzNbbERsXFxcXFZDNFBvWGxaVXpRWFd6T0tIdkZcXFxcVkRsWzRbM09vSG1PRlt5UElcXFxcb1tWbTZQfEc1W1lQbltvUG1cXFxcWUhtT2xUZk5HN1hWR3lpWTJQb09sTGxbWUxtT2xIa1xcXFxWaTJbWVxcXFxqUVZbe09WbXtRSVRtUVlPN09vTzZPSDJ1Vm5YT1ZFRGRTNEd8UGxmbVtWR3lcXFxcb1czUEZUbFtWamtPRlsyT1ZHNE9vXFxcXG9PbFN5XFxcXElQa1pVelFYV3pPS0h2Rk98aXpcXFxcVld8XFxcXElXe1FJS3lQRkc1UUlLNU9sUG9cXFxcSVd7T0ZleVBvTG5RRlBmRlNxaVRuTFJWVURMVm5cXFxcaFRJO2xUSVgyW1ludWV7RExWbltpZjRuMmNFandkNHp4WzR1cktJem5cXFxccFNpY287cmRrREZWMjNoVEk7bFMyUEdbWlRqS0hUR1MyT2lmNG4yY0Vqd2Q0enhbNHVyS0k7d0tHblFYazdMZHBcXFxcR2Q0UEdcXFxcWlRqY1l6fFVXUztYR1RGU3s3TGRwXFxcXEdkNFBHXFxcXFpUamNZenxVV1NpZElYb2ZFRHNkNG53S0dQUlZYO0ZTfFd5T0ZLfEtIU3tLSmZyZklpcWRvO3VkNFB0TVVEeGRrRFdUR1BGTm9UbFMyUFFVV1N7T3wzV09rN1FkNFRuVVdTaWRJWG9mRURzZDRud0tHSEZTMztEWzRQeGZZNzJle0RXT3tENWNaVHFNSTd4ZEk7bGN7bWlkNDZpVVc3WU5tVG5bb24yU1lQbGQ1WHdmRjNXT3s3RFs0UHhmWTcyVVdTaWRJWG9mRURzZDRud0tHblFYbjtTZW87bWZZUDJLSFMyS0pmcmZJaXFkbzt1ZDRQdE1VRHhka0RMVm5bd1dKTHhcXFxcSlhsZkduR1JYUzJObkR7ZDRUM1s1VExURUR1XFxcXFlcXFxcMktJcnhjWTZpUzI7UFoyVHhbMjczZFdUamZJR2lYRltpZjRuMmNFandkNHp4WzR1cktJO3dLR25RWGs3TFZuXFxcXEdWMlBHVFhURFVXelZVV1M7WEZbd1VXN1lURztGVEdYV1NXbk9XMm5HRlNxaVgyakhXbVdpWEdURlN7N21bMlBGVm1uR09rRExWa0NxT1ZLdU9WW3VPbEd1T2xLdU9sT3VPbFN1T2xXdU9sW3VPbGV1T2xpdU9sbXVPfENyS0dIUVRFQ3FVVzdZTm1QeGU1VEZcXFxcWTcyXFxcXFpMTFRGMjJPVkM0UEVtUEVrRFhWbW5SVmtERFZHeWlGU3JWVFd6SFMzU2lYRkt3Vm9IdlxcXFxVeldPezdEWzRQeGZZNzJWb0h2XFxcXFV6V1BFN1NlbzttZllQMlZvSHZcXFxcVXpRWFd6T05IUzROb1RsVnBYdk9WS3VVVzdZTm5MamZJV3VYRlt3XFxcXElQUWZZMjRPe3pXUGs3bVsyNzNkVls2TkhTNE5vVGxWcFh2UGxldVhGW3dcXFxcSVBRZlkyNFFTMk1LR1xcXFxVVjIyaVVXN1laMlR4WzJUbmZJSHJkSk9pVVc3WUtKZnJmSWlxZG87dWQ0UHRNVUR1XFxcXFlcXFxcMktJcnhjWTZpUzI7UFoyVHhbMlBGVElIMltVRFdUR1BGS0pmcmZJaXFkbzt1ZDRQdE1VRHhka0RMVm5bd1VZNzRUSTtsVElYMltZbnVlMm5HUlhUR1MyT3dVWTc0VEk7bFRJWDJbWW51ZTJuR0tJem5cXFxccFNpY287cmRrREZWMjNoUzJPM09GQ3tPe0RXT2tENWNaVHFNSTd4ZEk7bGN7bWlkNDZpWEdURlN7N21bMlBGVm1uR09sTztYRkt3Vm87bVxcXFxXbkdLSXpuXFxcXHBTaWNvO3Jka0REUzJQaFNZUGxkNVh3ZkpPaVhGT2lmNG4yY0Vqd2Q0enhbNHVyS0k7d0tHblFYazdHXFxcXFlMcmZHSGxbNDszZHBTO1hGT3dTWVBsZDVYd2ZHbkdLSXpuXFxcXHBTaWNvO3Jka0RMVm5cXFxcaFdKTHhcXFxcSlhsZkVEV1BFRDVjWlRxTUk3eGRJO2xje21pZDQ2aVVXN1lObkR7ZDRUM1s1VExURjNXUEU3U2VvO21mWVAyVVdTaWRJWG9mRURzZDRud0tHUFJWWDtHZDRQUWZZM0dbWlRqS0hTNEtKZnJmSWlxZG87dWQ0UHRNVUR4ZGtETFZuW3dVVzdZVEc7RlRHWFdTV25PVzJuR1JYUzRObW5RWG1UUlMyVEhYR0hMVkhQTFRDMk1LSGZLVFhMSEtIVEdTMk93XFxcXElQRlMyN0xURktpVVc2aU1GR3tORkc0TkZLek5GS3tORkt8TkZLMk5GSzNORks0TkZLNU5GSzZORks3TkZPeU1VRERWbVNpTUduUVhrN0ZkNVAyUzRYd2ZJWHtVV1M7UEZHeVBsV3JLRztVVEdYVUtHTFxcXFxLSHZGT0lIb1BGZmpbb1xcXFxvT2xtNlBJTG9cXFxcbG15T1lTeVBGVzVPRkc3UFZtN1BvSGZLRXpkU3xHek9JSG1bb0szXFxcXElQa1t8VG5RVlxcXFxqUFlPMk9GbmtQVkhtT1lMbVxcXFxZSzJaVUM/XCIsXCJwMlwiOlwiMTAyNTVcIixcInAzXCI6XCJcIn0ifV0=";
 
 // Report column IDs (from ReportDefnXML of report 10255).
 const C = {
@@ -34,6 +30,7 @@ const sb = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
 
 const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; };
 const str = (v) => String(v == null ? '' : v).trim();
+const log = (...a) => console.log.apply(console, a);
 
 function findDataTable(json) {
   const tables = (json && json.Tables) || [];
@@ -43,79 +40,107 @@ function findDataTable(json) {
   }
   return { rows: [], tableIndex: -1 };
 }
-function describe(json) {
-  const tables = (json && json.Tables) || [];
-  return ('tables=' + tables.length + ' ' + tables.map((t, i) => 'T' + i + ':len=' + (Array.isArray(t) ? t.length : '?') + '[' + (Array.isArray(t) && t[0] ? Object.keys(t[0]).slice(0, 8).join(',') : '(empty)') + ']').join(' | ')).slice(0, 400);
-}
 async function fullRefresh(orders, diag) {
-  if (!sb) { console.log('[supabase] not configured; skipping'); return; }
+  if (!sb) { log('[supabase] not configured; skipping'); return; }
   const del = await sb.from('pending_sales_orders').delete().gt('id', 0);
-  if (del.error) { console.log('[supabase] delete failed:', del.error.message); return; }
-  const rows = orders.map((o) => ({ vendor_name: o.vendor || '\u2014', so_number: o.soNumber, so_date: null, status: 'pending', items: o.items }));
+  if (del.error) { log('[supabase] delete failed:', del.error.message); return; }
+  const rows = orders.map((o) => ({ vendor_name: o.vendor || '—', so_number: o.soNumber, so_date: null, status: 'pending', items: o.items }));
   if (diag) rows.push({ vendor_name: diag, so_number: '__DIAG__', so_date: null, status: 'debug', items: [] });
-  if (!rows.length) { console.log('[supabase] nothing to insert'); return; }
+  if (!rows.length) { log('[supabase] nothing to insert'); return; }
   const ins = await sb.from('pending_sales_orders').insert(rows);
-  if (ins.error) console.log('[supabase] insert failed:', ins.error.message);
-  else console.log('[supabase] wrote', orders.length, 'orders' + (diag ? ' (+diag)' : ''));
+  if (ins.error) log('[supabase] insert failed:', ins.error.message);
+  else log('[supabase] wrote', orders.length, 'orders' + (diag ? ' (+diag)' : ''));
+}
+
+// Try a list of locator factories in order; click the first that resolves.
+async function clickFirst(page, factories, label, timeout) {
+  for (const f of factories) {
+    try {
+      const loc = f();
+      await loc.first().waitFor({ state: 'visible', timeout: timeout || 8000 });
+      await loc.first().click({ timeout: timeout || 8000 });
+      log('[ui] clicked ' + label);
+      return true;
+    } catch (e) { /* try next */ }
+  }
+  log('[ui] could NOT click ' + label);
+  return false;
 }
 
 (async () => {
   if (!process.env.PACT_PASSWORD && process.env.PACT_PASS) process.env.PACT_PASSWORD = process.env.PACT_PASS;
-  const browser = await chromium.launch({ headless: true, args: ['--window-size=1600,1000'] });
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 } });
+  const browser = await chromium.launch({ headless: true, args: ['--window-size=1680,1050'] });
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 } });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
 
-  let bearer = null, apiRoot = null;
-  page.on('request', (req) => {
-    const u = req.url();
-    if (!apiRoot && /PACTALLUSUREAPI\/api\//i.test(u)) apiRoot = u.slice(0, u.toLowerCase().indexOf('/api/'));
-    const a = req.headers()['authorization'];
-    if (!bearer && a && /^Bearer /i.test(a)) bearer = a;
+  // Capture the report's own ReportDataSet response (the one carrying the SO grid).
+  let dataText = null;
+  page.on('response', async (resp) => {
+    try {
+      if (dataText) return;
+      if (!/\/api\/Report\/ReportDataSet/i.test(resp.url())) return;
+      if (resp.request().method() !== 'POST') return;
+      const clen = Number(resp.headers()['content-length'] || 0);
+      if (clen && clen < 5000) return;            // skip the small prepare/validate calls
+      const t = await resp.text();
+      if (t && t.length > 5000 && t.indexOf(C.soNo) >= 0) { dataText = t; log('[capture] got ReportDataSet body bytes=' + t.length); }
+    } catch (e) { /* ignore */ }
   });
 
   try {
     await login(page);
-    console.log('Logged in.');
-    await page.waitForTimeout(1500);
-    if (!bearer) { await page.reload({ waitUntil: 'networkidle' }).catch(() => {}); await page.waitForTimeout(1500); }
-    if (!bearer) throw new Error('Could not capture a Bearer token after login.');
-    if (!apiRoot) apiRoot = new URL(process.env.PACT_URL || 'http://140.245.255.130:8443/').origin + '/PACTALLUSUREAPI';
+    log('Logged in.');
+    await page.waitForTimeout(2500);
 
-    const steps = JSON.parse(Buffer.from(REPLAY_B64, 'base64').toString('utf8'));
-    const H = { Authorization: bearer, Accept: 'application/json, text/plain, */*' };
-    const ctx = page.context().request;
-    console.log('[replay] ' + steps.length + ' steps, apiRoot=' + apiRoot);
+    // Open BI -> List of Reports.
+    await clickFirst(page, [
+      () => page.getByRole('listitem', { name: 'BI' }).locator('i'),
+      () => page.getByRole('listitem', { name: 'BI' }),
+      () => page.getByText('BI', { exact: true }),
+    ], 'BI menu');
+    await page.waitForTimeout(1200);
+    await clickFirst(page, [
+      () => page.getByRole('link', { name: 'List of Reports' }),
+      () => page.getByText('List of Reports'),
+    ], 'List of Reports');
+    await page.waitForTimeout(1800);
 
-    // Warm up: replay the report-open sequence (all but the final data call).
-    for (let i = 0; i < steps.length - 1; i++) {
-      const st = steps[i];
-      const url = apiRoot + st.path;
-      try {
-        const r = st.method === 'GET'
-          ? await ctx.get(url, { headers: H, timeout: 60000, ignoreHTTPSErrors: true })
-          : await ctx.post(url, { headers: Object.assign({}, H, { 'Content-Type': 'application/json' }), data: st.body || '', timeout: 60000, ignoreHTTPSErrors: true });
-        console.log('[replay] ' + i + ' ' + st.method + ' ' + st.path.split('?')[0].split('/api/')[1] + ' -> ' + r.status());
-      } catch (e) { console.log('[replay] ' + i + ' error ' + String(e).slice(0, 80)); }
-      await page.waitForTimeout(250);
-    }
+    // Search "pending" and open the report.
+    try {
+      const search = page.getByRole('textbox', { name: 'Search...' });
+      await search.first().fill('pending');
+      await search.first().press('Enter');
+      log('[ui] searched pending');
+    } catch (e) { log('[ui] search skipped: ' + String(e.message).slice(0, 60)); }
+    await page.waitForTimeout(1800);
 
-    // Final data call.
-    const last = steps[steps.length - 1];
-    const resp = await ctx.post(apiRoot + last.path, {
-      headers: Object.assign({}, H, { 'Content-Type': 'application/json' }),
-      data: last.body, timeout: 180000, ignoreHTTPSErrors: true,
+    await clickFirst(page, [
+      () => page.getByText('Pending Sales Order Quantity'),
+    ], 'report (dblclick)').then(async (ok) => {
+      // clickFirst does a single click; ensure a double-click to open.
+      try { await page.getByText('Pending Sales Order Quantity').first().dblclick({ timeout: 8000 }); log('[ui] dblclicked report'); } catch (e) { log('[ui] dblclick skipped: ' + String(e.message).slice(0, 60)); }
     });
-    if (!resp.ok()) throw new Error('ReportDataSet HTTP ' + resp.status() + ' ' + (await resp.text().catch(() => '')).slice(0, 200));
-    const text = await resp.text();
-    console.log('[report] response bytes=' + text.length);
-    const json = JSON.parse(text);
-    const structure = describe(json);
-    console.log('[report] ' + structure);
+    await page.waitForTimeout(3000);
 
+    // Filter dialog: select the SO-No group then OK (matches the recording; returns all orders).
+    try { await page.getByText('FSOD-26-27/').first().click({ timeout: 8000 }); log('[ui] picked filter node'); }
+    catch (e) { log('[ui] filter node skipped: ' + String(e.message).slice(0, 60)); }
+    await clickFirst(page, [
+      () => page.getByRole('button', { name: 'OK' }),
+      () => page.getByRole('button', { name: ' OK' }),
+      () => page.getByText('OK', { exact: true }),
+    ], 'OK');
+
+    // Wait for the report to run and its data response to be captured.
+    log('[ui] waiting for report data…');
+    for (let i = 0; i < 90 && !dataText; i++) await page.waitForTimeout(1000);
+    if (!dataText) throw new Error('ReportDataSet response was not captured after opening the report (UI flow may have changed).');
+
+    const json = JSON.parse(dataText);
     const { rows, tableIndex } = findDataTable(json);
-    console.log('[report] data table index=' + tableIndex + ' rows=' + rows.length);
-    if (!rows.length) { await fullRefresh([], 'NO SO-No column. ' + structure); throw new Error('Data table not found. ' + structure); }
+    log('[report] data table index=' + tableIndex + ' rows=' + rows.length);
+    if (!rows.length) { await fullRefresh([], 'NO SO-No column in captured data.'); throw new Error('Data table not found in captured response.'); }
 
     const map = new Map();
     let curSo = '', curAcc = '';
@@ -134,12 +159,12 @@ async function fullRefresh(orders, diag) {
     }
     const orders = [...map.values()].filter((o) => o.items.length);
     const lines = orders.reduce((n, o) => n + o.items.length, 0);
-    console.log('Parsed ' + orders.length + ' pending sales orders (' + lines + ' lines).');
-    if (orders[0]) console.log('First:', orders[0].soNumber, '/', orders[0].vendor, '/', orders[0].items.length, 'items');
-    await fullRefresh(orders, orders.length ? '' : 'Parsed 0 orders. ' + structure);
-    console.log('SALES-ORDER SYNC DONE.');
+    log('Parsed ' + orders.length + ' pending sales orders (' + lines + ' lines).');
+    if (orders[0]) log('First:', orders[0].soNumber, '/', orders[0].vendor, '/', orders[0].items.length, 'items');
+    await fullRefresh(orders, orders.length ? '' : 'Parsed 0 orders (all lines had pend<=0).');
+    log('SALES-ORDER SYNC DONE.');
   } catch (e) {
-    console.log('SALES-ORDER SYNC FAILED:', String(e && e.message ? e.message : e).slice(0, 300));
+    log('SALES-ORDER SYNC FAILED:', String(e && e.message ? e.message : e).slice(0, 300));
     process.exitCode = 1;
   } finally {
     await browser.close().catch(() => {});
