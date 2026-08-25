@@ -1,0 +1,44 @@
+name: sync-sales-orders
+
+# Pulls PACT's "Pending Sales Order Quantity" report into public.pending_sales_orders.
+# ON-DEMAND ONLY — it runs when triggered, never on a timer:
+#   - repository_dispatch(sync-sales-orders): the dashboard / app "Fetch sales orders" button
+#   - workflow_dispatch: manual run from the Actions tab
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [sync-sales-orders]
+
+concurrency:
+  group: pact-sales-orders-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Cache Playwright browser (Chromium 1.49.1)
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.49.1
+      - name: Install Chromium (skips download on cache hit)
+        run: npx playwright install --with-deps chromium
+      - name: Sync pending sales orders from PACT
+        env:
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
+          PACT_URL: ${{ secrets.PACT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/sync-sales-orders.js
