@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 
 /**
- * The shared live sales order. Both the website and the native app go through
- * this route (server-side, service-role key) so they read and write the same
- * `sales_order_lines` rows — a scan on one shows up on the other.
+ * The shared sales-order lines. The website uses it as one live order; the app
+ * scopes it to a specific sales order via the `so` / soNumber field so each PACT
+ * sales order keeps its own scanned lines. Server-side (service key) — no keys
+ * in the app.
  *
- *  GET    /api/order            -> { ok, lines: [...] }
- *  POST   /api/order  {line}    -> add a line (merges by product_code + batch)
- *  PATCH  /api/order  {id,...}  -> update quantity / selected batch of a line
+ *  GET    /api/order            -> all lines
+ *  GET    /api/order?so=SO-1    -> lines for that sales order
+ *  POST   /api/order  {line}    -> add a line (merges by so + product + batch)
+ *  PATCH  /api/order  {id,...}  -> update quantity / batch of a line
  *  DELETE /api/order?id=NN      -> remove one line
- *  DELETE /api/order?all=1      -> clear the whole order
+ *  DELETE /api/order?all=1      -> clear all
+ *  DELETE /api/order?so=SO-1    -> clear one sales order's lines
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,29 +28,25 @@ function creds() {
   const key = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   return { url: url?.replace(/\/$/, ""), key };
 }
-
-const REST = (path: string) => {
-  const { url } = creds();
-  return `${url}/rest/v1/sales_order_lines${path}`;
-};
-
+const REST = (path: string) => `${creds().url}/rest/v1/sales_order_lines${path}`;
 function headers(extra: Record<string, string> = {}) {
   const { key } = creds();
   return { apikey: key as string, Authorization: `Bearer ${key}`, "content-type": "application/json", ...extra };
 }
 
-/* DB (snake_case) <-> API (camelCase) */
 type Line = {
   id?: number; productCode: string; productName?: string; hsn?: string; warehouse?: string;
   salesUnitLevel?: string; unit?: string; quantity?: number; unitPrice?: string; salesRate?: string;
-  gstTaxType?: string; batchNumber?: string; mfgDate?: string; expiryDate?: string; source?: string;
+  gstTaxType?: string; batchNumber?: string; mfgDate?: string; expiryDate?: string;
+  soNumber?: string; vendor?: string; source?: string;
 };
 const toRow = (l: Line) => ({
   product_code: l.productCode, product_name: l.productName ?? null, hsn: l.hsn ?? null,
   warehouse: l.warehouse ?? null, sales_unit_level: l.salesUnitLevel ?? null, unit: l.unit ?? null,
   quantity: l.quantity ?? 1, unit_price: l.unitPrice ?? null, sales_rate: l.salesRate ?? null,
   gst_tax_type: l.gstTaxType ?? null, batch_number: l.batchNumber ?? null,
-  mfg_date: l.mfgDate ?? null, expiry_date: l.expiryDate ?? null, source: l.source ?? null,
+  mfg_date: l.mfgDate ?? null, expiry_date: l.expiryDate ?? null,
+  so_number: l.soNumber ?? null, vendor: l.vendor ?? null, source: l.source ?? null,
 });
 const toLine = (r: Record<string, unknown>): Line => ({
   id: r.id as number, productCode: r.product_code as string, productName: (r.product_name as string) ?? "",
@@ -55,7 +54,7 @@ const toLine = (r: Record<string, unknown>): Line => ({
   unit: (r.unit as string) ?? "", quantity: Number(r.quantity ?? 0), unitPrice: (r.unit_price as string) ?? "",
   salesRate: (r.sales_rate as string) ?? "", gstTaxType: (r.gst_tax_type as string) ?? "",
   batchNumber: (r.batch_number as string) ?? "", mfgDate: (r.mfg_date as string) ?? "",
-  expiryDate: (r.expiry_date as string) ?? "", source: (r.source as string) ?? "",
+  expiryDate: (r.expiry_date as string) ?? "", soNumber: (r.so_number as string) ?? "", vendor: (r.vendor as string) ?? "",
 });
 
 function guard() {
@@ -63,15 +62,16 @@ function guard() {
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
   return null;
 }
+const soFilter = (so: string | null) => (so ? `so_number=eq.${encodeURIComponent(so)}` : null);
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS });
-}
+export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: CORS }); }
 
-export async function GET() {
+export async function GET(req: Request) {
   const bad = guard(); if (bad) return bad;
+  const so = new URL(req.url).searchParams.get("so");
+  const f = soFilter(so);
   try {
-    const r = await fetch(REST("?select=*&order=created_at.asc"), { headers: headers(), cache: "no-store" });
+    const r = await fetch(REST(`?select=*&order=created_at.asc${f ? "&" + f : ""}`), { headers: headers(), cache: "no-store" });
     const rows = (await r.json()) as Record<string, unknown>[];
     return NextResponse.json({ ok: true, lines: Array.isArray(rows) ? rows.map(toLine) : [] }, { headers: CORS });
   } catch (e) {
@@ -84,17 +84,16 @@ export async function POST(req: Request) {
   const l = (await req.json().catch(() => null)) as Line | null;
   if (!l?.productCode) return NextResponse.json({ ok: false, error: "productCode required" }, { status: 400, headers: CORS });
   const addQty = Number(l.quantity ?? 1) || 1;
+  const bn = l.batchNumber ?? "";
+  const soClause = l.soNumber ? `so_number=eq.${encodeURIComponent(l.soNumber)}` : "so_number=is.null";
   try {
-    // Merge by product_code + batch_number (re-scan bumps the quantity).
-    const bn = l.batchNumber ?? "";
-    const q = `?product_code=eq.${encodeURIComponent(l.productCode)}&batch_number=eq.${encodeURIComponent(bn)}&select=*`;
+    const q = `?product_code=eq.${encodeURIComponent(l.productCode)}&batch_number=eq.${encodeURIComponent(bn)}&${soClause}&select=*`;
     const existing = (await (await fetch(REST(q), { headers: headers(), cache: "no-store" })).json()) as Record<string, unknown>[];
     if (Array.isArray(existing) && existing.length) {
       const row = existing[0];
-      const newQty = Number(row.quantity ?? 0) + addQty;
       const up = await fetch(REST(`?id=eq.${row.id}`), {
         method: "PATCH", headers: headers({ Prefer: "return=representation" }),
-        body: JSON.stringify({ quantity: newQty, updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ quantity: Number(row.quantity ?? 0) + addQty, updated_at: new Date().toISOString() }),
       });
       const rows = (await up.json()) as Record<string, unknown>[];
       return NextResponse.json({ ok: true, line: toLine(rows[0]) }, { headers: CORS });
@@ -136,12 +135,11 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   const bad = guard(); if (bad) return bad;
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  const all = searchParams.get("all");
+  const sp = new URL(req.url).searchParams;
+  const id = sp.get("id"); const all = sp.get("all"); const so = sp.get("so");
   try {
-    const q = id ? `?id=eq.${id}` : all ? `?id=gt.0` : null;
-    if (!q) return NextResponse.json({ ok: false, error: "id or all=1 required" }, { status: 400, headers: CORS });
+    const q = id ? `?id=eq.${id}` : so ? `?${soFilter(so)}` : all ? `?id=gt.0` : null;
+    if (!q) return NextResponse.json({ ok: false, error: "id, so or all=1 required" }, { status: 400, headers: CORS });
     await fetch(REST(q), { method: "DELETE", headers: headers({ Prefer: "return=minimal" }) });
     return NextResponse.json({ ok: true }, { headers: CORS });
   } catch (e) {
