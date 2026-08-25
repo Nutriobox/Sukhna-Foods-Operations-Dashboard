@@ -71,18 +71,24 @@ async function clickFirst(page, factories, label, timeout) {
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
 
+  // Intercept the report's data request and read the body through Playwright's
+  // own fetch (route.fetch), which streams large bodies — the page's response is
+  // 36 MB and Chrome's getResponseBody can't return that after the fact.
   let dataText = null, seen = 0;
-  page.on('response', async (resp) => {
+  await page.route(/\/api\/Report\/ReportDataSet/i, async (route) => {
+    const req = route.request();
+    if (req.method() !== 'POST') { return route.continue().catch(() => {}); }
+    seen++;
     try {
-      if (!/\/api\/Report\/ReportDataSet/i.test(resp.url())) return;
-      if (resp.request().method() !== 'POST') return;
-      seen++;
-      const clen = resp.headers()['content-length'] || '?';
-      log('[resp] ReportDataSet #' + seen + ' status=' + resp.status() + ' clen=' + clen);
-      if (dataText) return;
-      const t = await resp.text().catch((e) => { log('[resp] text() failed: ' + String(e).slice(0, 60)); return ''; });
-      if (t && t.length > 5000 && t.indexOf(C.soNo) >= 0) { dataText = t; log('[capture] matched data body bytes=' + t.length); }
-    } catch (e) { log('[resp] handler error ' + String(e).slice(0, 60)); }
+      const resp = await route.fetch();                 // performs the request once
+      const body = await resp.text();                    // streamed read, no size cap
+      log('[route] ReportDataSet #' + seen + ' status=' + resp.status() + ' bytes=' + body.length);
+      if (!dataText && body.length > 5000 && body.indexOf(C.soNo) >= 0) { dataText = body; log('[capture] matched data body bytes=' + body.length); }
+      await route.fulfill({ response: resp, body });      // hand the same response back to the page
+    } catch (e) {
+      log('[route] #' + seen + ' error ' + String(e).slice(0, 80));
+      await route.continue().catch(() => {});
+    }
   });
 
   try {
