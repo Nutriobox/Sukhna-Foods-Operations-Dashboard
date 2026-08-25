@@ -39,12 +39,12 @@ function findDataTable(json) {
   }
   return { rows: [], tableIndex: -1 };
 }
-async function fullRefresh(orders, diag) {
+async function fullRefresh(orders, diag, diagItems) {
   if (!sb) { log('[supabase] not configured; skipping'); return; }
   const del = await sb.from('pending_sales_orders').delete().gt('id', 0);
   if (del.error) { log('[supabase] delete failed:', del.error.message); return; }
   const rows = orders.map((o) => ({ vendor_name: o.vendor || '—', so_number: o.soNumber, so_date: null, status: 'pending', items: o.items }));
-  if (diag) rows.push({ vendor_name: diag, so_number: '__DIAG__', so_date: null, status: 'debug', items: [] });
+  if (diag) rows.push({ vendor_name: String(diag).slice(0, 250), so_number: '__DIAG__', so_date: null, status: 'debug', items: diagItems || [] });
   if (!rows.length) { log('[supabase] nothing to insert'); return; }
   const ins = await sb.from('pending_sales_orders').insert(rows);
   if (ins.error) log('[supabase] insert failed:', ins.error.message);
@@ -146,9 +146,25 @@ async function clickFirst(page, factories, label, timeout) {
     if (!dataText) throw new Error('ReportDataSet data not captured. ReportDataSet responses seen=' + seen + '. Report UI may need a different trigger.');
 
     const json = JSON.parse(dataText);
+    const tables = (json && json.Tables) || [];
+    log('[report] Tables=' + tables.length + ' lengths=' + tables.map((t) => Array.isArray(t) ? t.length : '?').join(','));
     const { rows, tableIndex } = findDataTable(json);
     log('[report] data table index=' + tableIndex + ' rows=' + rows.length);
-    if (!rows.length) { await fullRefresh([], 'NO SO-No column in captured data.'); throw new Error('Data table not found in captured response.'); }
+    if (rows[0]) log('[keys] ' + Object.keys(rows[0]).join(','));
+    if (!rows.length) { await fullRefresh([], 'NO SO-No column in captured data. Tables lens=' + tables.map((t) => Array.isArray(t) ? t.length : '?').join(',')); throw new Error('Data table not found in captured response.'); }
+
+    // Diagnostic sample of the first rows (raw values), so we can inspect the shape.
+    let pos = 0;
+    for (const r of rows) if (num(r[C.pendQty]) > 0) pos++;
+    log('[parse] rows=' + rows.length + ' rows_with_pend>0=' + pos);
+    const sample = rows.slice(0, 8).map((r) => ({
+      code: str(r[C.soNo]).slice(0, 24),
+      name: str(r[C.product]).slice(0, 30),
+      qty: r[C.pendQty],           // raw PEND value
+      unit: r[C.soQty],            // raw SOQTY value
+      rate: r[C.delQty],           // raw DELQTY value
+    }));
+    for (const s of sample) log('[sample] so=' + s.code + ' prod=' + s.name + ' pend=' + JSON.stringify(s.qty) + ' soq=' + JSON.stringify(s.unit) + ' delq=' + JSON.stringify(s.rate));
 
     const map = new Map();
     let curSo = '', curAcc = '';
@@ -169,7 +185,8 @@ async function clickFirst(page, factories, label, timeout) {
     const lines = orders.reduce((n, o) => n + o.items.length, 0);
     log('Parsed ' + orders.length + ' pending sales orders (' + lines + ' lines).');
     if (orders[0]) log('First:', orders[0].soNumber, '/', orders[0].vendor, '/', orders[0].items.length, 'items');
-    await fullRefresh(orders, orders.length ? '' : 'Parsed 0 orders (all lines had pend<=0).');
+    const diagMsg = orders.length ? '' : ('rows=' + rows.length + ' pend>0=' + pos + ' keys=' + Object.keys(rows[0]).slice(0, 12).join('|'));
+    await fullRefresh(orders, diagMsg, diagMsg ? sample : null);
     log('SALES-ORDER SYNC DONE.');
   } catch (e) {
     log('SALES-ORDER SYNC FAILED:', String(e && e.message ? e.message : e).slice(0, 300));
