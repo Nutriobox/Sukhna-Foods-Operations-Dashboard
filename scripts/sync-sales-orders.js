@@ -166,7 +166,10 @@ async function clickFirst(page, factories, label, timeout) {
     }));
     for (const s of sample) log('[sample] so=' + s.code + ' prod=' + s.name + ' pend=' + JSON.stringify(s.qty) + ' soq=' + JSON.stringify(s.unit) + ' delq=' + JSON.stringify(s.rate));
 
-    const map = new Map();
+    // The live data is raw un-aggregated rows and has NO pending column — PACT
+    // computes PEND = SOQTY - DELQTY on the report display. So aggregate the raw
+    // rows per (SO, product): sum ordered & delivered, then pending = sum - sum.
+    const agg = new Map();   // key soproduct -> {so, vendor, product, soQty, delQty, price}
     let curSo = '', curAcc = '';
     for (const r of rows) {
       const so = str(r[C.soNo]) || curSo;
@@ -174,18 +177,32 @@ async function clickFirst(page, factories, label, timeout) {
       curSo = so; curAcc = acc;
       const product = str(r[C.product]);
       if (!so || !product) continue;
-      const pend = num(r[C.pendQty]);
+      const key = so + '' + product;
+      let a = agg.get(key);
+      if (!a) { a = { so, vendor: acc, product, soQty: 0, delQty: 0, price: 0 }; agg.set(key, a); }
+      a.soQty += num(r[C.soQty]);
+      a.delQty += num(r[C.delQty]);
+      if (!a.vendor && acc) a.vendor = acc;
+      if (!a.price) a.price = num(r[C.price]);
+    }
+    log('[parse] aggregated to ' + agg.size + ' (SO,product) lines from ' + rows.length + ' raw rows');
+
+    const map = new Map();
+    let posLines = 0;
+    for (const a of agg.values()) {
+      const pend = Math.round((a.soQty - a.delQty) * 1000) / 1000;   // pending to dispatch
       if (pend <= 0) continue;
-      if (!map.has(so)) map.set(so, { soNumber: so, vendor: acc, items: [] });
-      const o = map.get(so);
-      if (!o.vendor && acc) o.vendor = acc;
-      o.items.push({ code: '', name: product, qty: pend, unit: '', rate: num(r[C.price]) || '', ordered: num(r[C.soQty]), delivered: num(r[C.delQty]) });
+      posLines++;
+      if (!map.has(a.so)) map.set(a.so, { soNumber: a.so, vendor: a.vendor, items: [] });
+      const o = map.get(a.so);
+      if (!o.vendor && a.vendor) o.vendor = a.vendor;
+      o.items.push({ code: '', name: a.product, qty: pend, unit: '', rate: a.price || '', ordered: a.soQty, delivered: a.delQty });
     }
     const orders = [...map.values()].filter((o) => o.items.length);
     const lines = orders.reduce((n, o) => n + o.items.length, 0);
-    log('Parsed ' + orders.length + ' pending sales orders (' + lines + ' lines).');
+    log('Parsed ' + orders.length + ' pending sales orders (' + lines + ' lines, ' + posLines + ' pending).');
     if (orders[0]) log('First:', orders[0].soNumber, '/', orders[0].vendor, '/', orders[0].items.length, 'items');
-    const diagMsg = orders.length ? '' : ('rows=' + rows.length + ' pend>0=' + pos + ' keys=' + Object.keys(rows[0]).slice(0, 12).join('|'));
+    const diagMsg = orders.length ? '' : ('agg=' + agg.size + ' rawRows=' + rows.length + ' keys=' + Object.keys(rows[0]).slice(0, 12).join('|'));
     await fullRefresh(orders, diagMsg, diagMsg ? sample : null);
     log('SALES-ORDER SYNC DONE.');
   } catch (e) {
