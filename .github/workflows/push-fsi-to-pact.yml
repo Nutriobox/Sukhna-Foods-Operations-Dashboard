@@ -1,0 +1,42 @@
+name: push-fsi-to-pact
+
+on:
+  repository_dispatch:
+    types: [push-fsi]
+
+concurrency:
+  group: pact-push
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Cache Playwright browser (Chromium 1.49.1)
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.49.1
+      - name: Install Chromium (skips download on cache hit)
+        run: npx playwright install --with-deps chromium
+      - name: Run Factory Sales Invoice push
+        env:
+          ORDER_JSON: ${{ toJSON(github.event.client_payload.order) }}
+          JOB_ID: ${{ github.event.client_payload.jobId }}
+          DRY_RUN: ${{ github.event.client_payload.dryRun }}
+          FSI_DIAG: ${{ github.event.client_payload.diag }}
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
+          PACT_URL: ${{ secrets.PACT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/run-fsi-job.js
