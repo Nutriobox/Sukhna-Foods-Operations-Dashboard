@@ -56,7 +56,7 @@ async function setStatus(patch) {
     const summary =
       `Filled ${(r && r.entered) || 0}/${(r && r.total) || 0} item(s)` +
       (r && r.skipped && r.skipped.length ? `, ${r.skipped.length} skipped (not in stock)` : '') +
-      (DRY_RUN ? ' \u2014 dry run, not posted' : ' \u2014 POSTED');
+      (DRY_RUN ? ' \u2014 dry run, not posted' : (' \u2014 POSTED' + (r && r.docNo ? ' as ' + r.docNo : '')));
     await setStatus({ status: 'done', error: summary });
     console.log('JOB DONE. ' + summary);
   } catch (e) {

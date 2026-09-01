@@ -94,6 +94,33 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   // 3. Feed each scanned barcode into the Scan field (#SKU) + Enter.
   //    Playwright fires real keyboard events, so Angular's ngModel + Enter
   //    handler run exactly as if a person scanned into the box.
+  // 2b. Customer Name is REQUIRED and PACT does NOT auto-fill it from the SO,
+  //     so select it here (same typeahead as the SO field). Without this the
+  //     Post is silently rejected and the invoice never saves.
+  const customer = String(order.customer || order.vendor || '').trim();
+  if (customer) {
+    try {
+      const cust = page.locator('[id="100"]').first();
+      await cust.click({ timeout: 3000 }).catch(() => {});
+      await cust.fill('');
+      await cust.fill(customer);
+      await page.waitForTimeout(1500);
+      let copt = page.locator('.suggestions__list-name', { hasText: customer }).filter({ visible: true }).first();
+      if (!(await copt.count().catch(() => 0))) {
+        const short = customer.split(/\s+/).slice(0, 2).join(' ');
+        await cust.fill(''); await cust.fill(short); await page.waitForTimeout(1500);
+        copt = page.locator('.suggestions__list-name').filter({ visible: true }).first();
+      }
+      await copt.click({ timeout: 6000 });
+      console.log('  selected customer: ' + customer);
+    } catch (e) {
+      console.log('  customer select failed: ' + String(e.message).split('\n')[0]);
+    }
+    await page.waitForTimeout(1000);
+  } else {
+    console.log('  ! no customer provided — Post will likely be rejected (Customer Name required).');
+  }
+
   const scan = page.locator('#SKU').first();
   await scan.waitFor({ state: 'visible', timeout: 15000 })
     .catch(() => console.log('  ! Scan field (#SKU) not visible — is the SO selected?'));
@@ -146,13 +173,29 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
 
   await page.screenshot({ path: path.join(__dirname, '..', 'fsi-before-post.png'), fullPage: true }).catch(() => {});
   page.once('dialog', (d) => d.accept().catch(() => {}));
-  await page.locator('button[title="Post"]').first().click({ timeout: 10000 });
-  await page.waitForTimeout(3000);
-  await page.locator('button[title="Post"]').first().click({ timeout: 6000 }).catch(() => {});
-  await page.waitForTimeout(3000);
+  const postBtn = page.locator('button[title="Post"]').first();
+  await postBtn.click({ timeout: 10000 }).catch(() => postBtn.click({ force: true }).catch(() => {}));
+  await page.waitForTimeout(3500);
+  // A confirmation modal may appear after Post — accept it.
+  const confirmDlg = page.locator('modal-container.show').first();
+  if (await confirmDlg.isVisible().catch(() => false)) {
+    await confirmDlg.getByRole('button', { name: /^(Ok|Yes|Post|Confirm)$/i }).first().click({ timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+  }
   await page.screenshot({ path: path.join(__dirname, '..', 'fsi-after-post.png'), fullPage: true }).catch(() => {});
-  console.log('  Factory Sales Invoice post attempted.');
-  return { posted: true, entered, skipped, total: barcodes.length };
+  // Verify the Post actually took: PACT flips the header from "Draft" to a posted
+  // state and assigns a doc number. If it is still Draft or an error modal shows,
+  // the Post did NOT go through — report that instead of a false success.
+  const bodyTxt = (await page.locator('body').innerText().catch(() => '')) || '';
+  const errDlg = page.locator('modal-container.show').first();
+  let postErr = '';
+  if (await errDlg.isVisible().catch(() => false)) postErr = (await errDlg.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
+  const stillDraft = /Factory Sales Invoice[\s\S]{0,40}\bDraft\b/i.test(bodyTxt);
+  const docMatch = bodyTxt.match(/[A-Z]{1,3}\/\d{2}-\d{2}\/\s*\d+/);
+  const docNo = docMatch ? docMatch[0].replace(/\s+/g, '') : '';
+  const posted = !postErr && !stillDraft;
+  console.log('  Post ' + (posted ? 'CONFIRMED docNo=' + (docNo || '?') : 'NOT confirmed' + (postErr ? ' — error: ' + postErr : ' — still Draft')));
+  return { posted, docNo, entered, skipped, total: barcodes.length };
 }
 
 module.exports = { createFactorySalesInvoice };
