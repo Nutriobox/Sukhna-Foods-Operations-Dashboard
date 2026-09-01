@@ -1,24 +1,36 @@
 // Creates a Factory Sales Invoice in PACT from a list of scanned barcodes.
-// Server-side (headless Chromium on GitHub Actions), modeled on stock-inward.js.
+// Modeled on stock-inward.js — the device scans + verifies against inventory,
+// this SERVER-SIDE worker logs in, opens the invoice, selects the SO, feeds
+// each barcode into PACT's Scan field (input id "SKU"), and (unless DRY_RUN)
+// posts. No PC, no phone WebView — runs headless on the server / GitHub Actions.
 //
-// The device scans + verifies against inventory; this worker logs in, opens the
-// invoice, selects the SO, feeds each barcode into PACT's Scan field (id "SKU"),
-// and (unless dryRun) posts. No PC, no phone WebView.
+// DIAG mode: FSI_DIAG=1 opens the invoice, selects the SO, dumps the form HTML
+// (fsi-form.html) and stops — so the SO-No / grid selectors can be wired
+// precisely from the real page, exactly like SI_DIAG did for Stock Inward.
 //
-// FSI_DIAG=1 opens the invoice + selects the SO, then dumps the form so the
-// SO-No / grid selectors can be confirmed from the real page, then stops.
-//
-// order: { soNumber, company?, barcodes: [ "FG0298_F2B057/25082601_5760", ... ] }
+// Input `order`: { soNumber, company?, barcodes: [ "FG0298_F2B057/25082601_5760", ... ] }
 
 const path = require('path');
 const fs = require('fs');
+
+async function dumpOuter(page, name, locator) {
+  try {
+    const h = await locator.first().evaluate((el) => el.outerHTML);
+    fs.writeFileSync(path.join(__dirname, '..', name), h);
+    console.log('  [diag] wrote', name, '(' + h.length + ' bytes)');
+    return true;
+  } catch (e) {
+    console.log('  [diag] dump ' + name + ' failed:', String(e.message).split('\n')[0]);
+    return false;
+  }
+}
 
 async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   const DIAG = String(process.env.FSI_DIAG || '') === '1';
   const soNumber = String(order.soNumber || order.so || '').trim();
   const barcodes = order.barcodes || order.labels || [];
 
-  // 1. Open Factory Sales Invoice (tile, or the "Search By Page" box).
+  // 1. Open Factory Sales Invoice (tile, or via the "Search By Page" box).
   // The tile is a VISIBLE <a> link on the Flows page (there are also hidden menu
   // links with the same name, so filter to visible).
   const tile = page.getByRole('link', { name: 'Factory Sales Invoice', exact: true }).filter({ visible: true }).first();
@@ -31,7 +43,7 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   }
   await page.waitForTimeout(2500);
 
-  // 1b. Voucher Prefix / Location popup (same component as Stock Inward).
+  // 1b. Voucher Prefix / Location popup (same component as Stock Inward / GGE).
   const vp = page.locator('modal-container.show').first();
   if (await vp.isVisible().catch(() => false)) {
     await vp.locator('.List__button').first().click().catch(() => {});
@@ -42,8 +54,9 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   }
   await page.waitForTimeout(1500);
 
-  // 2. Select the SO No (pulls customer + pending lines). Best-effort; confirm
-  //    the selector from the FSI_DIAG dump on the first real run.
+  // 2. Select the SO No. PACT pulls the customer + pending lines from it.
+  //    Best-effort: type into the SO field and pick the matching option.
+  //    (Selector confirmed/adjusted from the FSI_DIAG dump on first run.)
   if (soNumber) {
     const soField = page.locator('#dcCCNID23').first();
     try {
@@ -64,22 +77,23 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
       await soOpt.click({ timeout: 8000 });
       console.log('  selected SO', soNumber);
     } catch (e) {
-      console.log('  SO select (best-effort) failed:', String(e.message).split('\n')[0], '- run once with FSI_DIAG=1 to wire it.');
+      console.log('  SO select (best-effort) failed:', String(e.message).split('\n')[0], '- run once with FSI_DIAG=1 to wire the selector.');
     }
     await page.waitForTimeout(1500);
   }
 
   if (DIAG) {
-    try {
-      const html = await page.content();
-      fs.writeFileSync(path.join('/tmp', 'fsi-form.html'), html);
-      console.log('  [diag] wrote /tmp/fsi-form.html (' + html.length + ' bytes)');
-    } catch (e) { console.log('  [diag] dump failed:', String(e.message).split('\n')[0]); }
-    await page.screenshot({ path: path.join('/tmp', 'fsi-diag.png'), fullPage: true }).catch(() => {});
+    await dumpOuter(page, 'fsi-form.html',
+      page.getByRole('tabpanel').filter({ hasText: 'Factory Sales Invoice' }));
+    // also dump the whole main region as a fallback
+    await dumpOuter(page, 'fsi-main.html', page.locator('body'));
+    console.log('  [diag] DONE — read fsi-form.html to confirm the SO No field + grid selectors.');
     return { posted: false, diag: true };
   }
 
-  // 3. Feed each barcode into the Scan field (#SKU) + Enter — real key events.
+  // 3. Feed each scanned barcode into the Scan field (#SKU) + Enter.
+  //    Playwright fires real keyboard events, so Angular's ngModel + Enter
+  //    handler run exactly as if a person scanned into the box.
   const scan = page.locator('#SKU').first();
   await scan.waitFor({ state: 'visible', timeout: 15000 })
     .catch(() => console.log('  ! Scan field (#SKU) not visible — is the SO selected?'));
@@ -123,20 +137,20 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     }
   }
 
-  // 4. Stop before Post unless told to post (safe default).
+  // 4. Stop before Post unless explicitly told to post (safe by default).
   if (dryRun) {
-    await page.screenshot({ path: path.join('/tmp', 'fsi-filled.png'), fullPage: true }).catch(() => {});
-    console.log('  [DRY RUN] Filled ' + entered + '/' + barcodes.length + '. Stopping before Post.');
+    await page.screenshot({ path: path.join(__dirname, '..', 'fsi-filled.png'), fullPage: true }).catch(() => {});
+    console.log(`  [DRY RUN] Filled ${entered}/${barcodes.length} items. Screenshot fsi-filled.png. Stopping before Post.`);
     return { posted: false, entered, skipped, total: barcodes.length };
   }
 
-  await page.screenshot({ path: path.join('/tmp', 'fsi-before-post.png'), fullPage: true }).catch(() => {});
+  await page.screenshot({ path: path.join(__dirname, '..', 'fsi-before-post.png'), fullPage: true }).catch(() => {});
   page.once('dialog', (d) => d.accept().catch(() => {}));
   await page.locator('button[title="Post"]').first().click({ timeout: 10000 });
   await page.waitForTimeout(3000);
   await page.locator('button[title="Post"]').first().click({ timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(3000);
-  await page.screenshot({ path: path.join('/tmp', 'fsi-after-post.png'), fullPage: true }).catch(() => {});
+  await page.screenshot({ path: path.join(__dirname, '..', 'fsi-after-post.png'), fullPage: true }).catch(() => {});
   console.log('  Factory Sales Invoice post attempted.');
   return { posted: true, entered, skipped, total: barcodes.length };
 }
