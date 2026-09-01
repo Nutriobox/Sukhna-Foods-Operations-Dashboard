@@ -51,7 +51,7 @@ async function setStatus(patch) {
     console.log('FSI finished. posted=' + (r && r.posted) + ' entered=' + ((r && r.entered) || 0) + '/' + ((r && r.total) || 0));
 
     if (!DRY_RUN && !(r && r.posted)) {
-      throw new Error('Invoice did NOT post.\n--- run log ---\n' + logTail());
+      throw new Error('Invoice NOT posted: ' + ((r && r.reason) || 'still Draft') + '\n--- run log ---\n' + logTail());
     }
     const summary =
       `Filled ${(r && r.entered) || 0}/${(r && r.total) || 0} item(s)` +

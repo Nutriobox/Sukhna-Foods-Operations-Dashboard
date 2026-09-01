@@ -169,19 +169,26 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     await page.waitForTimeout(3000);
   }
   await page.screenshot({ path: path.join('/tmp', 'fsi-after-post.png'), fullPage: true }).catch(() => {});
-  // Verify the Post actually took: PACT flips the header from "Draft" to a posted
-  // state and assigns a doc number. If it is still Draft or an error modal shows,
-  // the Post did NOT go through — report that instead of a false success.
-  const bodyTxt = (await page.locator('body').innerText().catch(() => '')) || '';
+  // Verify the Post ACTUALLY took. PACT only clears the "Draft" badge and its
+  // on-screen validation warnings when the document truly saves. So: if a "Draft"
+  // badge is still visible, OR any validation warning is showing, the Post did NOT
+  // go through — report the failure with PACT's own message. Never a false POSTED.
+  await page.waitForTimeout(1500);
+  const draftVisible = await page.getByText('Draft', { exact: true }).filter({ visible: true }).count().catch(() => 0);
+  const warnTexts = await page.getByText(/please select|cannot be blank|is required|mandatory|not valid|invalid|please enter/i)
+    .filter({ visible: true }).allInnerTexts().catch(() => []);
+  const warn = warnTexts.join(' | ').replace(/\s+/g, ' ').trim().slice(0, 180);
   const errDlg = page.locator('modal-container.show').first();
-  let postErr = '';
-  if (await errDlg.isVisible().catch(() => false)) postErr = (await errDlg.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
-  const stillDraft = /Factory Sales Invoice[\s\S]{0,40}\bDraft\b/i.test(bodyTxt);
+  let modalErr = '';
+  if (await errDlg.isVisible().catch(() => false)) modalErr = (await errDlg.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
+  const reason = warn || modalErr;
+  const posted = draftVisible === 0 && !reason;
+  const bodyTxt = posted ? ((await page.locator('body').innerText().catch(() => '')) || '') : '';
   const docMatch = bodyTxt.match(/[A-Z]{1,3}\/\d{2}-\d{2}\/\s*\d+/);
   const docNo = docMatch ? docMatch[0].replace(/\s+/g, '') : '';
-  const posted = !postErr && !stillDraft;
-  console.log('  Post ' + (posted ? 'CONFIRMED docNo=' + (docNo || '?') : 'NOT confirmed' + (postErr ? ' — error: ' + postErr : ' — still Draft')));
-  return { posted, docNo, entered, skipped, total: barcodes.length };
+  if (posted) console.log('  Post CONFIRMED docNo=' + (docNo || '?'));
+  else console.log('  Post NOT confirmed — invoice still Draft. PACT says: ' + (reason || '(still Draft, no message shown)'));
+  return { posted, docNo, reason: posted ? '' : (reason || 'still Draft'), entered, skipped, total: barcodes.length };
 }
 
 module.exports = { createFactorySalesInvoice };
