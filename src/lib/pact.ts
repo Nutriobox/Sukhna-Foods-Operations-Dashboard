@@ -12,12 +12,21 @@ export type PactProduct = {
   units: string[];                 // purchase units (L1/L2/L3)
   levels: Record<string, Level>;   // { L1?, L2?, L3? }
   printLevel: string | null;       // default packaging level
+  idealWarehouse?: string;         // PACT product-master warehouse (col M)
+  scanBatches?: boolean;           // PACT "Scan Batches" flag
 };
 
 export const CATALOG = catalog as PactProduct[];
 const BY_NAME = new Map(CATALOG.map((p) => [p.name, p]));
 export const productByName = (name: string) => BY_NAME.get(name);
 export const productCode = (name: string): string => (BY_NAME.get(name)?.code || "");
+const BY_CODE = new Map(CATALOG.filter((p) => p.code).map((p) => [String(p.code).toUpperCase(), p]));
+// The product-master ideal warehouse for a product (by code, else by name). "" when none.
+export const idealWarehouse = (code?: string | null, name?: string | null): string => {
+  let p = code ? BY_CODE.get(String(code).toUpperCase()) : undefined;
+  if (!p && name) p = BY_NAME.get(name);
+  return (p?.idealWarehouse || "").trim();
+};
 
 // Every distinct purchase unit that appears in the master (for the unit picker).
 export const ALL_UNITS: string[] = Array.from(

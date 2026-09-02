@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Bill, Item } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
-import { resolveLine, productByName, productCode, matchProduct, canonUnit, ALL_UNITS, CATALOG, type PactLine } from "@/lib/pact";
+import { resolveLine, productByName, productCode, matchProduct, canonUnit, ALL_UNITS, CATALOG, idealWarehouse, type PactLine } from "@/lib/pact";
 import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
@@ -1532,7 +1532,10 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
                   <td className="so-mono">{l.productCode}</td>
                   <td className="so-name">{l.productName}</td>
                   <td>{l.hsn || DASH}</td>
-                  <td>{l.warehouse || DASH}</td>
+                  {(() => { const ideal = idealWarehouse(l.productCode, l.productName);
+                    const match = !ideal || (l.warehouse || "").trim().toLowerCase() === ideal.toLowerCase();
+                    return <td style={ideal && l.warehouse ? { color: match ? "#15803d" : "#dc2626", fontWeight: 600 } : undefined}
+                      title={ideal && !match ? ("Ideal warehouse: " + ideal) : undefined}>{l.warehouse || DASH}</td>; })()}
                   <td>{l.salesUnitLevel || DASH}</td>
                   <td>{l.unit || DASH}</td>
                   <td className="so-num">
@@ -1546,7 +1549,9 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
                   <td>
                     {batches.length
                       ? <select className="so-batchsel" value={l.batchNumber} onChange={(e) => setBatch(l, e.target.value)}>
-                          {batches.map((bt, j) => <option key={bt.batchNumber + j} value={bt.batchNumber}>{bt.batchNumber} · {bt.warehouse} · {nf(bt.available)} · exp {bt.exp}</option>)}
+                          {(() => { const ideal = idealWarehouse(l.productCode, l.productName);
+                            return batches.map((bt, j) => { const ok = !ideal || (bt.warehouse || "").trim().toLowerCase() === ideal.toLowerCase();
+                              return <option key={bt.batchNumber + j} value={bt.batchNumber}>{(ok ? "" : "\u26A0 ") + bt.batchNumber} · {bt.warehouse} · {nf(bt.available)} · exp {bt.exp}</option>; }); })()}
                         </select>
                       : <span className="so-mono">{l.batchNumber || <span className="so-nostock">No stock in report</span>}</span>}
                   </td>
@@ -1583,7 +1588,7 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
             </div>
             <div className="inv-gridwrap">
               <table className="so-grid">
-                <thead><tr><th className="so-rownum">#</th><th>Product code</th><th>Product name</th><th>Batch number</th><th>Warehouse</th><th>Unit</th><th>Quantity</th><th>Unit price</th><th>Manufacture date</th><th>Expiry date</th></tr></thead>
+                <thead><tr><th className="so-rownum">#</th><th>Product code</th><th>Product name</th><th>Batch number</th><th>Warehouse</th><th>Ideal WH</th><th>Unit</th><th>Quantity</th><th>Unit price</th><th>Manufacture date</th><th>Expiry date</th></tr></thead>
                 <tbody>
                   {invFiltered.slice(0, 2000).map((r, i) => (
                     <tr key={r.code + r.batchNumber + i}>
@@ -1591,7 +1596,14 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
                       <td className="so-mono">{r.code}</td>
                       <td className="so-name">{r.name}</td>
                       <td className="so-mono">{r.batchNumber}</td>
-                      <td>{r.warehouse}</td>
+                      {(() => {
+                        const ideal = idealWarehouse(r.code, r.name);
+                        const match = !ideal || (r.warehouse || "").trim().toLowerCase() === ideal.toLowerCase();
+                        return (<>
+                          <td style={ideal ? { color: match ? "#15803d" : "#dc2626", fontWeight: 600 } : undefined}>{r.warehouse}</td>
+                          <td style={{ color: "#166534" }}>{ideal || "—"}</td>
+                        </>);
+                      })()}
                       <td>{r.unit}</td>
                       <td className="so-num">{nf(r.available)}</td>
                       <td className="so-num">{r.rate}</td>
@@ -1599,7 +1611,7 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
                       <td>{r.exp}</td>
                     </tr>
                   ))}
-                  {!invFiltered.length && <tr><td className="so-empty" colSpan={10}>No matching stock.</td></tr>}
+                  {!invFiltered.length && <tr><td className="so-empty" colSpan={11}>No matching stock.</td></tr>}
                 </tbody>
               </table>
               {invFiltered.length > 2000 && <div className="inv-more">Showing first 2,000 of {nf(invFiltered.length)} — refine your search to narrow.</div>}

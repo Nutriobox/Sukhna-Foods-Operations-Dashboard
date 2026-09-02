@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,OPTIONS" };
 
 type Level = { u?: string; s?: number };
-type Entry = { name?: string; code?: string; printLevel?: string | null; units?: string[]; levels?: Record<string, Level> };
+type Entry = { name?: string; code?: string; printLevel?: string | null; units?: string[]; levels?: Record<string, Level>; idealWarehouse?: string; scanBatches?: boolean };
 
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: CORS }); }
 
@@ -38,6 +38,8 @@ export async function GET() {
       unit: lv.u || null,                 // the UOM a sales order is written in
       scale: typeof lv.s === "number" ? lv.s : null,  // base units per printLevel unit
       levels,                             // full L1/L2/L3 for reference
+      idealWarehouse: p.idealWarehouse || "",   // PACT product-master warehouse (col M)
+      scanBatches: p.scanBatches ?? null,       // PACT "Scan Batches" flag
     };
   });
   return NextResponse.json({ ok: true, count: products.length, products }, { headers: CORS });
