@@ -35,50 +35,26 @@ async function setGstSaleType(page, value) {
 // buttons). Returns the current number, "" when blank, "__noel__" when absent.
 async function readVoucher(page) {
   return await page.evaluate(() => {
-    const w = document.querySelector('app-voucher-no') || document;
-    const sel = w.querySelector('select');
-    const inp = w.querySelector('#TxtVoucherNo');
-    return { prefix: sel ? sel.value : '', num: inp ? String(inp.value || '').trim() : '', hasEl: !!inp };
-  }).catch(() => ({ prefix: '', num: '', hasEl: false }));
+    const vc = document.querySelector('app-voucher-no'); if (!vc) return { num: '', prefix: '', found: false };
+    const labels = [...vc.querySelectorAll('label')].map(l => (l.textContent || '').trim()).filter(Boolean);
+    const num = labels.find(t => /^\d+$/.test(t)) || '';
+    const prefix = labels.find(t => /\/$/.test(t)) || '';
+    const inp = vc.querySelector('input'); const ival = inp ? String(inp.value || '').trim() : '';
+    return { num: num || ival, prefix, found: true };
+  }).catch(() => ({ num: '', prefix: '', found: false }));
 }
 
-// Put the auto Doc No back into #TxtVoucherNo (PACT already reserved that number
-// at open, so we restore it rather than re-fetching). Uses the native value
-// setter so Angular's ngModel picks up the change.
-async function restoreVoucher(page, saved) {
-  if (!saved || !saved.num) return false;
-  return await page.evaluate((s) => {
-    const w = document.querySelector('app-voucher-no') || document;
-    const sel = w.querySelector('select');
-    const inp = w.querySelector('#TxtVoucherNo');
-    if (sel && s.prefix) { sel.value = s.prefix; sel.dispatchEvent(new Event('change', { bubbles: true })); }
-    if (!inp) return false;
-    const desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(inp), 'value');
-    if (desc && desc.set) desc.set.call(inp, s.num); else inp.value = s.num;
-    inp.dispatchEvent(new Event('input', { bubbles: true }));
-    inp.dispatchEvent(new Event('change', { bubbles: true }));
-    inp.dispatchEvent(new Event('blur', { bubbles: true }));
-    return true;
-  }, saved).catch(() => false);
-}
-
-// Make sure #TxtVoucherNo holds a number before Post. Prefer restoring the one
-// PACT assigned at open (saved, e.g. AF/26-27/724); else re-open the series
-// picker via the magnifier. Verifies and retries; returns whether it is present.
-async function refetchVoucherNo(page, company, saved) {
+// The Doc No number is a read-only <label> in <app-voucher-no> (e.g. "724") that
+// PACT keeps populated on its own. Only if PACT actually reports it blank do we
+// click the magnifier to (re)assign the series number and confirm a picker modal.
+async function refetchVoucherNo(page, company) {
   for (let t = 0; t < 3; t++) {
     const v = await readVoucher(page);
-    if (v.num && /\d/.test(v.num)) { if (t === 0) return true; console.log('  Voucher No present = ' + v.num); return true; }
-    if (saved && saved.num) {
-      await restoreVoucher(page, saved);
-      await page.waitForTimeout(800);
-      const a = await readVoucher(page);
-      if (a.num && /\d/.test(a.num)) { console.log('  restored Voucher No = ' + a.num); return true; }
-    }
+    if (v.num && /\d/.test(v.num)) { console.log('  Voucher No = ' + v.num); return true; }
     await page.evaluate(() => {
-      const c = document.querySelector('app-voucher-no') || document;
-      const ic = c.querySelector('i.fa-search, .fa-search, [class*="search"]');
-      if (ic) (ic.closest('button,a,span,div,i') || ic).click();
+      const vc = document.querySelector('app-voucher-no'); if (!vc) return;
+      const sp = [...vc.querySelectorAll('span.secondary-btn')].find(s => s.querySelector('i.fa-search'));
+      if (sp) sp.click(); else { const ic = vc.querySelector('i.fa-search'); if (ic) (ic.closest('span,button,a') || ic).click(); }
     }).catch(() => {});
     await page.waitForTimeout(2000);
     const m = page.locator('modal-container.show').first();
@@ -91,9 +67,8 @@ async function refetchVoucherNo(page, company, saved) {
     }
   }
   const fin = await readVoucher(page);
-  const ok = !!(fin.num && /\d/.test(fin.num));
-  console.log('  Voucher No after ensure -> ' + (fin.num || '(still blank)'));
-  return ok;
+  console.log('  Voucher No after refetch -> ' + (fin.num || '(blank)'));
+  return !!(fin.num && /\d/.test(fin.num));
 }
 
 async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
@@ -124,8 +99,6 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     await vp.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
   await page.waitForTimeout(1500);
-  const savedVoucher = await readVoucher(page);
-  console.log('  auto Doc No at open = ' + (savedVoucher.prefix || '') + (savedVoucher.num || '(blank)'));
 
   // 2. Select the SO No (pulls customer + pending lines). Best-effort; confirm
   //    the selector from the FSI_DIAG dump on the first real run.
@@ -251,29 +224,46 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   // voucher, retry — up to a few rounds.
   let posted = false, reason = '';
   for (let attempt = 1; attempt <= 6 && !posted; attempt++) {
-    await refetchVoucherNo(page, order.company, savedVoucher);   // Doc No must be filled before Post
     page.once('dialog', (d) => d.accept().catch(() => {}));
     const postBtn = page.locator('button[title="Post"]').first();
     await postBtn.click({ timeout: 10000 }).catch(() => postBtn.click({ force: true }).catch(() => {}));
-    await page.waitForTimeout(4000);
-    const cdlg = page.locator('modal-container.show').first();
-    if (await cdlg.isVisible().catch(() => false)) {
-      const cbtn = cdlg.getByRole('button', { name: /^(Ok|Yes|Post|Confirm|Save|Proceed|Continue)$/i }).filter({ visible: true }).first();
-      if (await cbtn.count().catch(() => 0)) await cbtn.click({ timeout: 4000 }).catch(() => {});
-      else await cdlg.locator('.List__button, button').filter({ visible: true }).first().click({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(2500);
+    // Poll right after Post: PACT's validation toast (e.g. "Please select Sale
+    // Type(InterStateB2B)") is transient and a single delayed read misses it, so
+    // setGstSaleType never runs. Watch for up to ~9s at 300ms steps, clicking the
+    // confirm modal ("Do you want to Post?") if it appears, and break the moment
+    // the toast shows or the Draft badge clears after confirming.
+    let warn = '';
+    let confirmClicked = false;
+    let success = false;
+    const deadline = Date.now() + 9000;
+    while (Date.now() < deadline) {
+      const cdlg = page.locator('modal-container.show').first();
+      if (await cdlg.isVisible().catch(() => false)) {
+        const cbtn = cdlg.getByRole('button', { name: /^(Ok|Yes|Post|Confirm|Save|Proceed|Continue)$/i }).filter({ visible: true }).first();
+        if (await cbtn.count().catch(() => 0)) await cbtn.click({ timeout: 4000 }).catch(() => {});
+        else await cdlg.locator('.List__button, button').filter({ visible: true }).first().click({ timeout: 4000 }).catch(() => {});
+        confirmClicked = true;
+        await page.waitForTimeout(600);
+        continue;
+      }
+      const wt = await page.getByText(/please select|cannot be blank|is required|mandatory|not valid|invalid|please enter/i)
+        .filter({ visible: true }).allInnerTexts().catch(() => []);
+      const wj = wt.join(' | ').replace(/\s+/g, ' ').trim();
+      if (wj) { warn = wj; break; }
+      if (confirmClicked) {
+        const dv = await page.getByText('Draft', { exact: true }).filter({ visible: true }).count().catch(() => 0);
+        if (dv === 0) { success = true; break; }
+      }
+      await page.waitForTimeout(300);
     }
-    const draftVisible = await page.getByText('Draft', { exact: true }).filter({ visible: true }).count().catch(() => 0);
-    const warnTexts = await page.getByText(/please select|cannot be blank|is required|mandatory|not valid|invalid|please enter/i)
-      .filter({ visible: true }).allInnerTexts().catch(() => []);
-    const warn = warnTexts.join(' | ').replace(/\s+/g, ' ').trim();
+    const draftVisible = success ? 0 : await page.getByText('Draft', { exact: true }).filter({ visible: true }).count().catch(() => 0);
     if (draftVisible === 0 && !warn) { posted = true; break; }
     reason = warn.slice(0, 180);
     console.log('  Post attempt ' + attempt + ' blocked: ' + (warn || 'still Draft'));
     const stMatch = warn.match(/Sale ?Type\s*\(([^)]+)\)/i);
-    if (stMatch) { await setGstSaleType(page, stMatch[1].trim()); await refetchVoucherNo(page, order.company, savedVoucher); await page.waitForTimeout(1200); }
-    else if (/voucher\s*no/i.test(warn)) { await refetchVoucherNo(page, order.company, savedVoucher); }
-    else { await page.waitForTimeout(3500); }  // no named warning: fields may still be settling — wait and retry Post
+    if (stMatch) { await setGstSaleType(page, stMatch[1].trim()); await refetchVoucherNo(page, order.company); await page.waitForTimeout(2000); }
+    else if (/voucher\s*no/i.test(warn)) { await refetchVoucherNo(page, order.company); }
+    else { await page.waitForTimeout(2500); }  // no named warning yet: fields may still be settling — retry Post
   }
   await page.screenshot({ path: path.join('/tmp', 'fsi-after-post.png'), fullPage: true }).catch(() => {});
   const bodyTxt = posted ? ((await page.locator('body').innerText().catch(() => '')) || '') : '';
