@@ -25,6 +25,43 @@ async function dumpOuter(page, name, locator) {
   }
 }
 
+async function setGstSaleType(page, value) {
+  // Reveal the GST tab, then set the Sale Type (input id="dcCCNID64").
+  const tabs = page.getByText('GST', { exact: true });
+  const n = await tabs.count().catch(() => 0);
+  for (let i = 0; i < n; i++) { await tabs.nth(i).click({ timeout: 2500 }).catch(() => {}); await page.waitForTimeout(400); if (await page.locator('#dcCCNID64').first().isVisible().catch(() => false)) break; }
+  const st = page.locator('#dcCCNID64').first();
+  await st.click({ timeout: 4000 }).catch(() => {});
+  await st.fill('').catch(() => {});
+  await st.fill(value).catch(() => {});
+  await page.waitForTimeout(1200);
+  const opt = page.locator('.suggestions__list-name', { hasText: value }).filter({ visible: true }).first();
+  if (await opt.count().catch(() => 0)) await opt.click({ timeout: 4000 }).catch(() => {});
+  else await st.press('Enter').catch(() => {});
+  await page.waitForTimeout(1000);
+  console.log('  set GST Sale Type = ' + value);
+}
+
+async function refetchVoucherNo(page, company) {
+  // Changing the Sale Type clears the auto Voucher No; the magnifier next to
+  // "Doc No" re-assigns the next number.
+  await page.evaluate(() => {
+    const lbl = [...document.querySelectorAll('*')].find(e => e.children.length === 0 && /^Doc No/i.test((e.textContent || '').trim()));
+    if (!lbl) return; let box = lbl.parentElement; for (let i = 0; i < 3; i++) box = box && box.parentElement;
+    const btn = box && box.querySelector('i.fa-search, [class*=search]'); if (btn) btn.click();
+  }).catch(() => {});
+  await page.waitForTimeout(2200);
+  const m = page.locator('modal-container.show').first();
+  if (await m.isVisible().catch(() => false)) {
+    await m.locator('.List__button').first().click().catch(() => {});
+    await page.waitForTimeout(500);
+    await page.getByText(company || 'Factory', { exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+    await m.getByRole('button', { name: 'Ok' }).click({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+  }
+  console.log('  re-fetched Voucher No');
+}
+
 async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   const DIAG = String(process.env.FSI_DIAG || '') === '1';
   const soNumber = String(order.soNumber || order.so || '').trim();
@@ -172,36 +209,43 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   }
 
   await page.screenshot({ path: path.join(__dirname, '..', 'fsi-before-post.png'), fullPage: true }).catch(() => {});
-  page.once('dialog', (d) => d.accept().catch(() => {}));
-  const postBtn = page.locator('button[title="Post"]').first();
-  await postBtn.click({ timeout: 10000 }).catch(() => postBtn.click({ force: true }).catch(() => {}));
-  await page.waitForTimeout(3500);
-  // A confirmation modal may appear after Post — accept it.
-  const confirmDlg = page.locator('modal-container.show').first();
-  if (await confirmDlg.isVisible().catch(() => false)) {
-    await confirmDlg.getByRole('button', { name: /^(Ok|Yes|Post|Confirm)$/i }).first().click({ timeout: 4000 }).catch(() => {});
-    await page.waitForTimeout(3000);
+  // ---- Post, handling PACT's document-level validations adaptively ----
+  // Selecting the SO does not fill everything: PACT needs the GST Sale Type set
+  // (it NAMES the value in a warning, e.g. InterStateB2B for an out-of-state
+  // customer), and changing the Sale Type clears the auto Voucher No, which must
+  // be re-fetched. So: click Post, read the warning, fix that field, re-fetch the
+  // voucher, retry — up to a few rounds.
+  let posted = false, reason = '';
+  for (let attempt = 1; attempt <= 4 && !posted; attempt++) {
+    page.once('dialog', (d) => d.accept().catch(() => {}));
+    const postBtn = page.locator('button[title="Post"]').first();
+    await postBtn.click({ timeout: 10000 }).catch(() => postBtn.click({ force: true }).catch(() => {}));
+    await page.waitForTimeout(4000);
+    const cdlg = page.locator('modal-container.show').first();
+    if (await cdlg.isVisible().catch(() => false)) {
+      const cbtn = cdlg.getByRole('button', { name: /^(Ok|Yes|Post|Confirm|Save|Proceed|Continue)$/i }).filter({ visible: true }).first();
+      if (await cbtn.count().catch(() => 0)) await cbtn.click({ timeout: 4000 }).catch(() => {});
+      else await cdlg.locator('.List__button, button').filter({ visible: true }).first().click({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(2500);
+    }
+    const draftVisible = await page.getByText('Draft', { exact: true }).filter({ visible: true }).count().catch(() => 0);
+    const warnTexts = await page.getByText(/please select|cannot be blank|is required|mandatory|not valid|invalid|please enter/i)
+      .filter({ visible: true }).allInnerTexts().catch(() => []);
+    const warn = warnTexts.join(' | ').replace(/\s+/g, ' ').trim();
+    if (draftVisible === 0 && !warn) { posted = true; break; }
+    reason = warn.slice(0, 180);
+    console.log('  Post attempt ' + attempt + ' blocked: ' + (warn || 'still Draft'));
+    const stMatch = warn.match(/Sale ?Type\s*\(([^)]+)\)/i);
+    if (stMatch) { await setGstSaleType(page, stMatch[1].trim()); await refetchVoucherNo(page, order.company); await page.waitForTimeout(2500); }
+    else if (/voucher\s*no/i.test(warn)) { await refetchVoucherNo(page, order.company); }
+    else { await page.waitForTimeout(3500); }  // no named warning: fields may still be settling — wait and retry Post
   }
   await page.screenshot({ path: path.join(__dirname, '..', 'fsi-after-post.png'), fullPage: true }).catch(() => {});
-  // Verify the Post ACTUALLY took. PACT only clears the "Draft" badge and its
-  // on-screen validation warnings when the document truly saves. So: if a "Draft"
-  // badge is still visible, OR any validation warning is showing, the Post did NOT
-  // go through — report the failure with PACT's own message. Never a false POSTED.
-  await page.waitForTimeout(1500);
-  const draftVisible = await page.getByText('Draft', { exact: true }).filter({ visible: true }).count().catch(() => 0);
-  const warnTexts = await page.getByText(/please select|cannot be blank|is required|mandatory|not valid|invalid|please enter/i)
-    .filter({ visible: true }).allInnerTexts().catch(() => []);
-  const warn = warnTexts.join(' | ').replace(/\s+/g, ' ').trim().slice(0, 180);
-  const errDlg = page.locator('modal-container.show').first();
-  let modalErr = '';
-  if (await errDlg.isVisible().catch(() => false)) modalErr = (await errDlg.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
-  const reason = warn || modalErr;
-  const posted = draftVisible === 0 && !reason;
   const bodyTxt = posted ? ((await page.locator('body').innerText().catch(() => '')) || '') : '';
-  const docMatch = bodyTxt.match(/[A-Z]{1,3}\/\d{2}-\d{2}\/\s*\d+/);
+  const docMatch = bodyTxt.match(/FSIV[-A-Z0-9\/]*\d+|[A-Z]{1,3}\/\d{2}-\d{2}\/\s*\d+/);
   const docNo = docMatch ? docMatch[0].replace(/\s+/g, '') : '';
   if (posted) console.log('  Post CONFIRMED docNo=' + (docNo || '?'));
-  else console.log('  Post NOT confirmed — invoice still Draft. PACT says: ' + (reason || '(still Draft, no message shown)'));
+  else console.log('  Post NOT confirmed. PACT says: ' + (reason || '(still Draft)'));
   return { posted, docNo, reason: posted ? '' : (reason || 'still Draft'), entered, skipped, total: barcodes.length };
 }
 
