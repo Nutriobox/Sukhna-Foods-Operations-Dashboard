@@ -42,24 +42,55 @@ async function setGstSaleType(page, value) {
   console.log('  set GST Sale Type = ' + value);
 }
 
+// The voucher number lives in #TxtVoucherNo inside PACT's <app-voucher-no>
+// (a prefix <select>, the number <input id="TxtVoucherNo">, and prev/next
+// buttons). Returns the current number, "" when blank, "__noel__" when absent.
+async function voucherNo(page) {
+  return await page.evaluate(() => {
+    const el = document.querySelector('#TxtVoucherNo');
+    return el ? String(el.value || '').trim() : '__noel__';
+  }).catch(() => '');
+}
+
+// Re-assign the auto Voucher No (changing the Sale Type blanks it). Clicks the
+// magnifier next to Doc No to re-open the voucher series picker, else nudges the
+// prefix to auto-assign. Verifies #TxtVoucherNo actually filled, retrying a few
+// times, and RETURNS whether the voucher is now present.
 async function refetchVoucherNo(page, company) {
-  // Changing the Sale Type clears the auto Voucher No; the magnifier next to
-  // "Doc No" re-assigns the next number.
-  await page.evaluate(() => {
-    const lbl = [...document.querySelectorAll('*')].find(e => e.children.length === 0 && /^Doc No/i.test((e.textContent || '').trim()));
-    if (!lbl) return; let box = lbl.parentElement; for (let i = 0; i < 3; i++) box = box && box.parentElement;
-    const btn = box && box.querySelector('i.fa-search, [class*=search]'); if (btn) btn.click();
-  }).catch(() => {});
-  await page.waitForTimeout(2200);
-  const m = page.locator('modal-container.show').first();
-  if (await m.isVisible().catch(() => false)) {
-    await m.locator('.List__button').first().click().catch(() => {});
-    await page.waitForTimeout(500);
-    await page.getByText(company || 'Factory', { exact: true }).first().click({ timeout: 5000 }).catch(() => {});
-    await m.getByRole('button', { name: 'Ok' }).click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(1200);
+  for (let t = 0; t < 3; t++) {
+    const v = await voucherNo(page);
+    if (v && v !== '__noel__' && /\d/.test(v)) { console.log('  Voucher No present = ' + v); return true; }
+    // 1) open the voucher search/series modal via the magnifier in <app-voucher-no>
+    const opened = await page.evaluate(() => {
+      const c = document.querySelector('app-voucher-no') || document;
+      const ic = c.querySelector('i.fa-search, .fa-search, [class*="search"]');
+      if (ic) { (ic.closest('button,a,span,div,i') || ic).click(); return true; }
+      return false;
+    }).catch(() => false);
+    await page.waitForTimeout(2000);
+    const m = page.locator('modal-container.show').first();
+    if (await m.isVisible().catch(() => false)) {
+      await m.locator('.List__button').first().click().catch(() => {});
+      await page.waitForTimeout(500);
+      await page.getByText(company || 'Factory', { exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+      await m.getByRole('button', { name: 'Ok' }).click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+    } else {
+      // 2) no modal — nudge PACT to re-assign: re-fire the prefix <select> change
+      //    and blur the number field so Angular reruns the auto-number.
+      await page.evaluate(() => {
+        const sel = document.querySelector('app-voucher-no select');
+        if (sel) sel.dispatchEvent(new Event('change', { bubbles: true }));
+        const inp = document.querySelector('#TxtVoucherNo');
+        if (inp) { inp.focus(); inp.dispatchEvent(new Event('input', { bubbles: true })); inp.blur(); }
+      }).catch(() => {});
+      await page.waitForTimeout(1600);
+    }
   }
-  console.log('  re-fetched Voucher No');
+  const fin = await voucherNo(page);
+  const ok = !!(fin && fin !== '__noel__' && /\d/.test(fin));
+  console.log('  re-fetched Voucher No -> ' + (fin === '__noel__' ? '(field not found)' : (fin || '(still blank)')));
+  return ok;
 }
 
 async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
@@ -216,7 +247,7 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   // be re-fetched. So: click Post, read the warning, fix that field, re-fetch the
   // voucher, retry — up to a few rounds.
   let posted = false, reason = '';
-  for (let attempt = 1; attempt <= 4 && !posted; attempt++) {
+  for (let attempt = 1; attempt <= 6 && !posted; attempt++) {
     page.once('dialog', (d) => d.accept().catch(() => {}));
     const postBtn = page.locator('button[title="Post"]').first();
     await postBtn.click({ timeout: 10000 }).catch(() => postBtn.click({ force: true }).catch(() => {}));
