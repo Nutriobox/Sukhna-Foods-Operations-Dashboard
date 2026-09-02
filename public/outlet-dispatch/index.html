@@ -188,6 +188,27 @@ input.missing:focus{box-shadow:0 0 0 3px rgba(179,38,30,.12)}
 .chip-v{background:var(--green-soft);color:var(--green-dark)}
 .chip-d{background:#f4ecdc;color:#7a5518}
 .chip-off{background:#f0f0ee;color:var(--muted)}
+/* editable day plan */
+.planhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 8px}
+.planhead .btn{margin-left:auto}
+select.planpick{padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;
+  font:inherit;font-size:13px;width:auto;min-width:88px;cursor:pointer}
+select.planpick:focus{outline:2px solid var(--green);outline-offset:1px}
+label.planbox{display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-size:13px;color:var(--ink)}
+label.planbox input{width:auto;margin:0;cursor:pointer}
+select.planpick.edited,label.planbox.edited{background:#FFF7DF;border-color:#E8B14B;
+  box-shadow:inset 0 0 0 1px #E8B14B;border-radius:7px}
+label.planbox.edited{padding:3px 8px}
+/* reference files */
+.refrow{display:flex;align-items:flex-start;gap:14px;padding:11px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.refrow:first-child{border-top:none}
+.refname{flex:0 0 168px}
+.refnote{flex:1 1 320px;font-size:13px;word-break:break-word}
+.refbtns{flex:0 0 auto;display:flex;gap:7px;align-items:center}
+/* product master link editor */
+.linktools{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end}
+.linktools label{margin:0}
+.badtarget{color:var(--red,#a3231f);font-weight:600}
 .chip-u{background:#fff0d4;color:#8a5a00;border:1px solid #f0dfb8}
 .mgrid{margin-top:16px;border:1px solid #f0dfb8;background:#fffdf7;border-radius:10px;padding:14px}
 .mgridhead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px}
@@ -248,6 +269,7 @@ input.missing:focus{box-shadow:0 0 0 3px rgba(179,38,30,.12)}
 <header id="setupHeader">
   <div class="brand"><span class="logo">NB</span>
     <div><h1>NutrioBox Dispatch</h1><p>Order working &amp; PACT import generator</p></div></div>
+  <span class="pill">v2.3 · 02-Sep-2026</span>
   <span class="pill" id="voucherPill">Runs entirely in your browser</span>
 </header>
 
@@ -270,6 +292,17 @@ input.missing:focus{box-shadow:0 0 0 3px rgba(179,38,30,.12)}
   <div id="linkTeaser" style="margin-top:10px"></div>
 </section>
 
+<section class="card" id="refCard">
+  <div class="card-head"><span class="step">&#9881;</span><h2>Reference files</h2>
+    <span class="hint" style="margin-left:auto">used whenever the date folder does not carry its own copy</span>
+  </div>
+  <p class="hint">Keep the Product Master, Ideal Inventory and Outlet schedule here and you only ever have to
+     drop the outlet sheets into the day's folder. Load a newer file any time — it is stored in this browser
+     and survives closing the app.</p>
+  <div id="refRows"></div>
+  <input type="file" id="refPicker" accept=".xlsx,.xlsm" hidden>
+</section>
+
 <section class="card" id="linkCard" style="display:none">
   <div class="card-head"><span class="step">&#9733;</span><h2>Product Master links</h2>
     <button class="btn btn-ghost btn-sm" onclick="toggleLinks()" id="linkToggle" style="margin-left:auto">Open</button>
@@ -278,14 +311,20 @@ input.missing:focus{box-shadow:0 0 0 3px rgba(179,38,30,.12)}
      send PACT the wrong product. Pick the right master row once — by Product Code — and every future run
      uses it. Links are kept in this browser; export them to move to another machine.</p>
   <div id="linkBody" style="display:none">
-    <div class="grid-2" style="margin-bottom:8px">
-      <label>Search product<input type="text" id="linkFilter" placeholder="e.g. laccha" oninput="renderLinks()"></label>
-      <label style="align-self:end">
-        <span style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" id="linkOnlyRisk" onchange="renderLinks()" checked>
-          Only show items that need a decision
-        </span></label>
+    <div class="linktools">
+      <label style="flex:1 1 240px">Search the product on your sheet
+        <input type="text" id="linkFilter" placeholder="e.g. laccha, banana, bowl" oninput="renderLinks()"></label>
+      <label style="flex:1 1 240px">Search the Product Master
+        <input type="text" id="linkMasterFind" placeholder="name or product code — filters the choices"
+               oninput="renderLinks()"></label>
+      <label style="flex:0 1 210px">Show
+        <select id="linkShow" onchange="renderLinks()">
+          <option value="risk">Only what needs a decision</option>
+          <option value="all">Every product</option>
+          <option value="linked">Only the ones I have set</option>
+        </select></label>
     </div>
+    <input type="checkbox" id="linkOnlyRisk" checked hidden>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button class="btn btn-primary btn-sm" onclick="commitLinks(this)">Save links</button>
       <button class="btn btn-ghost btn-sm" onclick="exportLinks()">Export links (.json)</button>
@@ -441,7 +480,7 @@ const CATS=['Frozen','Vegetable','Dry Store','Packaging','Housekeeping'];
 /* The weekly dispatch schedule is fixed, so it is baked in here. This lets the
    front page show the day's plan the moment you pick a date, before any folder
    is loaded. If the folder's own schedule file is loaded it takes precedence. */
-const BUILTIN_SCHED={"Monday":{"NB01 Rohini":"2--","NB02 KKD":"2--","NB03 Janakpuri":"2--","NB04 Dwarka":"2--","NB05 Shivalik":"2--","NB06 Advant":"2--","NB08 Rajender Nagar":"2--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Tuesday":{"NB01 Rohini":"---","NB02 KKD":"---","NB03 Janakpuri":"---","NB04 Dwarka":"---","NB05 Shivalik":"---","NB06 Advant":"---","NB08 Rajender Nagar":"---","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Wednesday":{"NB01 Rohini":"1V-","NB02 KKD":"1V-","NB03 Janakpuri":"1VD","NB04 Dwarka":"1V-","NB05 Shivalik":"1V-","NB06 Advant":"1VD","NB08 Rajender Nagar":"1VD","NB09 GGN PH II":"1VD","NB10 GGN SEC15":"1V-","NB07 Cloud Kitchen":"1VD"},"Thursday":{"NB01 Rohini":"1-D","NB02 KKD":"1-D","NB03 Janakpuri":"1--","NB04 Dwarka":"1-D","NB05 Shivalik":"1-D","NB06 Advant":"1--","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Friday":{"NB01 Rohini":"2V-","NB02 KKD":"2V-","NB03 Janakpuri":"2V-","NB04 Dwarka":"2V-","NB05 Shivalik":"2V-","NB06 Advant":"2V-","NB08 Rajender Nagar":"2V-","NB09 GGN PH II":"1V-","NB10 GGN SEC15":"1V-","NB07 Cloud Kitchen":"1V-"},"Saturday":{"NB01 Rohini":"1--","NB02 KKD":"1--","NB03 Janakpuri":"1--","NB04 Dwarka":"1--","NB05 Shivalik":"1--","NB06 Advant":"1--","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Sunday":{"NB01 Rohini":"1V-","NB02 KKD":"1V-","NB03 Janakpuri":"1V-","NB04 Dwarka":"1V-","NB05 Shivalik":"1V-","NB06 Advant":"1V-","NB08 Rajender Nagar":"1V-","NB09 GGN PH II":"1V-","NB10 GGN SEC15":"1VD","NB07 Cloud Kitchen":"1V-"}};
+const BUILTIN_SCHED={"Monday":{"NB01 Rohini":"2--","NB02 KKD":"2--","NB03 Janakpuri":"2--","NB04 Dwarka":"2--","NB05 Shivalik":"2--","NB06 Advant":"2--","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Tuesday":{"NB01 Rohini":"---","NB02 KKD":"---","NB03 Janakpuri":"---","NB04 Dwarka":"---","NB05 Shivalik":"---","NB06 Advant":"---","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Wednesday":{"NB01 Rohini":"1V-","NB02 KKD":"1V-","NB03 Janakpuri":"1VD","NB04 Dwarka":"1V-","NB05 Shivalik":"1V-","NB06 Advant":"1VD","NB08 Rajender Nagar":"1VD","NB09 GGN PH II":"1VD","NB10 GGN SEC15":"1V-","NB07 Cloud Kitchen":"1VD"},"Thursday":{"NB01 Rohini":"1-D","NB02 KKD":"1-D","NB03 Janakpuri":"1--","NB04 Dwarka":"1-D","NB05 Shivalik":"1-D","NB06 Advant":"1--","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Friday":{"NB01 Rohini":"2V-","NB02 KKD":"2V-","NB03 Janakpuri":"2V-","NB04 Dwarka":"2V-","NB05 Shivalik":"2V-","NB06 Advant":"2V-","NB08 Rajender Nagar":"1V-","NB09 GGN PH II":"1V-","NB10 GGN SEC15":"1V-","NB07 Cloud Kitchen":"1V-"},"Saturday":{"NB01 Rohini":"1--","NB02 KKD":"1--","NB03 Janakpuri":"1--","NB04 Dwarka":"1--","NB05 Shivalik":"1--","NB06 Advant":"1--","NB08 Rajender Nagar":"1--","NB09 GGN PH II":"1--","NB10 GGN SEC15":"1--","NB07 Cloud Kitchen":"1--"},"Sunday":{"NB01 Rohini":"1V-","NB02 KKD":"1V-","NB03 Janakpuri":"1V-","NB04 Dwarka":"1V-","NB05 Shivalik":"1V-","NB06 Advant":"1V-","NB08 Rajender Nagar":"1V-","NB09 GGN PH II":"1V-","NB10 GGN SEC15":"1VD","NB07 Cloud Kitchen":"1V-"}};
 /* code is 3 chars: [0] frozen 2|1|-   [1] V or -   [2] D or - */
 function planFromCode(c){
   c=(c||'---');
@@ -453,8 +492,35 @@ function builtinPlan(weekday){
   return plan;
 }
 /* the loaded file wins; otherwise fall back to the built-in copy */
+/* ---- hand edits to the day's plan --------------------------------------
+   The schedule file is the starting point, never the last word: a holiday,
+   a late outlet or a one-off double-day is decided on the day. Whatever you
+   set in the table on screen is held in S.planEdit and overrides the file
+   everywhere - the banner, the manual grid, the challans and the ERP file
+   all read the same plan.                                                 */
 function planForWeekday(weekday){
-  return S.schedule ? readSchedule(weekday) : builtinPlan(weekday);
+  const base=S.schedule ? readSchedule(weekday) : builtinPlan(weekday);
+  for(const [o,e] of Object.entries(S.planEdit||{})){
+    if(!base[o]||!e)continue;
+    if('frozen' in e)base[o].frozen=e.frozen||null;
+    if('veg'    in e)base[o].veg=!!e.veg;
+    if('dph'    in e)base[o].dph=!!e.dph;
+  }
+  return base;
+}
+function planIsEdited(o,k){
+  const e=S.planEdit[o]; return !!(e&&k in e);
+}
+function planEditCount(){
+  return Object.values(S.planEdit||{}).reduce((n,e)=>n+Object.keys(e||{}).length,0);
+}
+function setPlanEdit(o,k,v){
+  (S.planEdit[o]=S.planEdit[o]||{})[k]=v;
+  manualReset();                       /* auto-ticks depend on the plan */
+  showDayBanner();updateGate();
+}
+function clearPlanEdits(){
+  S.planEdit={};manualReset();showDayBanner();updateGate();
 }
 const OFFSCHED=f=>f==='urgent'||f==='manual';   /* line sent although its category is not scheduled */
 const DETAIL_TABS={'Frozen Single Day':'Frozen','Frozen Double Day':'Frozen','Vegetable':'Vegetable',
@@ -809,7 +875,7 @@ function resolveMatches(products,onhandKeys,aliasMap,outlet,cat){
 
 /* ===================== STATE / LOADING ===================== */
 const S={ideal:null,schedule:null,master:null,outlets:{},names:{},folder:'',files:null,manual:{},
-         dirHandle:null,dirName:'',pickerBlocked:false};
+         dirHandle:null,dirName:'',pickerBlocked:false,planEdit:{}};
 let REPORT=null;
 async function refreshData(regen){
   if(!S.files||!S.files.length){alert('Choose the date folder first.');return;}
@@ -912,7 +978,7 @@ async function loadFiles(files){
   files=files.filter(f=>/\.(xlsx|xlsm)$/i.test(f.name)&&!f.name.startsWith('~$'));
   S.files=files;
   if(!files.length){$('loadResult').innerHTML=`<div class="banner banner-err">No Excel files found.</div>`;return;}
-  S.ideal=S.schedule=S.master=null;S.outlets={};S.names={};
+  S.ideal=S.schedule=S.master=null;S.outlets={};S.names={};S.planEdit={};
   const rel=files[0].webkitRelativePath||'';S.folder=rel?rel.split('/')[0]:'(selected files)';
   for(const f of files){
     const up=f.name.toUpperCase();
@@ -926,7 +992,13 @@ async function loadFiles(files){
       if(hit){S.outlets[o]=wb;S.names[o]=f.name;break;}
     }
   }
+  try{applyRef();renderRef();}catch(e){console.error(e);}
   showSaveBack();
+  /* read the master on its own so the health check is right even when
+     another required file is missing */
+  MASTER_STATS={rows:0,names:0,usable:0,wip:0,groups:0,peak:MASTER_STATS.peak||0,short:false};
+  MASTER_OVERRIDE=false;
+  if(S.master){try{readMaster();}catch(e){console.error(e);}}
   try{prepLinks();}catch(e){console.error(e);}
   const fixed=[['Ideal Inventory',S.names.ideal],['Outlet Schedule',S.names.schedule],['Product Master',S.names.master]]
     .map(([l,n])=>`<tr><td>${l}</td><td>${n?`<span class="tag tag-ok">Found</span> ${esc(n)}`:'<span class="tag tag-miss">MISSING</span>'}</td></tr>`).join('');
@@ -935,19 +1007,64 @@ async function loadFiles(files){
   $('loadResult').innerHTML=`<div style="margin-top:16px">
     <p class="hint" style="margin-bottom:10px">Folder: <strong>${esc(S.folder)}</strong> · ${Object.keys(S.outlets).length}/10 outlet sheets loaded</p>
     <table><tbody>${fixed}</tbody></table>
-    ${ready?'':'<div class="banner banner-err" style="margin-top:14px">Missing a required file — pick the full date folder.</div>'}</div>`;
+    ${ready?'':'<div class="banner banner-err" style="margin-top:14px">Missing a required file — pick the full date folder.</div>'}
+    ${masterHealthBanner()}</div>`;
+  const ovBox=$('masterOverride');
+  if(ovBox)ovBox.onchange=()=>{MASTER_OVERRIDE=ovBox.checked;updateGate();};
   updateGate();
   if(ready)showSchedule();
 }
 
-/* ===================== SCHEDULE ===================== */
+/* ===================== SCHEDULE =====================
+   The schedule file is read by CONTENT, not by fixed row/column numbers.
+   Outlets get added, reordered or renamed and days get extra columns; with
+   hardcoded indexes that silently hands one outlet another outlet's plan.
+   Weekday columns come from the "Outlets (Working day)" header row, outlet
+   rows from the NBxx code in column A. SCHED_ROWS / SCHED_COLS remain as a
+   fallback if the file has no recognisable header.                        */
+const WEEKDAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+let SCHED_LAYOUT=null;   /* {colsByDay,rowByOutlet,found,missing} */
+function scheduleLayout(R){
+  const colsByDay={},rowByOutlet={};
+  let hdr=-1;
+  for(let i=0;i<Math.min(R.length,15);i++){
+    const a=String((R[i]||[])[0]||'').toLowerCase();
+    if(a.includes('working day')){hdr=i;break;}
+  }
+  if(hdr>=0){
+    const row=R[hdr]||[];let cur=null;
+    for(let c=1;c<row.length;c++){
+      const v=String(row[c]==null?'':row[c]).trim();
+      const d=WEEKDAYS.find(x=>x.toLowerCase()===v.toLowerCase());
+      if(d){cur=d;colsByDay[d]=[c];}
+      else if(!v){if(cur)colsByDay[cur].push(c);}
+      else cur=null;                       /* some other label — stop extending */
+    }
+  }
+  for(let i=0;i<R.length;i++){
+    const a=String((R[i]||[])[0]||'').toUpperCase();
+    const m=a.match(/NB\s*0*(\d{1,2})/);
+    if(!m)continue;
+    const code='NB'+String(parseInt(m[1],10)).padStart(2,'0');
+    const o=OUTLETS.find(x=>x.startsWith(code));
+    if(o&&rowByOutlet[o]===undefined)rowByOutlet[o]=i;
+  }
+  const okDays=WEEKDAYS.every(d=>colsByDay[d]&&colsByDay[d].length);
+  const missing=OUTLETS.filter(o=>rowByOutlet[o]===undefined);
+  return {colsByDay,rowByOutlet,found:okDays&&missing.length<OUTLETS.length,missing,
+          usedFallback:!okDays||missing.length===OUTLETS.length};
+}
 function readSchedule(weekday){
   const plan={};OUTLETS.forEach(o=>plan[o]={frozen:null,veg:false,dph:false});
   if(!S.schedule)return plan;
   const nm=S.schedule.SheetNames.find(n=>n.includes('requirement'))||S.schedule.SheetNames[0];
-  const R=rows(S.schedule,nm),cols=SCHED_COLS[weekday]||[];
-  for(const [ri,outlet] of Object.entries(SCHED_ROWS)){
-    const row=R[ri];if(!row)continue;
+  const R=rows(S.schedule,nm);
+  const L=SCHED_LAYOUT=scheduleLayout(R);
+  const cols=(L.found?L.colsByDay[weekday]:null)||SCHED_COLS[weekday]||[];
+  const map =L.found?L.rowByOutlet
+            :Object.fromEntries(Object.entries(SCHED_ROWS).map(([ri,o])=>[o,+ri]));
+  for(const [outlet,ri] of Object.entries(map)){
+    const row=R[ri];if(!row||!plan[outlet])continue;
     for(const c of cols){const v=row[c];if(!v)continue;
       const t=String(v).trim().toLowerCase();if(t==='na')continue;
       if(t.includes('2 day')&&t.includes('frozen'))plan[outlet].frozen='2D';
@@ -957,7 +1074,9 @@ function readSchedule(weekday){
   }
   return plan;
 }
-$('dispatchDate').onchange=()=>{$('dateOK').checked=false;showDayBanner();showSchedule();updateGate();};
+$('dispatchDate').onchange=()=>{$('dateOK').checked=false;S.planEdit={};
+  Object.keys(S.manual).forEach(k=>delete S.manual[k]);
+  showDayBanner();showSchedule();updateGate();};
 /* ---- manual punch grid: outlet x 3 groups, for categories NOT scheduled today ---- */
 const GROUPS=[['Frozen',['Frozen']],['Vegetable',['Vegetable']],
               ['DS+PM+HK',['Dry Store','Packaging','Housekeeping']]];
@@ -1043,7 +1162,11 @@ function manualGrid(plan,health,cap){
 }
 
 const FULLDAY=x=>x.toLocaleDateString('en-US',{weekday:'long'});
-const FULLDATE=x=>x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+/* Never use toLocaleDateString for month names: Chrome's en-GB returns a 4-letter
+   "Sept" for September, which PACT cannot parse as a date. Fixed 3-letter table. */
+const MON3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DMY=x=>String(x.getDate()).padStart(2,'0')+' '+MON3[x.getMonth()]+' '+x.getFullYear();
+const FULLDATE=x=>DMY(x);
 function showDayBanner(){
   const v=$('dispatchDate').value;
   if(!v){$('dayBanner').innerHTML='';return;}
@@ -1159,52 +1282,66 @@ function linkStatus(it){
 function optLabel(m){
   return m.name+'   —   '+(m.code||'no code')+(m.group?'   —   '+m.group:'')+(m.L1U?'   —   '+m.L1U:'');
 }
+/* what the automatic matcher would send PACT for this product, as words */
+function autoTarget(name,erp){
+  if(!erp){try{erp=readMaster();}catch(e){erp={};}}
+  const r=resolveErp(name,erp);
+  if(r.erp){
+    const row=r.row||MASTER_ROWS.find(m=>m.name===r.erp);
+    return {text:r.erp+(row&&row.code?'   ['+row.code+(row.group?' · '+row.group:'')+']':''),ok:true,how:r.how};
+  }
+  return {text:r.how==='skip'?'punched by hand — not sent to PACT'
+        :r.candidates&&r.candidates.length?'nothing safe. Closest: '+r.candidates[0]
+        :'nothing in the master resembles this name',ok:false,how:r.how};
+}
 function renderLinks(){
   const body=$('linkTable'); if(!body)return;
   const q=($('linkFilter').value||'').toLowerCase().trim();
-  const onlyRisk=$('linkOnlyRisk').checked;
+  const mq=(($('linkMasterFind')||{}).value||'').toLowerCase().trim();
+  const show=(($('linkShow')||{}).value)||'risk';
   let list=LINK_ITEMS;
   if(q) list=list.filter(x=>x.name.toLowerCase().includes(q));
-  const rowsOut=[];
+  let ERPMAP={}; try{ERPMAP=readMaster();buildErpIndex(ERPMAP);}catch(e){}
+  const rowsOut=[];let shown=0;
   for(const it of list){
     const st=linkStatus(it);
-    if(onlyRisk && (st.tag==='auto'||st.tag==='skip') && !PLINK[it.name]) continue;
-    const cands=candidatesFor(it.name,25);
+    const isSet=!!PLINK[it.name];
+    if(show==='risk'   && (st.tag==='auto'||st.tag==='skip') && !isSet) continue;
+    if(show==='linked' && !isSet) continue;
+    shown++;
+    if(shown>400){rowsOut.push('<tr><td colspan="4" class="hint">…more products hidden. Narrow the search.</td></tr>');break;}
+    /* choices: the master search wins when you typed one, otherwise the close candidates */
+    const cands = mq
+      ? MASTER_ROWS.filter(m=>m.name.toLowerCase().includes(mq)||(m.code||'').toLowerCase().includes(mq)).slice(0,80)
+      : candidatesFor(it.name,25);
     const cur=PLINK[it.name]||'';
-    const opts=['<option value="">— leave to automatic matching —</option>']
+    const opts=['<option value="">— leave it to automatic matching —</option>']
       .concat(cands.map(m=>`<option value="${esc(m.code)}"${m.code===cur?' selected':''}>${esc(optLabel(m))}</option>`));
     if(cur&&!cands.some(m=>m.code===cur)&&MASTER_BY_CODE[cur])
       opts.splice(1,0,`<option value="${esc(cur)}" selected>${esc(optLabel(MASTER_BY_CODE[cur]))}</option>`);
+    const at=autoTarget(it.name,ERPMAP);
     rowsOut.push(`<tr>
       <td style="white-space:nowrap"><span class="tag ${st.cls}">${esc(st.text)}</span></td>
       <td>${esc(it.name)}<div class="hint">${esc(it.cat)}</div></td>
+      <td class="${at.ok?'':'badtarget'}">${esc(at.text)}</td>
       <td><select style="width:100%" data-name="${esc(it.name)}"
             onchange="setLink(this.dataset.name,this.value)">${opts.join('')}</select>
-          <button class="btn btn-ghost btn-sm" style="margin-top:4px" data-name="${esc(it.name)}"
-            onclick="searchAll(this.dataset.name,this)">Search whole master…</button></td>
+          ${cur?`<button class="btn btn-ghost btn-sm" style="margin-top:4px" data-name="${esc(it.name)}"
+            onclick="setLink(this.dataset.name,'')">Undo my choice</button>`:''}</td>
     </tr>`);
   }
   body.innerHTML = rowsOut.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Status</th><th>Product on the Ideal sheet</th>
-       <th>Master row to use (name — code — group — unit)</th></tr></thead>
+    ? `<div class="table-wrap"><table><thead><tr><th style="width:120px">Status</th>
+       <th style="width:230px">Product on your sheet</th><th>Goes into PACT as</th>
+       <th style="width:330px">Change it to</th></tr></thead>
        <tbody>${rowsOut.join('')}</tbody></table></div>`
-    : `<div class="banner banner-ok">Nothing needs a decision${q?' for that search':''}.</div>`;
+    : `<div class="banner banner-ok">Nothing to show${q?' for that search':''}.</div>`;
   const n=Object.keys(PLINK).length;
-  $('linkCount').textContent = n? n+' link'+(n===1?'':'s')+' set' : 'no links set yet';
+  $('linkCount').textContent = (n? n+' link'+(n===1?'':'s')+' set' : 'no links set yet')
+    + (mq? '  ·  master filtered by "'+mq+'"' : '')
+    + '  ·  '+MASTER_ROWS.length.toLocaleString('en-IN')+' rows in the master';
 }
-function setLink(name,code){ if(code)PLINK[name]=code; else delete PLINK[name]; renderLinks(); }
-function searchAll(name,btn){
-  const q=prompt('Search the whole Product Master for:','');
-  if(q===null)return;
-  const t=q.toLowerCase().trim();
-  const hits=MASTER_ROWS.filter(m=>m.name.toLowerCase().includes(t)||(m.code||'').toLowerCase().includes(t)).slice(0,60);
-  if(!hits.length){alert('Nothing in the master matches "'+q+'".');return;}
-  const sel=btn.parentElement.querySelector('select');
-  const cur=PLINK[name]||'';
-  sel.innerHTML=['<option value="">— leave to automatic matching —</option>']
-    .concat(hits.map(m=>`<option value="${esc(m.code)}"${m.code===cur?' selected':''}>${esc(optLabel(m))}</option>`)).join('');
-  sel.focus();
-}
+function setLink(name,code){ if(code)PLINK[name]=code; else delete PLINK[name]; saveLinks(); renderLinks(); }
 function commitLinks(btn){
   if(saveLinks()&&btn){const t=btn.textContent;btn.textContent='Saved';
     setTimeout(()=>btn.textContent=t,1600);}
@@ -1241,8 +1378,36 @@ function prepLinks(){
     : `<div class="banner banner-ok">Every product resolves to a single master row.</div>`;
   renderLinks();
 }
+/* ---- Product Master completeness -------------------------------------
+   A filtered / partial export from PACT is the single most damaging input
+   this tool can be given: it does not fail, it quietly matches everything
+   to whatever is left. So it is checked out loud, and the build is held
+   until you say you meant it.                                            */
+let MASTER_OVERRIDE=false;
+function masterHealthBanner(){
+  if(!S.master)return '';
+  const m=MASTER_STATS;
+  if(!m.usable)return `<div class="banner banner-err" style="margin-top:14px">
+    <strong>Product Master has no usable products.</strong> Every row is a WIP / non-stock row.
+    Re-export the master from PACT with no group filter.</div>`;
+  if(!m.short)return `<div class="banner banner-ok" style="margin-top:14px">
+    Product Master looks complete — ${m.usable.toLocaleString('en-IN')} transferable products
+    across ${m.groups} groups (${m.wip} WIP / non-stock rows ignored).</div>`;
+  return `<div class="banner banner-err" style="margin-top:14px">
+    <strong>This Product Master export looks incomplete — do not import against it.</strong><br>
+    Only <strong>${m.usable.toLocaleString('en-IN')}</strong> transferable products were found;
+    you have previously loaded <strong>${m.peak.toLocaleString('en-IN')}</strong>.
+    ${m.wip} rows are WIP / non-stock and were ignored.<br>
+    In PACT, re-run <em>Product Master Report</em> with <strong>no group, category or vendor filter</strong>
+    and save it over the file in this folder.
+    <label style="display:block;margin-top:9px;font-weight:600">
+      <input type="checkbox" id="masterOverride" style="width:auto;margin-right:7px">
+      I know this master is partial — build anyway
+    </label></div>`;
+}
 function updateGate(){
-  const ready=!!(S.ideal&&S.schedule&&S.master&&Object.keys(S.outlets).length);
+  const ready=!!(S.ideal&&S.schedule&&S.master&&Object.keys(S.outlets).length)
+              &&(!MASTER_STATS.short||MASTER_OVERRIDE);
   const vEl=$('startVoucher'), v=parseInt(vEl.value,10);
   const vOK=!isNaN(v)&&v>0;
   const dOK=$('dateOK').checked;
@@ -1251,7 +1416,9 @@ function updateGate(){
   $('validateBtn').disabled=!(ready&&dOK);
   $('generateBtn').disabled=!(ready&&dOK&&vOK);
   const why=[];
-  if(!ready)      why.push('pick the date folder');
+  if(S.master&&MASTER_STATS.short&&!MASTER_OVERRIDE)
+                  why.push('a complete Product Master export');
+  else if(!ready) why.push('pick the date folder');
   if(!dOK)        why.push('confirm the working &amp; dispatch day');
   if(!vOK)        why.push('enter a start voucher number');
   $('gateMsg').innerHTML=why.length?'Still needed: '+why.join(' · '):'';
@@ -1304,19 +1471,37 @@ function syncCount(){
 function showSchedule(){
   if(!S.schedule||!$('dispatchDate').value)return;
   const d=new Date($('dispatchDate').value+'T00:00:00'),w=new Date(d);w.setDate(w.getDate()-1);
-  const plan=readSchedule(w.toLocaleDateString('en-US',{weekday:'long'}));
-  const fmt=x=>x.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  const plan=planForWeekday(w.toLocaleDateString('en-US',{weekday:'long'}));
+  const fmt=x=>x.toLocaleDateString('en-US',{weekday:'short'})+', '+DMY(x);
   const body=OUTLETS.map(o=>{const p=plan[o],s=!!(p.frozen||p.veg||p.dph),g=!!S.outlets[o];
     const tag=g?'<span class="tag tag-ok">Uploaded</span>':s?'<span class="tag tag-miss">MISSING</span>':'<span class="tag tag-off">Not needed</span>';
-    return `<tr><td>${o}</td><td>${p.frozen||'—'}</td><td>${p.veg?'Yes':'—'}</td><td>${p.dph?'Yes':'—'}</td><td>${tag}</td></tr>`;}).join('');
+    const ed=k=>planIsEdited(o,k)?' edited':'';
+    const sel=`<select class="planpick${ed('frozen')}" data-o="${esc(o)}" data-k="frozen">
+        <option value=""  ${!p.frozen     ?'selected':''}>—</option>
+        <option value="1D"${p.frozen==='1D'?'selected':''}>1 Day</option>
+        <option value="2D"${p.frozen==='2D'?'selected':''}>2 Day</option></select>`;
+    const box=k=>`<label class="planbox${ed(k)}"><input type="checkbox" data-o="${esc(o)}" data-k="${k}"
+        ${p[k]?'checked':''}><span>${p[k]?'Yes':'—'}</span></label>`;
+    return `<tr><td>${o}</td><td>${sel}</td><td>${box('veg')}</td><td>${box('dph')}</td><td>${tag}</td></tr>`;}).join('');
   const miss=OUTLETS.filter(o=>{const p=plan[o];return (p.frozen||p.veg||p.dph)&&!S.outlets[o];});
+  const nEd=planEditCount();
   $('scheduleResult').innerHTML=`<div style="margin-top:18px">
     <p class="hint" style="margin-bottom:12px">Working <strong>${fmt(w)}</strong> → Dispatch <strong>${fmt(d)}</strong></p>
     ${miss.length?`<div class="banner banner-warn">${miss.length} scheduled outlet file(s) missing: ${miss.join(', ')}</div>`
                  :`<div class="banner banner-ok">All scheduled outlet files present</div>`}
+    <div class="planhead">
+      <span class="hint">Straight from the schedule file — change any cell and everything below follows it.</span>
+      ${nEd?`<span class="tag tag-warn">${nEd} change${nEd===1?'':'s'} by hand</span>
+             <button class="btn btn-sm" id="planReset">Back to schedule file</button>`:''}
+    </div>
     <table><thead><tr><th>Outlet</th><th>Frozen</th><th>Veg</th><th>DS/PM/HK</th><th>On-hand file</th></tr></thead>
     <tbody>${body}</tbody></table>
     ${$('urgentOn').checked?manualGrid(plan,stockHealth(),num($('urgentFill').value)||20):''}</div>`;
+  $('scheduleResult').querySelectorAll('select.planpick').forEach(el=>{
+    el.onchange=()=>setPlanEdit(el.dataset.o,'frozen',el.value||null);});
+  $('scheduleResult').querySelectorAll('label.planbox input').forEach(el=>{
+    el.onchange=()=>setPlanEdit(el.dataset.o,el.dataset.k,el.checked);});
+  const rb=$('planReset'); if(rb)rb.onclick=clearPlanEdits;
 }
 ['urgentOn','urgentFill','urgentMax'].forEach(id=>{const e=$(id);if(e)e.onchange=()=>{manualReset();};});
 
@@ -1346,11 +1531,29 @@ function readOnHand(){
    picker and the unit conversion both read. `erp` (name-keyed) is retained
    for the matching tiers, with DUP_NAMES marking the unsafe names.        */
 let MASTER_ROWS=[], MASTER_BY_CODE={}, DUP_NAMES=new Set();
+
+/* ---- what may NEVER be the target of an outlet transfer -----------------
+   A WIP row is a half-made batch sitting inside the kitchen. Its name is the
+   finished-goods name plus " WIP", which scores 91-95% against the outlet
+   sheet name - comfortably over the 90% floor. So whenever a Product Master
+   export is missing the real rows, every line silently matches its WIP twin
+   and the whole import goes to the wrong products. WIP rows are dropped from
+   the matching pool; the link picker still sees them through MASTER_ROWS.
+
+   The test is the " WIP" name suffix, NOT the group. PACT files plenty of
+   genuine outlet stock under Factory_WIP - Phenyle (Eazy Cleaner 5Kg) RM0502
+   and Anar (1 Kg) 50207 both live there and are dispatched every week - so
+   excluding the whole group silently drops real products.                  */
+function isNonStock(rec){
+  return /\bwip$/i.test(rec.name);
+}
+let MASTER_STATS={rows:0,names:0,usable:0,wip:0,groups:0,peak:0,short:false};
+
 function readMaster(){
   ERPIDX=null;   /* master may have changed — rebuild the index lazily */
   const erp={},R=rows(S.master,S.master.SheetNames[0]);
   MASTER_ROWS=[];MASTER_BY_CODE={};DUP_NAMES=new Set();
-  const seen={};
+  const seen={},groups=new Set();let wip=0;
   for(const r of R.slice(2)){
     if(!r||!r[3])continue;
     const n=v=>{if(v===null||v===undefined)return null;const x=parseFloat(String(v).replace(/,/g,''));return isNaN(x)?null:x;};
@@ -1359,9 +1562,17 @@ function readMaster(){
       vendor:r[5]?String(r[5]).trim():'',
       L1U:r[6],L1R:n(r[7]),L2U:r[8],L2R:n(r[9]),L3U:r[10],L3R:n(r[11])};
     MASTER_ROWS.push(rec);
+    if(rec.group)groups.add(rec.group);
     if(code)MASTER_BY_CODE[code]=rec;
+    if(isNonStock(rec)){wip++;continue;}          /* not a transfer target */
     if(seen[name])DUP_NAMES.add(name); else seen[name]=1;
     erp[name]={L1U:r[6],L1R:n(r[7]),L2U:r[8],L2R:n(r[9]),L3U:r[10],L3R:n(r[11])};}
+  const usable=Object.keys(erp).length;
+  let peak=0;try{peak=parseInt(localStorage.getItem('nb_master_peak')||'0',10)||0;}catch(e){}
+  if(usable>peak){peak=usable;try{localStorage.setItem('nb_master_peak',String(peak));}catch(e){}}
+  MASTER_STATS={rows:MASTER_ROWS.length,names:MASTER_ROWS.length,usable,wip,
+    groups:groups.size,peak,
+    short: usable<800 || (peak>400 && usable < peak*0.7)};
   return erp;
 }
 
@@ -1521,6 +1732,33 @@ function buildDispatch(plan,onhand,missing,ov,health,bulkPct,aliasMap,urgCfg,man
 /* ===================== VALIDATION ===================== */
 function validate(plan,onhand,disp,erp,additional,missing,health,bulk,bulkPct,urgent,urgSkip,urgCfg,blankZero){
   const out=[];
+
+  /* CHECK — the day's plan was changed by hand */
+  for(const [o,e] of Object.entries(S.planEdit||{})){
+    const bits=[];
+    if('frozen' in e)bits.push('Frozen → '+(e.frozen==='2D'?'2 Day':e.frozen==='1D'?'1 Day':'not ordered'));
+    if('veg'    in e)bits.push('Vegetable → '+(e.veg?'ordered':'not ordered'));
+    if('dph'    in e)bits.push('Dry Store / Packaging / Housekeeping → '+(e.dph?'ordered':'not ordered'));
+    if(bits.length)
+      out.push({sev:'WARNING',check:'Plan changed by hand',outlet:o,item:'',
+        detail:bits.join('; ')+' — set on screen, overriding the schedule file'});
+  }
+
+  /* CHECK — did the schedule file give every outlet a row? */
+  if(SCHED_LAYOUT&&SCHED_LAYOUT.usedFallback)
+    out.push({sev:'ERROR',check:'Schedule file not understood',outlet:'all',item:S.names.schedule||'Outlet schedule dispatch',
+      detail:'The weekday header row or the NBxx outlet rows could not be found, so the built-in row/column positions were used. '
+        +'If the layout of this file changed, the plan below may belong to the wrong outlets — check it before dispatching.'});
+  else if(SCHED_LAYOUT&&SCHED_LAYOUT.missing&&SCHED_LAYOUT.missing.length)
+    out.push({sev:'WARNING',check:'Outlet not in schedule file',outlet:SCHED_LAYOUT.missing.join(', '),item:'',
+      detail:'No row starting with this outlet code was found in the schedule file, so it is treated as not scheduled on any day.'});
+
+  /* CHECK — is the Product Master a full export? */
+  if(MASTER_STATS.short)
+    out.push({sev:'ERROR',check:'Product Master is partial',outlet:'all',item:S.names.master||'Product Master',
+      detail:`Only ${MASTER_STATS.usable} transferable products in this export (${MASTER_STATS.peak} seen before, `
+        +`${MASTER_STATS.wip} WIP / non-stock rows ignored). Names that are genuinely in PACT will be reported `
+        +`as "Not in ERP master". Re-run Product Master Report in PACT with no group / category / vendor filter.`});
 
   OUTLETS.forEach(o=>{if(!missing.has(o))return;
     const p=plan[o],s=!!(p.frozen||p.veg||p.dph);
@@ -1807,12 +2045,12 @@ async function doRun(dry){
       <ul class="error-list">${allErr.map(e=>`<li>${esc(e)}</li>`).join('')}</ul></div>`;return;}
 
   const d=new Date($('dispatchDate').value+'T00:00:00'),w=new Date(d);w.setDate(w.getDate()-1);
-  const f1=x=>x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const f1=x=>DMY(x);
   const full=x=>f1(x)+' ('+x.toLocaleDateString('en-US',{weekday:'short'})+')';
   const fileStr=x=>String(x.getDate()).padStart(2,'0')+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+x.getFullYear();
   const workStr=full(w),dispStr=full(d),dFile=fileStr(d),dLabel=f1(d);
 
-  const plan=readSchedule(w.toLocaleDateString('en-US',{weekday:'long'}));
+  const plan=planForWeekday(w.toLocaleDateString('en-US',{weekday:'long'}));
   const onhand=readOnHand(),erp=readMaster(),health=stockHealth();
   const missing=new Set(OUTLETS.filter(o=>!S.outlets[o]));
   const bulkPct=null;   /* full-replenishment rule removed — the 20% figure only ever applied
@@ -1849,7 +2087,8 @@ async function doRun(dry){
       const en=R.erp;
       const [cu,bu,bq]=convert(en,uom,qty,erp,R.row);valid.push([en,cu,qty,bu,bq]);});
     if(!valid.length)return;
-    valid.forEach(([en,cu,oq,bu,bq])=>erpRows.push([dLabel,VP,n,'Factory',OUTLET_ERP[outlet],en,cu,oq,bu,bq,'','']));
+    /* column 1 must be a REAL date value, not text — PACT rejects text dates */
+    valid.forEach(([en,cu,oq,bu,bq])=>erpRows.push([new Date(d),VP,n,'Factory',OUTLET_ERP[outlet],en,cu,oq,bu,bq,'','']));
     summary.push([VP+n,dLabel,outlet,label,valid.length,valid.reduce((s,x)=>s+x[2],0)]);});
 
   /* bread */
@@ -2222,7 +2461,10 @@ async function writeErpUpload(erpRows,dLabel){
   erpRows.forEach((r,i)=>{
     const row=ws.getRow(i+2);
     r.forEach((v,k)=>{const c=row.getCell(k+1);c.value=v===''?null:v;
+      if(k===0&&v instanceof Date)c.numFmt='dd-mmm-yyyy';
       styleCell(c,{align:[2,7,9].includes(k)?'center':'left',border:false});});});
+  /* exactly 12 columns — PACT rejects the file if anything extra is appended */
+  ws.spliceColumns(13,ws.columnCount-12>0?ws.columnCount-12:0);
   await save(wb,'Outlet.xlsx','PACT ERP import file');
 }
 
@@ -2279,6 +2521,15 @@ async function writeValidation(issues,plan,missing,summary,health,bulk,bulkPct,w
   st.alignment={horizontal:'center'};ws.mergeCells(2,1,2,6);ws.getRow(2).height=22;
 
   let r=4;
+  ws.getCell(r,1).value='PRODUCT MASTER USED';ws.getCell(r,1).font={bold:true,size:11};r++;
+  headerRow(ws,r,['Master file','Rows','Transferable','WIP / non-stock ignored','Verdict','']);r++;
+  {const m=MASTER_STATS,row=ws.getRow(r);
+   [S.names.master||'—',m.rows,m.usable,m.wip,
+    m.short?`PARTIAL EXPORT — only ${m.usable} of the ${m.peak} products seen before`
+           :'Complete',''].forEach((v,i)=>{
+     const c=row.getCell(i+1);c.value=v;
+     styleCell(c,{align:i===0?'left':'center',bg:i===4?(m.short?C.red:C.okGreen):undefined,bold:i===4});});
+   r+=2;}
   ws.getCell(r,1).value="TODAY'S SCHEDULE";ws.getCell(r,1).font={bold:true,size:11};r++;
   headerRow(ws,r,['Outlet','Frozen','Vegetable','DS/PM/HK','On-hand file','']);r++;
   OUTLETS.forEach(o=>{
@@ -3023,8 +3274,96 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.tab-body').forEach(x=>x.classList.remove('active'));
   t.classList.add('active');$('tab-'+t.dataset.tab).classList.add('active');});
+/* ===================== REFERENCE FILES ==============================
+   The Product Master, Ideal Inventory and Outlet schedule change every few
+   weeks, not every day. Kept here they are read from this browser whenever
+   the date folder does not carry its own copy, so a new master is a single
+   "Load a newer file" away and the day's folder can hold only outlet sheets.
+   Stored as base64 in localStorage — a few hundred KB, well inside the quota. */
+const REF_KEY='nutriobox_reference_files_v1';
+const REF_SLOTS=[
+  {k:'master',  label:'Product Master',  hint:'product names, codes, unit ladder'},
+  {k:'ideal',   label:'Ideal Inventory', hint:'ideal + order quantity per outlet'},
+  {k:'schedule',label:'Outlet schedule', hint:'which outlet gets what, which day'}];
+let REF={};
+function loadRef(){
+  try{REF=JSON.parse(localStorage.getItem(REF_KEY)||'{}');}catch(e){REF={};}
+  for(const s of REF_SLOTS){
+    const r=REF[s.k]; if(!r||!r.b64)continue;
+    try{r.wb=XLSX.read(r.b64,{type:'base64'});}catch(e){console.error(e);delete REF[s.k];}
+  }
+  return REF;
+}
+function saveRef(){
+  const out={};
+  for(const [k,v] of Object.entries(REF)) if(v&&v.b64) out[k]={name:v.name,b64:v.b64,when:v.when};
+  try{localStorage.setItem(REF_KEY,JSON.stringify(out));return true;}
+  catch(e){alert('This browser would not store the file.\n\n'+e.message
+    +'\n\nKeep the file in the date folder instead.');return false;}
+}
+function refStat(k){
+  const r=REF[k]; if(!r||!r.wb)return null;
+  if(k==='master'){
+    const keep=S.master; S.master=r.wb;
+    let st=null; try{readMaster();st={...MASTER_STATS};}catch(e){}
+    S.master=keep; if(S.master){try{readMaster();}catch(e){}}
+    return st;
+  }
+  return {sheets:r.wb.SheetNames.length};
+}
+function renderRef(){
+  const box=$('refRows'); if(!box)return;
+  box.innerHTML=REF_SLOTS.map(s=>{
+    const r=REF[s.k], live=s.k==='master'?S.master:s.k==='ideal'?S.ideal:S.schedule;
+    let note='',cls='tag-miss',txt='none kept';
+    if(r&&r.wb){
+      cls='tag-ok';txt='kept here';
+      note=esc(r.name)+(r.when?'  ·  loaded '+esc(r.when):'');
+      if(s.k==='master'){
+        const st=refStat('master');
+        if(st)note+='  ·  '+st.usable.toLocaleString('en-IN')+' transferable products, '+st.wip+' WIP ignored'
+                  +(st.short?'  ·  LOOKS LIKE A PARTIAL EXPORT':'');
+      }else note+='  ·  '+r.wb.SheetNames.length+' tab(s)';
+    }else note='<span class="hint">nothing kept — the date folder must carry this file</span>';
+    const from=live?(S.names[s.k]&&S.names[s.k]!==(r&&r.name)?'in use from the date folder: '+esc(S.names[s.k])
+                     :'in use: '+esc(S.names[s.k]||(r&&r.name)||'')):'not loaded yet';
+    return `<div class="refrow">
+      <div class="refname"><strong>${s.label}</strong><div class="hint">${s.hint}</div></div>
+      <div class="refnote"><span class="tag ${cls}">${txt}</span> ${note}
+        <div class="hint" style="margin-top:3px">${from}</div></div>
+      <div class="refbtns">
+        <button class="btn btn-sm" data-slot="${s.k}" onclick="pickRef(this.dataset.slot)">Load a newer file</button>
+        ${r&&r.wb?`<button class="btn btn-ghost btn-sm" data-slot="${s.k}" onclick="forgetRef(this.dataset.slot)">Forget</button>`:''}
+      </div></div>`;}).join('');
+}
+let REF_TARGET=null;
+function pickRef(k){REF_TARGET=k;$('refPicker').value='';$('refPicker').click();}
+function forgetRef(k){delete REF[k];saveRef();applyRef();renderRef();updateGate();}
+$('refPicker').onchange=async e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f||!REF_TARGET)return;
+  const buf=await f.arrayBuffer();
+  let b64='';const bytes=new Uint8Array(buf);
+  for(let i=0;i<bytes.length;i+=0x8000)b64+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  b64=btoa(b64);
+  let wb;try{wb=XLSX.read(b64,{type:'base64'});}catch(err){alert('Could not read that file.\n\n'+err.message);return;}
+  REF[REF_TARGET]={name:f.name,b64,when:DMY(new Date()),wb};
+  if(saveRef()){applyRef();renderRef();try{prepLinks();}catch(err){}updateGate();
+    if(S.ideal&&S.schedule)showSchedule();}
+};
+/* put the kept copies into play wherever the folder did not supply one */
+function applyRef(){
+  for(const s of REF_SLOTS){
+    const r=REF[s.k];
+    const has=s.k==='master'?S.master:s.k==='ideal'?S.ideal:S.schedule;
+    if(has||!r||!r.wb)continue;
+    if(s.k==='master'){S.master=r.wb;S.names.master=r.name+'  (kept here)';}
+    else if(s.k==='ideal'){S.ideal=r.wb;S.names.ideal=r.name+'  (kept here)';}
+    else {S.schedule=r.wb;S.names.schedule=r.name+'  (kept here)';}
+  }
+}
 const localDate=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 (()=>{try{loadLinks();}catch(e){}
+ try{loadRef();applyRef();renderRef();}catch(e){console.error(e);}
  try{showSaveBack();}catch(e){}
  const t=new Date();t.setDate(t.getDate()+1);$('dispatchDate').value=localDate(t);
   showDayBanner();updateGate();
