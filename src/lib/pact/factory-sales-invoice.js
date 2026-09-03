@@ -289,6 +289,30 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     while (Date.now() < deadline) {
       const cdlg = page.locator('modal-container.show').first();
       if (await cdlg.isVisible().catch(() => false)) {
+        const mtext = ((await cdlg.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+        // PACT interrupts Post with a "Generate Batch Numbers" window for batch-
+        // tracked finished goods: the batch numbers must be GENERATED then saved
+        // before the invoice can leave Draft; it is not a plain confirm dialog.
+        if (/generate batch|batch number/i.test(mtext)) {
+          const bbtns = await cdlg.evaluate((m) => [...m.querySelectorAll('button, .List__button')].map((b) => (b.textContent || '').trim()).filter(Boolean).slice(0, 20)).catch(() => []);
+          console.log('  generate-batch-numbers window | buttons: ' + (bbtns.join(' / ') || '?'));
+          for (const nm of [/^Generate\s*&.*/i, /^Auto\s*Generate$/i, /^Generate$/i, /^Generate\b.*/i]) {
+            const g = cdlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
+            const gt = cdlg.getByText(nm).filter({ visible: true }).first();
+            if (await g.count().catch(() => 0)) { await g.click({ timeout: 4000 }).catch(() => {}); break; }
+            else if (await gt.count().catch(() => 0)) { await gt.click({ timeout: 4000 }).catch(() => {}); break; }
+          }
+          await page.waitForTimeout(900);
+          for (const nm of [/^Save\s*&\s*Close$/i, /^Save$/i, /^Ok$/i, /^Confirm$/i, /^Apply$/i, /^Proceed$/i, /^Yes$/i, /^Close$/i]) {
+            const c = cdlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
+            const ct = cdlg.getByText(nm).filter({ visible: true }).first();
+            if (await c.count().catch(() => 0)) { await c.click({ timeout: 4000 }).catch(() => {}); break; }
+            else if (await ct.count().catch(() => 0)) { await ct.click({ timeout: 4000 }).catch(() => {}); break; }
+          }
+          confirmClicked = true;
+          await page.waitForTimeout(900);
+          continue;
+        }
         const cbtn = cdlg.getByRole('button', { name: /^(Ok|Yes|Post|Confirm|Save|Proceed|Continue)$/i }).filter({ visible: true }).first();
         if (await cbtn.count().catch(() => 0)) await cbtn.click({ timeout: 4000 }).catch(() => {});
         else await cdlg.locator('.List__button, button').filter({ visible: true }).first().click({ timeout: 4000 }).catch(() => {});
@@ -322,7 +346,7 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     console.log('  Post attempt ' + attempt + ' blocked: ' + (warn || 'still Draft'));
     const stMatch = warn.match(/Sale ?Type\s*\(([^)]+)\)/i);
     if (stMatch) { await setGstSaleType(page, stMatch[1].trim()); await refetchVoucherNo(page, order.company); await page.waitForTimeout(2000); }
-    else if (/voucher\s*no/i.test(warn)) { await refetchVoucherNo(page, order.company); }
+    else if (/voucher\s*no/i.test(warn) && !/generate batch|batch number/i.test(warn)) { await refetchVoucherNo(page, order.company); }
     else { await page.waitForTimeout(2500); }  // no named warning yet: fields may still be settling — retry Post
   }
   await page.screenshot({ path: path.join('/tmp', 'fsi-after-post.png'), fullPage: true }).catch(() => {});
