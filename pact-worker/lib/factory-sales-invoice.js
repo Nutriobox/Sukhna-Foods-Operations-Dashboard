@@ -220,12 +220,21 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
         await page.waitForTimeout(500);
         if ((await scan.inputValue().catch(() => '')) !== String(bc)) { cleared = true; break; }
       }
-      // if a batch-allocation dialog opened, note it (needs handling) and close it
+      // Batch-allocation dialog: PACT needs the scanned lot CONFIRMED, not closed.
+      // Closing it leaves the line with no lot allocated, so the invoice can never
+      // leave Draft. Confirm the primary button (which accepts the pre-filled lot),
+      // and log the buttons so a wrong guess is diagnosable.
       const dlg = page.locator('modal-container.show').first();
       if (await dlg.isVisible().catch(() => false)) {
-        console.log('  needs batch allocation (dialog opened): ' + bc);
-        await dlg.getByRole('button', { name: 'Close', exact: false }).first().click({ timeout: 4000 }).catch(() => {});
-        await page.waitForTimeout(800);
+        const dbtns = await dlg.evaluate((m) => [...m.querySelectorAll('button, .List__button')].map(b => (b.textContent || '').trim()).filter(Boolean).slice(0, 15)).catch(() => []);
+        console.log('  batch-allocation dialog for ' + bc + ' | buttons: ' + (dbtns.join(' / ') || '?'));
+        let allocated = false;
+        for (const nm of [/^Save ?& ?Add$/i, /^Ok$/i, /^Save$/i, /^Allocate$/i, /^Add$/i, /^Confirm$/i, /^Proceed$/i, /^Yes$/i]) {
+          const btn = dlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
+          if (await btn.count().catch(() => 0)) { await btn.click({ timeout: 4000 }).catch(() => {}); allocated = true; console.log('    allocation confirmed'); break; }
+        }
+        if (!allocated) { console.log('    ! no confirm button found — closing'); await dlg.getByRole('button', { name: 'Close', exact: false }).first().click({ timeout: 4000 }).catch(() => {}); }
+        await page.waitForTimeout(1000);
       }
       if (cleared) {
         entered++;
@@ -303,6 +312,16 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     }
     const draftVisible = success ? 0 : await page.getByText('Draft', { exact: true }).filter({ visible: true }).count().catch(() => 0);
     if (draftVisible === 0 && !warn) { posted = true; break; }
+    if (!warn) {
+      // No known validation toast, yet still Draft — capture whatever PACT is
+      // showing (rejection dialog / notification) so the failure isn't a black box.
+      const extra = await page.evaluate(() => {
+        const bits = [];
+        document.querySelectorAll('modal-container.show, .toast, .toast-message, .alert, [class*="notification"], [class*="validation"]').forEach((e) => { const t = (e.innerText || '').replace(/\s+/g, ' ').trim(); if (t) bits.push(t); });
+        return bits.join(' | ').slice(0, 240);
+      }).catch(() => '');
+      if (extra) warn = extra;
+    }
     reason = warn.slice(0, 180);
     console.log('  Post attempt ' + attempt + ' blocked: ' + (warn || 'still Draft'));
     const stMatch = warn.match(/Sale ?Type\s*\(([^)]+)\)/i);
