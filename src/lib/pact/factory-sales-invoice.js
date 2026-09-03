@@ -92,11 +92,29 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   // 1b. Voucher Prefix / Location popup (same component as Stock Inward).
   const vp = page.locator('modal-container.show').first();
   if (await vp.isVisible().catch(() => false)) {
-    await vp.locator('.List__button').first().click().catch(() => {});
-    await page.waitForTimeout(700);
-    await page.getByText(order.company || 'Factory', { exact: true }).first().click({ timeout: 8000 }).catch(() => {});
+    // The FSI series ("AF/26-27/...") is the "Factory" Location. PACT only
+    // auto-assigns the Doc No once a Location is picked here — if none is
+    // selected the Post later fails with "Voucher No cannot be blank". Prefer
+    // Factory (verified correct for this series), fall back to any location the
+    // order names or the first option, then confirm a number actually appeared.
+    await vp.locator('.List__button').first().click().catch(() => {});   // open the Location dropdown
+    await page.waitForTimeout(800);
+    const loc = order.location || order.company || 'Factory';
+    let picked = await page.getByText('Factory', { exact: true }).first().click({ timeout: 5000 }).then(() => true).catch(() => false);
+    if (!picked && loc !== 'Factory') picked = await page.getByText(loc, { exact: true }).first().click({ timeout: 5000 }).then(() => true).catch(() => false);
+    if (!picked) await vp.locator('.List__name, .List__button, li, option').filter({ visible: true }).first().click({ timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(400);
     await vp.getByRole('button', { name: 'Ok' }).click({ timeout: 6000 }).catch(() => {});
     await vp.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+    // Verify the Doc No populated; if PACT left it blank, re-assign via the magnifier picker.
+    let vnow = await readVoucher(page);
+    if (!(vnow.num && /\d/.test(vnow.num))) {
+      console.log('  Doc No blank after prefix modal — re-assigning via magnifier');
+      await refetchVoucherNo(page, 'Factory');
+      vnow = await readVoucher(page);
+    }
+    console.log('  Doc No after prefix = ' + (vnow.num ? ((vnow.prefix || '') + vnow.num) : '(blank)'));
   }
   await page.waitForTimeout(1500);
 
