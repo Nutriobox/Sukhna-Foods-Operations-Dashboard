@@ -227,6 +227,18 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     }
   }
 
+  // 3b. Narration: mark the invoice as auto-posted by the AI worker and record
+  //     the Doc No that PACT assigned (audit trail, visible in PACT + the app).
+  try {
+    const vN = await readVoucher(page);
+    const dn = vN.num ? ((vN.prefix || '') + vN.num) : '';
+    const narr = 'Entry made by AI' + (dn ? ' - ' + dn : '');
+    const nf = page.locator('#CommonNarration').first();
+    await nf.click({ timeout: 4000 }).catch(() => {});
+    await nf.fill(narr).catch(() => {});
+    console.log('  narration = ' + narr);
+  } catch (e) { console.log('  narration fill skipped: ' + String(e.message).split('\n')[0]); }
+
   // 4. Stop before Post unless told to post (safe default).
   if (dryRun) {
     await page.screenshot({ path: path.join('/tmp', 'fsi-filled.png'), fullPage: true }).catch(() => {});
