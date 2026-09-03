@@ -58,6 +58,24 @@ async function setStatus(patch) {
       (r && r.skipped && r.skipped.length ? `, ${r.skipped.length} skipped (not in stock)` : '') +
       (DRY_RUN ? ' \u2014 dry run, not posted' : (' \u2014 POSTED' + (r && r.docNo ? ' as ' + r.docNo : '')));
     await setStatus({ status: 'done', invoice: ((r && r.docNo) || order.soNumber || null), error: summary });
+    // Record the posted invoice so it shows in "View Past Sales Invoice". Items
+    // are the aggregated barcodes (code_batch_weight) parsed for a readable list.
+    if (!DRY_RUN && sb && r && r.posted) {
+      try {
+        const items = (order.barcodes || []).map((bc) => {
+          const parts = String(bc).split('_');
+          return { code: parts[0] || '', batch: parts[1] || '', weight: parts[2] || '', barcode: String(bc) };
+        });
+        await sb.from('sales_invoices').insert({
+          vendor_name: order.customer || order.vendor || null,
+          invoice_number: r.docNo || null,
+          invoice_date: new Date().toISOString().slice(0, 10),
+          amount: null,
+          items,
+        });
+        console.log('Recorded invoice ' + (r.docNo || '') + ' (' + items.length + ' items) in sales_invoices.');
+      } catch (e) { console.log('sales_invoices insert failed: ' + (e && e.message ? e.message : e)); }
+    }
     console.log('JOB DONE. ' + summary);
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
