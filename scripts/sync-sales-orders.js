@@ -120,8 +120,15 @@ async function clickFirst(page, factories, label, timeout) {
     catch (e) { log('[ui] dblclick skipped: ' + String(e.message).slice(0, 60)); }
     await page.waitForTimeout(3000);
 
-    try { await page.getByText('FSOD-26-27/').first().click({ timeout: 8000 }); log('[ui] picked filter node'); }
-    catch (e) { log('[ui] filter node skipped: ' + String(e.message).slice(0, 60)); }
+    // Cost centers must be selected or the report returns NO rows — this step was
+    // missing, so every run captured an empty (306-byte) response and failed.
+    try { await page.getByText('Select All', { exact: true }).first().click({ timeout: 6000 }); log('[ui] checked Select All (cost centers)'); }
+    catch (e) { log('[ui] Select All skip: ' + String(e.message).slice(0, 50)); }
+    await page.waitForTimeout(600);
+    // Narrow the SO-No filter to this fiscal year's prefix (matches every order).
+    try { await page.getByText('FSOD-26-27/').first().click({ timeout: 6000 }); log('[ui] picked filter node'); }
+    catch (e) { log('[ui] filter node skipped: ' + String(e.message).slice(0, 50)); }
+    // OK runs the report (fires the ReportDataSet data query we intercept).
     await clickFirst(page, [
       () => page.getByRole('button', { name: 'OK' }),
       () => page.getByRole('button', { name: ' OK' }),
@@ -129,9 +136,10 @@ async function clickFirst(page, factories, label, timeout) {
     ], 'OK');
     await page.waitForTimeout(3000);
 
-    // The report often needs an explicit run. Try Refresh, then Regenerate, then Export.
-    if (!dataText) { await clickFirst(page, [() => page.getByRole('button', { name: /Refresh/i }), () => page.getByText('Refresh', { exact: true })], 'Refresh'); await page.waitForTimeout(6000); }
-    if (!dataText) { await clickFirst(page, [() => page.getByRole('button', { name: /Regenerate/i }), () => page.getByText('Regenerate', { exact: true })], 'Regenerate'); await page.waitForTimeout(8000); }
+    // Fallbacks only if OK alone didn't run it — waits are now conditional on the
+    // click landing, so a missing button no longer costs 14s of dead waiting.
+    if (!dataText) { if (await clickFirst(page, [() => page.getByRole('button', { name: /Refresh/i }), () => page.getByText('Refresh', { exact: true })], 'Refresh')) await page.waitForTimeout(6000); }
+    if (!dataText) { if (await clickFirst(page, [() => page.getByRole('button', { name: /Regenerate/i }), () => page.getByText('Regenerate', { exact: true })], 'Regenerate')) await page.waitForTimeout(8000); }
     if (!dataText) {
       // Export path (what the recording used): Export -> Grid XLS -> Export
       if (await clickFirst(page, [() => page.getByRole('button', { name: /Export/i }), () => page.getByText('Export')], 'Export')) {
