@@ -90,16 +90,21 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   await page.waitForTimeout(2500);
 
   // 1b. Voucher Prefix / Location popup (same component as Stock Inward).
+  // The popup surfaces ~3s after the screen opens (later on slow CI runners), so
+  // POLL for it instead of assuming a fixed delay. Picking the "Factory" Location
+  // is what makes PACT auto-assign the Doc No (AF/26-27/NNN); miss it and every
+  // Post fails with "Voucher No cannot be blank". (The Doc No magnifier opens a
+  // different "Select Document" picker, so it is NOT a fallback for this.)
   const vp = page.locator('modal-container.show').first();
-  if (await vp.isVisible().catch(() => false)) {
-    // The FSI series ("AF/26-27/...") is the "Factory" Location. PACT only
-    // auto-assigns the Doc No once a Location is picked here — if none is
-    // selected the Post later fails with "Voucher No cannot be blank". Prefer
-    // Factory (verified correct for this series), fall back to any location the
-    // order names or the first option, then confirm a number actually appeared.
+  let vpSeen = false;
+  for (let i = 0; i < 30 && !vpSeen; i++) {                 // up to ~12s
+    if (await vp.isVisible().catch(() => false)) { vpSeen = true; break; }
+    await page.waitForTimeout(400);
+  }
+  if (vpSeen) {
     await vp.locator('.List__button').first().click().catch(() => {});   // open the Location dropdown
     await page.waitForTimeout(800);
-    const loc = order.location || order.company || 'Factory';
+    const loc = order.location || 'Factory';
     let picked = await page.getByText('Factory', { exact: true }).first().click({ timeout: 5000 }).then(() => true).catch(() => false);
     if (!picked && loc !== 'Factory') picked = await page.getByText(loc, { exact: true }).first().click({ timeout: 5000 }).then(() => true).catch(() => false);
     if (!picked) await vp.locator('.List__name, .List__button, li, option').filter({ visible: true }).first().click({ timeout: 4000 }).catch(() => {});
@@ -107,16 +112,12 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
     await vp.getByRole('button', { name: 'Ok' }).click({ timeout: 6000 }).catch(() => {});
     await vp.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await page.waitForTimeout(1200);
-    // Verify the Doc No populated; if PACT left it blank, re-assign via the magnifier picker.
-    let vnow = await readVoucher(page);
-    if (!(vnow.num && /\d/.test(vnow.num))) {
-      console.log('  Doc No blank after prefix modal — re-assigning via magnifier');
-      await refetchVoucherNo(page, 'Factory');
-      vnow = await readVoucher(page);
-    }
-    console.log('  Doc No after prefix = ' + (vnow.num ? ((vnow.prefix || '') + vnow.num) : '(blank)'));
+  } else {
+    console.log('  ! Voucher Prefix popup never appeared within ~12s');
   }
-  await page.waitForTimeout(1500);
+  const vchk = await readVoucher(page);
+  console.log('  Doc No after prefix = ' + (vchk.num ? ((vchk.prefix || '') + vchk.num) : '(blank)'));
+  await page.waitForTimeout(800);
 
   // 2. Select the SO No (pulls customer + pending lines). Best-effort; confirm
   //    the selector from the FSI_DIAG dump on the first real run.
