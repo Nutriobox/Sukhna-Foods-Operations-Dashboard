@@ -71,6 +71,105 @@ async function refetchVoucherNo(page, company) {
   return !!(fin.num && /\d/.test(fin.num));
 }
 
+// The "Scan Batch" dialog is a SlickGrid. Each row is one available lot; the
+// Quantity column must be filled with how much of THIS scan to draw from that lot
+// BEFORE Save. Clicking Save with an empty Quantity allocates nothing, so the line
+// stays unallocated and the invoice can never leave Draft (root cause of the
+// "entered=N/N but still Draft" failures). We read the headers to find the
+// Quantity + Batch columns, pick the lot row that matches the scanned batch (or
+// the first/only lot), navigate SlickGrid's active cell there with the keyboard
+// (robust to horizontal virtualization), type the scanned weight, commit, Save.
+async function allocateBatch(page, dlg, bc) {
+  const parts = String(bc).split('_');
+  const weight = parts[parts.length - 1] || '';
+  const batch = parts.slice(1, -1).join('_');   // e.g. "FN0031/01042604"
+
+  // Dump the grid so a failed allocation is never a black box.
+  const info = await dlg.evaluate((m) => {
+    const headers = [...m.querySelectorAll('.slick-header-column')].map(h => (h.textContent || '').trim());
+    const rows = [...m.querySelectorAll('.grid-canvas .slick-row')].slice(0, 8).map(r =>
+      [...r.querySelectorAll('.slick-cell')].map(c => (c.textContent || '').trim()));
+    const btns = [...m.querySelectorAll('button, .List__button, .primary-btn-wicon')].map(b => (b.textContent || '').trim()).filter(Boolean).slice(0, 12);
+    return { headers, rows, nRows: m.querySelectorAll('.grid-canvas .slick-row').length, btns };
+  }).catch(() => ({ headers: [], rows: [], nRows: 0, btns: [] }));
+  console.log('    [batch grid] headers: ' + (info.headers.filter(Boolean).join(' | ') || '?'));
+  console.log('    [batch grid] ' + info.nRows + ' row(s)' + (info.rows[0] ? ' e.g. ' + JSON.stringify(info.rows[0]) : '') + ' | btns: ' + info.btns.join(' / '));
+
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+  const qtyIdx = info.headers.findIndex(h => ['quantity', 'qty'].includes(norm(h)));
+  const batchIdx = info.headers.findIndex(h => norm(h).includes('batch'));
+
+  // Target lot row: match by batch text if we can, else the first row.
+  let rowIdx = 0;
+  if (batchIdx >= 0 && batch) {
+    const key = norm(batch).slice(0, 8);
+    const f = info.rows.findIndex(cells => cells[batchIdx] && norm(cells[batchIdx]).includes(key));
+    if (f >= 0) rowIdx = f;
+  }
+
+  let qtySet = false;
+  const qtyCell = () => dlg.locator('.grid-canvas .slick-row').nth(rowIdx).locator('.slick-cell').nth(qtyIdx);
+  const cellHasNum = async () => /\d/.test(((await qtyCell().textContent().catch(() => '')) || '').replace(/[^\d.]/g, ''));
+  const typeIntoEditor = async () => {
+    const editor = dlg.locator('.slick-cell.active input, input.editor-text, .slick-cell.editable input, .slick-cell input').filter({ visible: true }).first();
+    if (await editor.count().catch(() => 0)) {
+      await editor.fill('').catch(() => {});
+      await editor.pressSequentially(String(weight), { delay: 15 }).catch(() => {});
+    } else {
+      await page.keyboard.type(String(weight), { delay: 15 }).catch(() => {});   // SlickGrid opens a text editor on first keypress
+    }
+    await page.keyboard.press('Enter').catch(() => {});   // commit
+    await page.waitForTimeout(300);
+  };
+  if (qtyIdx >= 0 && weight) {
+    try {
+      const row = dlg.locator('.grid-canvas .slick-row').nth(rowIdx);
+      // Strategy A: activate SlickGrid on the leftmost (always-rendered) cell of the
+      // target row, walk right to the Quantity column (SlickGrid auto-scrolls it into
+      // view), open the editor with Enter, type, commit.
+      await row.locator('.slick-cell').first().scrollIntoViewIfNeeded().catch(() => {});
+      await row.locator('.slick-cell').first().click({ timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(120);
+      for (let c = 0; c < qtyIdx; c++) { await page.keyboard.press('ArrowRight'); await page.waitForTimeout(40); }
+      await page.keyboard.press('Enter').catch(() => {});
+      await page.waitForTimeout(120);
+      await typeIntoEditor();
+      qtySet = await cellHasNum();
+      // Strategy B: the Quantity cell is now scrolled into view — double-click it to
+      // open the editor directly and retype.
+      if (!qtySet) {
+        await qtyCell().dblclick({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(150);
+        await typeIntoEditor();
+        qtySet = await cellHasNum();
+      }
+      const now = ((await qtyCell().textContent().catch(() => '')) || '').trim();
+      console.log('    [batch grid] entered qty ' + weight + ' (row ' + rowIdx + ', col ' + qtyIdx + ') -> cell now "' + now + '"' + (qtySet ? '' : '  <-- NOT set!'));
+    } catch (e) {
+      console.log('    [batch grid] qty entry error: ' + String(e.message).split('\n')[0]);
+    }
+  } else {
+    console.log('    [batch grid] ! could not locate Quantity column (qtyIdx=' + qtyIdx + ') or weight (' + weight + ') — headers=' + JSON.stringify(info.headers.filter(Boolean)));
+  }
+
+  // Save the allocation (Save is a styled element, not an ARIA button).
+  let saved = false;
+  for (const nm of [/^Save ?& ?Add$/i, /^Save$/i, /^Ok$/i, /^Allocate$/i, /^Add$/i]) {
+    const b = dlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
+    const t = dlg.getByText(nm).filter({ visible: true }).first();
+    if (await b.count().catch(() => 0)) { await b.click({ timeout: 4000 }).catch(() => {}); saved = true; }
+    else if (await t.count().catch(() => 0)) { await t.click({ timeout: 4000 }).catch(() => {}); saved = true; }
+    if (saved) { console.log('    batch allocation saved via ' + nm.source + (qtySet ? ' (qty set)' : ' (NO QTY!)')); break; }
+  }
+  if (!saved) {
+    const prim = dlg.locator('.primary-btn-wicon, .primary-btn, button.btn-primary').filter({ visible: true }).first();
+    if (await prim.count().catch(() => 0)) { await prim.click({ timeout: 4000 }).catch(() => {}); saved = true; console.log('    batch allocation saved via primary button' + (qtySet ? ' (qty set)' : ' (NO QTY!)')); }
+  }
+  if (!saved) { console.log('    ! no Save button — closing'); await dlg.getByText('Close', { exact: true }).first().click({ timeout: 4000 }).catch(() => {}); }
+  await page.waitForTimeout(1000);
+  return qtySet;
+}
+
 async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   const DIAG = String(process.env.FSI_DIAG || '') === '1';
   const soNumber = String(order.soNumber || order.so || '').trim();
@@ -212,25 +311,8 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
       // and log the buttons so a wrong guess is diagnosable.
       const dlg = page.locator('modal-container.show').first();
       if (await dlg.isVisible().catch(() => false)) {
-        const dbtns = await dlg.evaluate((m) => [...m.querySelectorAll('button, .List__button')].map(b => (b.textContent || '').trim()).filter(Boolean).slice(0, 15)).catch(() => []);
-        console.log('  batch-allocation dialog for ' + bc + ' | buttons: ' + (dbtns.join(' / ') || '?'));
-        let allocated = false;
-        // PACT renders these as styled elements, not ARIA buttons, so match by
-        // ROLE and by visible TEXT (Save is the confirm on the lot dialog).
-        for (const nm of [/^Save ?& ?Add$/i, /^Save$/i, /^Ok$/i, /^Allocate$/i, /^Add$/i, /^Confirm$/i, /^Proceed$/i, /^Yes$/i]) {
-          const byRole = dlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
-          const byText = dlg.getByText(nm).filter({ visible: true }).first();
-          if (await byRole.count().catch(() => 0)) { await byRole.click({ timeout: 4000 }).catch(() => {}); allocated = true; }
-          else if (await byText.count().catch(() => 0)) { await byText.click({ timeout: 4000 }).catch(() => {}); allocated = true; }
-          if (allocated) { console.log('    allocation confirmed via ' + nm.source); break; }
-        }
-        // Fall back to the dialog's primary button by PACT's class.
-        if (!allocated) {
-          const prim = dlg.locator('.primary-btn-wicon, .primary-btn, .primary-btn-group, button.btn-primary').filter({ visible: true }).first();
-          if (await prim.count().catch(() => 0)) { await prim.click({ timeout: 4000 }).catch(() => {}); allocated = true; console.log('    allocation confirmed via primary button'); }
-        }
-        if (!allocated) { console.log('    ! no confirm button found — closing'); await dlg.getByText('Close', { exact: true }).first().click({ timeout: 4000 }).catch(() => dlg.getByRole('button', { name: 'Close', exact: false }).first().click({ timeout: 4000 }).catch(() => {})); }
-        await page.waitForTimeout(1000);
+        console.log('  batch-allocation dialog for ' + bc);
+        await allocateBatch(page, dlg, bc);
       }
       if (cleared) {
         entered++;
