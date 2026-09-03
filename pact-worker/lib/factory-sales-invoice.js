@@ -229,11 +229,21 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
         const dbtns = await dlg.evaluate((m) => [...m.querySelectorAll('button, .List__button')].map(b => (b.textContent || '').trim()).filter(Boolean).slice(0, 15)).catch(() => []);
         console.log('  batch-allocation dialog for ' + bc + ' | buttons: ' + (dbtns.join(' / ') || '?'));
         let allocated = false;
-        for (const nm of [/^Save ?& ?Add$/i, /^Ok$/i, /^Save$/i, /^Allocate$/i, /^Add$/i, /^Confirm$/i, /^Proceed$/i, /^Yes$/i]) {
-          const btn = dlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
-          if (await btn.count().catch(() => 0)) { await btn.click({ timeout: 4000 }).catch(() => {}); allocated = true; console.log('    allocation confirmed'); break; }
+        // PACT renders these as styled elements, not ARIA buttons, so match by
+        // ROLE and by visible TEXT (Save is the confirm on the lot dialog).
+        for (const nm of [/^Save ?& ?Add$/i, /^Save$/i, /^Ok$/i, /^Allocate$/i, /^Add$/i, /^Confirm$/i, /^Proceed$/i, /^Yes$/i]) {
+          const byRole = dlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
+          const byText = dlg.getByText(nm).filter({ visible: true }).first();
+          if (await byRole.count().catch(() => 0)) { await byRole.click({ timeout: 4000 }).catch(() => {}); allocated = true; }
+          else if (await byText.count().catch(() => 0)) { await byText.click({ timeout: 4000 }).catch(() => {}); allocated = true; }
+          if (allocated) { console.log('    allocation confirmed via ' + nm.source); break; }
         }
-        if (!allocated) { console.log('    ! no confirm button found — closing'); await dlg.getByRole('button', { name: 'Close', exact: false }).first().click({ timeout: 4000 }).catch(() => {}); }
+        // Fall back to the dialog's primary button by PACT's class.
+        if (!allocated) {
+          const prim = dlg.locator('.primary-btn-wicon, .primary-btn, .primary-btn-group, button.btn-primary').filter({ visible: true }).first();
+          if (await prim.count().catch(() => 0)) { await prim.click({ timeout: 4000 }).catch(() => {}); allocated = true; console.log('    allocation confirmed via primary button'); }
+        }
+        if (!allocated) { console.log('    ! no confirm button found — closing'); await dlg.getByText('Close', { exact: true }).first().click({ timeout: 4000 }).catch(() => dlg.getByRole('button', { name: 'Close', exact: false }).first().click({ timeout: 4000 }).catch(() => {})); }
         await page.waitForTimeout(1000);
       }
       if (cleared) {
