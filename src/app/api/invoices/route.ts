@@ -23,7 +23,7 @@ export async function GET() {
     });
     const rows = (await r.json()) as Array<Record<string, unknown>>;
     const invoices = (Array.isArray(rows) ? rows : []).map((o) => ({
-      id: o.id, vendor: o.vendor_name, invoiceNumber: o.invoice_number, invoiceDate: o.invoice_date, amount: o.amount,
+      id: o.id, vendor: o.vendor_name, invoiceNumber: o.invoice_number, invoiceDate: o.invoice_date, amount: o.amount, items: o.items ?? [],
     }));
     return NextResponse.json({ ok: true, invoices }, { headers: CORS });
   } catch (e) {
