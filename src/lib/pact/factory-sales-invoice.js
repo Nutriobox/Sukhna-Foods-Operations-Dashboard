@@ -71,103 +71,38 @@ async function refetchVoucherNo(page, company) {
   return !!(fin.num && /\d/.test(fin.num));
 }
 
-// The "Scan Batch" dialog is a SlickGrid. Each row is one available lot; the
-// Quantity column must be filled with how much of THIS scan to draw from that lot
-// BEFORE Save. Clicking Save with an empty Quantity allocates nothing, so the line
-// stays unallocated and the invoice can never leave Draft (root cause of the
-// "entered=N/N but still Draft" failures). We read the headers to find the
-// Quantity + Batch columns, pick the lot row that matches the scanned batch (or
-// the first/only lot), navigate SlickGrid's active cell there with the keyboard
-// (robust to horizontal virtualization), type the scanned weight, commit, Save.
-async function allocateBatch(page, dlg, bc) {
+// When a scanned barcode's batch is NOT in PACT's stock, PACT opens the
+// "Generate Batch Numbers" dialog (its Quantity grid can't be driven headlessly).
+// But a barcode whose batch IS in stock auto-allocates with no dialog at all. So
+// instead of fighting the grid, we read the available lots from the dialog, close
+// it, and hand back a substitute barcode (same product + weight, but an in-stock
+// batch) for the caller to re-scan through the normal auto-allocate path.
+// Returns the substitute barcode string, or null if no lot has enough stock.
+async function resolveBatchDialog(page, dlg, bc) {
   const parts = String(bc).split('_');
+  const code = parts[0];
   const weight = parts[parts.length - 1] || '';
-  const batch = parts.slice(1, -1).join('_');   // e.g. "FN0031/01042604"
-
-  // Dump the grid so a failed allocation is never a black box.
   const info = await dlg.evaluate((m) => {
     const headers = [...m.querySelectorAll('.slick-header-column')].map(h => (h.textContent || '').trim());
-    const rows = [...m.querySelectorAll('.grid-canvas .slick-row')].slice(0, 8).map(r =>
-      [...r.querySelectorAll('.slick-cell')].map(c => (c.textContent || '').trim()));
-    const btns = [...m.querySelectorAll('button, .List__button, .primary-btn-wicon')].map(b => (b.textContent || '').trim()).filter(Boolean).slice(0, 12);
-    return { headers, rows, nRows: m.querySelectorAll('.grid-canvas .slick-row').length, btns };
-  }).catch(() => ({ headers: [], rows: [], nRows: 0, btns: [] }));
-  console.log('    [batch grid] headers: ' + (info.headers.filter(Boolean).join(' | ') || '?'));
-  console.log('    [batch grid] ' + info.nRows + ' row(s)' + (info.rows[0] ? ' e.g. ' + JSON.stringify(info.rows[0]) : '') + ' | btns: ' + info.btns.join(' / '));
-
-  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
-  const qtyIdx = info.headers.findIndex(h => ['quantity', 'qty'].includes(norm(h)));
+    const rows = [...m.querySelectorAll('.grid-canvas .slick-row')].map(r => [...r.querySelectorAll('.slick-cell')].map(c => (c.textContent || '').trim()));
+    return { headers, rows };
+  }).catch(() => ({ headers: [], rows: [] }));
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const batchIdx = info.headers.findIndex(h => norm(h).includes('batch'));
-
-  // Target lot row: match by batch text if we can, else the first row.
-  let rowIdx = 0;
-  if (batchIdx >= 0 && batch) {
-    const key = norm(batch).slice(0, 8);
-    const f = info.rows.findIndex(cells => cells[batchIdx] && norm(cells[batchIdx]).includes(key));
-    if (f >= 0) rowIdx = f;
-  }
-
-  let qtySet = false;
-  const qtyCell = () => dlg.locator('.grid-canvas .slick-row').nth(rowIdx).locator('.slick-cell').nth(qtyIdx);
-  const cellHasNum = async () => /\d/.test(((await qtyCell().textContent().catch(() => '')) || '').replace(/[^\d.]/g, ''));
-  const typeIntoEditor = async () => {
-    const editor = dlg.locator('.slick-cell.active input, input.editor-text, .slick-cell.editable input, .slick-cell input').filter({ visible: true }).first();
-    if (await editor.count().catch(() => 0)) {
-      await editor.fill('').catch(() => {});
-      await editor.pressSequentially(String(weight), { delay: 15 }).catch(() => {});
-    } else {
-      await page.keyboard.type(String(weight), { delay: 15 }).catch(() => {});   // SlickGrid opens a text editor on first keypress
-    }
-    await page.keyboard.press('Enter').catch(() => {});   // commit
-    await page.waitForTimeout(300);
-  };
-  if (qtyIdx >= 0 && weight) {
-    try {
-      const row = dlg.locator('.grid-canvas .slick-row').nth(rowIdx);
-      // Strategy A: activate SlickGrid on the leftmost (always-rendered) cell of the
-      // target row, walk right to the Quantity column (SlickGrid auto-scrolls it into
-      // view), open the editor with Enter, type, commit.
-      await row.locator('.slick-cell').first().scrollIntoViewIfNeeded().catch(() => {});
-      await row.locator('.slick-cell').first().click({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(120);
-      for (let c = 0; c < qtyIdx; c++) { await page.keyboard.press('ArrowRight'); await page.waitForTimeout(40); }
-      await page.keyboard.press('Enter').catch(() => {});
-      await page.waitForTimeout(120);
-      await typeIntoEditor();
-      qtySet = await cellHasNum();
-      // Strategy B: the Quantity cell is now scrolled into view — double-click it to
-      // open the editor directly and retype.
-      if (!qtySet) {
-        await qtyCell().dblclick({ timeout: 4000 }).catch(() => {});
-        await page.waitForTimeout(150);
-        await typeIntoEditor();
-        qtySet = await cellHasNum();
-      }
-      const now = ((await qtyCell().textContent().catch(() => '')) || '').trim();
-      console.log('    [batch grid] entered qty ' + weight + ' (row ' + rowIdx + ', col ' + qtyIdx + ') -> cell now "' + now + '"' + (qtySet ? '' : '  <-- NOT set!'));
-    } catch (e) {
-      console.log('    [batch grid] qty entry error: ' + String(e.message).split('\n')[0]);
-    }
-  } else {
-    console.log('    [batch grid] ! could not locate Quantity column (qtyIdx=' + qtyIdx + ') or weight (' + weight + ') — headers=' + JSON.stringify(info.headers.filter(Boolean)));
-  }
-
-  // Save the allocation (Save is a styled element, not an ARIA button).
-  let saved = false;
-  for (const nm of [/^Save ?& ?Add$/i, /^Save$/i, /^Ok$/i, /^Allocate$/i, /^Add$/i]) {
-    const b = dlg.getByRole('button', { name: nm }).filter({ visible: true }).first();
-    const t = dlg.getByText(nm).filter({ visible: true }).first();
-    if (await b.count().catch(() => 0)) { await b.click({ timeout: 4000 }).catch(() => {}); saved = true; }
-    else if (await t.count().catch(() => 0)) { await t.click({ timeout: 4000 }).catch(() => {}); saved = true; }
-    if (saved) { console.log('    batch allocation saved via ' + nm.source + (qtySet ? ' (qty set)' : ' (NO QTY!)')); break; }
-  }
-  if (!saved) {
-    const prim = dlg.locator('.primary-btn-wicon, .primary-btn, button.btn-primary').filter({ visible: true }).first();
-    if (await prim.count().catch(() => 0)) { await prim.click({ timeout: 4000 }).catch(() => {}); saved = true; console.log('    batch allocation saved via primary button' + (qtySet ? ' (qty set)' : ' (NO QTY!)')); }
-  }
-  if (!saved) { console.log('    ! no Save button — closing'); await dlg.getByText('Close', { exact: true }).first().click({ timeout: 4000 }).catch(() => {}); }
+  const balIdx = info.headers.findIndex(h => norm(h).includes('bal'));
+  const num = (s) => parseFloat(String(s || '').replace(/,/g, '').replace(/[^0-9.]/g, '')) || 0;
+  const need = num(weight);
+  const lots = info.rows.map(c => ({ batch: (c[batchIdx] || '').trim(), bal: num(c[balIdx >= 0 ? balIdx : 6]) })).filter(r => r.batch);
+  console.log('    available lots: ' + JSON.stringify(lots) + ' (need ' + need + ')');
+  const pick = lots.find(l => l.bal >= need) || lots.slice().sort((a, b) => b.bal - a.bal)[0];
+  // Close the dialog (cancel the manual allocation) before re-scanning.
+  await dlg.getByText('Close', { exact: true }).first().click({ timeout: 4000 })
+    .catch(() => dlg.locator('button:has-text("Close"), .close, [aria-label="Close"]').first().click({ timeout: 3000 }).catch(() => {}));
   await page.waitForTimeout(1000);
-  return qtySet;
+  if (!pick || pick.bal < need) { console.log('    no in-stock lot with enough qty — cannot substitute'); return null; }
+  const sub = code + '_' + pick.batch + '_' + weight;
+  console.log('    substitute in-stock batch ' + pick.batch + ' (bal ' + pick.bal + ') -> ' + sub);
+  return sub;
 }
 
 async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
@@ -297,26 +232,48 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
       await scan.fill('');
       await scan.pressSequentially(String(bc), { delay: 8 });   // real per-key events
       await scan.press('Enter');
-      // PACT clears the Scan field ONLY when it resolved the barcode and added a
-      // row. If the field keeps the value, PACT rejected it (out of stock / not
-      // on this SO) — record it as skipped and clear so the next scan is clean.
-      let cleared = false;
-      for (let t = 0; t < 14; t++) {
-        await page.waitForTimeout(500);
-        if ((await scan.inputValue().catch(() => '')) !== String(bc)) { cleared = true; break; }
-      }
-      // Batch-allocation dialog: PACT needs the scanned lot CONFIRMED, not closed.
-      // Closing it leaves the line with no lot allocated, so the invoice can never
-      // leave Draft. Confirm the primary button (which accepts the pre-filled lot),
-      // and log the buttons so a wrong guess is diagnosable.
+      await page.waitForTimeout(1200);   // let PACT react (add the line, or open the batch dialog)
+
+      // If the scanned batch is NOT in stock, PACT opens the "Generate Batch
+      // Numbers" dialog. We can't drive its grid headlessly, but a barcode whose
+      // batch IS in stock auto-allocates with no dialog — so read the available
+      // lots, close the dialog, and re-scan the same item with an in-stock batch.
+      let effectiveBc = bc;
       const dlg = page.locator('modal-container.show').first();
       if (await dlg.isVisible().catch(() => false)) {
-        console.log('  batch-allocation dialog for ' + bc);
-        await allocateBatch(page, dlg, bc);
+        console.log('  batch not in stock — dialog for ' + bc + '; substituting an available lot');
+        const sub = await resolveBatchDialog(page, dlg, bc);   // closes the dialog, returns substitute or null
+        if (sub) {
+          await scan.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+          await scan.click({ timeout: 4000 }).catch(() => {});
+          await scan.fill('');
+          await scan.pressSequentially(String(sub), { delay: 8 });
+          await scan.press('Enter');
+          await page.waitForTimeout(1200);
+          effectiveBc = sub;
+          // If the substitute ALSO opened a dialog, give up on this line cleanly.
+          if (await dlg.isVisible().catch(() => false)) {
+            await dlg.getByText('Close', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+            await page.waitForTimeout(600);
+            effectiveBc = null;
+            console.log('    substitute also opened a dialog — skipping this item');
+          }
+        } else {
+          effectiveBc = null;
+        }
+      }
+
+      // PACT clears the Scan field once it has resolved a barcode and added a row.
+      let cleared = false;
+      if (effectiveBc) {
+        for (let t = 0; t < 14; t++) {
+          await page.waitForTimeout(500);
+          if ((await scan.inputValue().catch(() => '')) !== String(effectiveBc)) { cleared = true; break; }
+        }
       }
       if (cleared) {
         entered++;
-        console.log('  added ' + entered + ': ' + bc);
+        console.log('  added ' + entered + ': ' + effectiveBc + (effectiveBc !== bc ? '  (substituted for ' + bc + ')' : ''));
       } else {
         await scan.fill('').catch(() => {});
         skipped.push(bc);
