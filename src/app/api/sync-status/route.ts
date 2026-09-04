@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 
 /**
- * Status of the most recent inventory-sync GitHub Actions run, so the app can
- * wait for the real run to finish (green) instead of guessing from the snapshot.
+ * Status of the most recent sync run so the app can wait for it to finish
+ * (green) instead of guessing from the snapshot. Reads the latest sync job from
+ * public.pact_jobs (payload.__sync). Optional ?type=inventory|sales-orders
+ * (default inventory).
  *
  * GET -> { ok, run: { id, status, conclusion, createdAt, url } | null }
  *   status:     "queued" | "in_progress" | "completed"
- *   conclusion: "success" | "failure" | "cancelled" | ... (only once completed)
+ *   conclusion: "success" | "failure" | null (only once completed)
  *
- * Server env required (same as sync-inventory):
- *   GH_DISPATCH_TOKEN — GitHub PAT with actions read access
- *   GH_REPO           — "owner/name"
+ * Server env required: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) + SUPABASE_SERVICE_KEY
  */
 
 export const runtime = "nodejs";
@@ -18,36 +18,34 @@ export const dynamic = "force-dynamic";
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,OPTIONS" };
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS });
-}
+export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: CORS }); }
 
-export async function GET() {
-  const token = process.env.GH_DISPATCH_TOKEN;
-  const repo = process.env.GH_REPO;
-  if (!token || !repo) {
-    return NextResponse.json({ ok: false, error: "GH_DISPATCH_TOKEN / GH_REPO not configured on the server." }, { status: 500, headers: CORS });
+export async function GET(req: Request) {
+  const sbUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const sbKey = process.env.SUPABASE_SERVICE_KEY;
+  if (!sbUrl || !sbKey) {
+    return NextResponse.json({ ok: false, error: "SUPABASE_URL / SUPABASE_SERVICE_KEY not configured on the server." }, { status: 500, headers: CORS });
   }
+  const type = new URL(req.url).searchParams.get("type") || "inventory";
   try {
-    // Latest run of the sync-inventory workflow (any trigger).
-    const url = `https://api.github.com/repos/${repo}/actions/workflows/sync-inventory.yml/runs?per_page=1`;
-    const r = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "User-Agent": "sukhna-ops-dashboard",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-      cache: "no-store",
-    });
+    const q = `${sbUrl.replace(/\/$/, "")}/rest/v1/pact_jobs?invoice=eq.${encodeURIComponent("sync:" + type)}&select=id,status,updated_at&order=updated_at.desc&limit=1`;
+    const r = await fetch(q, { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" });
     if (!r.ok) {
       const t = await r.text().catch(() => "");
-      return NextResponse.json({ ok: false, error: `GitHub ${r.status} ${t}`.slice(0, 200) }, { status: 502, headers: CORS });
+      return NextResponse.json({ ok: false, error: `Supabase ${r.status} ${t}`.slice(0, 200) }, { status: 502, headers: CORS });
     }
-    const j = (await r.json()) as { workflow_runs?: Array<{ id: number; status: string; conclusion: string | null; created_at: string; html_url: string }> };
-    const run = Array.isArray(j.workflow_runs) && j.workflow_runs[0] ? j.workflow_runs[0] : null;
+    const rows = (await r.json()) as Array<{ id: string; status: string; updated_at: string }>;
+    const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+    let status = "completed";
+    let conclusion: string | null = null;
+    if (row) {
+      if (row.status === "queued") status = "queued";
+      else if (row.status === "processing") status = "in_progress";
+      else if (row.status === "done") { status = "completed"; conclusion = "success"; }
+      else if (row.status === "failed") { status = "completed"; conclusion = "failure"; }
+    }
     return NextResponse.json(
-      { ok: true, run: run ? { id: run.id, status: run.status, conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url } : null },
+      { ok: true, run: row ? { id: row.id, status, conclusion, createdAt: row.updated_at, url: null } : null },
       { headers: CORS }
     );
   } catch (e: unknown) {
