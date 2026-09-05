@@ -28,9 +28,21 @@ export async function OPTIONS() { return new NextResponse(null, { status: 204, h
 export async function GET(req: Request) {
   const { url, key } = creds();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
-  const id = new URL(req.url).searchParams.get("id");
+  const sp = new URL(req.url).searchParams;
+  const id = sp.get("id");
+  const so = sp.get("so");
   const base = `${url}/rest/v1/pending_sales_orders`;
   try {
+    if (so) {
+      const r = await fetch(`${base}?so_number=eq.${encodeURIComponent(so)}&select=*`, { headers: headers(), cache: "no-store" });
+      const rows = (await r.json()) as Array<Record<string, unknown>>;
+      const o = rows[0];
+      if (!o) return NextResponse.json({ ok: false, error: "not found" }, { status: 404, headers: CORS });
+      return NextResponse.json({
+        ok: true,
+        order: { id: o.id, vendor: o.vendor_name, soNumber: o.so_number, soDate: o.so_date, status: o.status, items: Array.isArray(o.items) ? o.items : [] },
+      }, { headers: CORS });
+    }
     if (id) {
       const r = await fetch(`${base}?id=eq.${encodeURIComponent(id)}&select=*`, { headers: headers(), cache: "no-store" });
       const rows = (await r.json()) as Array<Record<string, unknown>>;
