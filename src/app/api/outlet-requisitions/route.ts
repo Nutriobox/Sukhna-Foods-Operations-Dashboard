@@ -51,8 +51,17 @@ export async function GET(req: Request) {
         order: { id: o.id, vendor: o.outlet, soNumber: o.omr_number, soDate: null, status: o.status, items: Array.isArray(o.items) ? o.items : [] },
       }, { headers: CORS });
     }
-    const r = await fetch(`${base}?select=id,omr_number,outlet,status,items&order=id.desc`, { headers: headers(), cache: "no-store" });
-    const rows = (await r.json()) as Array<Record<string, unknown>>;
+    // Supabase caps a single response at 1000 rows; page through so none are hidden.
+    const rows: Array<Record<string, unknown>> = [];
+    for (let from = 0; from < 20000; from += 1000) {
+      const rr = await fetch(`${base}?select=id,omr_number,outlet,status,items&order=id.desc`, {
+        headers: { ...headers(), Range: `${from}-${from + 999}`, "Range-Unit": "items" }, cache: "no-store",
+      });
+      const page = (await rr.json()) as Array<Record<string, unknown>>;
+      if (!Array.isArray(page) || page.length === 0) break;
+      rows.push(...page);
+      if (page.length < 1000) break;
+    }
     const orders = (Array.isArray(rows) ? rows : []).map((o) => ({
       id: o.id, vendor: o.outlet, soNumber: o.omr_number, soDate: null, status: o.status,
       itemCount: Array.isArray(o.items) ? o.items.length : 0,
