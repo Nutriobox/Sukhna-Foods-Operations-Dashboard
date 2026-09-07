@@ -17,7 +17,19 @@ export const dynamic = "force-dynamic";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,OPTIONS" };
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: CORS }); }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const inv = new URL(req.url).searchParams.get("inv");
+  const url0 = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
+  const key0 = process.env.SUPABASE_SERVICE_KEY;
+  if (inv) {
+    if (!url0 || !key0) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
+    try {
+      const r = await fetch(`${url0}/rest/v1/invoice_lines?kind=eq.nb&doc_no=eq.${encodeURIComponent(inv)}&select=cols,lines`, { headers: { apikey: key0, Authorization: `Bearer ${key0}` }, cache: "no-store" });
+      const rows = (await r.json()) as Array<Record<string, unknown>>;
+      const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+      return NextResponse.json({ ok: true, columns: row?.cols ?? [], rows: row?.lines ?? [] }, { headers: CORS });
+    } catch (e) { return NextResponse.json({ ok: false, error: String(e) }, { status: 500, headers: CORS }); }
+  }
   const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
