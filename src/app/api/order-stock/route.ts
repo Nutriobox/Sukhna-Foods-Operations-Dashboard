@@ -17,6 +17,11 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: CORS }); }
 
 const norm = (s: unknown) => String(s == null ? "" : s).toLowerCase().replace(/\s+/g, " ").trim();
+// Aggressive key: strip EVERYTHING except letters/digits, so requisition names
+// like "Blueberry Chia (300 Ml)" match inventory "Blueberry Chia (300ML)" despite
+// spacing/punctuation differences (requisitions arrive with blank product codes,
+// so name matching must be robust or the product is silently dropped from stock).
+const hard = (s: unknown) => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export async function GET(req: Request) {
   const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
@@ -42,6 +47,7 @@ export async function GET(req: Request) {
     }
     const wantNames = items.map((it) => norm(it.name)).filter((s) => s.length > 0);
     const wantCodes = new Set(items.map((it) => norm(it.code)).filter((s) => s.length > 0));
+    const wantHard = items.map((it) => hard(it.name)).filter((s) => s.length > 0);
 
     // 2) latest inventory snapshot
     const q = `${url}/rest/v1/inventory_snapshots?select=synced_at,data&status=eq.ok&order=synced_at.desc&limit=1`;
@@ -52,11 +58,18 @@ export async function GET(req: Request) {
 
     // 3) keep only rows for this order's products (name match like the app does, or exact code)
     const data = all.filter((row) => {
-      const nm = norm(row.name);
       if (wantCodes.size && wantCodes.has(norm(row.code))) return true;
+      const nm = norm(row.name);
       for (const w of wantNames) {
         if (nm === w) return true;
         if (w.length >= 5 && (nm.includes(w) || w.includes(nm))) return true;
+      }
+      // Spacing/punctuation-insensitive fallback (handles blank-code requisitions
+      // whose names differ only in formatting, e.g. "(300 Ml)" vs "(300ML)").
+      const nh = hard(row.name);
+      for (const w of wantHard) {
+        if (nh === w) return true;
+        if (w.length >= 8 && (nh.includes(w) || w.includes(nh))) return true;
       }
       return false;
     });
