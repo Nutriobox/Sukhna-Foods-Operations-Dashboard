@@ -433,7 +433,7 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
   const faceColor={};
   await Promise.all(["left","right"].map(k=>new Promise(res=>{
     if(!faceUrls[k])return res();
-    const dir=1;   // both sides rotated the SAME way, so the same uploaded image looks identical on left & right
+    const dir=(k==="right")?1:-1;   // left & right faces point OPPOSITE ways on the box, so pre-rotate their art in opposite directions — both side panels then read upright and align
     const im=new Image();im.onload=()=>{try{
       const c=document.createElement("canvas");c.width=im.naturalHeight;c.height=im.naturalWidth;
       const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(dir*Math.PI/2);
