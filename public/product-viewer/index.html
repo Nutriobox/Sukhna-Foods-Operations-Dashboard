@@ -255,6 +255,7 @@ img{max-width:100%}
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 "use strict";
 /* faces + which box dimensions each face displays (a=horizontal, b=vertical) */
@@ -274,26 +275,24 @@ const nf=n=>Number.isInteger(n)?n:(+n).toFixed(1).replace(/\.0$/,"");
 function toast(m){let t=$("#toast");if(!t){t=el("div","toast");t.id="toast";document.body.appendChild(t);}t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
 
 /* ---------- storage ---------- */
+const SUPA_URL="https://lezcgmnmcpgbecqtuqsg.supabase.co";
+const SUPA_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlemNnbW5tY3BnYmVjcXR1cXNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5ODA4NTksImV4cCI6MjEwMDU1Njg1OX0.pEg4RwrxP2_nHQPhSmvPV3NFeXbuvNZAb5DBCCuNm78";
+const SUPA_BUCKET="product-viewer";
 const Store=(function(){
-  let db=null, ok=false; const mem={items:new Map(),blobs:new Map()};
-  function open(){return new Promise(res=>{let req;try{req=indexedDB.open("sukhna-product-viewer",1);}catch(e){return res(false);}
-    req.onupgradeneeded=e=>{const d=e.target.result;
-      if(!d.objectStoreNames.contains("items"))d.createObjectStore("items",{keyPath:"id"});
-      if(!d.objectStoreNames.contains("blobs"))d.createObjectStore("blobs",{keyPath:"id"});};
-    req.onsuccess=e=>{db=e.target.result;ok=true;res(true);};req.onerror=()=>res(false);});}
-  function tx(s,m){return db.transaction(s,m).objectStore(s);}
+  let sb=null, ok=false; const mem={items:new Map(),blobs:new Map()};
+  function pub(id){return SUPA_URL+"/storage/v1/object/public/"+SUPA_BUCKET+"/"+encodeURIComponent(id);}
   return{
-    async init(){await open();return ok;}, get ok(){return ok;},
-    async allItems(){if(!ok)return[...mem.items.values()];return new Promise(r=>{const o=[];tx("items","readonly").openCursor().onsuccess=e=>{const c=e.target.result;if(c){o.push(c.value);c.continue();}else r(o);};});},
-    async putItem(it){if(!ok){mem.items.set(it.id,it);return;}return new Promise((res,rej)=>{const r=tx("items","readwrite").put(it);r.onsuccess=res;r.onerror=rej;});},
-    async delItem(id){if(!ok){mem.items.delete(id);return;}return new Promise(res=>{tx("items","readwrite").delete(id).onsuccess=res;});},
-    async putBlob(id,blob){if(!ok){mem.blobs.set(id,blob);return;}return new Promise((res,rej)=>{const r=tx("blobs","readwrite").put({id,blob});r.onsuccess=res;r.onerror=rej;});},
-    async getBlob(id){if(!ok)return mem.blobs.get(id)||null;return new Promise(res=>{const r=tx("blobs","readonly").get(id);r.onsuccess=()=>res(r.result?r.result.blob:null);r.onerror=()=>res(null);});},
-    async delBlob(id){if(!ok){mem.blobs.delete(id);return;}return new Promise(res=>{tx("blobs","readwrite").delete(id).onsuccess=res;});}
+    async init(){try{sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);ok=true;}catch(e){console.warn("supabase init",e);ok=false;}return ok;}, get ok(){return ok;}, pub,
+    async allItems(){if(!ok)return[...mem.items.values()];try{const{data,error}=await sb.from("product_viewer_items").select("sides");if(error)throw error;return(data||[]).map(r=>r.sides).filter(Boolean);}catch(e){console.warn("load",e);return[];}},
+    async putItem(it){if(!ok){mem.items.set(it.id,it);return;}try{const{error}=await sb.from("product_viewer_items").upsert({id:it.id,name:it.name||"",sides:it});if(error)throw error;}catch(e){console.warn("save",e);alert("Could not save to the shared database. Check the internet connection and try again.");}},
+    async delItem(id){if(!ok){mem.items.delete(id);return;}try{await sb.from("product_viewer_items").delete().eq("id",id);}catch(e){console.warn("del",e);}},
+    async putBlob(id,blob){if(!ok){mem.blobs.set(id,blob);return;}try{const{error}=await sb.storage.from(SUPA_BUCKET).upload(id,blob,{contentType:blob.type||"image/jpeg",upsert:true});if(error)throw error;}catch(e){console.warn("upload",e);alert("Could not upload the image. Check the internet connection and try again.");}},
+    async getBlob(id){if(!ok)return mem.blobs.get(id)||null;try{const r=await fetch(pub(id));return r.ok?await r.blob():null;}catch(e){return null;}},
+    async delBlob(id){if(!ok){mem.blobs.delete(id);return;}try{await sb.storage.from(SUPA_BUCKET).remove([id]);}catch(e){console.warn("delblob",e);}}
   };
 })();
 const urlCache=new Map();
-async function url(id){if(!id)return null;if(urlCache.has(id))return urlCache.get(id);const b=await Store.getBlob(id);if(!b)return null;const u=URL.createObjectURL(b);urlCache.set(id,u);return u;}
+async function url(id){if(!id)return null;if(Store.ok)return Store.pub(id);const b=await Store.getBlob(id);return b?URL.createObjectURL(b):null;}
 
 let items=[], editing=null, selectedId=null;
 async function load(){items=await Store.allItems();items.sort((a,b)=>(b.updated||0)-(a.updated||0));}
@@ -701,8 +700,8 @@ async function openLightbox(it,key){
 /* ---------- init ---------- */
 (async function(){const ok=await Store.init();await load();editing=blankItem();renderFaces();renderExtra();
   $("#persistNote").textContent=ok
-    ?"Photos are saved in this browser on this device. This is a local viewer, not a shared server — to give the team one common library, host it or move to a shared setup (I can help)."
-    :"This browser is blocking local storage, so photos will only last until you reload. Download this file and open it directly for saving to work.";})();
+    ?"Saved to the shared Sukhna database — everyone on the team sees the same products, from any device."
+    :"Couldn’t reach the shared database — check the internet connection and reload the page.";})();
 </script>
 </body>
 </html>
