@@ -438,7 +438,7 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
       const c=document.createElement("canvas");c.width=im.naturalHeight;c.height=im.naturalWidth;
       const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(dir*Math.PI/2);
       x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
-      faceUrls[k]=c.toDataURL("image/jpeg",0.92);
+      faceUrls[k]=c.toDataURL("image/png");   // lossless so the rotated side art stays crisp
       // average colour of the rotated art, to blend any margin left by 'contain' fitting
       const s=document.createElement("canvas");s.width=s.height=1;const sx=s.getContext("2d");
       sx.drawImage(c,0,0,1,1);const d=sx.getImageData(0,0,1,1).data;faceColor[k]=`rgb(${d[0]},${d[1]},${d[2]})`;
@@ -526,7 +526,7 @@ function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,ui){
   }else{
     const af=aspect.front||aspect.back;
     uW=fin(af)?af:1.4;                         // default W:H follows the front photo (editable)
-    uD=0.40;                                   // a bit thin, but solid enough that the spin never looks paper-thin
+    uD=sideDepth || (fin(af)?1/af:0.4);        // depth matches the side banner's own shape, so it fills the face with NO stretch (crisp) and no margin
   }
   // Hard safety: never allow a non-finite or degenerate ratio (that is what blanked the box).
   if(!fin(uW))uW=1.4; if(!fin(uD))uD=0.4;
@@ -534,7 +534,7 @@ function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,ui){
   // Now that geometry is settled, choose how the side art fills its face:
   //  - no explicit dims  -> face was shaped to the banner  -> COVER fills edge-to-edge, whole logo shown, both sides identical
   //  - explicit dims      -> face is fixed by W/H/D          -> CONTAIN shows the whole banner; any margin is the blended colour
-  const sideFit = hasDims ? "contain" : "100% 100%";  // no dims: stretch the vertical banner to fill the side edge-to-edge (no margins)
+  const sideFit = hasDims ? "contain" : "cover";  // no dims: face is shaped to the banner, so cover fills perfectly with no stretch and no crop
   if(els.left) els.left.style.backgroundSize = sideFit;
   if(els.right) els.right.style.backgroundSize = sideFit;
   try{console.log("[3D box] dims input:",dims||"(none → defaults)","| normalised W:H:D =",uW.toFixed(3)+" : 1 : "+uD.toFixed(3));}catch(e){}
