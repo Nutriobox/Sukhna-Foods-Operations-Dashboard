@@ -224,7 +224,7 @@ img{max-width:100%}
 <div class="wrap" id="uploadView">
   <div class="card">
     <h2>Add a product</h2>
-    <p class="lead">Name the product, set its box size in cm, add its six sides, and any extra photos. Everything is saved in this browser. To edit or delete an existing product, open the Gallery and double-click it in the list.</p>
+    <p class="lead">Name the product, set its box size in cm, add its six sides, and any extra photos. Everything is saved to your shared cloud, so the whole team sees it on any device. To edit or delete an existing product, open the Gallery and double-click it in the list.</p>
     <div class="field">
       <label>Product name</label>
       <input id="prodName" placeholder="e.g. Aloo Poori" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -291,11 +291,14 @@ const Store=(function(){
   const objUrl=id=>`${SUPA.url}/storage/v1/object/${SUPA.bucket}/${encodeURIComponent(id)}`;
   const pubUrl=id=>`${SUPA.url}/storage/v1/object/public/${SUPA.bucket}/${encodeURIComponent(id)}`;
   const cloud={
+    _loadOk:false,                     // did the MOST RECENT allItems() actually reach the cloud?
     async init(){return true;}, get ok(){return true;},
     async allItems(){
+      this._loadOk=false;
       try{const r=await fetch(`${SUPA.url}/rest/v1/viewer_products?select=*&order=updated_at.desc`,{headers:H()});
         if(!r.ok){console.warn("[cloud] load failed",r.status,await r.text());return[];}
         const rows=await r.json();
+        this._loadOk=true;
         return rows.map(x=>({id:x.id,name:x.name,dims:x.dims||null,faces:x.faces||{},extra:x.extra||[],updated:x.updated_at?Date.parse(x.updated_at):0}));
       }catch(e){console.warn("[cloud] load error",e);return[];}
     },
@@ -758,33 +761,27 @@ function legacyOpen(){return new Promise(res=>{let r;try{r=indexedDB.open("sukhn
   r.onsuccess=e=>res(e.target.result);r.onerror=()=>res(null);});}
 async function legacyItems(db){if(!db)return[];try{return await new Promise(r=>{const o=[];db.transaction("items","readonly").objectStore("items").openCursor().onsuccess=e=>{const c=e.target.result;if(c){o.push(c.value);c.continue();}else r(o);};});}catch(e){return[];}}
 function legacyBlob(db,id){return new Promise(r=>{try{const q=db.transaction("blobs","readonly").objectStore("blobs").get(id);q.onsuccess=()=>r(q.result?q.result.blob:null);q.onerror=()=>r(null);}catch(e){r(null);}});}
-async function migrateLocalToCloud(btn){
-  const db=await legacyOpen();const locals=await legacyItems(db);
-  if(!locals.length){toast("Nothing to import");return;}
-  btn.disabled=true;const orig=btn.textContent;let done=0;
-  for(const it of locals){try{
-    for(const k in (it.faces||{})){const id=it.faces[k];if(!id)continue;const b=await legacyBlob(db,id);if(b)await Store.putBlob(id,b);}
-    for(const id of (it.extra||[])){const b=await legacyBlob(db,id);if(b)await Store.putBlob(id,b);}
-    await Store.putItem({id:it.id,name:it.name,dims:it.dims||null,faces:it.faces||{},extra:it.extra||[],updated:it.updated||Date.now()});
-    done++;btn.textContent="Uploading… "+done+"/"+locals.length;
-  }catch(e){console.warn("migrate failed for",it.id,e);}}
-  btn.textContent="Uploaded "+done+" product"+(done===1?"":"s")+" ✓";
-  await renderGallery();
-  setTimeout(()=>{const bar=$("#migrateBar");if(bar)bar.remove();},2500);
-}
-async function maybeShowMigrate(){
-  if(!SUPA_ON)return;                       // only when cloud is active
-  const db=await legacyOpen();const locals=await legacyItems(db);
-  if(!locals.length)return;                  // nothing saved locally on this device
-  const bar=el("div");bar.id="migrateBar";
-  bar.style.cssText="position:sticky;top:0;z-index:50;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;"
-    +"padding:10px 16px;background:#fff7e6;border-bottom:1px solid #f0d48a;color:#7a5a10;font-size:13px";
-  const msg=el("span");msg.textContent=locals.length+" product"+(locals.length===1?"":"s")+" saved on this device aren’t in the shared cloud yet.";
-  const b=el("button");b.textContent="Upload to shared cloud";
-  b.style.cssText="border:1px solid var(--green,#1f8a4c);background:var(--green,#1f8a4c);color:#fff;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer";
-  b.onclick=()=>migrateLocalToCloud(b);
-  bar.appendChild(msg);bar.appendChild(b);
-  document.body.insertBefore(bar,document.body.firstChild);
+// Silent, automatic: any product saved only on THIS device that isn't in the cloud yet
+// gets pushed up in the background. Runs once per load; no UI, no prompts. Idempotent —
+// a product already in the cloud (matched by id) is left untouched.
+async function autoMigrateLocalToCloud(){
+  if(!SUPA_ON)return false;
+  if(Store._loadOk!==true)return false;      // cloud list didn't load — never assume it's empty (would double-upload)
+  let db;try{db=await legacyOpen();}catch(e){return false;}
+  const locals=await legacyItems(db);
+  if(!locals.length)return false;
+  const existing=new Set((items||[]).map(i=>i.id));
+  let done=0;
+  for(const it of locals){
+    if(existing.has(it.id))continue;         // already in the shared cloud
+    try{
+      for(const k in (it.faces||{})){const id=it.faces[k];if(!id)continue;const b=await legacyBlob(db,id);if(b)await Store.putBlob(id,b);}
+      for(const id of (it.extra||[])){const b=await legacyBlob(db,id);if(b)await Store.putBlob(id,b);}
+      await Store.putItem({id:it.id,name:it.name,dims:it.dims||null,faces:it.faces||{},extra:it.extra||[],updated:it.updated||Date.now()});
+      done++;
+    }catch(e){console.warn("[auto-migrate] failed for",it.id,e);}
+  }
+  return done>0;
 }
 
 /* ---------- init ---------- */
@@ -793,7 +790,7 @@ async function maybeShowMigrate(){
     ?"Products are saved to your shared Sukhna cloud, so the whole team sees the same catalogue on any device."
     :(ok?"Photos are saved in this browser on this device only."
         :"This browser is blocking local storage, so photos will only last until you reload.");
-  try{await maybeShowMigrate();}catch(e){console.warn(e);}})();
+  try{const moved=await autoMigrateLocalToCloud();if(moved){await load();if(!$("#galleryView").classList.contains("hidden"))renderGallery();}}catch(e){console.warn(e);}})();
 </script>
 </body>
 </html>
