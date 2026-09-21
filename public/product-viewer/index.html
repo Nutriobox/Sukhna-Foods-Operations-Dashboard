@@ -369,9 +369,27 @@ async function renderExtra(){const wrap=$("#extra");wrap.innerHTML="";
   for(const bid of editing.extra){const ex=el("div","ex");const u=await url(bid);const img=el("img");img.src=u;ex.appendChild(img);
     const rm=el("button","rm","✕");rm.onclick=()=>{editing.extra=editing.extra.filter(x=>x!==bid);renderExtra();};ex.appendChild(rm);wrap.appendChild(ex);}
   const add=el("button","add","+");add.onclick=()=>pickFile(true);wrap.appendChild(add);}
+// On the 3D box the RIGHT face sits opposite LEFT, and TOP opposite BOTTOM, so their artwork must be
+// flipped 180° to read upright. We bake that flip in automatically at upload time — matching the manual
+// rotation that was previously needed — so no side has to be hand-rotated. (The Rotate button still lets
+// you nudge any side afterwards.)
+const AUTO_FLIP_180=new Set(["right","top"]);
+async function autoOrientForFace(file,faceKey){
+  if(!AUTO_FLIP_180.has(faceKey))return file;
+  try{
+    const src=URL.createObjectURL(file);
+    const out=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>{try{
+      const c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;
+      const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(Math.PI);
+      x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
+      c.toBlob(b=>b?res(b):rej(new Error("encode")),"image/jpeg",0.92);
+    }catch(e){rej(e);}};im.onerror=()=>rej(new Error("load"));im.src=src;});
+    URL.revokeObjectURL(src);return out;
+  }catch(e){console.warn("auto-orient failed, using original",e);return file;}
+}
 function pickFile(isExtra,faceKey){const inp=el("input");inp.type="file";inp.accept="image/*";if(isExtra)inp.multiple=true;
   inp.onchange=async()=>{for(const file of inp.files){if(!file.type.startsWith("image/")){toast("Skipped a non-image file");continue;}
-    const bid=uid();await Store.putBlob(bid,file);if(isExtra)editing.extra.push(bid);else{editing.faces[faceKey]=bid;break;}}
+    const bid=uid();const toStore=isExtra?file:await autoOrientForFace(file,faceKey);await Store.putBlob(bid,toStore);if(isExtra)editing.extra.push(bid);else{editing.faces[faceKey]=bid;break;}}
     isExtra?renderExtra():renderFaces();};inp.click();}
 $("#saveBtn").onclick=async()=>{editing.name=($("#prodName").value||"").trim()||"Untitled";editing.updated=Date.now();
   await Store.putItem(clone(editing));await load();const nm=editing.name;startNew();toast("Saved “"+nm+"” — find it in the Gallery");};
@@ -533,7 +551,7 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
 /* replace / remove a single side photo for the open product */
 function replaceSide(it,k){const inp=el("input");inp.type="file";inp.accept="image/*";
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;if(!f.type.startsWith("image/")){toast("Not an image file");return;}
-    const bid=uid();await Store.putBlob(bid,f);const old=it.faces[k];it.faces[k]=bid;it.updated=Date.now();
+    const bid=uid();const toStore=await autoOrientForFace(f,k);await Store.putBlob(bid,toStore);const old=it.faces[k];it.faces[k]=bid;it.updated=Date.now();
     await Store.putItem(clone(it));if(old){try{await Store.delBlob(old);}catch(e){}if(urlCache.has(old)){try{URL.revokeObjectURL(urlCache.get(old));}catch(e){}urlCache.delete(old);}}
     await load();toast(k.charAt(0).toUpperCase()+k.slice(1)+" photo updated");renderGallery();};
   inp.click();}
