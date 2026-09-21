@@ -170,8 +170,12 @@ img{max-width:100%}
 .side .scap{padding:8px 11px;font-size:12.5px;font-weight:650;border-top:1px solid var(--line-2);display:flex;justify-content:space-between;align-items:center}
 .side .scap .z{color:var(--muted);font-weight:400;font-size:11px}
 .side .scap .d{color:var(--muted);font-weight:400;font-size:10.5px}
-.side .scap .edit{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:var(--green-ink)}
+.side .scap .acts{display:flex;gap:6px;align-items:center}
+.side .scap .edit{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:var(--green-ink);cursor:pointer}
 .side .scap .edit:hover{background:var(--green-soft);border-color:var(--green)}
+.side .scap .edit:disabled{opacity:.55;cursor:default}
+.side .simg .srotate{position:absolute;top:6px;left:6px;z-index:3;width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.96);color:var(--green-ink);display:none;place-items:center;font-size:14px;cursor:pointer}
+.side .simg:hover .srotate{display:grid}
 .side .simg .sremove{position:absolute;top:6px;right:6px;z-index:3;width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.96);color:var(--danger);display:none;place-items:center;font-size:13px}
 .side .simg:hover .sremove{display:grid}
 
@@ -505,12 +509,16 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
   const grid=el("div","sidegrid");
   for(const [k,label] of SIDES){const card=el("div","side");const simg=el("div","simg");
     if(it.faces[k]){const u=await url(it.faces[k]);const img=el("img");img.src=u;img.alt=label;simg.appendChild(img);simg.onclick=()=>openLightbox(it,k);
+      const ro=el("button","srotate","⟳");ro.title="Rotate "+label+" 90°";ro.onclick=ev=>{ev.stopPropagation();rotateSide(it,k,label,ro);};simg.appendChild(ro);
       const rm=el("button","sremove","✕");rm.title="Remove "+label;rm.onclick=ev=>{ev.stopPropagation();removeSide(it,k,label);};simg.appendChild(rm);}
     else{simg.style.cursor="default";simg.appendChild(el("div","noimg","Not uploaded"));}
     card.appendChild(simg);
     const scap=el("div","scap");
-    scap.innerHTML=`<span>${label}</span>`;
-    const eb=el("button","edit",it.faces[k]?"Replace":"Add photo");eb.onclick=()=>replaceSide(it,k);scap.appendChild(eb);
+    scap.appendChild(el("span",null,label));
+    const acts=el("div","acts");
+    if(it.faces[k]){const rb=el("button","edit","⟳ Rotate");rb.title="Rotate this side 90°";rb.onclick=()=>rotateSide(it,k,label,rb);acts.appendChild(rb);}
+    const eb=el("button","edit",it.faces[k]?"Replace":"Add photo");eb.onclick=()=>replaceSide(it,k);acts.appendChild(eb);
+    scap.appendChild(acts);
     card.appendChild(scap);
     grid.appendChild(card);}
   sides.appendChild(grid);
@@ -529,6 +537,29 @@ function replaceSide(it,k){const inp=el("input");inp.type="file";inp.accept="ima
     await Store.putItem(clone(it));if(old){try{await Store.delBlob(old);}catch(e){}if(urlCache.has(old)){try{URL.revokeObjectURL(urlCache.get(old));}catch(e){}urlCache.delete(old);}}
     await load();toast(k.charAt(0).toUpperCase()+k.slice(1)+" photo updated");renderGallery();};
   inp.click();}
+/* rotate a single side's stored image 90° clockwise, persist to the shared cloud */
+let rotBusy=false;
+async function rotateSide(it,k,label,btn){
+  if(rotBusy)return;const id=it.faces[k];if(!id)return;
+  rotBusy=true;if(btn){btn.disabled=true;}
+  try{
+    const blob=await Store.getBlob(id);
+    if(!blob){toast("Couldn’t load that image");return;}
+    const rotated=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>{try{
+      const c=document.createElement("canvas");c.width=im.naturalHeight;c.height=im.naturalWidth; // swap w/h for 90°
+      const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(Math.PI/2);           // clockwise
+      x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
+      c.toBlob(b=>b?res(b):rej(new Error("encode")),"image/jpeg",0.92);
+    }catch(e){rej(e);}};im.onerror=()=>rej(new Error("load"));im.src=URL.createObjectURL(blob);});
+    const nid=uid();
+    await Store.putBlob(nid,rotated);
+    const old=it.faces[k];it.faces[k]=nid;it.updated=Date.now();
+    await Store.putItem(clone(it));
+    if(old){try{await Store.delBlob(old);}catch(e){}if(urlCache.has(old)){try{URL.revokeObjectURL(urlCache.get(old));}catch(e){}urlCache.delete(old);}}
+    await load();renderGallery();toast((label||k)+" rotated");
+  }catch(e){console.warn("rotate failed",e);toast("Rotate failed — try again");}
+  finally{rotBusy=false;}
+}
 async function removeSide(it,k,label){if(!confirm("Remove the "+(label||k)+" photo?"))return;
   const old=it.faces[k];delete it.faces[k];it.updated=Date.now();await Store.putItem(clone(it));
   if(old){try{await Store.delBlob(old);}catch(e){}if(urlCache.has(old)){try{URL.revokeObjectURL(urlCache.get(old));}catch(e){}urlCache.delete(old);}}
