@@ -527,14 +527,12 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
   const grid=el("div","sidegrid");
   for(const [k,label] of SIDES){const card=el("div","side");const simg=el("div","simg");
     if(it.faces[k]){const u=await url(it.faces[k]);const img=el("img");img.src=u;img.alt=label;simg.appendChild(img);simg.onclick=()=>openLightbox(it,k);
-      const ro=el("button","srotate","⟳");ro.title="Rotate "+label+" 90°";ro.onclick=ev=>{ev.stopPropagation();rotateSide(it,k,label,ro);};simg.appendChild(ro);
       const rm=el("button","sremove","✕");rm.title="Remove "+label;rm.onclick=ev=>{ev.stopPropagation();removeSide(it,k,label);};simg.appendChild(rm);}
     else{simg.style.cursor="default";simg.appendChild(el("div","noimg","Not uploaded"));}
     card.appendChild(simg);
     const scap=el("div","scap");
     scap.appendChild(el("span",null,label));
     const acts=el("div","acts");
-    if(it.faces[k]){const rb=el("button","edit","⟳ Rotate");rb.title="Rotate this side 90°";rb.onclick=()=>rotateSide(it,k,label,rb);acts.appendChild(rb);}
     const eb=el("button","edit",it.faces[k]?"Replace":"Add photo");eb.onclick=()=>replaceSide(it,k);acts.appendChild(eb);
     scap.appendChild(acts);
     card.appendChild(scap);
