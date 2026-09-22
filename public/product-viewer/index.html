@@ -430,27 +430,12 @@ async function renderExtra(){const wrap=$("#extra");wrap.innerHTML="";
   for(const bid of editing.extra){const ex=el("div","ex");const u=await url(bid);const img=el("img");img.src=u;ex.appendChild(img);
     const rm=el("button","rm","✕");rm.onclick=()=>{editing.extra=editing.extra.filter(x=>x!==bid);renderExtra();};ex.appendChild(rm);wrap.appendChild(ex);}
   const add=el("button","add","+");add.onclick=()=>pickFile(true);wrap.appendChild(add);}
-// On the 3D box the RIGHT face sits opposite LEFT, and TOP opposite BOTTOM, so their artwork must be
-// flipped 180° to read upright. We bake that flip in automatically at upload time — matching the manual
-// rotation that was previously needed — so no side has to be hand-rotated. (The Rotate button still lets
-// you nudge any side afterwards.)
-const AUTO_FLIP_180=new Set(["right","top"]);
-async function autoOrientForFace(file,faceKey){
-  if(!AUTO_FLIP_180.has(faceKey))return file;
-  try{
-    const src=URL.createObjectURL(file);
-    const out=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>{try{
-      const c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;
-      const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(Math.PI);
-      x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
-      c.toBlob(b=>b?res(b):rej(new Error("encode")),"image/jpeg",0.92);
-    }catch(e){rej(e);}};im.onerror=()=>rej(new Error("load"));im.src=src;});
-    URL.revokeObjectURL(src);return out;
-  }catch(e){console.warn("auto-orient failed, using original",e);return file;}
-}
+// Images are stored EXACTLY as uploaded (upright), so every thumbnail looks the same. The RIGHT and TOP
+// faces only need to be flipped to read correctly on the 3D box — that flip is applied at render time to
+// the model face alone (see openItem), never to the stored image or the thumbnail.
 function pickFile(isExtra,faceKey){const inp=el("input");inp.type="file";inp.accept="image/*";if(isExtra)inp.multiple=true;
   inp.onchange=async()=>{for(const file of inp.files){if(!file.type.startsWith("image/")){toast("Skipped a non-image file");continue;}
-    const bid=uid();const toStore=isExtra?file:await autoOrientForFace(file,faceKey);await Store.putBlob(bid,toStore);if(isExtra)editing.extra.push(bid);else{editing.faces[faceKey]=bid;break;}}
+    const bid=uid();await Store.putBlob(bid,file);if(isExtra)editing.extra.push(bid);else{editing.faces[faceKey]=bid;break;}}
     isExtra?renderExtra():renderFaces();};inp.click();}
 $("#saveBtn").onclick=async()=>{editing.name=($("#prodName").value||"").trim()||"Untitled";editing.updated=Date.now();
   await Store.putItem(clone(editing));await load();const nm=editing.name;startNew();toast("Saved “"+nm+"” — find it in the Gallery");};
@@ -569,28 +554,50 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
   // already uploaded an upright (portrait) side image, we leave it exactly as-is. Both sides get the
   // SAME treatment so left & right look identical. (Pre-rotating on a canvas avoids the Chrome bug
   // where a live-rotated <img> inside a CSS-3D face does not paint.)
+  // ===== MODEL-ONLY ORIENTATION =====
+  // Stored images (and thumbnails) are always upright. These rotations touch only the copies painted on
+  // the 3D box, so the box reads correctly while the thumbnails all look alike:
+  //   • left  : +90° to stand a wide banner up on the narrow side face
+  //   • right : −90° (mirror of left) so both side panels read upright as the box turns
+  //   • top   : 180° (its face is mounted opposite the bottom, so upright art would read upside-down)
   const faceColor={};
   const sideAspect={};   // the UPRIGHT (as-displayed) width/height of each side image → drives box depth
   await Promise.all(["left","right"].map(k=>new Promise(res=>{
     if(!faceUrls[k])return res();
     const im=new Image();im.onload=()=>{try{
-      const landscape = im.naturalWidth > im.naturalHeight;   // only rotate if the art is wider than tall
+      const landscape = im.naturalWidth > im.naturalHeight;   // wide banner needs standing up
+      const dir = (k==="right") ? -1 : 1;                     // right mirrors left
       let canvasUrl=faceUrls[k];
       if(landscape){
         const c=document.createElement("canvas");c.width=im.naturalHeight;c.height=im.naturalWidth;
-        const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(Math.PI/2);
+        const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(dir*Math.PI/2);
         x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
         canvasUrl=c.toDataURL("image/jpeg",0.92);faceUrls[k]=canvasUrl;
         sideAspect[k]=im.naturalHeight/im.naturalWidth;      // after rotation: displayed w/h
       }else{
+        if(k==="right"){                                     // portrait right still mirrors left → 180°
+          const c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;
+          const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(Math.PI);
+          x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
+          canvasUrl=c.toDataURL("image/jpeg",0.92);faceUrls[k]=canvasUrl;
+        }
         sideAspect[k]=im.naturalWidth/im.naturalHeight;      // already upright: displayed w/h
       }
-      // average colour of the (upright) art, used to blend any margin behind a 'contain' fit
+      // average colour of the art, used to blend any margin behind a 'contain' fit
       const src=new Image();src.onload=()=>{try{
         const s=document.createElement("canvas");s.width=s.height=1;const sx=s.getContext("2d");
         sx.drawImage(src,0,0,1,1);const d=sx.getImageData(0,0,1,1).data;faceColor[k]=`rgb(${d[0]},${d[1]},${d[2]})`;
       }catch(e){}res();};src.onerror=()=>res();src.src=canvasUrl;
     }catch(e){res();}};im.onerror=()=>res();im.src=faceUrls[k];})));
+  // TOP: flip 180° for the model face only (stored image / thumbnail stay upright).
+  if(faceUrls.top){
+    faceUrls.top = await new Promise(res=>{const im=new Image();im.onload=()=>{try{
+      const c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;
+      const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(Math.PI);
+      x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
+      res(c.toDataURL("image/jpeg",0.92));
+    }catch(e){res(faceUrls.top);}};im.onerror=()=>res(faceUrls.top);im.src=faceUrls.top;});
+  }
   cubeCtl=buildCube(scene,cube,faceUrls,aspect,faceColor,it.dims||null,sideAspect,pouch,
     {play,reset,zin,zout,zin_b,spd,m360,mh,mv,mf,faces:faceBtns,hint});
 
@@ -621,7 +628,7 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
 /* replace / remove a single side photo for the open product */
 function replaceSide(it,k){const inp=el("input");inp.type="file";inp.accept="image/*";
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;if(!f.type.startsWith("image/")){toast("Not an image file");return;}
-    const bid=uid();const toStore=await autoOrientForFace(f,k);await Store.putBlob(bid,toStore);const old=it.faces[k];it.faces[k]=bid;it.updated=Date.now();
+    const bid=uid();await Store.putBlob(bid,f);const old=it.faces[k];it.faces[k]=bid;it.updated=Date.now();
     await Store.putItem(clone(it));if(old){try{await Store.delBlob(old);}catch(e){}if(urlCache.has(old)){try{URL.revokeObjectURL(urlCache.get(old));}catch(e){}urlCache.delete(old);}}
     await load();toast(k.charAt(0).toUpperCase()+k.slice(1)+" photo updated");renderGallery();};
   inp.click();}
