@@ -73,6 +73,13 @@ img{max-width:100%}
 
 .sectlabel{font-size:12.5px;color:var(--ink-2);font-weight:650;margin:0 0 12px}
 .sectlabel span{color:var(--muted);font-weight:400}
+.pkgpick{display:flex;flex-wrap:wrap;gap:8px}
+.pkgbtn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 14px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.pkgbtn:hover{border-color:var(--green)}
+.pkgbtn.on{background:var(--green);border-color:var(--green);color:#fff}
+.field .drow{display:grid;grid-template-columns:repeat(3,minmax(0,160px));gap:10px}
+.field .drow input{width:100%}
+.field .hint{font-size:11px;color:var(--muted);margin-top:6px}
 
 .faces{display:grid;grid-template-columns:repeat(auto-fill,124px);gap:12px}
 @media(max-width:560px){.faces{grid-template-columns:repeat(auto-fill,1fr);grid-template-columns:repeat(3,1fr)}}
@@ -228,13 +235,23 @@ img{max-width:100%}
 <div class="wrap" id="uploadView">
   <div class="card">
     <h2>Add a product</h2>
-    <p class="lead">Name the product, set its box size in cm, add its six sides, and any extra photos. Everything is saved to your shared cloud, so the whole team sees it on any device. To edit or delete an existing product, open the Gallery and double-click it in the list.</p>
+    <p class="lead">Name the product, choose its packaging type and size, add its sides, and any extra photos. Everything is saved to your shared cloud, so the whole team sees it on any device. To edit or delete an existing product, open the Gallery and double-click it in the list.</p>
     <div class="field">
       <label>Product name</label>
       <input id="prodName" placeholder="e.g. Aloo Poori" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     </div>
 
-    <p class="sectlabel" style="margin-top:6px">Six sides <span>— click a slot to add a photo. The 3D box shapes itself to your photos automatically.</span></p>
+    <div class="field" style="margin-top:16px">
+      <label>Packaging type</label>
+      <div class="pkgpick" id="pkgPick"></div>
+    </div>
+    <div class="field" id="pkgDimsWrap" style="margin-top:14px">
+      <label id="pkgDimsLabel">Size</label>
+      <div class="drow" id="pkgDims"></div>
+      <div class="hint">Any unit (cm, mm). Optional — leave blank to auto-shape from the photos.</div>
+    </div>
+
+    <p class="sectlabel" style="margin-top:22px"><span id="sidesLabel" style="color:var(--ink-2);font-weight:650">Six sides</span> <span id="sidesHint">— click a slot to add a photo. The 3D box shapes itself to your photos automatically.</span></p>
     <div class="faces" id="faces"></div>
 
     <p class="sectlabel" style="margin-top:26px">Extra photos <span>— optional close-ups, lifestyle shots, etc.</span></p>
@@ -270,6 +287,28 @@ const SIDES=[
   ["top","Top",["w","d"]],
   ["bottom","Bottom",["w","d"]]
 ];
+// ===== PACKAGING TYPES =====
+// box types show all 6 sides + a solid 3D box; pouch types are flat (front & back only).
+// The chosen type + its measurements are stored inside the item's `dims` json (dims.type),
+// so no database change is needed. Canonical geometry is always width/height/depth.
+const PKG={
+  "rect-box":    {label:"Rectangle box",  box:true,  fields:[["length","Length"],["breadth","Breadth"],["depth","Depth"]]},
+  "square-box":  {label:"Square box",     box:true,  fields:[["side","Side"],["depth","Depth"]]},
+  "square-pouch":{label:"Square pouch",   box:false, fields:[["side","Side"]]},
+  "rect-pouch":  {label:"Rectangle pouch",box:false, fields:[["length","Length"],["breadth","Breadth"]]}
+};
+const POUCH_SIDES=[["front","Front",["w","h"]],["back","Back",["w","h"]]];
+function pkgType(it){const t=it&&it.dims&&it.dims.type;return PKG[t]?t:"rect-box";}   // existing items default to a box
+function isPouch(it){return !PKG[pkgType(it)].box;}
+function itemSides(it){return isPouch(it)?POUCH_SIDES:SIDES;}
+// map the type's raw fields to/from canonical {width,height,depth}
+function pkgFieldValue(dims,f){if(!dims)return"";if(f==="length"||f==="side")return dims.width||"";if(f==="breadth")return dims.height||"";if(f==="depth")return dims.depth||"";return"";}
+function pkgDimsFrom(type,vals){const d={type};
+  if(type==="rect-box"){d.width=vals.length||0;d.height=vals.breadth||0;d.depth=vals.depth||0;}
+  else if(type==="square-box"){d.width=vals.side||0;d.height=vals.side||0;d.depth=vals.depth||0;}
+  else if(type==="square-pouch"){d.width=vals.side||0;d.height=vals.side||0;}
+  else if(type==="rect-pouch"){d.width=vals.length||0;d.height=vals.breadth||0;}
+  return d;}
 const $=(s,r=document)=>r.querySelector(s);
 const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -353,14 +392,36 @@ $("#tabGallery").onclick=()=>switchTab("gallery");
 function switchTab(t){$("#tabUpload").classList.toggle("on",t==="upload");$("#tabGallery").classList.toggle("on",t==="gallery");
   $("#uploadView").classList.toggle("hidden",t!=="upload");$("#galleryView").classList.toggle("hidden",t!=="gallery");
   if(t==="gallery")renderGallery();
-  else{if(!editing)editing=blankItem();renderFaces();renderExtra();}}
+  else{if(!editing)editing=blankItem();renderPkg();renderFaces();renderExtra();}}
 
 /* ================= UPLOAD ================= */
-function blankItem(){return{id:uid(),name:"",faces:{},extra:[]};}
-function startNew(){editing=blankItem();$("#prodName").value="";renderFaces();renderExtra();}
+function blankItem(){return{id:uid(),name:"",dims:{type:"rect-box"},faces:{},extra:[]};}
+function startNew(){editing=blankItem();$("#prodName").value="";renderPkg();renderFaces();renderExtra();}
 $("#prodName").oninput=e=>{if(editing)editing.name=e.target.value;};
+// packaging-type picker + dimension inputs for the upload form
+function renderPkg(){
+  const pick=$("#pkgPick");if(!pick)return;pick.innerHTML="";
+  const cur=pkgType(editing);
+  for(const key in PKG){const b=el("button","pkgbtn"+(key===cur?" on":""),PKG[key].label);b.type="button";
+    b.onclick=()=>{ if(pkgType(editing)===key)return;
+      editing.dims={type:key};
+      if(!PKG[key].box){for(const k of ["left","right","top","bottom"])delete editing.faces[k];} // pouches keep only front/back
+      renderPkg();renderFaces(); };
+    pick.appendChild(b);}
+  const flds=PKG[cur].fields, wrap=$("#pkgDims");wrap.innerHTML="";
+  for(const [f,lab] of flds){const i=el("input");i.type="number";i.min="0";i.step="any";i.placeholder=lab;i.value=pkgFieldValue(editing.dims,f);i.dataset.f=f;i.oninput=updatePkgDims;wrap.appendChild(i);}
+  wrap.style.gridTemplateColumns="repeat("+flds.length+",minmax(0,160px))";
+  $("#pkgDimsLabel").textContent=PKG[cur].label+" size — "+flds.map(x=>x[1]).join(" × ");
+  $("#sidesLabel").textContent=PKG[cur].box?"Six sides":"Two sides";
+  $("#sidesHint").textContent=PKG[cur].box
+    ?"— click a slot to add a photo. The 3D box shapes itself to your photos automatically."
+    :"— front & back only. The pouch shapes itself to your photos automatically.";
+}
+function updatePkgDims(){const cur=pkgType(editing);const vals={};
+  $("#pkgDims").querySelectorAll("input").forEach(i=>{const v=+i.value;if(v>0)vals[i.dataset.f]=v;});
+  editing.dims=pkgDimsFrom(cur,vals);}
 async function renderFaces(){const wrap=$("#faces");wrap.innerHTML="";
-  for(const [key,label] of SIDES){const f=el("div","face"+(editing.faces[key]?" filled":""));
+  for(const [key,label] of itemSides(editing)){const f=el("div","face"+(editing.faces[key]?" filled":""));
     if(editing.faces[key]){const u=await url(editing.faces[key]);const img=el("img");img.src=u;img.alt=label;f.appendChild(img);
       const rm=el("button","rm","✕");rm.onclick=ev=>{ev.stopPropagation();delete editing.faces[key];renderFaces();};f.appendChild(rm);}
     else{f.appendChild(el("div","plus","+"));f.appendChild(el("div","cap","Add "+label.toLowerCase()));}
@@ -403,8 +464,8 @@ async function renderGallery(){await load();const list=$("#itemList");list.inner
   for(const it of items){const li=el("button","li"+(it.id===selectedId?" on":""));
     const coverId=it.faces.front||it.faces.back||Object.values(it.faces)[0]||it.extra[0];
     if(coverId){const u=await url(coverId);const img=el("img","lithumb");img.src=u;li.appendChild(img);}else li.appendChild(el("div","lithumb ph","—"));
-    const filled=SIDES.filter(([k])=>it.faces[k]).length;const txt=el("div","txt");
-    txt.innerHTML=`<div class="linm">${esc(it.name||"Untitled")}</div><div class="licnt">${filled}/6 sides · ${it.extra.length} extra</div>`;
+    const SIi=itemSides(it);const filled=SIi.filter(([k])=>it.faces[k]).length;const txt=el("div","txt");
+    txt.innerHTML=`<div class="linm">${esc(it.name||"Untitled")}</div><div class="licnt">${filled}/${SIi.length} sides · ${it.extra.length} extra</div>`;
     li.appendChild(txt);li.title="Double-click to edit name, size or delete";
     li.onclick=()=>{selectedId=it.id;renderGallery();};
     li.ondblclick=()=>openEditModal(it.id);
@@ -418,24 +479,34 @@ function openEditModal(id){const it=items.find(i=>i.id===id);if(!it)return;
     <header>Edit product</header>
     <div class="mc">
       <div class="field"><label>Product name</label><input id="eName" value="${esc(it.name||"")}"></div>
-      <div class="field"><label>Box size — Width × Height × Depth</label>
-        <div class="drow"><input id="eW" type="number" min="0" step="any" placeholder="Width" value="${d.width||""}">
-          <input id="eH" type="number" min="0" step="any" placeholder="Height" value="${d.height||""}">
-          <input id="eD" type="number" min="0" step="any" placeholder="Depth" value="${d.depth||""}"></div>
-        <div class="hint">Any unit (cm, mm, ratio). Leave all blank to auto-shape the box from your photos.</div></div>
+      <div class="field"><label>Packaging type</label>
+        <select id="ePkg" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface)">
+          ${Object.keys(PKG).map(k=>`<option value="${k}"${k===pkgType(it)?" selected":""}>${PKG[k].label}</option>`).join("")}
+        </select></div>
+      <div class="field"><label id="ePkgLabel">Size</label>
+        <div class="drow" id="ePkgDims"></div>
+        <div class="hint">Any unit (cm, mm). Leave blank to auto-shape from the photos.</div></div>
     </div>
     <footer><button class="btn danger" data-del>Delete product</button><div style="flex:1"></div>
       <button class="btn" data-cancel>Cancel</button><button class="btn primary" data-save>Save</button></footer>
   </div>`;
   document.body.appendChild(scrim);
+  // render the dimension inputs for the currently-selected packaging type
+  const ePkg=scrim.querySelector("#ePkg"), eDims=scrim.querySelector("#ePkgDims"), eLbl=scrim.querySelector("#ePkgLabel");
+  function renderEDims(){const t=ePkg.value, flds=PKG[t].fields;eDims.innerHTML="";
+    eDims.style.gridTemplateColumns="repeat("+flds.length+",minmax(0,150px))";
+    for(const [f,lab] of flds){const i=document.createElement("input");i.type="number";i.min="0";i.step="any";i.placeholder=lab;i.dataset.f=f;i.value=pkgFieldValue(it.dims&&it.dims.type===t?it.dims:{},f);eDims.appendChild(i);}
+    eLbl.textContent=PKG[t].label+" size — "+flds.map(x=>x[1]).join(" × ");}
+  ePkg.onchange=renderEDims;renderEDims();
   const close=()=>{scrim.remove();document.removeEventListener("keydown",kd);};
   const kd=e=>{if(e.key==="Escape")close();};document.addEventListener("keydown",kd);
   scrim.addEventListener("click",e=>{if(e.target===scrim)close();});
   scrim.querySelector("[data-cancel]").onclick=close;
   scrim.querySelector("[data-save]").onclick=async()=>{
     it.name=(scrim.querySelector("#eName").value||"").trim()||"Untitled";
-    const w=+scrim.querySelector("#eW").value, h=+scrim.querySelector("#eH").value, dp=+scrim.querySelector("#eD").value;
-    if(w>0&&h>0&&dp>0)it.dims={width:w,height:h,depth:dp}; else delete it.dims;
+    const t=ePkg.value, vals={};eDims.querySelectorAll("input").forEach(i=>{const v=+i.value;if(v>0)vals[i.dataset.f]=v;});
+    it.dims=pkgDimsFrom(t,vals);
+    if(!PKG[t].box){for(const k of ["left","right","top","bottom"]){if(it.faces[k]){try{await Store.delBlob(it.faces[k]);}catch(e){}delete it.faces[k];}}}
     it.updated=Date.now();await Store.putItem(clone(it));await load();close();toast("Updated");renderGallery();};
   scrim.querySelector("[data-del]").onclick=async()=>{
     if(!confirm(`Delete “${it.name||"this product"}” and all its photos? This cannot be undone.`))return;
@@ -477,18 +548,19 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
   r2.append(el("span","lbl","Rotate"),m360,mh,mv,mf,el("div","sp"),spl);
   // Row 3: face views
   const r3=el("div","ctrlrow");
+  const SI=itemSides(it);const pouch=isPouch(it);
   const faceBtns={};r3.append(el("span","lbl","View"));
-  for(const [k,label] of SIDES){const b=el("button","chipbtn",label);faceBtns[k]=b;r3.appendChild(b);}
+  for(const [k,label] of SI){const b=el("button","chipbtn",label);faceBtns[k]=b;r3.appendChild(b);}
   panel.append(r1,r2,r3);
   stage.appendChild(panel);
   v.appendChild(stage);
 
-  const faceUrls={};for(const [k] of SIDES)faceUrls[k]=await url(it.faces[k]);
+  const faceUrls={};for(const [k] of SI)faceUrls[k]=await url(it.faces[k]);
   // measure each image's aspect ratio (to auto-shape the box) and its average colour
   // (used to blend any margins on the box's narrow side faces instead of showing white).
   // Measure the FRONT image aspect only — used solely as a sensible DEFAULT for W:H when the
   // product has no explicit dimensions. It never affects depth or the side faces.
-  const aspect={};await Promise.all(SIDES.map(([k])=>new Promise(res=>{
+  const aspect={};await Promise.all(SI.map(([k])=>new Promise(res=>{
     const u=faceUrls[k];if(!u){aspect[k]=null;return res();}
     const im=new Image();im.onload=()=>{aspect[k]=im.naturalWidth/im.naturalHeight;res();};
     im.onerror=()=>{aspect[k]=null;res();};im.src=u;})));
@@ -519,13 +591,13 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
         sx.drawImage(src,0,0,1,1);const d=sx.getImageData(0,0,1,1).data;faceColor[k]=`rgb(${d[0]},${d[1]},${d[2]})`;
       }catch(e){}res();};src.onerror=()=>res();src.src=canvasUrl;
     }catch(e){res();}};im.onerror=()=>res();im.src=faceUrls[k];})));
-  cubeCtl=buildCube(scene,cube,faceUrls,aspect,faceColor,it.dims||null,sideAspect,
+  cubeCtl=buildCube(scene,cube,faceUrls,aspect,faceColor,it.dims||null,sideAspect,pouch,
     {play,reset,zin,zout,zin_b,spd,m360,mh,mv,mf,faces:faceBtns,hint});
 
-  const sides=el("div","sides");const filled=SIDES.filter(([k])=>it.faces[k]).length;
-  sides.appendChild(el("h3",null,`Six sides <span class="c">${filled}/6 uploaded</span>`));
+  const sides=el("div","sides");const filled=SI.filter(([k])=>it.faces[k]).length;
+  sides.appendChild(el("h3",null,`${pouch?"Two sides":"Six sides"} <span class="c">${filled}/${SI.length} uploaded</span>`));
   const grid=el("div","sidegrid");
-  for(const [k,label] of SIDES){const card=el("div","side");const simg=el("div","simg");
+  for(const [k,label] of SI){const card=el("div","side");const simg=el("div","simg");
     if(it.faces[k]){const u=await url(it.faces[k]);const img=el("img");img.src=u;img.alt=label;simg.appendChild(img);simg.onclick=()=>openLightbox(it,k);
       const rm=el("button","sremove","✕");rm.title="Remove "+label;rm.onclick=ev=>{ev.stopPropagation();removeSide(it,k,label);};simg.appendChild(rm);}
     else{simg.style.cursor="default";simg.appendChild(el("div","noimg","Not uploaded"));}
@@ -594,12 +666,13 @@ async function removeSide(it,k,label){if(!confirm("Remove the "+(label||k)+" pho
    ========================================================================= */
 const VIEW_ANGLES={front:[0,0],back:[0,180],right:[0,-90],left:[0,90],top:[-90,0],bottom:[90,0]};
 const DEFAULT_VIEW={rx:-14,ry:-28};
-function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,sideAspect,ui){
+function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,sideAspect,pouch,ui){
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const norm=a=>{while(a>180)a-=360;while(a<-180)a+=360;return a;};
   const els={};
   // Front/back/top/bottom use `cover` (fill, aspect kept). Left/right use `contain` so the WHOLE
   // side banner — including the logo — is always visible; any margin is filled with the art's colour.
+  // A POUCH is flat (front & back only); its four edges get a thin neutral colour instead of a label.
   for(const [k,label] of SIDES){const f=el("div","cf");
     if(faceUrls[k]){f.style.backgroundImage=`url("${faceUrls[k]}")`;
       if(k==="left"||k==="right"){
@@ -607,6 +680,7 @@ function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,sideAspect,ui){
         // no explicit dims -> face is shaped to the banner -> cover fills perfectly;
         // explicit dims -> face is fixed by W/H/D -> contain shows the whole banner, margin blended.
         if(faceColor&&faceColor[k])f.style.backgroundColor=faceColor[k];}}
+    else if(pouch)f.style.background="#e7e1d6";
     else f.appendChild(el("div","empty",label));
     cube.appendChild(f);els[k]=f;}
 
@@ -624,7 +698,11 @@ function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,sideAspect,ui){
   // Because both are measured against the same shared height, the four vertical faces line up perfectly.
   // Top & bottom then use `cover` to fill W × D. Explicit W×H×D, when entered, overrides all of this.
   const sa = (fin(sideAspect&&sideAspect.left) ? sideAspect.left : (sideAspect&&sideAspect.right)) ;
-  if(hasDims){
+  if(pouch){
+    // Flat pouch: width from its Side/Length×Breadth if given, else the front photo; depth is a thin sliver.
+    uW = (fin(dW)&&fin(dH)) ? dW/dH : (fin(aspect.front||aspect.back)?(aspect.front||aspect.back):1.0);
+    uD = 0.045;
+  }else if(hasDims){
     uW=dW/dH;   // W : H
     uD=dD/dH;   // D : H   (INDEPENDENT of any image — dims are the source of truth)
   }else{
@@ -634,7 +712,7 @@ function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,sideAspect,ui){
   }
   // Hard safety: never allow a non-finite or degenerate ratio (that is what blanked the box).
   if(!fin(uW))uW=1.0; if(!fin(uD))uD=0.32;
-  uW=clamp(uW,0.15,6); uD=clamp(uD,0.1,3);
+  uW=clamp(uW,0.15,6); uD=clamp(uD, pouch?0.02:0.1, 3);
   // Side art fill: COVER — fills the D×H face edge-to-edge, upright, identical on both sides. When the
   // depth was auto-measured from this image (no explicit dims) the face aspect already matches the art,
   // so cover neither crops nor gaps; with manual dims it fills the fixed face, trimming only if needed.
@@ -717,7 +795,7 @@ function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,sideAspect,ui){
 
   // ----- face presets (smoothly animate, don't snap) -----
   function goFace(k){const [x,y]=VIEW_ANGLES[k];tRx=x;tRy=y;animating=true;setAuto(false);Object.values(modeBtns).forEach(b=>b.classList.remove("on"));}
-  for(const [k] of SIDES)ui.faces[k].onclick=()=>goFace(k);
+  for(const k in ui.faces)ui.faces[k].onclick=()=>goFace(k);
 
   // ----- reset -----
   ui.reset.onclick=()=>{setZoom(1);setMode("360");tRx=DEFAULT_VIEW.rx;tRy=DEFAULT_VIEW.ry;animating=true;};
@@ -758,7 +836,7 @@ function buildCube(scene,cube,faceUrls,aspect,faceColor,dims,sideAspect,ui){
 
 /* ---------- Lightbox ---------- */
 async function openLightbox(it,key){
-  const seq=[];for(const [k,label] of SIDES)if(it.faces[k])seq.push({id:it.faces[k],label});
+  const seq=[];for(const [k,label] of itemSides(it))if(it.faces[k])seq.push({id:it.faces[k],label});
   it.extra.forEach((b,i)=>seq.push({id:b,label:"Extra "+(i+1)}));
   let idx=key.startsWith("extra:")?seq.findIndex(s=>s.id===it.extra[+key.split(":")[1]]):seq.findIndex(s=>s.id===it.faces[key]);
   if(idx<0)idx=0;
@@ -832,7 +910,7 @@ async function autoMigrateLocalToCloud(){
 }
 
 /* ---------- init ---------- */
-(async function(){const ok=await Store.init();await load();editing=blankItem();renderFaces();renderExtra();
+(async function(){const ok=await Store.init();await load();editing=blankItem();renderPkg();renderFaces();renderExtra();
   $("#persistNote").textContent=SUPA_ON
     ?"Products are saved to your shared Sukhna cloud, so the whole team sees the same catalogue on any device."
     :(ok?"Photos are saved in this browser on this device only."
