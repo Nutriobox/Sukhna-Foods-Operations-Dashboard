@@ -196,9 +196,9 @@ img{max-width:100%}
 .lb .lbtop .nm{flex:1;font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lb .lbtop button{background:rgba(255,255,255,.14);border:0;color:#fff;width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:16px}
 .lb .lbtop button:hover{background:rgba(255,255,255,.26)}
-.lb .canvas{flex:1;overflow:hidden;position:relative;touch-action:none;cursor:grab;display:grid;place-items:center}
+.lb .canvas{flex:1;min-height:0;overflow:hidden;position:relative;touch-action:none;cursor:grab}
 .lb .canvas.dragging{cursor:grabbing}
-.lb .canvas img{max-width:100%;max-height:100%;transform-origin:center;will-change:transform;user-select:none;-webkit-user-drag:none}
+.lb .canvas img{position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%;width:auto;height:auto;transform-origin:center;will-change:transform;user-select:none;-webkit-user-drag:none}
 .lb .lbfoot{padding:12px 18px 20px;color:#cdd0c6;font-size:12px;text-align:center}
 .lb .zbtns{display:inline-flex;gap:8px;margin-left:10px}
 .lb .zbtns button{background:rgba(255,255,255,.14);border:0;color:#fff;width:30px;height:30px;border-radius:7px;font-size:15px}
