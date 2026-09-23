@@ -874,7 +874,9 @@ async function openLightbox(it,key){
   let nw=0,nh=0,baseW=0,scale=1,tx=0,ty=0;
   const fitBase=()=>{const r=cv.getBoundingClientRect();if(!nw||!nh||!r.width){baseW=nw||100;return;}
     baseW=nw*Math.min(r.width/nw, r.height/nh);};                 // contain-fit width
-  const maxScale=()=>Math.max(1, nw/(baseW||1));                  // never past 1:1 native
+  // Allow zoom on every image: at least 4×, or up to native 1:1 for big images (whichever is larger),
+  // so small images can still be inspected while high-res ones stay crisp within their native range.
+  const maxScale=()=>Math.max(4, nw/(baseW||1));
   const apply=()=>{img.style.width=(baseW*scale)+"px";img.style.height="auto";img.style.transform=`translate(${tx}px,${ty}px)`;};
   async function show(){const u=await url(seq[idx].id);
     await new Promise(res=>{const t=new Image();t.onload=()=>{nw=t.naturalWidth;nh=t.naturalHeight;res();};t.onerror=()=>{nw=nh=0;res();};t.src=u;});
