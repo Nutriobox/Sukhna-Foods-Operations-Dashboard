@@ -28,3 +28,10 @@ pact-inventory-steps.js
 auth.json
 SukhnaSalesOrder-Android/
 SukhnaSalesOrder-Android.zip
+SukhnaSalesOrder-NativeApp/
+SukhnaSalesOrder-NativeApp.zip
+SukhnaSalesOrder-JavaApp/
+SukhnaSalesOrder-JavaApp.zip
+
+pact-salesorders.har
+pact-salesorders-steps.js

@@ -1,0 +1,93 @@
+const { chromium } = require('playwright');
+
+(async () => {
+  const browser = await chromium.launch({
+    headless: false
+  });
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true
+  });
+  const page = await context.newPage();
+  await page.goto('http://140.245.255.130:8443/PACTALLUSUREWEB/#/login');
+  await page.getByRole('textbox', { name: 'Enter User Name' }).fill('carahul');
+  await page.getByRole('textbox', { name: 'Enter User Name' }).press('Tab');
+  await page.getByRole('textbox', { name: 'Password' }).fill('123');
+  await page.getByRole('button', { name: 'Select' }).click();
+  await page.getByRole('link', { name: 'Stock Inward', exact: true }).click();
+  await page.locator('[id="100"]').click();
+  await page.locator('[id="100"]').fill('Am');
+  await page.getByText('AM Nutratech Pvt Ltd').click();
+  await page.getByRole('textbox', { name: 'Bill No' }).click();
+  await page.getByRole('textbox', { name: 'Bill No' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'Bill No' }).fill('R2141.');
+  await page.locator('.Pact_TimerControl > div > div > .List__button').first().click();
+  await page.getByText('3', { exact: true }).nth(1).click();
+  await page.getByRole('tab', { name: 'Extra Fields' }).click();
+  await page.locator('div:nth-child(9) > app-pactextradatepicker > .Pact_TimerControl > div > div > .List__button').click();
+  await page.getByText('19').click();
+  await page.getByRole('gridcell', { description: 'Product Name', exact: true }).first().click();
+  await page.locator('[id="10"]').fill('PROTEIN CH');
+  await page.locator('[id="10"]').press('Enter');
+  await page.getByRole('gridcell', { name: 'L1' }).getByRole('combobox').selectOption('L1');
+  await page.getByRole('gridcell', { name: 'L1' }).getByRole('combobox').press('Enter');
+  await page.locator('.PactTextBoxEditor').fill('9000');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.locator('.ng-star-inserted > div > .List__button').first().click();
+  await page.getByText('19', { exact: true }).click();
+  await page.getByText('Save & Add').click();
+  await page.getByRole('button', { name: ' Save' }).click();
+  await page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(1).click();
+  await page.locator('[id="10"]').fill('Plain PrO');
+  await page.locator('[id="10"]').press('Enter');
+  await page.getByRole('row', { name: '2 L2 0.83 Gms 0.00 0.00 Gms' }).getByRole('combobox').selectOption('L1');
+  await page.getByRole('row', { name: '2 L2 0.83 Gms 0.00 0.00 Gms' }).getByRole('combobox').press('Enter');
+  await page.locator('.PactTextBoxEditor').fill('13500');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.locator('.ng-star-inserted > div > .List__button').first().click();
+  await page.getByText('19', { exact: true }).click();
+  await page.getByText('Save & Add').click();
+  await page.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click();
+  await page.locator('.row > .btnMetroDiv').click();
+  await page.getByText('Save & Add').click();
+  await page.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click();
+  await page.getByRole('gridcell', { name: 'RD0174/' }).getByRole('combobox').selectOption('41836');
+  await page.getByRole('gridcell', { name: 'RD0174/' }).getByRole('combobox').press('Enter');
+  await page.locator('.PactTextBoxEditor').fill('13500');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.getByRole('button', { name: ' Save' }).click();
+  await page.getByRole('gridcell', { description: 'Product Name', exact: true }).nth(2).click();
+  await page.locator('[id="10"]').fill('PROTEIN VA');
+  await page.locator('[id="10"]').press('Enter');
+  await page.getByRole('row', { name: '3 L2 0.83 Gms 0.00 0.00 Gms' }).getByRole('combobox').selectOption('L1');
+  await page.getByRole('row', { name: '3 L2 0.83 Gms 0.00 0.00 Gms' }).getByRole('combobox').press('Enter');
+  await page.locator('.PactTextBoxEditor').fill('18000');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.locator('.ng-star-inserted > div > .List__button').first().click();
+  await page.getByText('19', { exact: true }).click();
+  await page.getByText('Save & Add').click();
+  await page.getByRole('gridcell', { description: 'Batch Number', exact: true }).first().click();
+  await page.getByRole('gridcell', { name: 'RD0184/' }).getByRole('combobox').selectOption('41835');
+  await page.getByRole('gridcell', { description: 'Expiry Date', exact: true }).first().click();
+  await page.getByRole('gridcell', { description: 'Quantity', exact: true }).first().click();
+  await page.locator('.PactTextBoxEditor').fill('18000');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.getByRole('button', { name: ' Save' }).click();
+  await page.getByRole('gridcell', { name: '900.00' }).first().click();
+  await page.locator('.PactTextBoxEditor').fill('900');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.getByRole('gridcell', { name: '900.00' }).nth(1).click();
+  await page.locator('.PactTextBoxEditor').fill('900');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.getByRole('gridcell', { name: '900.00' }).nth(2).click();
+  await page.locator('.PactTextBoxEditor').fill('900');
+  await page.locator('.PactTextBoxEditor').press('Enter');
+  await page.getByRole('button', { name: ' Post' }).click();
+  await page.close();
+
+  // ---------------------
+  await context.close();
+  await browser.close();
+})();

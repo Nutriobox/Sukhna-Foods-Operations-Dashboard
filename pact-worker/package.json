@@ -2,9 +2,11 @@
   "name": "pact-worker",
   "version": "0.1.0",
   "private": true,
-  "description": "Playwright automation that enters verified bills into PACT ERP (Stock Inward).",
+  "description": "Playwright automation that enters verified bills into PACT ERP (Stock Inward). Also enters Factory Sales Invoices from scanned barcodes.",
   "scripts": {
-    "enter": "node run.js"
+    "enter": "node run.js",
+    "enter-fsi": "node run-fsi.js",
+    "diag-fsi": "cross-env FSI_DIAG=1 node run-fsi.js"
   },
   "dependencies": {
     "playwright": "^1.55.0"

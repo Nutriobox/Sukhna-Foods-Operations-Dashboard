@@ -105,6 +105,64 @@ async function resolveBatchDialog(page, dlg, bc) {
   return sub;
 }
 
+// Reads the invoice's own "Product Details" SlickGrid (NOT the batch dialog) so
+// the app can show the SAME table PACT shows: Product Code, Product Name,
+// GST HSN/SAC, Warehouse, Sales Unit Level, UOM and Qty — one row per line.
+// Returns [] if the grid can't be found (older layout / nothing filled).
+async function readInvoiceGrid(page) {
+  try {
+    return await page.evaluate(() => {
+      const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      // Every SlickGrid on the page that is NOT inside an open modal dialog.
+      const grids = [...document.querySelectorAll('.slickgrid-container, .slick-viewport')]
+        .map(el => el.closest('.slickgrid-container') || el)
+        .filter(el => el && !el.closest('modal-container'));
+      const uniq = [...new Set(grids)];
+      let best = null, bestScore = -1;
+      for (const g of uniq) {
+        const headers = [...g.querySelectorAll('.slick-header-column')].map(h => (h.textContent || '').trim());
+        const hn = headers.map(norm);
+        // Score: prefer the grid that has Product Code + Product Name (the details grid).
+        let score = 0;
+        if (hn.some(h => h.includes('productcode'))) score += 2;
+        if (hn.some(h => h.includes('productname'))) score += 2;
+        if (hn.some(h => h.includes('hsn'))) score += 1;
+        if (hn.some(h => h.includes('warehouse'))) score += 1;
+        if (score > bestScore) { bestScore = score; best = { g, headers, hn }; }
+      }
+      if (!best || bestScore < 2) return [];
+      const idx = (want) => best.hn.findIndex(h => want.some(w => h.includes(w)));
+      const iCode = idx(['productcode']);
+      const iName = idx(['productname']);
+      const iHsn  = idx(['hsn', 'sac']);
+      const iWh   = idx(['warehouse']);
+      const iLvl  = idx(['salesunitlevel', 'unitlevel']);
+      const iUom  = idx(['uom', 'unitofmeasure', 'salesuom']);
+      const iQty  = idx(['qty', 'quantity']);
+      const rows = [...best.g.querySelectorAll('.grid-canvas .slick-row')];
+      const out = [];
+      for (const r of rows) {
+        const cells = [...r.querySelectorAll('.slick-cell')].map(c => (c.textContent || '').trim());
+        const at = (i) => (i >= 0 && i < cells.length ? cells[i] : '');
+        const code = at(iCode), name = at(iName);
+        if (!code && !name) continue;              // skip blank/total rows
+        out.push({
+          code, name,
+          hsn: at(iHsn),
+          warehouse: at(iWh),
+          unitLevel: at(iLvl),
+          uom: at(iUom),
+          qty: at(iQty),
+        });
+      }
+      return out;
+    });
+  } catch (e) {
+    console.log('  readInvoiceGrid failed: ' + String(e.message).split('\n')[0]);
+    return [];
+  }
+}
+
 async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   const DIAG = String(process.env.FSI_DIAG || '') === '1';
   const soNumber = String(order.soNumber || order.so || '').trim();
@@ -300,11 +358,14 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   // 4. Stop before Post unless told to post (safe default).
   if (dryRun) {
     await page.screenshot({ path: path.join('/tmp', 'fsi-filled.png'), fullPage: true }).catch(() => {});
-    console.log('  [DRY RUN] Filled ' + entered + '/' + barcodes.length + '. Stopping before Post.');
-    return { posted: false, entered, skipped, total: barcodes.length };
+    const dryItems = await readInvoiceGrid(page);
+    console.log('  [DRY RUN] Filled ' + entered + '/' + barcodes.length + ' (grid rows: ' + dryItems.length + '). Stopping before Post.');
+    return { posted: false, entered, skipped, total: barcodes.length, items: dryItems };
   }
 
   await page.screenshot({ path: path.join('/tmp', 'fsi-before-post.png'), fullPage: true }).catch(() => {});
+  const gridItems = await readInvoiceGrid(page);   // the filled Product Details grid — mirrored into the app
+  console.log('  captured ' + gridItems.length + ' product-detail rows for the app');
   // ---- Post, handling PACT's document-level validations adaptively ----
   // Selecting the SO does not fill everything: PACT needs the GST Sale Type set
   // (it NAMES the value in a warning, e.g. InterStateB2B for an out-of-state
@@ -370,7 +431,7 @@ async function createFactorySalesInvoice(page, order, { dryRun = true } = {}) {
   const docNo = docMatch ? docMatch[0].replace(/\s+/g, '') : '';
   if (posted) console.log('  Post CONFIRMED docNo=' + (docNo || '?'));
   else console.log('  Post NOT confirmed. PACT says: ' + (reason || '(still Draft)'));
-  return { posted, docNo, reason: posted ? '' : (reason || 'still Draft'), entered, skipped, total: barcodes.length };
+  return { posted, docNo, reason: posted ? '' : (reason || 'still Draft'), entered, skipped, total: barcodes.length, items: gridItems };
 }
 
 module.exports = { createFactorySalesInvoice };

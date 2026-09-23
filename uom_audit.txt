@@ -1,0 +1,59 @@
+SUKHNA FOODS — UOM / QUANTITY DATA AUDIT
+Inventory synced: 2026-08-30T05:57:01.442+00:00   |  1024 products, 7326 batch rows  |  160 pending sales orders, 414 lines
+====================================================================================================
+
+1) IMPOSSIBLE SALES-ORDER QUANTITIES  (fix in PACT — these distort every pending total)
+----------------------------------------------------------------------------------------------------
+   FSOD-26-27/111     Hara Bhara Kebab - Apni Mandi (30 Gms/540 Gms/12 Pac ordered=    100,000,043  pending=    100,000,000
+   FSOD-26-27/517     Vada Pao - Apni Mandi (70 Gms/8 Pcs)                 ordered=        100,000  pending=        100,000
+
+2) IMPOSSIBLE STOCK QUANTITIES  (batch rows over 10 tonnes / 10,000 L)
+----------------------------------------------------------------------------------------------------
+   FGO856    Jeera Aloo - Apni Mandi (10 Pkt/Carton)    FNO852/18072601.   4,999,999,999,999,410,176 Carton.
+   RM0081    Raw Chicken Thigh                          1CB007/16072603           7,920,000,000 Gms
+   FG0278    Tandoori Chicken Marinated (1500 Gms)      F2B034/11072604             600,000,000 Gms
+   FG0298    Mutton Galouti - Sukhna (40gms/480 Gms/ 12 F2B037/08082601.            380,125,440 Gms
+   RM5028    Dish Wash Liquid                           HK0529/06052601             365,000,000 ML
+   RM5028    Dish Wash Liquid                           HK0529/22052601             190,000,000 ML
+   RM0018    Cauliflower                                RC0018/01042601             174,415,787 Gms
+   SF0068    First marination for Ghee Roast (In-house) SD0033/25042601             120,275,864 Gms
+   SF0026    Zucchini (2 Kg)                            SC0026/03062602              80,000,000 Gms
+   RM0178    Date Sticker (50x10)mm                     RD0087/18042601              79,999,694 Pcs
+   RM0081    Raw Chicken Thigh                          1CB007/16072602              79,960,000 Gms
+   RM0018    Cauliflower                                RC0018/19052601              74,942,424 Gms
+   RM0022    Coolm Milk (1 Ltr.)                        RC0022/12052601              62,933,500 ML
+   SF0067    Chop Masala BBK (In-house)                 SD0032/01042601              60,680,059 Gms
+   FG0510    Dal Dhaba (1 Kg)                           FN0080/20072601              59,277,000 Gms
+   SF0067    Chop Masala BBK (In-house)                 SD0032/25042601              50,000,000 Gms
+   RM5029    Toilet Cleaner                             HK0530/12062601              50,000,000 Ltr
+   FGO856    Jeera Aloo - Apni Mandi (10 Pkt/Carton)    FNO852/20072601.             40,030,000 Carton.
+   FGO524    Hummus Sukhna Foods (500 Gms)              FN0094/13052601              39,840,000 Gms
+   FGO527    Tomato Salsa - Sukhna Food (500 Gms)       FN0097/13052602              27,944,000 Gms
+   RM5029    Toilet Cleaner                             HK0530/14052601              25,000,000 Ltr
+   SF0068    First marination for Ghee Roast (In-house) SD0033/01042601              24,136,000 Gms
+   RM0050    Paneer Hard (Triming)                      RC0050/18062601              20,000,000 Gms
+   RM0077    Raw Chicken Breast                         1CB003/01042646              20,000,000 Gms
+   FG0298    Mutton Galouti - Sukhna (40gms/480 Gms/ 12 F2B037/06082601.             17,291,520 Gms
+   RM5029    Toilet Cleaner                             HK0530/22052602              15,000,000 Ltr
+   WP0130    Crispy Chicken Momos (43 Gms/ 340 Gms) WIP WP013004                     13,600,000 Gms
+   RM0077    Raw Chicken Breast                         1CB003/01042624              13,583,700 Gms
+   (28 rows total)
+
+3) DUPLICATE UOM SPELLINGS IN THE UOM MASTER  (same unit stored as different text)
+----------------------------------------------------------------------------------------------------
+   gm gm          stored as: GM GM, gm gm
+   gram           stored as: GM, GMS, Gm, Gms, gm, gms
+   litre          stored as: Ltr, Lts
+   millilitre     stored as: ML, Ml
+
+4) FRACTIONAL ORDER QUANTITIES  (suspicious when the unit is packs)
+----------------------------------------------------------------------------------------------------
+   FSOD-26-27/109     Alfredo Sauce (20 Pkt/Bunch)                         ordered=11.77
+   FSOD-26-27/21      Lehsoon Chutney (250 Gms)                            ordered=0.14
+   FSOD-26-27/21      Vada Pao (70 Gms/8 Pcs Pack)                         ordered=0.4
+
+5) EVIDENCE THAT ORDER QTY IS IN PACKS, NOT GRAMS
+----------------------------------------------------------------------------------------------------
+   Order quantities: median 15, 91.5% below 100, while 5,533 of 7,326 stock rows are in Gms.
+   Read as grams, a typical line is 0.006%-0.4% of the stock on hand (i.e. ordering 15 grams).
+   Read as packs it reconciles, e.g. Amritsari Chole 44 packs x 1000 Gms = 44,000 Gms vs 64,000 Gms in stock.

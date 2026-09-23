@@ -2,6 +2,8 @@
 cd /d "%~dp0"
 del /f /q ".git\*.lock" 2>nul
 del /f /q ".git\next-index-*.lock" 2>nul
+echo Syncing with origin (rebase)...
+git pull --rebase origin main
 echo Pushing to origin/main...
 git push origin main
 echo.
