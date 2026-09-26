@@ -1661,6 +1661,13 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
           <span className="tile-meta">Barcode scan · live inventory</span>
           <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
         </button>
+        <a className="tile costing" href="/costing/index.html">
+          <span className="tile-ic"><Icon n="rupee" size={30} /></span>
+          <span className="tile-ttl">Factory Costing Dashboard</span>
+          <span className="tile-sub">Rates, ideal BOM costing, and actual batch costing built from PACT reports.</span>
+          <span className="tile-meta">Sync PACT reports</span>
+          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+        </a>
       </div>
     </div>
   );

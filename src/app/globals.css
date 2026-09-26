@@ -682,6 +682,8 @@
 /* ---- Sales Order — Scan & Inventory (4th tile + Item→Batch→Qty tree) ---- */
 .tile.salesorder .tile-ic { background: #ede9fe; }
 .tile.salesorder .tile-ic svg { stroke: #7c3aed; }
+.tile.costing .tile-ic { background: #fef3c7; }
+.tile.costing .tile-ic svg { stroke: #b45309; }
 .soscan { display: flex; flex-direction: column; gap: 16px; }
 .soscan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .soscan-head h2 { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
