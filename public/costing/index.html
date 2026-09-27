@@ -89,7 +89,7 @@ tr.sell td{background:rgba(31,96,50,.12)!important;font-weight:800;color:var(--b
 <header><div class="wrap hdrrow" style="padding:0"><div><h1>🏭 Sukhna Factory — Costing Dashboard</h1>
 <p>Rates: Product Master (PACT) · Ideal BOM costing · Actual batch costing (PACT) · Weights via L1/L2/L3 (ml = gms)</p>
 <div class="syncstat" id="syncstat"></div></div>
-<div class="hbtns"><button class="syncbtn alt" id="xall" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets">⬇ Excel — all 5 dashboards</button><button class="syncbtn" onclick="openSync()">🔄 Sync PACT Reports</button></div></div></header>
+<div class="hbtns"><button class="syncbtn alt" id="xall" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets">⬇ Excel — all 5 dashboards</button><button class="syncbtn" id="livesyncbtn" onclick="liveSyncNow()" title="Pull the latest PACT reports live (auto-syncs on load too)">⚡ Live Sync</button><button class="syncbtn" onclick="openSync()">🔄 Sync PACT Reports</button></div></div></header>
 
 <div class="modal" id="syncmodal" onclick="if(event.target===this)closeSync()"><div class="mbox">
  <h2>🔄 Sync PACT Reports</h2>
@@ -629,8 +629,71 @@ async function _buildAndSave(tabs,filtered){toast(tabs.length>1?'Preparing Excel
 function exportAll(){return buildAndSave(['rate','bom','sum','batch','pm'],false);}
 function exportOne(t){return buildAndSave([t],true);}
 
+// ================= LIVE PACT SYNC (real-time snapshots) =================
+// Pulls each report's latest snapshot from /api/costing/<k> (written by the AWS
+// worker) and feeds it through the SAME detectType()/parseXX() pipeline the
+// manual upload uses. "Live Sync" also POSTs /api/sync-costing to trigger a fresh
+// PACT pull. Manual upload stays as a fallback. Snapshots already applied are
+// skipped, so reloads stay cheap.
+(function(){
+ const ORDER=['pm','bom','pf','si'];               // rates first, then recipes/batches/purchases
+ const LABEL={pf:'Process Flow',pm:'Product Master',bom:'BOM',si:'Stock Inward'};
+ let pulling=false, busyNow=false;
+ async function fetchReport(k){
+  try{const r=await fetch('/api/costing/'+k,{cache:'no-store'});
+   if(!r.ok)return{k,ok:false,err:'HTTP '+r.status};
+   const j=await r.json();
+   if(!j.ok)return{k,ok:false,err:j.error||'error'};
+   if(j.status!=='ok'||!Array.isArray(j.data)||j.data.length<2)
+    return{k,ok:false,status:j.status,err:j.status==='failed'?(j.error||'server sync failed'):'no data yet'};
+   return{k,ok:true,data:j.data,synced_at:j.synced_at,row_count:j.row_count};
+  }catch(e){return{k,ok:false,err:e.message};}
+ }
+ function applyLive(k,aoa,synced_at){
+  const det=detectType(aoa);
+  if(!det||det.type!==k)throw new Error('unexpected columns for '+LABEL[k]);
+  CARD[k]={name:'PACT · live',ok:true,rows:aoa,det};
+  const msg=applyOne(k);                            // exact same parser as manual upload
+  if(D.syncInfo&&D.syncInfo[k]){D.syncInfo[k].file='PACT · live';if(synced_at)D.syncInfo[k].at=synced_at;}
+  CARD[k]=undefined;
+  return msg;
+ }
+ async function liveSyncPull(loud){
+  if(pulling)return{applied:0,failed:[]};pulling=true;
+  try{
+   const res=await Promise.all(ORDER.map(fetchReport));const byK={};res.forEach(r=>byK[r.k]=r);
+   let applied=0;const failed=[];
+   for(const k of ORDER){const r=byK[k];
+    if(r&&r.ok){
+     if(D.syncInfo&&D.syncInfo[k]&&D.syncInfo[k].at===r.synced_at)continue; // already applied
+     try{applyLive(k,r.data,r.synced_at);applied++;}catch(e){failed.push(LABEL[k]+': '+e.message);}
+    }else if(r&&r.status==='failed'){failed.push(LABEL[k]+': '+(r.err||'server sync failed'));}
+   }
+   if(applied){try{await commit();}catch(e){}}else{renderSyncStat();}
+   if(loud){applied?toast('✔ Live data loaded — '+applied+' report'+(applied>1?'s':'')+(failed.length?' · '+failed.length+' pending':''))
+    :toast(failed.length?('⚠ '+failed[0]):'Already up to date.',5000);}
+   return{applied,failed};
+  }finally{pulling=false;}
+ }
+ async function liveSyncNow(){
+  if(busyNow)return;busyNow=true;const btn=document.getElementById('livesyncbtn');const t0=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='⏳ Syncing…';}
+  try{
+   let queued=false;
+   try{const r=await fetch('/api/sync-costing',{method:'POST'});const j=await r.json();queued=!!j.ok;
+    if(!j.ok)toast('⚠ Could not queue PACT sync: '+(j.error||''),6000);}
+   catch(e){toast('⚠ Could not reach the sync service: '+e.message,6000);}
+   if(queued)toast('PACT sync queued — pulling fresh data…');
+   await liveSyncPull(true);
+   if(queued)for(const wait of [8000,20000,40000]){await new Promise(r=>setTimeout(r,wait));
+    const res=await liveSyncPull(false);if(res&&res.applied)toast('✔ Refreshed from PACT.');}
+  }finally{busyNow=false;if(btn){btn.disabled=false;btn.textContent=t0||'⚡ Live Sync';}}
+ }
+ window.liveSyncPull=liveSyncPull;window.liveSyncNow=liveSyncNow;
+})();
+
 // ================= INIT =================
 fillDates();renderRate();renderSyncStat();
-IDB.get().then(v=>{if(v){try{D=JSON.parse(v);NAMECONV=null;rebuildIdx();fillDates();renderSyncStat();refresh();}catch(e){}}});
+IDB.get().then(v=>{if(v){try{D=JSON.parse(v);NAMECONV=null;rebuildIdx();fillDates();renderSyncStat();refresh();}catch(e){}}if(window.liveSyncPull)liveSyncPull(false);});
 
 </script></body></html>
