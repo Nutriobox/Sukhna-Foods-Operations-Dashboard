@@ -1,0 +1,70 @@
+name: sync-costing
+
+# Pulls the 4 PACT costing reports into public.costing_snapshots.
+# Runs on GitHub's servers — no always-on box needed (same model as sync-inventory).
+#   - schedule:            automatic refresh (cron is UTC; IST = UTC+5:30)
+#   - workflow_dispatch:   manual run from the Actions tab (pick a report)
+#   - repository_dispatch: the dashboard "Live Sync" button (if wired to GitHub)
+# Scripts write a "failed (not recorded)" snapshot until each report's BODY_B64
+# is filled in — harmless; the dashboard just keeps its existing data until then.
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Which report(s) to sync: pm, bom, pf, si, or all"
+        default: "all"
+  repository_dispatch:
+    types: [sync-costing]
+  schedule:
+    - cron: "15 */6 * * *"   # every 6h  -> Stock Inward + Process Flow freshness
+    - cron: "0 16 * * *"     # 21:30 IST -> Product Master + BOM (change slowly)
+
+concurrency:
+  group: pact-costing-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Cache Playwright browser (Chromium 1.49.1)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.49.1
+      - name: Install Chromium (skips download on cache hit)
+        run: npx playwright install --with-deps chromium
+      - name: Decide which reports to run
+        id: pick
+        run: |
+          REPORT="${{ github.event.inputs.report }}"
+          [ -z "$REPORT" ] && REPORT="${{ github.event.client_payload.report }}"
+          if [ -z "$REPORT" ]; then
+            if [ "${{ github.event.schedule }}" = "0 16 * * *" ]; then REPORT="pm,bom"; else REPORT="si,pf"; fi
+          fi
+          [ "$REPORT" = "all" ] && REPORT="pm,bom,pf,si"
+          echo "reports=$REPORT" >> "$GITHUB_OUTPUT"
+          echo "Running reports: $REPORT"
+      - name: Sync costing reports from PACT
+        env:
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
+          PACT_URL: ${{ secrets.PACT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          IFS=',' read -ra R <<< "${{ steps.pick.outputs.reports }}"
+          for r in "${R[@]}"; do
+            echo "::group::sync-costing-$r"
+            node "scripts/sync-costing-$r.js" || echo "sync-costing-$r failed (continuing)"
+            echo "::endgroup::"
+          done
