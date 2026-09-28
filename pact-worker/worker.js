@@ -20,7 +20,7 @@ const { createClient } = require('@supabase/supabase-js');
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const POLL_MS = Number(process.env.WORKER_POLL_MS || 5000);
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..'); // repo root (scripts/ live one level up from pact-worker/)
 
 const SCRIPTS = {
   'inventory': 'scripts/sync-inventory.js',
