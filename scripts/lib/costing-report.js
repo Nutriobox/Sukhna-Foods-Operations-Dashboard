@@ -57,13 +57,18 @@ async function setDateRange(page, fromStr, toStr) {
   return await page.evaluate(({ fromStr, toStr }) => {
     const setV = (el, val) => { const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; s.call(el, val); ['input', 'change', 'keyup', 'blur'].forEach((t) => el.dispatchEvent(new Event(t, { bubbles: true }))); };
     const inputs = [...document.querySelectorAll('input')];
+    // Full dump of the report screen so the real date UI is visible in the log.
+    const allInputs = inputs.slice(0, 30).map((i) => ({ id: i.id || '', ph: i.placeholder || '', nm: i.name || '', ty: i.type || '', v: (i.value || '').slice(0, 16) }));
+    const selects = [...document.querySelectorAll('select')].slice(0, 12).map((s) => ({ id: s.id || '', nm: s.name || '', v: (s.value || '').slice(0, 16) }));
+    const dateEls = [...document.querySelectorAll('label,span,div,button,th,td,a,mat-label')].map((e) => ({ tag: e.tagName, t: (e.innerText || '').trim() }))
+      .filter((x) => x.t && x.t.length < 30 && /from|to date|todate|date|period|w\.?e\.?f|as on|calendar|duration|financial|month|year/i.test(x.t))
+      .filter((v, i, a) => a.findIndex((z) => z.t === v.t) === i).slice(0, 20);
     const looksDate = (i) => /date|from|to|frm|dt|period/i.test((i.id || '') + (i.placeholder || '') + (i.name || '')) || i.type === 'date' || /\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '');
-    const cand = inputs.filter(looksDate).map((i) => ({ id: i.id || '', ph: i.placeholder || '', name: i.name || '', type: i.type || '', val: (i.value || '').slice(0, 18) }));
     let fromSet = null, toSet = null;
     for (const i of inputs) { const tag = ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '')).toLowerCase(); if (fromSet === null && /(from|frm)/.test(tag)) { setV(i, fromStr); fromSet = i.id || i.placeholder || 'from'; } }
     for (const i of inputs) { const tag = ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '')).toLowerCase(); if (toSet === null && /(^|[^a-z])(to|till|upto)([^a-z]|$)/.test(tag) && !/from/.test(tag)) { setV(i, toStr); toSet = i.id || i.placeholder || 'to'; } }
     if (fromSet === null || toSet === null) { const di = inputs.filter(looksDate); if (di.length >= 2) { if (fromSet === null) { setV(di[0], fromStr); fromSet = 'pos0'; } if (toSet === null) { setV(di[1], toStr); toSet = 'pos1'; } } }
-    return { cand, fromSet, toSet, totalInputs: inputs.length };
+    return { totalInputs: inputs.length, allInputs, selects, dateEls, fromSet, toSet };
   }, { fromStr, toStr });
 }
 
@@ -183,10 +188,12 @@ async function runCostingReport({ report, headers, colmap }) {
     // Date-driven reports (Stock Inward, Process Flow) need a rolling window.
     let dateDiag = '';
     if (DATE_DAYS[report]) {
+      await page.waitForTimeout(2500); // let the report/parameter screen render
       const { fromStr, toStr } = istRange(DATE_DAYS[report]);
       try {
         const dr = await setDateRange(page, fromStr, toStr);
-        dateDiag = 'range ' + fromStr + ' -> ' + toStr + ' | from=' + dr.fromSet + ' to=' + dr.toSet + ' | fields=' + JSON.stringify(dr.cand).slice(0, 600);
+        dateDiag = ('range ' + fromStr + '->' + toStr + ' from=' + dr.fromSet + ' to=' + dr.toSet + ' nIn=' + dr.totalInputs
+          + ' | IN=' + JSON.stringify(dr.allInputs) + ' | DATEELS=' + JSON.stringify(dr.dateEls) + ' | SEL=' + JSON.stringify(dr.selects)).slice(0, 1800);
         log('[date] ' + dateDiag);
       } catch (e) { dateDiag = 'date set error: ' + String(e.message).slice(0, 120); log('[date] ' + dateDiag); }
       await page.waitForTimeout(1000);
