@@ -1,16 +1,18 @@
 // Shared runner for the live Factory-Costing report syncs.
 //
 // PACT builds a one-time, session-bound encrypted request ("p1") in the browser,
-// so a recorded request CANNOT be replayed (it returns HTTP 500 "Please contact
-// your administrator" — verified even with a fresh live token). Instead we
-// browser-DRIVE each report: log in, open the report in the PACT web app so the
-// app builds a fresh valid request itself, and capture the ReportDataSet
-// RESPONSE. The rows are folded into the array-of-arrays (header row first, then
-// data rows) the dashboard's Excel parser consumes and written to one row of
-// public.costing_snapshots. The costing page reads the newest row per report.
+// so a recorded request CANNOT be replayed (HTTP 500, verified even with a fresh
+// live token). Instead we browser-DRIVE the report exactly like the proven
+// scripts/sync-sales-orders.js does: log in, open the report through
+//   BI  ->  List of Reports  ->  search <name>  ->  double-click the report
+//   ->  Select All (cost centers)  ->  OK / Refresh
+// and INTERCEPT the ReportDataSet response the page fires itself (via page.route
+// + route.fetch, which streams large bodies — getResponseBody can't return the
+// 10-40 MB some of these reports produce). The captured rows are folded into the
+// array-of-arrays (header row + data) the dashboard parser consumes and written
+// to public.costing_snapshots (served to the dashboard by /api/costing/<k>).
 //
-// Each report supplies: { report, headers, colmap }.
-// The open-flow (how the report is opened in the SPA) is configured in OPEN.
+// Each report supplies: { report, headers, colmap }. Navigation per report: NAV.
 //
 // Env: PACT_USER, PACT_PASS/PACT_PASSWORD, PACT_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY.
 
@@ -20,14 +22,33 @@ const { login } = require('../../src/lib/pact/login');
 
 const RUN_LOG = [];
 const _log = console.log.bind(console);
-console.log = (...a) => { try { RUN_LOG.push(a.map(String).join(' ')); } catch {} _log(...a); };
-const logTail = (n = 60) => RUN_LOG.slice(-n).join('\n').slice(-3000);
+const log = (...a) => { try { RUN_LOG.push(a.map(String).join(' ')); } catch {} _log(...a); };
+const logTail = (n = 70) => RUN_LOG.slice(-n).join('\n').slice(-3000);
 
 const sb = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } })
   : null;
 
 const norm = (s) => String(s).toLowerCase().replace(/[\s_/().-]+/g, '');
+
+// How to open each report in PACT's "List of Reports" (search term + the exact
+// report name to double-click). Names match the dashboard's report titles.
+const NAV = {
+  si:  { search: 'stock inward',  report: 'List Of Stock Inward Reports' },
+  pm:  { search: 'product master', report: 'Product Master Report' },
+  bom: { search: 'stage wise bom', report: 'Stage Wise BOM With Wastage Summary' },
+  pf:  { search: 'process flow',  report: 'Process Flow Report' },
+};
+
+// A ReportDataSet table is "real report data" only if its first row has more than
+// one column and isn't PACT's tiny StaticReportType init payload.
+function isRealReport(rows) {
+  if (!Array.isArray(rows) || !rows.length) return false;
+  const cols = Object.keys(rows[0] || {});
+  if (cols.length <= 1) return false;
+  if (cols.some((c) => /StaticReportType/i.test(c)) && cols.length <= 2) return false;
+  return true;
+}
 
 function buildResolvers(headers, colmap, sampleRows) {
   const keys = new Set();
@@ -42,102 +63,127 @@ function buildResolvers(headers, colmap, sampleRows) {
     if (!hit) { const n = byNorm.get(norm(h)); if (n) hit = n; }
     resolvers[h] = hit; rep.push(`${h} -> ${hit || '(UNRESOLVED)'}`);
   }
-  console.log('[colmap] ' + rep.join(' | '));
+  log('[colmap] ' + rep.join(' | '));
   return resolvers;
 }
 
 async function writeSnapshot(patch) {
-  if (!sb) { console.log('[supabase] not configured; skipping'); return; }
+  if (!sb) { log('[supabase] not configured; skipping'); return; }
   const { error } = await sb.from('costing_snapshots').insert(patch);
-  if (error) console.log('[supabase] insert failed:', error.message);
-  else console.log('[supabase] snapshot inserted:', patch.report, patch.status, patch.row_count, 'rows');
+  if (error) log('[supabase] insert failed:', error.message);
+  else log('[supabase] snapshot inserted:', patch.report, patch.status, patch.row_count, 'rows');
 }
 
-// How to open each report in the PACT web app. Each step finds the element
-// matching `selector` whose EXACT trimmed text === `text`, scrolls it into view
-// and clicks it (the approach verified live). 'si' (Stock Inward) is verified;
-// pm/bom/pf are first-guesses to be refined from the failure log.
-const OPEN = {
-  si:  [ { selector: '.dashfavbtn', text: 'List Of Stock Inward Reports' }, { selector: 'a', text: 'List Of Stock Inward Reports' } ],
-  pm:  [ { selector: 'a', text: 'Product Master Report' } ],
-  bom: [ { selector: 'a', text: 'Stage Wise BOM With Wastage Summary' } ],
-  pf:  [ { selector: 'a', text: 'Process Flow Report' } ],
-};
-
-// A ReportDataSet response is "real report data" only if its first row has
-// more than one column and isn't PACT's tiny StaticReportType init payload.
-function isRealReport(rows) {
-  if (!Array.isArray(rows) || !rows.length) return false;
-  const cols = Object.keys(rows[0] || {});
-  if (cols.length <= 1) return false;
-  if (cols.some((c) => /StaticReportType/i.test(c)) && cols.length <= 2) return false;
-  return true;
+async function clickFirst(page, factories, label, timeout) {
+  for (const f of factories) {
+    try {
+      const loc = f();
+      await loc.first().waitFor({ state: 'visible', timeout: timeout || 6000 });
+      await loc.first().click({ timeout: timeout || 6000 });
+      log('[ui] clicked ' + label);
+      return true;
+    } catch (e) { /* try next */ }
+  }
+  log('[ui] could NOT click ' + label);
+  return false;
 }
 
 async function runCostingReport({ report, headers, colmap }) {
   const fail = async (msg) => {
-    console.log('SYNC FAILED:', msg.slice(0, 300));
+    log('SYNC FAILED: ' + msg.slice(0, 300));
     await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: 0, source: 'pact-browserdrive', status: 'failed', error: (msg + '\n--- log ---\n' + logTail()).slice(0, 3500), data: [] });
     process.exitCode = 1;
   };
 
-  const open = OPEN[report];
-  if (!open) return fail(`No open-flow configured for "${report}" (add it to OPEN in scripts/lib/costing-report.js).`);
+  const nav = NAV[report];
+  if (!nav) return fail(`No navigation configured for "${report}" (add it to NAV in scripts/lib/costing-report.js).`);
 
   if (!process.env.PACT_PASSWORD && process.env.PACT_PASS) process.env.PACT_PASSWORD = process.env.PACT_PASS;
-  const browser = await chromium.launch({ headless: true, args: ['--window-size=1600,1000'] });
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 } });
+  const browser = await chromium.launch({ headless: true, args: ['--window-size=1680,1050'] });
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 }, acceptDownloads: true });
   const page = await context.newPage();
-  page.setDefaultTimeout(30000);
+  page.setDefaultTimeout(20000);
 
-  // Capture ReportDataSet responses; keep the real-report one with the most rows.
-  let best = null;
-  page.on('response', async (resp) => {
+  // Intercept every ReportDataSet response; keep the real table with most rows.
+  let best = null, seen = 0;
+  const consider = (body) => {
+    if (!body || body.length < 120) return;
+    let json; try { json = JSON.parse(body); } catch { return; }
+    const tables = (json && json.Tables) || [];
+    for (const t of tables) if (isRealReport(t) && (!best || t.length > best.length)) { best = t; log('[capture] table -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols'); }
+  };
+  await page.route(/\/api\/Report\/ReportDataSet/i, async (route) => {
+    if (route.request().method() !== 'POST') return route.continue().catch(() => {});
+    seen++;
     try {
-      if (!/\/api\/Report\/ReportDataSet/i.test(resp.url())) return;
-      if ((resp.request().method() || '').toUpperCase() !== 'POST') return;
-      const j = await resp.json().catch(() => null);
-      const rows = j && j.Tables && j.Tables[0] ? j.Tables[0] : null;
-      if (!isRealReport(rows)) { if (Array.isArray(rows)) console.log('[capture] skipped init/meta response (' + rows.length + ' rows, ' + Object.keys(rows[0] || {}).length + ' cols)'); return; }
-      if (!best || rows.length > best.length) { best = rows; console.log('[capture] ReportDataSet -> ' + rows.length + ' rows, ' + Object.keys(rows[0]).length + ' cols'); }
-    } catch {}
+      const resp = await route.fetch();
+      const body = await resp.text();
+      log('[route] ReportDataSet #' + seen + ' status=' + resp.status() + ' bytes=' + body.length);
+      consider(body);
+      await route.fulfill({ response: resp, body });
+    } catch (e) { log('[route] #' + seen + ' err ' + String(e).slice(0, 80)); await route.continue().catch(() => {}); }
   });
 
   try {
     await login(page);
-    console.log('Logged in.');
+    log('Logged in.');
     await page.waitForTimeout(2500);
-    try { if (!/#\/home/.test(page.url())) { await page.evaluate(() => { location.hash = '#/home'; }); await page.waitForTimeout(1500); } } catch {}
 
-    console.log('[open] ' + report + ' (' + open.length + ' step(s))');
-    for (const step of open) {
-      const res = await page.evaluate(({ selector, text }) => {
-        const els = [...document.querySelectorAll(selector)];
-        const el = els.find((e) => ((e.innerText || e.textContent || '').trim() === text));
-        if (!el) return { ok: false, count: els.length };
-        el.scrollIntoView({ block: 'center' }); el.click(); return { ok: true };
-      }, { selector: step.selector, text: step.text });
-      if (!res.ok) throw new Error(`open step failed: no <${step.selector}> with exact text "${step.text}" (found ${res.count} of that selector). Adjust OPEN.${report}.`);
-      console.log('[open] clicked <' + step.selector + '>: ' + step.text);
-      await page.waitForTimeout(step.wait || 4000);
-    }
+    await clickFirst(page, [
+      () => page.getByRole('listitem', { name: 'BI' }).locator('i'),
+      () => page.getByRole('listitem', { name: 'BI' }),
+      () => page.getByText('BI', { exact: true }),
+    ], 'BI menu');
+    await page.waitForTimeout(1200);
+    await clickFirst(page, [
+      () => page.getByRole('link', { name: 'List of Reports' }),
+      () => page.getByText('List of Reports'),
+    ], 'List of Reports');
+    await page.waitForTimeout(1800);
 
-    // Wait up to 35s for a real-report response to arrive.
-    const deadline = Date.now() + 35000;
-    while (Date.now() < deadline && !best) { await page.waitForTimeout(1000); }
-    if (!best || !best.length) throw new Error('No real ReportDataSet data captured after opening "' + report + '" (only init/meta calls seen). The open-flow may need another step or a date range.');
+    try {
+      const search = page.getByRole('textbox', { name: 'Search...' });
+      await search.first().fill(nav.search);
+      await search.first().press('Enter');
+      log('[ui] searched "' + nav.search + '"');
+    } catch (e) { log('[ui] search skipped: ' + String(e.message).slice(0, 60)); }
+    await page.waitForTimeout(1800);
+
+    try { await page.getByText(nav.report).first().dblclick({ timeout: 8000 }); log('[ui] dblclicked "' + nav.report + '"'); }
+    catch (e) { log('[ui] dblclick skipped: ' + String(e.message).slice(0, 60)); }
+    await page.waitForTimeout(3000);
+
+    // Cost centers must be selected or the report returns NO rows (as in sales-orders).
+    try { await page.getByText('Select All', { exact: true }).first().click({ timeout: 6000 }); log('[ui] checked Select All (cost centers)'); }
+    catch (e) { log('[ui] Select All skip: ' + String(e.message).slice(0, 50)); }
+    await page.waitForTimeout(600);
+
+    // OK / Refresh / Regenerate run the report (fires the ReportDataSet we capture).
+    await clickFirst(page, [
+      () => page.getByRole('button', { name: 'OK' }),
+      () => page.getByRole('button', { name: ' OK' }),
+      () => page.getByText('OK', { exact: true }),
+    ], 'OK');
+    await page.waitForTimeout(3000);
+    if (!best) { if (await clickFirst(page, [() => page.getByRole('button', { name: /Refresh/i }), () => page.getByText('Refresh', { exact: true })], 'Refresh')) await page.waitForTimeout(6000); }
+    if (!best) { if (await clickFirst(page, [() => page.getByRole('button', { name: /Regenerate/i }), () => page.getByText('Regenerate', { exact: true })], 'Regenerate')) await page.waitForTimeout(8000); }
+
+    log('[ui] waiting for report data…');
+    for (let i = 0; i < 90 && !best; i++) await page.waitForTimeout(1000);
+    if (!best || !best.length) throw new Error('No real ReportDataSet data captured for "' + report + '" (ReportDataSet responses seen=' + seen + '). The report UI may need a different trigger or a date range.');
 
     const src = best;
+    log('[report] captured ' + src.length + ' rows, keys: ' + Object.keys(src[0]).slice(0, 10).join(','));
     const resolvers = buildResolvers(headers, colmap, src.slice(0, 50));
     const unresolved = headers.filter((h) => !resolvers[h]);
-    if (unresolved.length) console.log('[colmap] WARNING unresolved: ' + unresolved.join(', '));
+    if (unresolved.length) log('[colmap] WARNING unresolved: ' + unresolved.join(', '));
 
     const aoa = [headers.slice()];
     for (const r of src) aoa.push(headers.map((h) => { const k = resolvers[h]; const v = k ? r[k] : null; return v === undefined ? null : v; }));
     const rowCount = aoa.length - 1;
-    console.log(`Captured ${rowCount} rows for ${report} (${headers.length} columns).`);
+    log(`Captured ${rowCount} rows for ${report} (${headers.length} columns).`);
     await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: rowCount, source: 'pact-browserdrive', status: 'ok', error: '', data: aoa });
-    console.log('SYNC DONE.');
+    log('SYNC DONE.');
   } catch (e) {
     await fail(String(e && e.message ? e.message : e));
   } finally {
