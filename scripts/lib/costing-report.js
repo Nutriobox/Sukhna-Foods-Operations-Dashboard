@@ -40,6 +40,33 @@ const NAV = {
   pf:  { search: 'process flow',  report: 'Process Flow Report' },
 };
 
+// Reports that return only today's data by default and need a rolling date range.
+// Value = days back the range starts; the range ends today (IST).
+const DATE_DAYS = { si: 7, pf: 7 };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtDate = (d) => d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+function istRange(daysBack) {
+  const now = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const from = new Date(now.getTime() - daysBack * 86400 * 1000);
+  return { fromStr: fmtDate(from), toStr: fmtDate(now) };
+}
+// Best-effort: fill the report's From/To date fields, and RETURN what fields
+// exist (so the log reveals the exact fields + their format even if the guess
+// misses). Tries id/placeholder/name matches first, then two date-looking inputs.
+async function setDateRange(page, fromStr, toStr) {
+  return await page.evaluate(({ fromStr, toStr }) => {
+    const setV = (el, val) => { const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; s.call(el, val); ['input', 'change', 'keyup', 'blur'].forEach((t) => el.dispatchEvent(new Event(t, { bubbles: true }))); };
+    const inputs = [...document.querySelectorAll('input')];
+    const looksDate = (i) => /date|from|to|frm|dt|period/i.test((i.id || '') + (i.placeholder || '') + (i.name || '')) || i.type === 'date' || /\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '');
+    const cand = inputs.filter(looksDate).map((i) => ({ id: i.id || '', ph: i.placeholder || '', name: i.name || '', type: i.type || '', val: (i.value || '').slice(0, 18) }));
+    let fromSet = null, toSet = null;
+    for (const i of inputs) { const tag = ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '')).toLowerCase(); if (fromSet === null && /(from|frm)/.test(tag)) { setV(i, fromStr); fromSet = i.id || i.placeholder || 'from'; } }
+    for (const i of inputs) { const tag = ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '')).toLowerCase(); if (toSet === null && /(^|[^a-z])(to|till|upto)([^a-z]|$)/.test(tag) && !/from/.test(tag)) { setV(i, toStr); toSet = i.id || i.placeholder || 'to'; } }
+    if (fromSet === null || toSet === null) { const di = inputs.filter(looksDate); if (di.length >= 2) { if (fromSet === null) { setV(di[0], fromStr); fromSet = 'pos0'; } if (toSet === null) { setV(di[1], toStr); toSet = 'pos1'; } } }
+    return { cand, fromSet, toSet, totalInputs: inputs.length };
+  }, { fromStr, toStr });
+}
+
 // A ReportDataSet table is "real report data" only if its first row has more than
 // one column and isn't PACT's tiny StaticReportType init payload.
 function isRealReport(rows) {
@@ -153,6 +180,18 @@ async function runCostingReport({ report, headers, colmap }) {
     catch (e) { log('[ui] dblclick skipped: ' + String(e.message).slice(0, 60)); }
     await page.waitForTimeout(3000);
 
+    // Date-driven reports (Stock Inward, Process Flow) need a rolling window.
+    let dateDiag = '';
+    if (DATE_DAYS[report]) {
+      const { fromStr, toStr } = istRange(DATE_DAYS[report]);
+      try {
+        const dr = await setDateRange(page, fromStr, toStr);
+        dateDiag = 'range ' + fromStr + ' -> ' + toStr + ' | from=' + dr.fromSet + ' to=' + dr.toSet + ' | fields=' + JSON.stringify(dr.cand).slice(0, 600);
+        log('[date] ' + dateDiag);
+      } catch (e) { dateDiag = 'date set error: ' + String(e.message).slice(0, 120); log('[date] ' + dateDiag); }
+      await page.waitForTimeout(1000);
+    }
+
     // Cost centers must be selected or the report returns NO rows (as in sales-orders).
     try { await page.getByText('Select All', { exact: true }).first().click({ timeout: 6000 }); log('[ui] checked Select All (cost centers)'); }
     catch (e) { log('[ui] Select All skip: ' + String(e.message).slice(0, 50)); }
@@ -182,7 +221,7 @@ async function runCostingReport({ report, headers, colmap }) {
     for (const r of src) aoa.push(headers.map((h) => { const k = resolvers[h]; const v = k ? r[k] : null; return v === undefined ? null : v; }));
     const rowCount = aoa.length - 1;
     log(`Captured ${rowCount} rows for ${report} (${headers.length} columns).`);
-    await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: rowCount, source: 'pact-browserdrive', status: 'ok', error: '', data: aoa });
+    await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: rowCount, source: 'pact-browserdrive', status: 'ok', error: dateDiag, data: aoa });
     log('SYNC DONE.');
   } catch (e) {
     await fail(String(e && e.message ? e.message : e));
