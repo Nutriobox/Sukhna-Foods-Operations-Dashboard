@@ -682,9 +682,11 @@ function renderCards(){D.syncInfo=D.syncInfo||{};const si=D.syncInfo;
   const mode=X.k==='pf'?`<div style="font-size:12px;margin-top:8px"><b>Batches:</b> <label style="display:inline;text-transform:none;font-weight:400;color:var(--ink);margin-left:6px"><input type="radio" name="smode" value="merge" checked style="width:auto"> Merge (add new days, update same batch)</label> <label style="display:inline;text-transform:none;font-weight:400;color:var(--ink);margin-left:6px"><input type="radio" name="smode" value="replace" style="width:auto"> Replace all</label></div>`:'';
   return `<div class="rcard" id="card_${X.k}"><div class="rhead"><div class="rtitle"><span class="rnum">${X.n}</span>${X.title}</div><span class="rfreq${X.daily?' daily':''}">${X.freq}</span></div>
    <div class="rmeta"><b>Feeds:</b> ${X.feeds}<br><b>Required columns:</b> ${X.need}</div><div class="rstat">${stat}</div>${mode}
-   <div class="ractions"><button class="pickbtn" onclick="document.getElementById('file_${X.k}').click()">📂 Choose file</button>
+   <div class="ractions"><button class="btn2" style="background:#2563eb;color:#fff;font-weight:600" onclick="liveSyncNow('${X.k}')">⚡ Sync from PACT</button>
+    <button class="pickbtn" onclick="document.getElementById('file_${X.k}').click()">📂 Choose file</button>
     <input type="file" id="file_${X.k}" accept=".xlsx,.xls,.csv" style="display:none" onchange="pickFile('${X.k}',this.files[0]);this.value=''">
-    <span class="rfile">${file}</span><button class="btn2" onclick="syncOne('${X.k}')" ${c&&c.ok?'':'disabled'}>Sync</button></div>
+    <span class="rfile">${file}</span><button class="btn2" onclick="syncOne('${X.k}')" ${c&&c.ok?'':'disabled'}>Sync file</button></div>
+   <div id="live_${X.k}" style="margin-top:6px;font-size:12px"></div>
    ${c&&c.result?`<div class="rmsg ${c.result.ok?'ok':'bad'}">${esc(c.result.text)}</div>`:''}</div>`;}).join('');
  REPORTS.forEach(X=>{const el=document.getElementById('card_'+X.k);
   ['dragenter','dragover'].forEach(e=>el.addEventListener(e,ev=>{ev.preventDefault();el.classList.add('over');}));
@@ -968,7 +970,37 @@ async function liveSyncOne(k){
  return{ok:true,rows:j.row_count,at:j.synced_at};
 }
 async function liveSyncPull(keys){keys=keys||['pm','bom'];const out={};for(const k of keys){try{out[k]=await liveSyncOne(k);}catch(e){out[k]={ok:false,reason:e.message};}}try{console.log('[livesync]',JSON.stringify(out));}catch(e){}return out;}
-window.liveSyncPull=liveSyncPull;window.liveSyncOne=liveSyncOne;
+// On-demand: queue a FRESH PACT sync for one report on the AWS worker, wait for
+// the new snapshot (polling), show elapsed time, then apply it to the dashboard.
+const LIVEBUSY={};
+async function liveSyncNow(k){
+ if(LIVEBUSY[k])return;LIVEBUSY[k]=true;
+ const setLive=h=>{const el=document.getElementById('live_'+k);if(el)el.innerHTML=h;};
+ const t0=Date.now(),secs=()=>Math.round((Date.now()-t0)/1000);
+ const tick=()=>setLive('<span class="muted">⏳ Syncing '+(TYPE_LABEL[k]||k)+' from PACT… '+secs()+'s <span style="opacity:.7">(usually ~1 min; longer if the worker is busy)</span></span>');
+ tick();const iv=setInterval(tick,1000);
+ const done=(h,render)=>{clearInterval(iv);if(render){try{renderCards();}catch(e){}}setLive(h);LIVEBUSY[k]=false;};
+ try{
+  let base=null;try{base=(await (await fetch('/api/costing/'+k,{cache:'no-store'})).json()).synced_at||null;}catch(e){}
+  let q;try{q=await (await fetch('/api/sync-costing?report='+k,{cache:'no-store'})).json();}catch(e){q=null;}
+  if(!q||!q.ok){done('<span class="bad">✖ Could not queue the sync — '+esc((q&&q.error)||'network error')+'</span>',false);return;}
+  const deadline=Date.now()+240000;let latest=null,got=false;
+  while(Date.now()<deadline){
+   await new Promise(r=>setTimeout(r,3000));
+   try{latest=await (await fetch('/api/costing/'+k,{cache:'no-store'})).json();}catch(e){continue;}
+   if(latest&&latest.synced_at&&latest.synced_at!==base){got=true;break;}
+  }
+  if(!got){done('<span class="bad">✖ Timed out after '+secs()+'s — the worker may be busy with another job. Try again shortly.</span>',false);return;}
+  if(latest.status!=='ok'||!Array.isArray(latest.data)||latest.data.length<2){done('<span class="bad">✖ PACT sync failed after '+secs()+'s'+(latest.error?': '+esc(String(latest.error).slice(0,110)):'')+'</span>',false);return;}
+  const rows=latest.data,det=detectType(rows);
+  if(!det||det.type!==k){done('<span class="bad">✖ Synced but data was not recognised ('+secs()+'s)</span>',false);return;}
+  CARD[k]={name:'PACT live · '+fmtStamp(latest.synced_at),ok:true,rows,det};
+  try{applyOne(k);await commit();}catch(e){delete CARD[k];done('<span class="bad">✖ Sync applied error: '+esc(e.message)+'</span>',true);return;}
+  delete CARD[k];
+  done('<span class="ok">✔ Synced <b>'+(latest.row_count||rows.length-1)+'</b> rows from PACT in <b>'+secs()+'s</b> · '+fmtStamp(latest.synced_at)+'</span>',true);
+ }catch(e){done('<span class="bad">✖ '+esc(e.message)+'</span>',false);}
+}
+window.liveSyncPull=liveSyncPull;window.liveSyncOne=liveSyncOne;window.liveSyncNow=liveSyncNow;
 
 // ================= INIT =================
 gvInit();fillDates();renderRate();renderSyncStat();
