@@ -10,8 +10,6 @@
 // public.costing_snapshots. The costing page reads the newest row per report.
 //
 // Each report supplies: { report, headers, colmap }.
-//   headers : the friendly column labels the dashboard parser expects (row 0)
-//   colmap  : { 'Friendly Header': ['sourceKeyCandidate', ...] } into Tables[0]
 // The open-flow (how the report is opened in the SPA) is configured in OPEN.
 //
 // Env: PACT_USER, PACT_PASS/PACT_PASSWORD, PACT_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY.
@@ -55,18 +53,26 @@ async function writeSnapshot(patch) {
   else console.log('[supabase] snapshot inserted:', patch.report, patch.status, patch.row_count, 'rows');
 }
 
-// How to open each report in the PACT web app. Steps are clicked in order.
-//   by:'text' -> click first element whose EXACT text matches (opens menus/flows)
-//   by:'link' -> click the <a> link with that exact accessible name (opens report)
-// NOTE: 'si' (Stock Inward) is verified live. The others are best-effort first
-// guesses (the report's own name) and will be refined after the first run using
-// the failure log, which prints what was and wasn't found.
+// How to open each report in the PACT web app. Each step finds the element
+// matching `selector` whose EXACT trimmed text === `text`, scrolls it into view
+// and clicks it (the approach verified live). 'si' (Stock Inward) is verified;
+// pm/bom/pf are first-guesses to be refined from the failure log.
 const OPEN = {
-  si:  [ { by: 'text', text: 'List Of Stock Inward Reports' }, { by: 'link', text: 'List Of Stock Inward Reports' } ],
-  pm:  [ { by: 'link', text: 'Product Master Report' } ],
-  bom: [ { by: 'link', text: 'Stage Wise BOM With Wastage Summary' } ],
-  pf:  [ { by: 'link', text: 'Process Flow Report' } ],
+  si:  [ { selector: '.dashfavbtn', text: 'List Of Stock Inward Reports' }, { selector: 'a', text: 'List Of Stock Inward Reports' } ],
+  pm:  [ { selector: 'a', text: 'Product Master Report' } ],
+  bom: [ { selector: 'a', text: 'Stage Wise BOM With Wastage Summary' } ],
+  pf:  [ { selector: 'a', text: 'Process Flow Report' } ],
 };
+
+// A ReportDataSet response is "real report data" only if its first row has
+// more than one column and isn't PACT's tiny StaticReportType init payload.
+function isRealReport(rows) {
+  if (!Array.isArray(rows) || !rows.length) return false;
+  const cols = Object.keys(rows[0] || {});
+  if (cols.length <= 1) return false;
+  if (cols.some((c) => /StaticReportType/i.test(c)) && cols.length <= 2) return false;
+  return true;
+}
 
 async function runCostingReport({ report, headers, colmap }) {
   const fail = async (msg) => {
@@ -84,7 +90,7 @@ async function runCostingReport({ report, headers, colmap }) {
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
 
-  // Capture every ReportDataSet response; keep the one with the most data rows.
+  // Capture ReportDataSet responses; keep the real-report one with the most rows.
   let best = null;
   page.on('response', async (resp) => {
     try {
@@ -92,7 +98,8 @@ async function runCostingReport({ report, headers, colmap }) {
       if ((resp.request().method() || '').toUpperCase() !== 'POST') return;
       const j = await resp.json().catch(() => null);
       const rows = j && j.Tables && j.Tables[0] ? j.Tables[0] : null;
-      if (Array.isArray(rows) && rows.length && (!best || rows.length > best.length)) { best = rows; console.log('[capture] ReportDataSet -> ' + rows.length + ' rows'); }
+      if (!isRealReport(rows)) { if (Array.isArray(rows)) console.log('[capture] skipped init/meta response (' + rows.length + ' rows, ' + Object.keys(rows[0] || {}).length + ' cols)'); return; }
+      if (!best || rows.length > best.length) { best = rows; console.log('[capture] ReportDataSet -> ' + rows.length + ' rows, ' + Object.keys(rows[0]).length + ' cols'); }
     } catch {}
   });
 
@@ -104,19 +111,21 @@ async function runCostingReport({ report, headers, colmap }) {
 
     console.log('[open] ' + report + ' (' + open.length + ' step(s))');
     for (const step of open) {
-      const loc = step.by === 'link'
-        ? page.getByRole('link', { name: step.text, exact: true }).first()
-        : page.getByText(step.text, { exact: true }).first();
-      await loc.waitFor({ state: 'visible', timeout: 20000 });
-      await loc.click();
-      console.log('[open] clicked ' + step.by + ': ' + step.text);
-      await page.waitForTimeout(step.wait || 3500);
+      const res = await page.evaluate(({ selector, text }) => {
+        const els = [...document.querySelectorAll(selector)];
+        const el = els.find((e) => ((e.innerText || e.textContent || '').trim() === text));
+        if (!el) return { ok: false, count: els.length };
+        el.scrollIntoView({ block: 'center' }); el.click(); return { ok: true };
+      }, { selector: step.selector, text: step.text });
+      if (!res.ok) throw new Error(`open step failed: no <${step.selector}> with exact text "${step.text}" (found ${res.count} of that selector). Adjust OPEN.${report}.`);
+      console.log('[open] clicked <' + step.selector + '>: ' + step.text);
+      await page.waitForTimeout(step.wait || 4000);
     }
 
-    // Wait up to 35s for a non-empty ReportDataSet response to arrive.
+    // Wait up to 35s for a real-report response to arrive.
     const deadline = Date.now() + 35000;
     while (Date.now() < deadline && !best) { await page.waitForTimeout(1000); }
-    if (!best || !best.length) throw new Error('No ReportDataSet rows captured after opening "' + report + '". The open-flow (OPEN.' + report + ') likely needs adjusting, or a date range must be set.');
+    if (!best || !best.length) throw new Error('No real ReportDataSet data captured after opening "' + report + '" (only init/meta calls seen). The open-flow may need another step or a date range.');
 
     const src = best;
     const resolvers = buildResolvers(headers, colmap, src.slice(0, 50));
