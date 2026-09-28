@@ -35,3 +35,5 @@ SukhnaSalesOrder-JavaApp.zip
 
 pact-salesorders.har
 pact-salesorders-steps.js
+pact-costing-*.har
+pact-costing-*-steps.js
