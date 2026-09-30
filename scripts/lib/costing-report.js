@@ -215,7 +215,25 @@ async function runCostingReport({ report, headers, colmap }) {
     if (!best) { if (await clickFirst(page, [() => page.getByRole('button', { name: /Regenerate/i }), () => page.getByText('Regenerate', { exact: true })], 'Regenerate')) await page.waitForTimeout(8000); }
 
     log('[ui] waiting for report data…');
-    for (let i = 0; i < 90 && !best; i++) await page.waitForTimeout(1000);
+    // Don't stop at the FIRST table — big reports (BOM ~16k) stream in, and a tiny
+    // intermediate table can arrive first. Wait until the captured size has been
+    // stable for SETTLE_MS (and at least MIN_WAIT_MS total) so we always take the
+    // complete report, never an early partial. The capture handler already keeps
+    // the largest table seen, so we just wait for it to stop growing.
+    {
+      const deadline = Date.now() + 120000; // hard cap ~2 min (< the worker's 5-min job timeout)
+      const SETTLE_MS = 8000;                // accept once the row count hasn't grown for 8s
+      const MIN_WAIT_MS = 15000;             // always give the full report time to stream in
+      const t0 = Date.now();
+      let lastLen = -1, lastGrow = Date.now();
+      while (Date.now() < deadline) {
+        await page.waitForTimeout(1000);
+        const len = best ? best.length : 0;
+        if (len > lastLen) { lastLen = len; lastGrow = Date.now(); }
+        if (best && (Date.now() - lastGrow >= SETTLE_MS) && (Date.now() - t0 >= MIN_WAIT_MS)) break;
+      }
+      if (best) log('[capture] settled at ' + best.length + ' rows');
+    }
     if (!best || !best.length) throw new Error('No real ReportDataSet data captured for "' + report + '" (ReportDataSet responses seen=' + seen + '). The report UI may need a different trigger or a date range.');
 
     const src = best;
