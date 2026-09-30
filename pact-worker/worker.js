@@ -9,6 +9,12 @@
 // It ONLY claims sync jobs (invoice like 'sync:%'); bill-push jobs are left for
 // GitHub Actions. Status flow:  queued -> processing -> done | failed.
 //
+// RELIABILITY: every job runs under a hard timeout (a hung headless Chromium is
+// killed, child tree and all), and a watchdog force-exits the whole process if
+// it ever wedges — the service wrapper (worker-service.bat) then restarts a
+// clean worker. This prevents the "busy stuck true forever" freeze where the
+// process stays alive but silently stops picking up jobs.
+//
 // Env: SUPABASE_URL, SUPABASE_SERVICE_KEY  (+ the scrapers need PACT_USER,
 // PACT_PASS/PACT_PASSWORD, PACT_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY).
 // Run from the repo root:  node worker.js
@@ -20,6 +26,8 @@ const { createClient } = require('@supabase/supabase-js');
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const POLL_MS = Number(process.env.WORKER_POLL_MS || 5000);
+const MAX_JOB_MS = Number(process.env.WORKER_JOB_TIMEOUT_MS || 300000);   // hard cap per job (5 min)
+const WATCHDOG_MS = Number(process.env.WORKER_WATCHDOG_MS || 420000);      // wedge cutoff (7 min)
 const ROOT = path.join(__dirname, '..'); // repo root (scripts/ live one level up from pact-worker/)
 
 const SCRIPTS = {
@@ -43,6 +51,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 
 let busy = false;
+let busySince = 0;   // when the current tick started working (0 = idle)
 
 async function claimNextJob() {
   // oldest queued sync job first
@@ -77,17 +86,33 @@ function syncType(job) {
   return SCRIPTS[tag] ? tag : null;
 }
 
+// Kill a child process and its whole tree (headless Chromium spawns sub-procs).
+function killTree(child) {
+  try {
+    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F']);
+    else { try { process.kill(-child.pid, 'SIGKILL'); } catch (e) { child.kill('SIGKILL'); } }
+  } catch (e) { /* best effort */ }
+}
+
 function runScript(rel, jobId) {
   return new Promise((resolve) => {
     const abs = path.join(ROOT, rel);
     log('running', rel, 'for job', jobId);
     const child = spawn(process.execPath, [abs], { cwd: ROOT, env: process.env });
     const tail = [];
+    let settled = false;
     const cap = (buf) => { String(buf).split(/\r?\n/).forEach((l) => { if (l) { tail.push(l); if (tail.length > 80) tail.shift(); } }); };
+    const finish = (r) => { if (settled) return; settled = true; clearTimeout(timer); resolve(r); };
     child.stdout.on('data', (b) => { cap(b); process.stdout.write(b); });
     child.stderr.on('data', (b) => { cap(b); process.stderr.write(b); });
-    child.on('close', (code) => resolve({ code, logTail: tail.join('\n').slice(-3500) }));
-    child.on('error', (e) => resolve({ code: 1, logTail: 'spawn error: ' + e.message }));
+    child.on('close', (code) => finish({ code, logTail: tail.join('\n').slice(-3500) }));
+    child.on('error', (e) => finish({ code: 1, logTail: 'spawn error: ' + e.message }));
+    // Hard timeout: kill a hung job so the worker never freezes on it.
+    const timer = setTimeout(() => {
+      log('job', jobId, rel, 'TIMEOUT after', MAX_JOB_MS + 'ms — killing child tree');
+      killTree(child);
+      finish({ code: 124, logTail: (tail.join('\n') + '\nWORKER: killed after ' + MAX_JOB_MS + 'ms timeout').slice(-3500) });
+    }, MAX_JOB_MS);
   });
 }
 
@@ -104,7 +129,7 @@ async function setStatus(jobId, status, logText) {
 
 async function tick() {
   if (busy) return;
-  busy = true;
+  busy = true; busySince = Date.now();
   try {
     const job = await claimNextJob();
     if (!job) return;
@@ -126,13 +151,23 @@ async function tick() {
   } catch (e) {
     log('tick error:', e && e.message ? e.message : e);
   } finally {
-    busy = false;
+    busy = false; busySince = 0;
   }
 }
 
-log('PACT sync worker started. poll=' + POLL_MS + 'ms  scripts=' + Object.keys(SCRIPTS).join(','));
+log('PACT sync worker started. poll=' + POLL_MS + 'ms  jobTimeout=' + MAX_JOB_MS + 'ms  scripts=' + Object.keys(SCRIPTS).join(','));
 setInterval(tick, POLL_MS);
 tick();
+
+// Watchdog: if a single tick stays busy well past the job timeout, the process
+// is wedged (e.g. a hung Supabase call). Exit so worker-service.bat restarts a
+// clean worker rather than the process sitting alive-but-frozen forever.
+setInterval(() => {
+  if (busy && busySince && (Date.now() - busySince > WATCHDOG_MS)) {
+    log('WATCHDOG: worker wedged for ' + Math.round((Date.now() - busySince) / 1000) + 's — exiting for restart');
+    process.exit(1);
+  }
+}, 30000);
 
 
 // ---------------------------------------------------------------------------
