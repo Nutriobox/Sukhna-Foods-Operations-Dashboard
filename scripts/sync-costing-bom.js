@@ -11,6 +11,9 @@ const BODY_B64 = 'eyJVc2VySUQiOiIxMDA4MCIsIkxhbmdJRCI6IjEiLCJpc1JlcG9ydERCIjowLC
 
 const HEADERS = ['Section','Stage','BOMCode','BOM','Product Code','Product Name','Unit','Usage Qty','Wastage','Raw Qty','OPQty'];
 
+// Numeric coercion for PACT string/number fields (strips commas, blanks -> 0).
+const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isFinite(n) ? n : 0; };
+
 const COLMAP = {
   'Section':       ['Section'],
   'Stage':         ['Stage'],
@@ -19,9 +22,16 @@ const COLMAP = {
   'Product Code':  ['ProductCode'],
   'Product Name':  ['ProductName'],
   'Unit':          ['Unit'],
-  'Usage Qty':     ['IPQty'],
-  'Wastage':       ['IPWastage'],
-  'Raw Qty':       ['IPQty'],
+  // PACT report-definition formulas (Stage-Wise BOM With Wastage Summary):
+  //   Raw Qty   = IPQty                                    (this is the "Issue Qty")
+  //   Wastage % = IPWastage
+  //   Qty       = If(Wastage="") "" else RawQty-(RawQty*Wastage/100)
+  //   Usage Qty = If(Qty="") RawQty else Qty
+  // => Usage Qty = RawQty when no wastage, else RawQty*(1 - Wastage%/100).
+  'Usage Qty':     (r) => { const raw = num(r.IPQty), w = num(r.IPWastage);
+                            return w > 0 ? Math.round((raw - raw * w / 100) * 10000) / 10000 : raw; },
+  'Wastage':       ['IPWastage'],   // wastage %, shown as "Wastage %" in the dashboard
+  'Raw Qty':       ['IPQty'],       // = Issue Qty
   'OPQty':         ['OPQty'],
 };
 

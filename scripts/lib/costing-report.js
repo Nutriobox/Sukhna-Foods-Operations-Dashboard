@@ -88,6 +88,7 @@ function buildResolvers(headers, colmap, sampleRows) {
   const byNorm = new Map([...keys].map((k) => [norm(k), k]));
   const resolvers = {}; const rep = [];
   for (const h of headers) {
+    if (colmap && typeof colmap[h] === 'function') { resolvers[h] = '(computed)'; rep.push(`${h} -> (computed)`); continue; }
     const cands = (colmap && colmap[h]) || [];
     let hit = null;
     for (const c of cands) { if (keys.has(c)) { hit = c; break; } }
@@ -243,7 +244,11 @@ async function runCostingReport({ report, headers, colmap }) {
     if (unresolved.length) log('[colmap] WARNING unresolved: ' + unresolved.join(', '));
 
     const aoa = [headers.slice()];
-    for (const r of src) aoa.push(headers.map((h) => { const k = resolvers[h]; const v = k ? r[k] : null; return v === undefined ? null : v; }));
+    for (const r of src) aoa.push(headers.map((h) => {
+      const cm = colmap && colmap[h];
+      if (typeof cm === 'function') { const cv = cm(r); return cv === undefined ? null : cv; }
+      const k = resolvers[h]; const v = k ? r[k] : null; return v === undefined ? null : v;
+    }));
     const rowCount = aoa.length - 1;
     log(`Captured ${rowCount} rows for ${report} (${headers.length} columns).`);
     await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: rowCount, source: 'pact-browserdrive', status: 'ok', error: dateDiag, data: aoa });
