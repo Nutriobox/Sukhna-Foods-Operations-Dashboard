@@ -1886,15 +1886,16 @@ const BUILTIN_LINKS={
   'Mustard Vinaigrette Dip (500 Gms)'  :'FGO888',   /* FG group. Confirmed 09-Sep-2026 master     */
   'Edmame Seeds'                       :'RM5042'    /* Dry Store, not the RM-Cold Store spelling */
 };
-let PLINK={};
+let PLINK={}; try{window.PLINK=PLINK;window.PLINK_KEY=PLINK_KEY;window.BUILTIN_LINKS=BUILTIN_LINKS;}catch(e){}
 function loadLinks(){
   let saved={};
   try{saved=JSON.parse(localStorage.getItem(PLINK_KEY)||'{}');}catch(e){saved={};}
   PLINK=Object.assign({},BUILTIN_LINKS,saved);
+  try{window.PLINK=PLINK;}catch(e){}
   return PLINK;
 }
 function saveLinks(){
-  try{localStorage.setItem(PLINK_KEY,JSON.stringify(PLINK));return true;}
+  try{localStorage.setItem(PLINK_KEY,JSON.stringify(PLINK));dispatchRefSave();return true;}
   catch(e){alert('Could not save the links in this browser.\n\n'+e.message
     +'\n\nUse "Export links" and keep the file beside your sheets instead.');return false;}
 }
@@ -4127,8 +4128,9 @@ function loadBuiltinRef(){
     }
   }catch(e){console.error(e);}
 }
+try{window.REF_KEY=REF_KEY;}catch(e){}
 function loadRef(){
-  try{REF=JSON.parse(localStorage.getItem(REF_KEY)||'{}');}catch(e){REF={};}
+  try{REF=JSON.parse(localStorage.getItem(REF_KEY)||'{}');}catch(e){REF={};} try{window.REF=REF;}catch(e){}
   for(const s of REF_SLOTS){
     const r=REF[s.k]; if(!r||!r.b64)continue;
     try{r.wb=XLSX.read(r.b64,{type:'base64'});}catch(e){console.error(e);delete REF[s.k];}
@@ -4139,7 +4141,7 @@ function loadRef(){
 function saveRef(){
   const out={};
   for(const [k,v] of Object.entries(REF)) if(v&&v.b64) out[k]={name:v.name,b64:v.b64,when:v.when};
-  try{localStorage.setItem(REF_KEY,JSON.stringify(out));return true;}
+  try{localStorage.setItem(REF_KEY,JSON.stringify(out));dispatchRefSave();return true;}
   catch(e){alert('This browser would not store the file.\n\n'+e.message
     +'\n\nKeep the file in the date folder instead.');return false;}
 }
@@ -4468,6 +4470,78 @@ const localDate=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-
   showDayBanner();updateGate();try{renderBread();}catch(e){console.error(e);}
   try{renderExtra(true);}catch(e){console.error(e);}
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSched();});})();
+</script>
+
+<script>
+/* ===== Shared storage for Product Master + PLINK (Supabase mirror) =====
+   The HTML still works offline from localStorage; this layer makes sure the
+   Product Master export and the product-link overrides survive cache clears
+   and show up on every device the team uses. Posting is debounced; errors are
+   swallowed so the UX never blocks on the network. */
+(function(){
+ var EP='/api/dispatch-ref', postTimer=null, remoteLoaded=false, lastSentJSON='';
+ function currentPayload(){
+   var ref={}; try{for(var k in (window.REF||{})){var v=window.REF[k]; if(v&&v.b64) ref[k]={name:v.name,b64:v.b64,when:v.when};}}catch(e){}
+   var plink={}; try{plink=Object.assign({},window.PLINK||{});}catch(e){}
+   return {ref:ref, plink:plink};
+ }
+ window.dispatchRefSave = function(){
+   if(postTimer)clearTimeout(postTimer);
+   postTimer=setTimeout(function(){
+     postTimer=null;
+     try{
+       var body=JSON.stringify(currentPayload());
+       if(body===lastSentJSON)return;
+       lastSentJSON=body;
+       fetch(EP,{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});
+     }catch(e){}
+   },1200);
+ };
+ function applyRemote(remote){
+   try{
+     var p=(remote&&remote.payload)||{}, changed=false;
+     if(p.plink && typeof p.plink==='object'){
+       window.PLINK = Object.assign({}, window.BUILTIN_LINKS||{}, window.PLINK||{}, p.plink);
+       try{localStorage.setItem(window.PLINK_KEY,JSON.stringify(p.plink));}catch(_){ }
+       changed=true;
+     }
+     if(p.ref && typeof p.ref==='object'){
+       window.REF = window.REF || {};
+       for(var k in p.ref){
+         var r=p.ref[k]; if(!r||!r.b64)continue;
+         var cur=window.REF[k];
+         if(!cur || !cur.b64 || String(cur.when||'')<String(r.when||'')){
+           window.REF[k]={name:r.name,b64:r.b64,when:r.when};
+           changed=true;
+         }
+       }
+       if(changed){
+         try{
+           var out={};
+           for(var kk in window.REF){var vv=window.REF[kk]; if(vv&&vv.b64) out[kk]={name:vv.name,b64:vv.b64,when:vv.when};}
+           localStorage.setItem(window.REF_KEY,JSON.stringify(out));
+         }catch(_){ }
+       }
+     }
+     if(changed){
+       try{ if(typeof window.loadRef==='function') window.loadRef(); }catch(_){ }
+       try{ if(typeof window.loadLinks==='function') window.loadLinks(); }catch(_){ }
+       try{ if(typeof window.render==='function') window.render(); }catch(_){ }
+       try{ if(typeof window.renderLinks==='function') window.renderLinks(); }catch(_){ }
+     }
+   }catch(e){}
+ }
+ function startupPull(){
+   if(remoteLoaded)return; remoteLoaded=true;
+   try{
+     fetch(EP,{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+       if(j && j.ok) applyRemote(j);
+     }).catch(function(){});
+   }catch(e){}
+ }
+ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', startupPull);
+ else setTimeout(startupPull, 0);
+})();
 </script>
 </body>
 </html>

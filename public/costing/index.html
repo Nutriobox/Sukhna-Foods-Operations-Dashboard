@@ -120,6 +120,34 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
 .ck:hover{background:#3a475e}.ck.fn{background:#3d4a60}.ck.op{background:#2f5597}.ck.eq{background:#1f6032}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#1a2233;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:60;display:none;max-width:90vw;box-shadow:0 6px 24px rgba(0,0,0,.3)}
 </style></head><body>
+<!-- SIMPLE PASSWORD GATE — client-side only, obfuscation not security -->
+<div id="pwgate" style="position:fixed;inset:0;z-index:99999;background:#0b1120;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+ <form onsubmit="return pwgateSubmit(event)" style="background:#111827;color:#f1f5f9;padding:28px 30px 26px;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);min-width:280px;max-width:92vw">
+  <div style="font-size:14px;color:#94a3b8;margin-bottom:4px">Sukhna Factory</div>
+  <div style="font-size:19px;font-weight:700;margin-bottom:16px">🔒 Costing Dashboard</div>
+  <label style="display:block;font-size:12px;color:#94a3b8;margin-bottom:4px">Password</label>
+  <input id="pwgate_in" type="password" autocomplete="off" autofocus style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#f1f5f9;font-size:14px">
+  <div id="pwgate_err" style="display:none;color:#f87171;font-size:12px;margin-top:6px">Wrong password — try again.</div>
+  <button type="submit" style="margin-top:14px;width:100%;padding:9px 10px;border-radius:8px;border:none;background:#059669;color:#fff;font-weight:700;cursor:pointer;font-size:14px">Unlock</button>
+ </form>
+</div>
+<script>
+(function(){
+ var OK='1122'; // soft gate — anyone who opens Dev Tools can see this
+ var passed=false; try{passed=sessionStorage.getItem('costing_auth')==='1';}catch(e){}
+ if(passed){var g=document.getElementById('pwgate');if(g)g.remove();}
+ else{document.documentElement.style.overflow='hidden';}
+ window.pwgateSubmit=function(e){e.preventDefault();
+  var v=(document.getElementById('pwgate_in')||{}).value||'';
+  if(v===OK){try{sessionStorage.setItem('costing_auth','1');}catch(_){}
+   var g=document.getElementById('pwgate');if(g)g.remove();
+   document.documentElement.style.overflow='';return false;}
+  document.getElementById('pwgate_err').style.display='';
+  document.getElementById('pwgate_in').value='';document.getElementById('pwgate_in').focus();
+  return false;};
+})();
+</script>
+
 <header><div class="wrap hdrrow" style="padding:0"><div><h1>🏭 Sukhna Factory — Costing Dashboard</h1>
 <div class="syncstat" id="syncstat"></div></div>
 <div class="hbtns"><button class="syncbtn" onclick="openSync()">🔄 Sync PACT Reports</button><button class="syncbtn calcbtn" id="calcbtn" onclick="toggleCalc()" title="Calculator (click again to hide)">🧮</button></div></div></header>
