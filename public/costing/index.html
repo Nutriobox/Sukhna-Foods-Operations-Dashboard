@@ -19,6 +19,12 @@ header h1{font-size:18px;font-weight:700}header p{margin:4px 0 0;opacity:.85;fon
 .chip.warn{background:#ffd666;color:#5a3d00;font-weight:700}
 .tabs{display:flex;gap:6px;margin:14px 0;flex-wrap:wrap}.tab{flex:1;min-width:150px;padding:11px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:pointer;font-weight:600;color:var(--mut);text-align:center;font-size:13px}
 .tab.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.tab.more{position:relative}
+#moremenu{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:40;text-align:left;padding:6px}
+.mitem{padding:8px 10px;border-radius:7px;color:var(--ink);font-weight:600;cursor:pointer}.mitem:hover{background:var(--chip)}.mitem.on{background:var(--brand);color:#fff}
+/* anything edited by hand (differs from PACT / formula) = bold orange */
+.edited,td.edited,span.edited{color:#d2691e!important;font-weight:800!important}
+input.edited,select.edited{border:2px solid #d2691e!important;color:#d2691e!important;font-weight:800!important;background:#fff7f0!important}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
 label{display:block;font-size:11px;font-weight:600;color:var(--mut);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
 input,select{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px}
@@ -115,9 +121,8 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#1a2233;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:60;display:none;max-width:90vw;box-shadow:0 6px 24px rgba(0,0,0,.3)}
 </style></head><body>
 <header><div class="wrap hdrrow" style="padding:0"><div><h1>🏭 Sukhna Factory — Costing Dashboard</h1>
-<p>Rates: Product Master (PACT) · Ideal BOM costing · Actual batch costing (PACT) · Weights via L1/L2/L3 (ml = gms)</p>
 <div class="syncstat" id="syncstat"></div></div>
-<div class="hbtns"><button class="syncbtn alt" id="xall" onclick="exportAll()" title="One Excel file with all dashboards as separate sheets">⬇ Excel — all dashboards</button><button class="syncbtn" onclick="openSync()">🔄 Sync PACT Reports</button><button class="syncbtn calcbtn" id="calcbtn" onclick="toggleCalc()" title="Calculator (click again to hide)">🧮</button></div></div></header>
+<div class="hbtns"><button class="syncbtn" onclick="openSync()">🔄 Sync PACT Reports</button><button class="syncbtn calcbtn" id="calcbtn" onclick="toggleCalc()" title="Calculator (click again to hide)">🧮</button></div></div></header>
 <div id="calc" class="calc hide" tabindex="0" onkeydown="calcKey(event)">
  <div class="chead" id="chead"><span>🧮 Calculator</span><span class="muted" style="font-size:10.5px">drag to move · Esc to hide</span><button class="cx" onclick="toggleCalc()" title="Hide">✕</button></div>
  <div class="cexpr" id="cexpr">&nbsp;</div><div class="cdisp" id="cdisp">0</div>
@@ -153,9 +158,12 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
 <div class="tab" data-t="bom" onclick="tab('bom')">📋 BOM Ideal</div>
 <div class="tab" data-t="sum" onclick="tab('sum')">📊 Summary Ideal</div>
 <div class="tab" data-t="batch" onclick="tab('batch')">🏷️ Batch Actual (PACT)</div>
-<div class="tab" data-t="dev" onclick="tab('dev')">📉 Cost Deviation</div>
-<div class="tab" data-t="pm" onclick="tab('pm')">📦 Product Packing</div>
-<div class="tab" data-t="veg" onclick="tab('veg')">🥬 Vegetable Yield</div>
+<div class="tab more" id="moretab" onclick="toggleMore(event)"><span id="morelbl">⋯ More ▾</span>
+ <div id="moremenu" class="hide">
+  <div class="mitem" data-t="dev" onclick="pickMore(event,'dev')">📉 Cost Deviation</div>
+  <div class="mitem" data-t="pm" onclick="pickMore(event,'pm')">📦 Product Packing</div>
+  <div class="mitem" data-t="veg" onclick="pickMore(event,'veg')">📐 Yield / Wastage (all items)</div>
+ </div></div>
 </div>
 
 <div id="gvars" class="card hide" style="padding:10px 14px">
@@ -173,15 +181,15 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
 </div>
 
 <div id="rate"><div class="card"><div class="rowflex">
-  <div style="flex:2"><label>Search product</label><input id="qrate" placeholder="name or code…" oninput="renderRate()"></div>
+  <div style="flex:2"><label>Search product</label><input id="qrate" placeholder="name or code…" oninput="deb(renderRate)"></div>
   <div><label>Category</label><select id="ratecat" onchange="renderRate()"><option value="">All</option><option>Raw Material</option><option>Packing Materials</option><option>Semi Process</option></select></div>
   <div><label>Set all rows to</label><select id="ratelvl" onchange="setAllLvl(this.value)"><option value="DEF">Each item's PM level</option><option value="L1">L1 — base unit</option><option value="L2">L2</option><option value="L3">L3</option><option value="KG">Per Kg / Pc</option></select></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" onclick="exportOne('rate')" title="This dashboard only (rows matching your current search/filter)">⬇ This sheet (Excel)</button><button class="xbtn all" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets (full data)">⬇ All dashboards (Excel)</button></div></div>
- </div><div class="muted" style="margin-top:6px">Each row has its own <b>unit dropdown</b> (L1 base / L2 / L3 / per Kg) — change it and that row's prices convert instantly (base rate × pack size). Your per-row choices are remembered. "Set all rows to" applies one level to every row. Last Purchase Price = latest Stock Inward in the same unit (red = over 10% above default, green = over 10% below; <span class="wflag">⚠</span> struck-through = more than 5× off the master rate — a wrong PACT entry, ignored in costing). <span class="wflag">*</span> = that level is not defined for the item — its default level is shown.</div></div>
+ </div><div class="muted" style="margin-top:6px">Each row has its own <b>unit dropdown</b> (L1 base / L2 / L3 / per Kg) — change it and that row's prices convert instantly (base rate × pack size). Your per-row choices are remembered. "Set all rows to" applies one level to every row. Last Purchase Price = latest Stock Inward in the same unit (red = over 10% above default, green = over 10% below; <span class="wflag">⚠</span> struck-through = more than 5× off the master rate — a wrong PACT entry, ignored in costing). <span class="wflag">*</span> = that level is not defined for the item — its default level is shown. <b>Final Price</b> = the price used in BOM Ideal, Summary and Cost Deviation: the <b>higher</b> of Default and Last Purchase — <b>editable</b>; an edited price shows in <span class="edited">bold orange</span> (clear the box to go back to the formula).</div></div>
  <div class="card"><div class="overflow"><table class="dt" id="ratetbl"></table></div></div></div>
 
 <div id="bom" class="hide"><div class="card"><div class="rowflex">
-  <div style="flex:2"><label>Search BOM</label><input id="qbom" placeholder="recipe name or code…" oninput="renderBOM()"></div>
+  <div style="flex:2"><label>Search BOM</label><input id="qbom" placeholder="recipe name or code…" oninput="deb(renderBOM)"></div>
   <div><label>Category</label><select id="bomcat" onchange="renderBOM()"><option value="">All</option><option>Gravy</option><option>Beverages</option><option>Snacks</option><option>Biryani</option></select></div>
   <div style="flex:0 0 auto;position:relative"><label>&nbsp;</label><button class="xbtn" style="background:var(--mut)" onclick="document.getElementById('bomcolbox').classList.toggle('hide')" title="Show / hide columns">☰ Columns</button><div id="bomcolbox" class="hide" style="position:absolute;right:0;top:100%;z-index:30"><div class="card" style="padding:10px 12px;display:grid;gap:5px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.15)"><div id="bomcols" style="display:grid;gap:4px;font-size:12.5px"></div><button class="xbtn" style="margin-top:4px" onclick="resetBomCols()">Show all</button></div></div></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" onclick="exportOne('bom')" title="This dashboard only (rows matching your current search/filter)">⬇ This sheet (Excel)</button><button class="xbtn all" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets (full data)">⬇ All dashboards (Excel)</button></div></div>
@@ -189,13 +197,14 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
  <div class="card"><div class="overflow"><table class="dt" id="bomtbl"></table></div></div></div>
 
 <div id="veg" class="hide"><div class="card"><div class="rowflex">
-  <div style="flex:2"><label>Search vegetable</label><input id="qveg" placeholder="vegetable name or code…" oninput="renderVeg()"></div>
+  <div style="flex:2"><label>Search item</label><input id="qveg" placeholder="item name or code…" oninput="deb(renderVeg)"></div>
+  <div><label>Show</label><select id="vegfilt" onchange="renderVeg()"><option value="all">All BOM input items</option><option value="wast">Items with wastage % in PACT</option><option value="veg">Vegetables only</option><option value="edit">Edited only</option></select></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" style="background:var(--mut)" onclick="resetVegYield()" title="Discard every edited value and go back to the PACT BOM wastage">↺ Reset all to PACT wastage</button></div></div>
- </div><div class="muted" style="margin-top:6px">Every vegetable used as a BOM input (matched by the vegetable keyword list). <b>Wastage Yield %</b> is prefilled from the PACT BOM wastage and is <b>editable</b> — it drives the <b>Issue Qty Yield</b> column in BOM Ideal: <b>Issue Qty Yield = Usage Qty × (1 − Wastage Yield %)</b>. Edited values are saved in this browser and survive PACT re-syncs; blue = edited.</div></div>
+ </div><div class="muted" style="margin-top:6px">Every raw material / packing item used as a BOM input. <b>Wastage Yield %</b> is prefilled from the PACT BOM wastage and is <b>editable</b> — it drives the <b>Issue Qty (Yield)</b> column in BOM Ideal for every item: <b>Issue Qty (Yield) = Usage Qty ÷ (1 − Wastage Yield %)</b>. Edited values are saved in this browser and survive PACT re-syncs; <span class="edited">bold orange</span> = edited (differs from PACT).</div></div>
  <div class="card"><div class="overflow"><table class="dt" id="vegtbl"></table></div></div></div>
 
 <div id="sum" class="hide"><div class="card"><div class="rowflex">
-  <div style="flex:2"><label>Search item — type &amp; press Enter (or + Add) to select several</label><div style="display:flex;gap:6px"><input id="qsum" list="sumdl" placeholder="item name or code…" oninput="renderSum()" onkeydown="if(event.key==='Enter'){event.preventDefault();addSel();}"><datalist id="sumdl"></datalist><button class="xbtn" style="background:var(--brand)" onclick="addSel()">+ Add</button><button class="xbtn" style="background:var(--mut)" onclick="clearSel()">Clear</button></div></div>
+  <div style="flex:2"><label>Search item — type &amp; press Enter (or + Add) to select several</label><div style="display:flex;gap:6px"><input id="qsum" list="sumdl" placeholder="item name or code…" oninput="deb(renderSum)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSel();}"><datalist id="sumdl"></datalist><button class="xbtn" style="background:var(--brand)" onclick="addSel()">+ Add</button><button class="xbtn" style="background:var(--mut)" onclick="clearSel()">Clear</button></div></div>
   <div><label>Category</label><select id="sumcat" onchange="renderSum()"><option value="">All</option><option>Gravy</option><option>Beverages</option><option>Snacks</option><option>Biryani</option></select></div>
   <div><label>Sort</label><select id="sumsort" onchange="renderSum()"><option value="name">Name A–Z</option><option value="cat">Category</option><option value="sell">Derived Selling ↓</option><option value="food">Food cost ↓</option><option value="cons">Consumable ↓</option><option value="appr">Approved first</option></select></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" onclick="exportOne('sum')" title="This dashboard only (rows matching your current search/filter)">⬇ This sheet (Excel)</button><button class="xbtn all" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets (full data)">⬇ All dashboards (Excel)</button></div></div>
@@ -203,7 +212,7 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
  <div class="card"><div class="overflow"><table class="dt" id="sumtbl"></table></div></div></div>
 
 <div id="batch" class="hide"><div class="card"><div class="rowflex">
-  <div style="flex:2"><label>Filter product</label><input id="qbatch" placeholder="filter…" oninput="renderBatch()"></div>
+  <div style="flex:2"><label>Filter product</label><input id="qbatch" placeholder="filter…" oninput="deb(renderBatch)"></div>
   <div><label>Date</label><select id="bdate" onchange="renderBatch()"></select></div>
   <div><label>View</label><select id="bview" onchange="renderBatch()"><option value="batch">Batch-wise</option><option value="day">Day-wise summary (batches clubbed)</option></select></div>
   <div><label>Sort by</label><select id="bsort" onchange="BSORT.key=this.value;BSORT.dir=(this.value==='dev'||this.value==='sell')?-1:1;renderBatch()"><option value="date">Date</option><option value="name">Name A–Z</option><option value="dev">Deviation</option><option value="sell">Batch Selling</option></select></div>
@@ -211,7 +220,7 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
  </div><div class="muted" style="margin-top:6px">Food &amp; Packing = PACT actuals at Product Master rates. Ideal Yield, Min &amp; Derived Selling from the Ideal BOM. Green = BOM approved. <b>Day-wise summary</b> clubs all batches of a product on a date (Ideal = ideal yield × batches). Double-click a row for detail.</div></div>
  <div class="card"><div class="overflow"><table class="dt" id="batchtbl"></table></div></div></div>
 <div id="dev" class="hide"><div class="card"><div class="rowflex">
-  <div style="flex:2"><label>Filter product</label><input id="qdev" placeholder="filter…" oninput="renderDev()"></div>
+  <div style="flex:2"><label>Filter product</label><input id="qdev" placeholder="filter…" oninput="deb(renderDev)"></div>
   <div><label>Date</label><select id="ddate" onchange="renderDev()"></select></div>
   <div><label>Sort by</label><select id="dsort" onchange="renderDev()"><option value="dev">Deviation ₹ (largest first)</option><option value="pct">Deviation %</option><option value="mat">Material variance</option><option value="rate">Rate variance</option><option value="date">Date</option><option value="name">Name A–Z</option></select></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" onclick="exportOne('dev')">⬇ This sheet (Excel)</button><button class="xbtn all" onclick="exportAll()">⬇ All dashboards (Excel)</button></div></div>
@@ -219,7 +228,7 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
  <div class="card"><div class="overflow"><table class="dt" id="devtbl"></table></div></div></div>
 
 <div id="pm" class="hide"><div class="card"><div class="rowflex">
-  <div style="flex:2"><label>Search product</label><input id="qpm" placeholder="name or code…" oninput="renderPM()"></div>
+  <div style="flex:2"><label>Search product</label><input id="qpm" placeholder="name or code…" oninput="deb(renderPM)"></div>
   <div><label>Category</label><select id="pmcat" onchange="renderPM()"><option value="">All</option><option>Gravy</option><option>Beverages</option><option>Snacks</option><option>Biryani</option></select></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" onclick="exportOne('pm')" title="This dashboard only (rows matching your current search/filter)">⬇ This sheet (Excel)</button><button class="xbtn all" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets (full data)">⬇ All dashboards (Excel)</button></div></div>
  </div><div class="muted" style="margin-top:6px">Finished goods from the Product Master. <b>Category</b> and <b>packing level</b> are dropdowns on every row — a category you choose here is used for that product's processing rate in all costing (BOM Ideal, Summary, Batch). Default Packing Size = the L1/L2/L3 level set as <b>DefaultBarcodePrintUOM</b>, shown as base quantity per pack. <span class="wflag">*</span> = no default level set in PACT — largest pack level shown.</div></div>
@@ -311,16 +320,25 @@ const baseU=e=>e?(e[1]||'Gms'):'';
 // last purchase sanity: ignore rates >5x or <1/5 of the Product Master rate (data-entry errors)
 function lppOk(code){const l=(D.lpp||{})[code];if(!l||!(l[0]>0))return null;const e=(D.conv||{})[code];if(!e)return l;const pm=rbase(e);if(pm>0&&(l[0]>pm*5||l[0]<pm/5))return null;return l;}
 function lppSus(code){const l=(D.lpp||{})[code];return !!(l&&l[0]>0&&!lppOk(code));}
+let FINAL={};try{FINAL=JSON.parse(localStorage.getItem('final_price')||'{}');}catch(e){FINAL={};}
+// Final price per base unit = edited value, else the higher of Product Master and (sane) last purchase
+function finalBase(code){const cd=String(code==null?'':code).trim(),e=(D.conv||{})[cd];if(!e)return null;const pm=rbase(e),l=lppOk(cd);
+ if(FINAL[cd]!=null&&FINAL[cd]>0)return {rb:FINAL[cd],src:'edited',pm,lp:l?l[0]:null};
+ if(l&&l[0]>pm)return {rb:l[0],src:'lpp',pm,lp:l[0]};return {rb:pm,src:'pm',pm,lp:l?l[0]:null};}
+function setFinal(code,v){if(v==null||v===''||isNaN(+v)||+v<=0)delete FINAL[code];else FINAL[code]=+v;try{localStorage.setItem('final_price',JSON.stringify(FINAL));}catch(e){}bump();}
 function unitRate(name,code,unit,opts){const cd=String(code==null?'':code).trim(),e=(D.conv||{})[cd],useMax=!(opts&&opts.pmOnly);
- if(e){const [f,how]=baseFactor(e,unit,name),bu=baseU(e),u=unit||bu;let rb=rbase(e),src='';const l=useMax?lppOk(cd):null;
-  if(l&&l[0]>rb){src=' [last purchase ₹'+nfmt4(l[0])+' > PM ₹'+nfmt4(rb)+' — higher used]';rb=l[0];}else if(l&&rb>0){src=' [PM ₹'+nfmt4(rb)+' ≥ last purchase ₹'+nfmt4(l[0])+']';}
-  const r=rb*f,lab=src.includes('higher used')?'last purchase rate':'PM rate';let calc;
+ if(e){const [f,how]=baseFactor(e,unit,name),bu=baseU(e),u=unit||bu;let rb=rbase(e),src='',ed=false;const fb=useMax?finalBase(cd):null;
+  if(fb){if(fb.src==='edited'){src=' [FINAL PRICE edited by you: ₹'+nfmt4(fb.rb)+' per '+bu+' (PM ₹'+nfmt4(fb.pm)+(fb.lp?', last purchase ₹'+nfmt4(fb.lp):'')+')]';rb=fb.rb;ed=true;}
+   else if(fb.src==='lpp'){src=' [last purchase ₹'+nfmt4(fb.lp)+' > PM ₹'+nfmt4(fb.pm)+' — higher used = Final Price]';rb=fb.rb;}
+   else if(fb.lp){src=' [PM ₹'+nfmt4(fb.pm)+' ≥ last purchase ₹'+nfmt4(fb.lp)+' = Final Price]';}}
+  const l=fb&&fb.src==='lpp'?[fb.lp]:null;
+  const r=rb*f,lab=ed?'Final Price (edited)':src.includes('higher used')?'last purchase rate':'PM rate';let calc;
   if(!rb)calc='No Product Master rate';
   else if(how==='L1')calc='₹'+nfmt4(rb)+' per '+bu+' ('+lab+')';
   else if(how==='weight')calc='₹'+nfmt4(rb)+' per '+bu+' × '+nfmt(f)+' '+bu+' per '+u;
   else if(how==='assumed')calc='⚠ "'+u+'" not in PM L1/L2/L3 — ₹'+nfmt4(rb)+' per '+bu+' used as per '+u;
   else calc='₹'+nfmt4(rb)+' per '+bu+' × '+nfmt(f)+' '+bu+' per '+u+' ('+how+')';
-  return {r,how,calc:(rb?calc+(how==='L1'?'':' = ₹'+nfmt4(r)+' per '+u):calc)+src,warn:how==='assumed',lp:!!(l&&l[0]>rbase(e))};}
+  return {r,how,calc:(rb?calc+(how==='L1'?'':' = ₹'+nfmt4(r)+' per '+u):calc)+src,warn:how==='assumed',lp:!!(fb&&fb.src==='lpp'),ed};}
  const x=R[lc(name)];if(!x)return {r:0,how:'none',calc:'Not in Product Master',warn:true};
  const r=isWt(unit)?x.r*unitG(unit)/1000:x.r;return {r,how:'name',calc:'₹'+nfmt4(x.r)+(isWt(unit)?'/Kg ÷ 1000 × '+unitG(unit)+' = ₹'+nfmt4(r)+' per '+unit:' per '+(unit||'unit'))+' (matched by name)',warn:false};}
 const nfmt4=x=>Number(x||0).toLocaleString('en-IN',{maximumFractionDigits:4});
@@ -359,18 +377,22 @@ rebuildIdx();
 const CATN=['Gravy','Beverages','Snacks','Biryani'];
 let CV={};try{CV=JSON.parse(localStorage.getItem('costvars')||'{}');}catch(e){CV={};}
 function gvInit(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.value=(CV.rates&&CV.rates[k]!=null)?CV.rates[k]:(CATS[k]!=null?CATS[k]:65);});
- document.getElementById('gmargin').value=CV.mg!=null?CV.mg:15;document.getElementById('gvar').value=CV.va!=null?CV.va:2;gvSum();}
+ document.getElementById('gmargin').value=CV.mg!=null?CV.mg:15;document.getElementById('gvar').value=CV.va!=null?CV.va:2;gvMark();gvSum();}
 function gv(){const rates={};CATN.forEach(k=>{const e=document.getElementById('cr_'+k);rates[k]=e&&e.value!==''?(+e.value||0):(CATS[k]!=null?CATS[k]:65);});
  return {rates,pp:0,sp:0,mg:(+val('gmargin')||0)/100,va:(+val('gvar')||0)/100};}
-function saveGv(){const v=gv();CV={rates:v.rates,mg:v.mg*100,va:v.va*100};try{localStorage.setItem('costvars',JSON.stringify(CV));}catch(e){}gvSum();refresh();}
-function gvSum(){const v=gv();document.getElementById('gvsum').innerHTML='⚙ <b>Processing ₹/Kg</b> — '+CATN.map(k=>k+' <b>'+nfmt(v.rates[k])+'</b>').join(' · ')+' · Margin <b>'+(v.mg*100).toFixed(0)+'%</b> · Variance <b>'+(v.va*100).toFixed(0)+'%</b>';}
+function saveGv(){const v=gv();CV={rates:v.rates,mg:v.mg*100,va:v.va*100};try{localStorage.setItem('costvars',JSON.stringify(CV));}catch(e){}bump();gvMark();gvSum();refresh();}
+function gvMark(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.classList.toggle('edited',+e.value!==(CATS[k]!=null?CATS[k]:65));});const m=document.getElementById('gmargin'),v=document.getElementById('gvar');if(m)m.classList.toggle('edited',+m.value!==15);if(v)v.classList.toggle('edited',+v.value!==2);}
+function gvSum(){const v=gv();const d=k=>(CATS[k]!=null?CATS[k]:65);document.getElementById('gvsum').innerHTML='⚙ <b>Processing ₹/Kg</b> — '+CATN.map(k=>k+' <b class="'+(v.rates[k]!==d(k)?'edited':'')+'">'+nfmt(v.rates[k])+'</b>').join(' · ')+' · Margin <b class="'+(v.mg!==0.15?'edited':'')+'">'+(v.mg*100).toFixed(0)+'%</b> · Variance <b class="'+(v.va!==0.02?'edited':'')+'">'+(v.va*100).toFixed(0)+'%</b>';}
 function toggleGv(){const e=document.getElementById('gvedit');e.classList.toggle('hide');document.getElementById('gvbtn').textContent=e.classList.contains('hide')?'✎ Edit rates':'Hide';}
 let CATOVR={};try{CATOVR=JSON.parse(localStorage.getItem('cat_override')||'{}');}catch(e){CATOVR={};}
 const catOfR=r=>CATOVR[r.oc]||r.cat;const catOfB=b=>CATOVR[b.code]||b.cat;
-function setCatOvr(code,cat){if(!cat)delete CATOVR[code];else CATOVR[code]=cat;try{localStorage.setItem('cat_override',JSON.stringify(CATOVR));}catch(e){}}
+function setCatOvr(code,cat){if(!cat)delete CATOVR[code];else CATOVR[code]=cat;try{localStorage.setItem('cat_override',JSON.stringify(CATOVR));}catch(e){}bump();}
 function procRate(cat,v){return v.rates[cat]!=null?v.rates[cat]:(CATS[cat]!=null?CATS[cat]:0);}
 const issueOf=it=>it[4]==='W'?0:((it[2]||0)>=100?it[1]:it[1]/(1-(it[2]||0)/100));
-function computeIdeal(r){const v=gv();let food=0,pack=0,waste=0;const zero=[];
+const CI_CACHE=new Map();
+function bump(){CI_CACHE.clear();VEGCAT=null;VEGMAP=null;}
+function computeIdeal(r){const hit=CI_CACHE.get(r.code);if(hit&&hit.r===r)return hit;const res=computeIdeal_(r);CI_CACHE.set(r.code,res);return res;}
+function computeIdeal_(r){const v=gv();let food=0,pack=0,waste=0;const zero=[];
  r.st.forEach(s=>s.i.forEach(it=>{if(it[4]==='W')return;const rt=unitRate(it[0],it[6],it[3]).r;const iss=issueOf(it),c=iss*rt;if(it[4]==='F')food+=c;else pack+=c;waste+=(iss-(it[1]||0))*rt;if(!rt)zero.push(it[0]);}));
  const q=r.y[0]||1,u=r.y[1],wg=(r.cv&&r.cv.g)||0,wkg=wg/1000,cat=catOfR(r),pr=procRate(cat,v);
  const foodPU=food/q,packPU=pack/q,procPU=pr*wkg,ppPU=v.pp*wkg,spPU=v.sp*wkg,prodPU=procPU+ppPU+spPU,consumPU=foodPU+packPU,totalPU=consumPU+prodPU;
@@ -411,7 +433,13 @@ function layoutTable(id){const t=document.getElementById(id);if(!t||!COLW[id])re
  CURW[id]=w;t.classList.add('fx');ths.forEach((th,i)=>th.style.width=w[i]+'px');t.style.width=sum()+'px';}
 let _rsT=null;window.addEventListener('resize',()=>{clearTimeout(_rsT);_rsT=setTimeout(()=>{['ratetbl','bomtbl','sumtbl','batchtbl','devtbl','pmtbl','vegtbl'].forEach(id=>{const el=document.getElementById(id);if(el&&el.offsetParent)layoutTable(id);});},120);});
 let CUR='rate';
-function tab(t){CUR=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
+const MORE={dev:'📉 Cost Deviation',pm:'📦 Product Packing',veg:'📐 Yield / Wastage'};
+function toggleMore(ev){ev.stopPropagation();document.getElementById('moremenu').classList.toggle('hide');}
+function pickMore(ev,t){ev.stopPropagation();document.getElementById('moremenu').classList.add('hide');tab(t);}
+document.addEventListener('click',()=>{const m=document.getElementById('moremenu');if(m)m.classList.add('hide');});
+const deb=fn=>{clearTimeout(fn._t);fn._t=setTimeout(fn,180);};
+function tab(t){CUR=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===t||(x.id==='moretab'&&!!MORE[t])));document.querySelectorAll('.mitem').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
+ const ml=document.getElementById('morelbl');if(ml)ml.textContent=MORE[t]?MORE[t]+' ▾':'⋯ More ▾';
  ['rate','bom','sum','batch','dev','pm','veg'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==t));
  document.getElementById('gvars').classList.toggle('hide',t==='rate'||t==='pm'||t==='veg');try{history.replaceState(null,'','#'+t);}catch(e){}refresh();}
 function refresh(){({rate:renderRate,bom:renderBOM,sum:renderSum,batch:renderBatch,dev:renderDev,pm:renderPM,veg:renderVeg})[CUR]();}
@@ -434,17 +462,21 @@ function lvlOptions(e){const bu=baseU(e)||'unit';const o=[['L1','L1 — '+bu]];
 function setRowLvl(code,lvl){const g=val('ratelvl');const base=(g&&g!=='DEF')?g:defLvl((D.conv||{})[code]);if(lvl===base)delete ROWLVL[code];else ROWLVL[code]=lvl;saveRowLvl();
  const tr=document.querySelector('#ratetbl tr[data-code="'+cssEsc(code)+'"]');const p=D.products.find(x=>x.code===code);if(!tr||!p)return;
  const b=prodBuy(p),l=lppOf(p,b);tr.children[3].className=b.price>0?'':'zero';tr.children[3].title='₹'+nfmt4(b.rb)+' per '+b.base+' × '+nfmt(b.size)+' '+b.base;tr.children[3].textContent=rmoney(b.price);
- tr.children[4].className=l?l.tr:'';tr.children[4].textContent=l?rmoney(l.p):'—';tr.children[2].querySelector('select').title=b.fallback?'This level is not defined — default shown':'Level '+b.lvl+' = '+nfmt(b.size)+' '+b.base;}
+ tr.children[4].className=l?l.tr:'';tr.children[4].textContent=l?rmoney(l.p):'—';tr.children[6].outerHTML=finalCell(p,b);tr.children[2].querySelector('select').title=b.fallback?'This level is not defined — default shown':'Level '+b.lvl+' = '+nfmt(b.size)+' '+b.base;}
 function setAllLvl(lvl){ROWLVL={};saveRowLvl();renderRate();}
 function prodBuy(p){const e=(D.conv||{})[p.code],lvl=rowLvl(p.code);let b=unitAt(e,lvl);
  if(!b){b=buyUnit(e);if(b){b={...b,fallback:true};}}
  return b||{label:p.unit,price:p.price,size:1,rb:p.price,base:p.unit,unit:p.unit,lvl:'?',fallback:false};}
 function lppOf(p,b){const l=(D.lpp||{})[p.code];if(!l)return null;b=b||prodBuy(p);const price=l[0]*b.size;let tr='';if(b.price>0){const d=(price-b.price)/b.price;tr=d>0.10?'up':d<-0.10?'down':'';}const sus=lppSus(p.code);return {p:price,d:l[1],v:l[2]||'',tr:sus?'sus':tr,pb:l[0],sus};}
+function finalCell(p,b){const fb=finalBase(p.code);if(!fb)return '<td>—</td>';const ed=fb.src==='edited',v=fb.rb*b.size;const srcTxt=ed?'edited':fb.src==='lpp'?'= last purchase':'= default';
+ return `<td class="l" style="white-space:nowrap"><input class="mini${ed?' edited':''}" type="number" step="0.01" value="${v>=1?r2(v):+v.toFixed(4)}" title="${esc('Final price per '+b.unit+' ('+nfmt(b.size)+' '+b.base+'). Type a value to override; clear to return to the formula (higher of Default and Last Purchase).')}" onchange="setFinalRow('${esc(p.code)}',this.value)"> <small class="${ed?'edited':'muted'}">${srcTxt}</small></td>`;}
+function setFinalRow(code,v){const p=D.products.find(x=>x.code===code);if(!p)return;const b=prodBuy(p);setFinal(code,(v===''||v==null)?'':(+v)/(b.size||1));
+ const tr=document.querySelector('#ratetbl tr[data-code="'+cssEsc(code)+'"]');if(tr){tr.children[6].outerHTML=finalCell(p,b);}toast(FINAL[code]?'Final price set — used in BOM Ideal, Summary & Cost Deviation':'Final price reset to formula');}
 function renderRate(){const list=rateList();let rows='';if(renderRate._lvl!==val('ratelvl')){renderRate._lvl=val('ratelvl');delete COLW['ratetbl'];}
  for(const p of list){const b=prodBuy(p),l=lppOf(p,b);
   const e=(D.conv||{})[p.code],cur=rowLvl(p.code),opts=lvlOptions(e).map(([v,l])=>`<option value="${v}"${v===cur?' selected':''}>${esc(l)}</option>`).join('');
-  rows+=`<tr data-code="${esc(p.code)}"><td class="l" title="${esc(p.name)}">${esc(p.name)}</td><td class="l">${esc(p.code)}</td><td class="l"><select class="usel" title="${esc(b.fallback?'This level is not defined — default shown':('Level '+b.lvl+' = '+nfmt(b.size)+' '+b.base))}" onchange="setRowLvl('${esc(p.code)}',this.value)">${opts}</select></td><td class="${b.price>0?'':'zero'}" title="${esc('₹'+nfmt4(b.rb)+' per '+b.base+' × '+nfmt(b.size)+' '+b.base)}">${rmoney(b.price)}</td><td class="${l?l.tr:''}" title="${l?esc((l.sus?'⚠ SUSPICIOUS — '+(l.pb/b.rb).toFixed(0)+'× the Product Master rate; ignored in costing. Check this Stock Inward entry in PACT. ':'')+'Vendor: '+l.v+' · ₹'+nfmt4(l.pb)+' per '+b.base+' × '+nfmt(b.size)):'No inward found'}">${l?rmoney(l.p):'—'}${l&&l.sus?' <span class="wflag">⚠</span>':''}</td><td>${l?fmtD(l.d):'—'}</td><td class="l">${esc(p.cat)}</td></tr>`;}
- document.getElementById('ratetbl').innerHTML=`<tr><th class="l">Product</th><th class="l">Product Code</th><th class="l">Buying Unit — choose L1 / L2 / L3</th><th>Default Purchase Price</th><th>Last Purchase Price</th><th>Last Purchase Date</th><th class="l">Category</th></tr>${rows||'<tr><td colspan="7" class="l">No products.</td></tr>'}<tr class="tot"><td class="l" colspan="7">${list.length} products</td></tr>`;
+  rows+=`<tr data-code="${esc(p.code)}"><td class="l" title="${esc(p.name)}">${esc(p.name)}</td><td class="l">${esc(p.code)}</td><td class="l"><select class="usel" title="${esc(b.fallback?'This level is not defined — default shown':('Level '+b.lvl+' = '+nfmt(b.size)+' '+b.base))}" onchange="setRowLvl('${esc(p.code)}',this.value)">${opts}</select></td><td class="${b.price>0?'':'zero'}" title="${esc('₹'+nfmt4(b.rb)+' per '+b.base+' × '+nfmt(b.size)+' '+b.base)}">${rmoney(b.price)}</td><td class="${l?l.tr:''}" title="${l?esc((l.sus?'⚠ SUSPICIOUS — '+(l.pb/b.rb).toFixed(0)+'× the Product Master rate; ignored in costing. Check this Stock Inward entry in PACT. ':'')+'Vendor: '+l.v+' · ₹'+nfmt4(l.pb)+' per '+b.base+' × '+nfmt(b.size)):'No inward found'}">${l?rmoney(l.p):'—'}${l&&l.sus?' <span class="wflag">⚠</span>':''}</td><td>${l?fmtD(l.d):'—'}</td>${finalCell(p,b)}<td class="l">${esc(p.cat)}</td></tr>`;}
+ document.getElementById('ratetbl').innerHTML=`<tr><th class="l">Product</th><th class="l">Product Code</th><th class="l">Buying Unit — choose L1 / L2 / L3</th><th>Default Purchase Price</th><th>Last Purchase Price</th><th>Last Purchase Date</th><th title="Price used in BOM Ideal, Summary and Cost Deviation = higher of Default and Last Purchase; editable">Final Price ✏️<br><small>used in costing</small></th><th class="l">Category</th></tr>${rows||'<tr><td colspan="7" class="l">No products.</td></tr>'}<tr class="tot"><td class="l" colspan="7">${list.length} products</td></tr>`;
  sizeTable('ratetbl',1,60);}
 
 // ===== TAB 2: BOM IDEAL =====
@@ -466,7 +498,7 @@ function stageOutputs(r){const fin=r.st.length?r.st[r.st.length-1].s:null;const 
  r.st.forEach(s=>s.o.forEach(o=>parts.push({stage:s.s,kind:s.s===fin?'FG':'WIP',q:o[1],u:o[2],name:o[0],code:o[3]})));return parts;}
 // ---- BOM Ideal column model: every row is built as a {key: '<td>…</td>'} map and only the
 // visible columns are emitted, so "hide column" never breaks the resizable-width arrays.
-const BOM_COLS=[['sec','Section','l'],['stage','Stage','l'],['pcode','Product Code','l'],['pname','Product Name','l'],['cat','Category','l'],['unit','Unit',''],['usage','Usage Qty',''],['wast','Wastage %',''],['issue','Issue Qty',''],['iyield','Issue Qty Yield',''],['rate','Rate (per unit)',''],['value','Value ₹',''],['op','OPQty','']];
+const BOM_COLS=[['sec','Section','l'],['stage','Stage','l'],['pcode','Product Code','l'],['pname','Product Name','l'],['cat','Category','l'],['unit','Unit',''],['usage','Usage Qty',''],['wast','Wastage %',''],['issue','Issue Qty',''],['iyield','Issue Qty (Yield)',''],['rate','Rate (per unit)',''],['value','Value ₹',''],['op','OPQty','']];
 let BOMHIDE={};try{BOMHIDE=JSON.parse(localStorage.getItem('bom_cols_hide')||'{}');}catch(e){BOMHIDE={};}
 const bomVis=()=>BOM_COLS.filter(c=>!BOMHIDE[c[0]]);
 const bomNV=()=>Math.max(1,bomVis().length);
@@ -482,42 +514,50 @@ document.addEventListener('click',e=>{const b=document.getElementById('bomcolbox
 // ---- Vegetable yield (Wastage Yield %) — user-editable, per vegetable, kept in this browser ----
 let VEGY={};try{VEGY=JSON.parse(localStorage.getItem('veg_yield')||'{}');}catch(e){VEGY={};}
 const vegKey=(pc,nm)=>{const k=String(pc==null?'':pc).trim();return k||('n:'+lc(nm));};
+let VEGMAP=null;
 function vegCatalog(){if(VEGCAT)return VEGCAT;const m=new Map();
- D.recipes.forEach(r=>r.st.forEach(s=>s.i.forEach(it=>{if(!it[5]||it[4]==='W')return;const k=vegKey(it[6],it[0]);let e=m.get(k);if(!e){e={key:k,pcode:it[6]||'',name:it[0],unit:it[3],pact:0,uses:new Set()};m.set(k,e);}
-  e.pact=Math.max(e.pact,+it[2]||0);e.uses.add(r.code);})));
- VEGCAT=[...m.values()].map(e=>({...e,uses:e.uses.size})).sort((a,b)=>lc(a.name)<lc(b.name)?-1:1);return VEGCAT;}
-const vegPact=k=>{const e=vegCatalog().find(x=>x.key===k);return e?e.pact:0;};
-const vegYieldOf=it=>{const k=vegKey(it[6],it[0]);return VEGY[k]!=null?+VEGY[k]:vegPact(k);};
-// Issue Qty Yield = Usage Qty × (1 − Wastage Yield %)   (vegetables only)
-const iyieldOf=it=>it[5]?(it[1]||0)*(1-Math.min(100,Math.max(0,vegYieldOf(it)))/100):null;
-function setVegYield(k,v){if(v===''||v==null||isNaN(+v))delete VEGY[k];else VEGY[k]=Math.min(100,Math.max(0,+v));try{localStorage.setItem('veg_yield',JSON.stringify(VEGY));}catch(e){}renderVeg();}
-function resetVegYield(){if(!confirm('Reset every edited Wastage Yield % back to the PACT BOM wastage?'))return;VEGY={};try{localStorage.setItem('veg_yield','{}');}catch(e){}renderVeg();toast('Vegetable yields reset to PACT wastage');}
-function renderVeg(){const q=lc(val('qveg'));const list=vegCatalog().filter(e=>!q||lc(e.name).includes(q)||lc(e.pcode).includes(q));let rows='';let edited=0;
+ D.recipes.forEach(r=>r.st.forEach(s=>s.i.forEach(it=>{if(it[4]==='W')return;const k=vegKey(it[6],it[0]);let e=m.get(k);if(!e){e={key:k,pcode:it[6]||'',name:it[0],unit:it[3],pact:0,veg:!!it[5],pack:it[4]==='P',uses:new Set()};m.set(k,e);}
+  e.pact=Math.max(e.pact,+it[2]||0);if(it[5])e.veg=true;e.uses.add(r.code);})));
+ VEGCAT=[...m.values()].map(e=>({...e,uses:e.uses.size})).sort((a,b)=>lc(a.name)<lc(b.name)?-1:1);VEGMAP=new Map(VEGCAT.map(e=>[e.key,e]));return VEGCAT;}
+const vegPact=k=>{if(!VEGMAP)vegCatalog();const e=VEGMAP.get(k);return e?e.pact:0;};
+const vegEdited=it=>VEGY[vegKey(it[6],it[0])]!=null;
+const vegYieldOf=it=>{const k=vegKey(it[6],it[0]);return VEGY[k]!=null?+VEGY[k]:(+it[2]||0);};
+// Issue Qty (Yield) = Usage Qty ÷ (1 − Wastage Yield %) — every non-WIP item
+const iyieldOf=it=>{if(it[4]==='W')return null;const w=Math.min(99.99,Math.max(0,vegYieldOf(it)));return (it[1]||0)/(1-w/100);};
+function setVegYield(k,v){if(v===''||v==null||isNaN(+v))delete VEGY[k];else VEGY[k]=Math.min(100,Math.max(0,+v));try{localStorage.setItem('veg_yield',JSON.stringify(VEGY));}catch(e){}bump();renderVeg();}
+function resetVegYield(){if(!confirm('Reset every edited Wastage Yield % back to the PACT BOM wastage?'))return;VEGY={};try{localStorage.setItem('veg_yield','{}');}catch(e){}bump();renderVeg();toast('Yields reset to PACT wastage');}
+function renderVeg(){const q=lc(val('qveg')),fl=val('vegfilt')||'all';const list=vegCatalog().filter(e=>(!q||lc(e.name).includes(q)||lc(e.pcode).includes(q))&&(fl==='all'||(fl==='wast'&&e.pact>0)||(fl==='veg'&&e.veg)||(fl==='edit'&&VEGY[e.key]!=null)));let rows='';let edited=0;
  list.forEach(e=>{const ed=VEGY[e.key]!=null;if(ed)edited++;const cur=ed?+VEGY[e.key]:e.pact;
-  rows+=`<tr><td class="l">${esc(e.pcode)}</td><td class="l veg" title="${esc(e.name)}">${esc(e.name)}</td><td>${esc(e.unit||'')}</td><td>${e.uses}</td><td>${qty(e.pact)}%</td><td><input class="mini" type="number" min="0" max="100" step="0.01" value="${cur}" style="${ed?'border-color:var(--brand2);color:var(--brand2);font-weight:700':''}" onchange="setVegYield('${esc(e.key)}',this.value)" title="Edit — drives Issue Qty Yield in BOM Ideal"></td><td class="l">${ed?'<span style="color:var(--brand2);font-weight:600">✏️ edited</span> <small class="muted">(PACT '+qty(e.pact)+'%)</small> <button class="btn2" style="padding:2px 8px;font-size:11px" onclick="setVegYield(\''+esc(e.key)+'\',\'\')">↺</button>':'<small class="muted">PACT default</small>'}</td></tr>`;});
- document.getElementById('vegtbl').innerHTML=`<tr><th class="l">Product Code</th><th class="l">Vegetable</th><th>Unit</th><th>Used in (BOMs)</th><th>PACT Wastage %</th><th>Wastage Yield % ✏️</th><th class="l">Source</th></tr>${rows}<tr class="tot"><td colspan="7" class="l">${list.length} vegetables · ${edited} edited · Issue Qty Yield = Usage Qty × (1 − Wastage Yield %)</td></tr>`;
+  rows+=`<tr><td class="l">${esc(e.pcode)}</td><td class="l ${e.veg?'veg':''}" title="${esc(e.name)}">${esc(e.name)}${e.pack?' <span class="pill pP">Pack</span>':''}${e.veg?' <span class="pill pF">Veg</span>':''}</td><td>${esc(e.unit||'')}</td><td>${e.uses}</td><td>${qty(e.pact)}%</td><td><input class="mini${ed?' edited':''}" type="number" min="0" max="100" step="0.01" value="${cur}" onchange="setVegYield('${esc(e.key)}',this.value)" title="Edit — drives Issue Qty (Yield) in BOM Ideal"></td><td class="l">${ed?'<span class="edited">✏️ edited</span> <small class="muted">(PACT '+qty(e.pact)+'%)</small> <button class="btn2" style="padding:2px 8px;font-size:11px" onclick="setVegYield(\''+esc(e.key)+'\',\'\')">↺</button>':'<small class="muted">PACT</small>'}</td></tr>`;});
+ document.getElementById('vegtbl').innerHTML=`<tr><th class="l">Product Code</th><th class="l">Item</th><th>Unit</th><th>Used in (BOMs)</th><th>PACT Wastage %</th><th>Wastage Yield % ✏️</th><th class="l">Source</th></tr>${rows}<tr class="tot"><td colspan="7" class="l">${list.length} items · ${edited} edited · Issue Qty (Yield) = Usage Qty ÷ (1 − Wastage Yield %)</td></tr>`;
  if(!USERW['vegtbl'])delete COLW['vegtbl'];sizeTable('vegtbl',1,52,true);}
 function bomGrpRow(r,c,cls){const fac=(r.kind||'factory')==='factory',ap=isApproved(r.code);const rcat=c.cat;
- return `<tr class="grp${ap?' approved':''}${cls?' '+cls:''}" data-code="${esc(r.code)}"><td colspan="${bomNV()}" title="${esc(r.name)}"><span style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span>${esc(r.name)}<span class="catb">${esc(rcat)}</span><span class="catb" style="background:${fac?'#1f6032':'#7030a0'}">${fac?'Factory':'Outlet'}</span>  ·  (FP: ${esc(r.name)} · Qty: ${qty(c.q)} · Units: ${esc(c.u)})${ap?'  ·  <b class="ok">✔ '+apprText(r.code)+'</b>':''}</span>${fac?`<button class="abtn${ap?' on':''}" onclick="event.stopPropagation();toggleApprove('${esc(r.code)}')">${ap?'Approved ✔ (undo)':'✓ Approve'}</button>`:''}</span></td></tr>`;}
+ return `<tr class="grp${ap?' approved':''}${cls?' '+cls:''}" data-code="${esc(r.code)}"><td colspan="${bomNV()}" title="${esc(r.name)}"><span style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span>${esc(r.name)}<span class="catb${CATOVR[r.oc]?' edited':''}" style="${CATOVR[r.oc]?'background:#d2691e':''}">${esc(rcat)}</span><span class="catb" style="background:${fac?'#1f6032':'#7030a0'}">${fac?'Factory':'Outlet'}</span>  ·  (FP: ${esc(r.name)} · Qty: ${qty(c.q)} · Units: ${esc(c.u)})${ap?'  ·  <b class="ok">✔ '+apprText(r.code)+'</b>':''}</span>${fac?`<button class="abtn${ap?' on':''}" onclick="event.stopPropagation();toggleApprove('${esc(r.code)}')">${ap?'Approved ✔ (undo)':'✓ Approve'}</button>`:''}</span></td></tr>`;}
 function bomRows(r,c,cls){let h=bomGrpRow(r,c,cls);const rc=cls?` class="${cls}"`:'';
- r.st.forEach(s=>{s.i.forEach(it=>{const [nm,us,wa,un,bk,veg,pc]=it,ur=bk==='W'?{r:0,calc:''}:unitRate(nm,pc,un),rt=ur.r,rb=rt,iss=issueOf(it),v=bk==='W'?0:iss*rt,iy=iyieldOf(it),vy=veg?vegYieldOf(it):null;
+ r.st.forEach(s=>{s.i.forEach(it=>{const [nm,us,wa,un,bk,veg,pc]=it,ur=bk==='W'?{r:0,calc:''}:unitRate(nm,pc,un),rt=ur.r,rb=rt,iss=issueOf(it),v=bk==='W'?0:iss*rt,iy=iyieldOf(it),vy=vegYieldOf(it);
    const pill=bk==='P'?'<span class="pill pP">Pack</span>':bk==='W'?'<span class="pill pW">WIP</span>':'';
    h+=bomTr({sec:'<td class="l">INPUT</td>',stage:`<td class="l">${esc(s.s)}</td>`,pcode:`<td class="l">${esc(pc||'')}</td>`,pname:`<td class="l ${veg?'veg':''}" title="${esc(nm)}">${esc(nm)}${pill}</td>`,cat:`<td class="l">${esc(c.cat)}</td>`,unit:`<td>${esc(un)}</td>`,usage:`<td>${qty(us)}</td>`,wast:`<td>${wa?qty(wa)+'%':'0%'}</td>`,issue:`<td>${bk==='W'?'—':qty(iss)}</td>`,
-    iyield:`<td class="${veg?'veg':''}" title="${veg?'Usage '+qty(us)+' × (1 − '+qty(vy)+'% wastage yield) — edit the % in the Vegetable Yield tab':'Vegetables only'}">${bk==='W'?'—':(iy!=null?qty(r2(iy)):'')}</td>`,
-    rate:`<td class="${(!rt&&bk!=='W')?'zero':''}" title="${esc(ur.calc)}">${bk==='W'?'—':(rb>=1?nfmt(r2(rb)):rb.toFixed(3))}${ur.warn?' <span class="wflag">⚠</span>':''}</td>`,value:`<td>${bk==='W'?'—':money(v)}</td>`,op:'<td></td>'},rc);});
+    iyield:`<td class="${bk!=='W'&&vegEdited(it)?'edited':''}" title="${bk==='W'?'':'Usage '+qty(us)+' ÷ (1 − '+qty(vy)+'% wastage yield) — edit the % in Yield / Wastage'}">${bk==='W'?'—':(iy!=null?qty(r2(iy)):'')}</td>`,
+    rate:`<td class="${(!rt&&bk!=='W')?'zero':''}${ur.ed?' edited':''}" title="${esc(ur.calc)}">${bk==='W'?'—':(rb>=1?nfmt(r2(rb)):rb.toFixed(3))}${ur.warn?' <span class="wflag">⚠</span>':''}</td>`,value:`<td>${bk==='W'?'—':money(v)}</td>`,op:'<td></td>'},rc);});
   s.o.forEach(o=>{h+=bomTr({sec:'<td class="l">OUTPUT</td>',stage:`<td class="l">${esc(s.s)}</td>`,pcode:`<td class="l">${esc(o[3]||'')}</td>`,pname:`<td class="l" title="${esc(o[0])}">${esc(o[0])}</td>`,cat:`<td class="l">${esc(c.cat)}</td>`,unit:`<td>${esc(o[2])}</td>`,op:`<td><b>${qty(o[1])}</b>${outL1Txt(o)}</td>`},rc);});});
  h+=bomSpanTr(`tot${cls?' '+cls:''}`,`TOTAL — Food ${money(c.food)} · Packing ${money(c.pack)} · <span title="Cost of wastage already inside Food/Packing = Σ (Issue Qty − Usage Qty) × Rate">Wastage ${money(c.waste)}</span> · Cost / ${esc(c.u)} ${money(c.consumPU)}`,{value:`<td>${money(c.food+c.pack)}</td>`});
  yieldLines(r).forEach(y=>{h+=bomSpanTr(`stot${cls?' '+cls:''}`,y.label,{usage:`<td>${y.usage}</td>`,issue:`<td>${y.issue}</td>`,value:`<td>${y.val!=null?'<b>'+money(y.val)+'</b>':''}</td>`});});
  const outs=stageOutputs(r).map(o=>`${esc(o.stage)} ${o.kind} output: <b>${qty(o.q)} ${esc(o.u)}</b>${outL1Txt([o.name,o.q,o.u,o.code])}`).join('  ·  ');
  h+=`<tr class="outl${cls?' '+cls:''}"><td colspan="${bomNV()}">📦 Batch output — ${outs||'—'}${c.wg>0?'  ·  Wt/unit '+qty(c.wg)+' g':''}</td></tr>`;return h;}
-function renderBOM(){const list=bomList(),fac=list.filter(r=>(r.kind||'factory')==='factory'),out=list.filter(r=>r.kind==='outlet');LAST.bomOut=out;
- let rows='';for(const r of fac)rows+=bomRows(r,computeIdeal(r));
- rows+=secRow('bomtbl','outlet',`Outlet recipes (${out.length})`,bomNV());if(SEC['bomtbl|outlet'])for(const r of out)rows+=bomRows(r,computeIdeal(r),'sec-outlet');
- const na=fac.filter(r=>isApproved(r.code)).length;bomColMenu();
- const th=bomVis().map(c=>`<th${c[2]?' class="l"':''}${c[0]==='iyield'?' title="Usage Qty × (1 − Wastage Yield %) — vegetables only; edit yields in the Vegetable Yield tab"':''}>${c[1]}</th>`).join('');
- document.getElementById('bomtbl').innerHTML=`<tr>${th}</tr>${rows}<tr class="tot"><td colspan="${bomNV()}" class="l">${fac.length} factory BOMs (${na} approved) · ${out.length} outlet recipes</td></tr>`;
- if(!USERW['bomtbl'])delete COLW['bomtbl'];   // re-measure so widths always fit the current RM names / quantities
- sizeTable('bomtbl',1,52,true);}
+const BOM_W={sec:74,stage:66,pcode:92,pname:330,cat:84,unit:62,usage:92,wast:78,issue:98,iyield:118,rate:96,value:104,op:120};
+let BOM_TOKEN=0;
+function renderBOM(){const list=bomList(),fac=list.filter(r=>(r.kind||'factory')==='factory'),out=list.filter(r=>r.kind==='outlet');LAST.bomOut=out;const token=++BOM_TOKEN;
+ const na=fac.filter(r=>isApproved(r.code)).length;bomColMenu();const vis=bomVis(),nv=vis.length;
+ const th=vis.map(c=>`<th${c[2]?' class="l"':''}${c[0]==='iyield'?' title="Usage Qty ÷ (1 − Wastage Yield %) — all items; edit yields in More ▸ Yield / Wastage"':''} style="width:${BOM_W[c[0]]||90}px">${c[1]}</th>`).join('');
+ const t=document.getElementById('bomtbl');const foot=()=>secRow('bomtbl','outlet',`Outlet recipes (${out.length})`,nv)+(SEC['bomtbl|outlet']?out.map(r=>bomRows(r,computeIdeal(r),'sec-outlet')).join(''):'')+`<tr class="tot"><td colspan="${nv}" class="l">${fac.length} factory BOMs (${na} approved) · ${out.length} outlet recipes</td></tr>`;
+ const CH=40;const first=fac.slice(0,CH).map(r=>bomRows(r,computeIdeal(r))).join('');
+ t.innerHTML=`<tr>${th}</tr>${first}<tr id="bomfoot"><td colspan="${nv}" class="l muted">${fac.length>CH?'Loading '+(fac.length-CH)+' more BOMs…':''}</td></tr>`;
+ if(!USERW['bomtbl']){t.classList.add('fx');t.style.width=vis.reduce((a,c)=>a+(BOM_W[c[0]]||90),0)+'px';COLW['bomtbl']=vis.map(c=>BOM_W[c[0]]||90);CURW['bomtbl']=COLW['bomtbl'].slice();}
+ sizeTable('bomtbl',1,52,true);
+ let i=CH;const step=()=>{if(token!==BOM_TOKEN)return;const ft=document.getElementById('bomfoot');if(!ft)return;
+  if(i>=fac.length){ft.outerHTML=foot();return;}
+  const html=fac.slice(i,i+CH).map(r=>bomRows(r,computeIdeal(r))).join('');ft.insertAdjacentHTML('beforebegin',html);i+=CH;ft.firstElementChild.textContent='Loading '+(fac.length-i)+' more BOMs…';setTimeout(step,0);};
+ if(fac.length>CH)setTimeout(step,0);else{const ft=document.getElementById('bomfoot');if(ft)ft.outerHTML=foot();}}
 
 // ===== TAB 3: SUMMARY IDEAL =====
 let SEL=[];
@@ -534,7 +574,7 @@ function wtCell(r,c){const f=r.cv&&r.cv.flag;return (c.wg>0?qty(c.wg):'—')+(f?
 function sumGroups(){const l=sumList();return {approved:l.filter(r=>(r.kind||'factory')==='factory'&&isApproved(r.code)),pending:l.filter(r=>(r.kind||'factory')==='factory'&&!isApproved(r.code)),outlet:l.filter(r=>r.kind==='outlet')};}
 function sumRemark(r){return (r.kind||'factory')==='factory'?(isApproved(r.code)?'<span class="ok">✔ '+apprText(r.code)+'</span>':'<span class="muted">Pending approval</span>'):'<span class="muted">Outlet recipe</span>';}
 function sumRow(r,cls){const c=computeIdeal(r),mn=getMin(r.code);
- return `<tr class="brow${isApproved(r.code)?' approved':''}${cls?' '+cls:''}" ondblclick="sumDetail('${esc(r.code)}',this)"><td class="l" title="${esc(r.name)}">${esc(r.name)} <small class="muted">(${esc(r.code)})</small></td><td class="l">${esc(c.cat)}</td><td>${esc(c.u)}</td><td>${wtCell(r,c)}</td><td>${money(c.foodPU)}</td><td title="Wastage cost per unit already included in Ideal Food/Packaging cost = Σ (Issue Qty − Usage Qty) × Rate">${money(c.wastePU)}</td><td>${money(c.packPU)}</td><td>${money(c.consumPU)}</td><td>${money(c.prodPU)}</td><td>${(c.v.va*100).toFixed(0)}%</td><td>${(c.v.mg*100).toFixed(0)}%</td><td style="color:var(--brand2);font-weight:700">${money(c.derivedPU)}</td><td><input class="mini" type="number" placeholder="—" value="${mn!=null?mn:''}" ondblclick="event.stopPropagation()" onchange="setMin('${esc(r.code)}',this.value)"></td><td class="l">${sumRemark(r)}</td></tr>`;}
+ return `<tr class="brow${isApproved(r.code)?' approved':''}${cls?' '+cls:''}" ondblclick="sumDetail('${esc(r.code)}',this)"><td class="l" title="${esc(r.name)}">${esc(r.name)} <small class="muted">(${esc(r.code)})</small></td><td class="l${CATOVR[r.oc]?' edited':''}">${esc(c.cat)}</td><td>${esc(c.u)}</td><td>${wtCell(r,c)}</td><td>${money(c.foodPU)}</td><td title="Wastage cost per unit already included in Ideal Food/Packaging cost = Σ (Issue Qty − Usage Qty) × Rate">${money(c.wastePU)}</td><td>${money(c.packPU)}</td><td>${money(c.consumPU)}</td><td>${money(c.prodPU)}</td><td>${(c.v.va*100).toFixed(0)}%</td><td>${(c.v.mg*100).toFixed(0)}%</td><td style="color:var(--brand2);font-weight:700">${money(c.derivedPU)}</td><td><input class="mini" type="number" placeholder="—" value="${mn!=null?mn:''}" ondblclick="event.stopPropagation()" onchange="setMin('${esc(r.code)}',this.value)"></td><td class="l">${sumRemark(r)}</td></tr>`;}
 function renderSum(){fillSumDl();renderChips();const g=sumGroups();let rows='';const fac=sumSorted([...g.approved,...g.pending]),out=sumSorted(g.outlet);
  for(const r of fac)rows+=sumRow(r);
  if(SEL.length){for(const r of out)rows+=sumRow(r);}
@@ -546,7 +586,7 @@ function ingTable(r,c){let h='';const q=c?c.q:(r.y[0]||1);let food=0,pack=0;cons
   s.i.forEach(it=>{const [nm,us,wa,un,bk,veg,pc]=it,iss=issueOf(it);const cls=bk==='F'?'pF':bk==='P'?'pP':'pW',lab=bk==='F'?'Food':bk==='P'?'Pack':'WIP';
    if(bk==='W'){h+=`<tr style="opacity:.55"><td class="l">${esc(nm)}<span class="pill ${cls}">${lab}</span> <small class="muted">previous-stage output (cost already counted)</small></td><td class="l">${esc(pc||'')}</td><td>${esc(un)}</td><td>${qty(us)}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;return;}
    const ur=unitRate(nm,pc,un),v=iss*ur.r;if(bk==='F')food+=v;else pack+=v;
-   h+=`<tr><td class="l ${veg?'veg':''}">${esc(nm)}<span class="pill ${cls}">${lab}</span></td><td class="l">${esc(pc||'')}</td><td>${esc(un)}</td><td>${qty(us)}</td><td>${wa?qty(wa)+'%':'0%'}</td><td>${qty(iss)}</td><td class="${ur.r?'':'zero'}" title="${esc(ur.calc)}">${rmoney(ur.r)}${ur.warn?' <span class="wflag">⚠</span>':''}${ur.lp?' <small class="muted" title="last purchase rate higher than PM">LP</small>':''}</td><td>${money(v)}</td><td>${money(v/q)}</td></tr>`;});
+   h+=`<tr><td class="l ${veg?'veg':''}">${esc(nm)}<span class="pill ${cls}">${lab}</span></td><td class="l">${esc(pc||'')}</td><td>${esc(un)}</td><td>${qty(us)}</td><td>${wa?qty(wa)+'%':'0%'}</td><td>${qty(iss)}</td><td class="${ur.r?'':'zero'}${ur.ed?' edited':''}" title="${esc(ur.calc)}">${rmoney(ur.r)}${ur.warn?' <span class="wflag">⚠</span>':''}${ur.ed?' <small title="Final Price edited in Rate Dashboard">✏️</small>':ur.lp?' <small class="muted" title="last purchase rate higher than PM">LP</small>':''}</td><td>${money(v)}</td><td>${money(v/q)}</td></tr>`;});
   const st=stageTotals(s),y=YL[si];h+=`<tr class="stot"><td class="l" colspan="3"><b>${esc(s.s)} — input total</b> <small class="muted">→ output ${s.o.map(o=>qty(o[1])+' '+esc(o[2])+outL1Txt(o)).join(', ')||'—'} · <b>Yield ${y?y.y:'—'}</b>${si>0?' (vs '+esc(r.st[si-1].s)+' output)':''}</small></td><td><b>${st.usage}</b></td><td></td><td><b>${st.issue}</b></td><td></td><td><b>${money(st.val)}</b></td><td><b>${money(st.val/q)}</b></td></tr>`;});
  h+=`<tr class="tot"><td class="l" colspan="7">Food (raw materials)</td><td>${money(food)}</td><td>${money(food/q)}</td></tr><tr class="tot"><td class="l" colspan="7">Packing materials</td><td>${money(pack)}</td><td>${money(pack/q)}</td></tr><tr class="sell"><td class="l" colspan="7">TOTAL CONSUMABLE (for ${qty(q)} ${esc(r.y[1])} batch)</td><td>${money(food+pack)}</td><td>${money((food+pack)/q)}</td></tr>`;
  return `<div class="dscroll"><table class="dt auto" style="min-width:860px"><tr><th class="l">RM / Packing used</th><th class="l">Code</th><th>Unit</th><th>Usage Qty</th><th>Wastage</th><th>Issue Qty</th><th>Rate (per unit)</th><th>Cost ₹ (batch)</th><th>Cost per ${esc(r.y[1])}</th></tr>${h}</table></div>`;}
@@ -555,7 +595,7 @@ function sumDetail(code,tr){const nx=tr.nextElementSibling;if(nx&&nx.classList.c
  const line=(l,pu,cls)=>`<tr${cls?` class="${cls}"`:''}><td class="l">${l}</td><td>${money(pu)}</td><td>${money(pu*c.q)}</td></tr>`;
  const outs=stageOutputs(r).map(o=>`${esc(o.stage)} ${o.kind}: <b>${qty(o.q)} ${esc(o.u)}</b>`).join(' · ');
  const d=document.createElement('tr');d.className='dtl';
- d.innerHTML=`<td colspan="13"><div class="dwrap"><div style="font-size:14px"><b>${esc(r.name)}</b> · ${esc(r.code)} · ${esc(c.cat)} · Batch output: ${outs}</div>
+ d.innerHTML=`<td colspan="14"><div class="dwrap"><div style="font-size:14px"><b>${esc(r.name)}</b> · ${esc(r.code)} · ${esc(c.cat)} · Batch output: ${outs}</div>
   <div class="muted" style="margin-top:3px">Costs per <b>${esc(c.u)}</b> = batch cost ÷ ${qty(c.q)} ${esc(c.u)} · Weight per ${esc(c.u)}: <b>${c.wg>0?qty(c.wg)+' g':'not available'}</b> (${esc(cv.src||'—')})${cv.flag?' · <span class="wflag">⚠ '+esc(cv.flag)+'</span>':''}</div>
   <h4>① BOM raw materials — usage, issue qty, rate &amp; stage yield</h4>${ingTable(r,c)}
   ${c.zero.length?'<div class="muted" style="color:var(--accent);margin-top:6px">⚠ No Product Master rate: '+esc([...new Set(c.zero)].join(', '))+'</div>':''}
@@ -619,7 +659,7 @@ function devCalc(g){const r=idealFor(g.batches[0]);if(!r)return null;const M={};
  let fgQ=0;g.batches.forEach(b=>{fgQ+=b.fgQ;const scale=(r.y[0]>0)?b.fgQ/r.y[0]:1;
   r.st.forEach(s=>s.i.forEach(it=>{if(it[4]==='W')return;add(it[6],it[0],it[3],issueOf(it)*scale,'iq');}));
   [...(b.rmL||[]),...(b.pmL||[])].forEach(x=>{if(/wip/i.test(x[0]||'')||/^WPO?\d/i.test(String(x[6]||'')))return;add(x[6],x[0],x[2],x[1],'aq');});});
- const lines=Object.values(M).map(o=>{let pm,cur;if(o.e){pm=rbase(o.e);const l=lppOk(o.code);cur=(l&&l[0]>0)?l[0]:pm;}else{pm=cur=unitRate(o.name,'',o.un,{pmOnly:true}).r;}
+ const lines=Object.values(M).map(o=>{let pm,cur;if(o.e){pm=rbase(o.e);const fb=finalBase(o.code);cur=fb?fb.rb:pm;}else{pm=cur=unitRate(o.name,'',o.un,{pmOnly:true}).r;}
   const matV=(o.aq-o.iq)*pm,rateV=(cur-pm)*o.aq;return {...o,pm,cur,ideal:o.iq*pm,actual:o.aq*cur,matV,rateV,tot:matV+rateV,excess:o.iq>0?(o.aq-o.iq)/o.iq*100:(o.aq>0?100:0),up:pm>0?(cur-pm)/pm*100:0};});
  const T=lines.reduce((a,l)=>({ideal:a.ideal+l.ideal,actual:a.actual+l.actual,matV:a.matV+l.matV,rateV:a.rateV+l.rateV}),{ideal:0,actual:0,matV:0,rateV:0});
  return {g,r,n:g.batches.length,fgQ,lines,...T,dev:T.actual-T.ideal,pct:T.ideal>0?(T.actual-T.ideal)/T.ideal*100:null};}
@@ -675,12 +715,12 @@ function packAt(e,lvl){const bu=e[1]||'';if(lvl==='L1')return {lvl:'L1',qty:1,ba
  if(lvl==='L2'&&e[3]>0)return {lvl:'L2',qty:e[3],base:bu,unit:e[2]||'L2',txt:nfmt(e[3])+' '+bu+' / '+(e[2]||'L2'),auto:false};
  if(lvl==='L3'&&e[5]>0)return {lvl:'L3',qty:e[5],base:bu,unit:e[4]||'L3',txt:nfmt(e[5])+' '+bu+' / '+(e[4]||'L3'),auto:false};return null;}
 function setPkLvl(code,lvl){const e=(D.conv||{})[code];const d=defPack(e);if(lvl===d.lvl)delete PKLVL[code];else PKLVL[code]=lvl;try{localStorage.setItem('pack_level',JSON.stringify(PKLVL));}catch(e2){}
- const tr=document.querySelector('#pmtbl tr[data-code="'+cssEsc(code)+'"]');if(!tr)return;const p=PKLVL[code]?packAt(e,PKLVL[code]):d;tr.children[3].querySelector('.pktxt').innerHTML=esc(p.txt)+(p.auto?' <span class="wflag">*</span>':'');}
+ const tr=document.querySelector('#pmtbl tr[data-code="'+cssEsc(code)+'"]');if(!tr)return;const p=PKLVL[code]?packAt(e,PKLVL[code]):d;tr.querySelector('select.usel').classList.toggle('edited',!!PKLVL[code]);tr.children[3].querySelector('.pktxt').innerHTML=esc(p.txt)+(p.auto?' <span class="wflag">*</span>':'');}
 function setPmCat(code,cat){setCatOvr(code,cat);toast('Category set — used for '+code+' in all costing');}
 function pmRow(x,cls){const e=(D.conv||{})[x.code]||[],p=PKLVL[x.code]?(packAt(e,PKLVL[x.code])||x.p):x.p;
  const lo=[['L1','L1 — '+(e[1]||'base')]];if(e[3]>0)lo.push(['L2','L2 — '+(e[2]||'L2')+' ('+nfmt(e[3])+' '+(e[1]||'')+')']);if(e[5]>0)lo.push(['L3','L3 — '+(e[4]||'L3')+' ('+nfmt(e[5])+' '+(e[1]||'')+')']);
- const lsel=`<select class="usel" onchange="setPkLvl('${esc(x.code)}',this.value)">${lo.map(([v,l])=>`<option value="${v}"${v===p.lvl?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
- const csel=`<select class="csel" onchange="setPmCat('${esc(x.code)}',this.value)">${CATN.map(k=>`<option${k===x.cat?' selected':''}>${k}</option>`).join('')}</select>`;
+ const lsel=`<select class="usel${PKLVL[x.code]?' edited':''}" onchange="setPkLvl('${esc(x.code)}',this.value)">${lo.map(([v,l])=>`<option value="${v}"${v===p.lvl?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
+ const csel=`<select class="csel${CATOVR[x.code]?' edited':''}" onchange="setPmCat('${esc(x.code)}',this.value);this.classList.toggle('edited',!!CATOVR['${esc(x.code)}'])">${CATN.map(k=>`<option${k===x.cat?' selected':''}>${k}</option>`).join('')}</select>`;
  return `<tr data-code="${esc(x.code)}"${cls?` class="${cls}"`:''}><td class="l">${esc(x.code)}</td><td class="l" title="${esc(x.name)}">${esc(x.name)}</td><td class="l">${csel}</td><td class="l"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${lsel}<span class="pktxt">${esc(p.txt)}${p.auto?' <span class="wflag">*</span>':''}</span></div></td></tr>`;}
 function renderPM(){const list=pmList(),fac=list.filter(x=>x.kind==='factory'),out=list.filter(x=>x.kind==='outlet');let rows='';
  for(const x of fac)rows+=pmRow(x);
@@ -840,14 +880,14 @@ function parseSI(rows,hr,h){const c=n=>colIdx(h,n);const iDt=c('doc date'),iAc=c
 function applyOne(k){const c=CARD[k];const mode=(document.querySelector('input[name=smode]:checked')||{}).value||'merge';
  const msg=k==='pm'?parsePM(c.rows,c.det.hr,c.det.h):k==='bom'?parseBOM(c.rows,c.det.hr,c.det.h):k==='si'?parseSI(c.rows,c.det.hr,c.det.h):parsePF(c.rows,c.det.hr,c.det.h,mode);
  D.syncInfo=D.syncInfo||{};D.syncInfo[k]={at:new Date().toISOString(),file:c.name,msg};return msg;}
-async function commit(){rebuildIdx();const saved=await IDB.set(JSON.stringify(D));fillDates();renderSyncStat();refresh();return saved;}
+async function commit(){bump();rebuildIdx();const saved=await IDB.set(JSON.stringify(D));fillDates();renderSyncStat();refresh();return saved;}
 async function syncOne(k){const c=CARD[k];if(!c||!c.ok)return;const backup=JSON.stringify(D);
  try{const msg=applyOne(k);const saved=await commit();
   c.result={ok:true,text:'✔ Synced: '+msg+(saved?'':' (⚠ not saved in this browser — active until you close the page)')};c.ok=false;c.rows=null;slog('✔ '+TYPE_LABEL[k]+': '+msg,'ok');
  }catch(e){D=JSON.parse(backup);NAMECONV=null;rebuildIdx();c.result={ok:false,text:'✖ Sync failed: '+e.message+' — nothing was changed.'};slog('✖ '+TYPE_LABEL[k]+': '+e.message,'bad');}
  renderCards();}
 async function syncAll(){for(const k of['pm','bom','si','pf']){if(CARD[k]&&CARD[k].ok)await syncOne(k);}}
-async function resetSync(){if(!confirm('Remove all synced PACT data and go back to the built-in data?'))return;await IDB.del();D=JSON.parse(EMBED);NAMECONV=null;rebuildIdx();for(const k in CARD)delete CARD[k];fillDates();renderSyncStat();refresh();renderCards();slog('↺ Reset to built-in data.','ok');}
+async function resetSync(){if(!confirm('Remove all synced PACT data and go back to the built-in data?'))return;await IDB.del();D=JSON.parse(EMBED);NAMECONV=null;bump();rebuildIdx();for(const k in CARD)delete CARD[k];fillDates();renderSyncStat();refresh();renderCards();slog('↺ Reset to built-in data.','ok');}
 
 // ================= EXCEL EXPORT (formulas + formatting) =================
 async function saveFile(filename,blob){
@@ -872,12 +912,12 @@ function xSettings(ws,withPacks){const v=gv();const cr=k=>v.rates[k];withPacks=f
  S.forEach((s,i)=>{xCell(ws.getCell('D'+(3+i)),s[0],{bold:true,fill:XC.tot});xCell(ws.getCell('E'+(3+i)),s[1],{fmt:s[2],color:XC.inp});});
  const ref={}; S.forEach((s,i)=>ref[s[0]]='$E$'+(3+i)); return {rates:'$A$4:$B$7',pp:ref['Primary Pack ₹/Kg'],sp:ref['Secondary Pack ₹/Kg'],va:ref['Variance %'],mg:ref['Margin %']};}
 function sheetRate(wb,list){const ws=wb.addWorksheet('Rate Dashboard',{views:[{state:'frozen',ySplit:4}]});
- xTitle(ws,'Rate Dashboard — Product Master rates & last purchase','Prices are per Default Buying Unit (Product Master default level L2/L3) = base rate × pack size. Last Purchase = latest Stock Inward in the same unit. Red = >10% above default, green = >10% below.',7);
- xHead(ws,4,['Product','Product Code','Buying Unit (as selected per row)','Default Purchase Price','Last Purchase Price','Last Purchase Date','Category'],[44,14,26,14,14,14,18]);
+ xTitle(ws,'Rate Dashboard — Product Master rates & last purchase','Prices per the buying unit selected on the dashboard. Final Price = price used in BOM Ideal / Summary / Cost Deviation: the higher of Default and Last Purchase, unless edited (orange). Red = last purchase >10% above default, green = >10% below.',9);
+ xHead(ws,4,['Product','Product Code','Buying Unit (as selected per row)','Default Purchase Price','Last Purchase Price','Last Purchase Date','Final Price (used in costing)','Final Price source','Category'],[44,14,26,14,14,14,16,16,18]);
  list.forEach((p,i)=>{const r=ws.getRow(5+i),b=prodBuy(p),l=lppOf(p,b);xCell(r.getCell(1),p.name);xCell(r.getCell(2),p.code);xCell(r.getCell(3),b.label);
   xCell(r.getCell(4),b.price,{fmt:b.price&&b.price<1?'0.0000':NF.m,fill:b.price>0?null:XC.yel});xCell(r.getCell(5),l?l.p:null,{fmt:l&&l.p<1?'0.0000':NF.m,color:l&&l.tr==='up'?XC.red:l&&l.tr==='down'?XC.green:null,bold:!!(l&&l.tr),fill:l&&l.sus?XC.yel:null});
-  xCell(r.getCell(6),l?toDate(l.d):null,{fmt:NF.d,align:'center'});xCell(r.getCell(7),p.cat);});
- ws.autoFilter={from:{row:4,column:1},to:{row:4+list.length,column:8}};}
+  xCell(r.getCell(6),l?toDate(l.d):null,{fmt:NF.d,align:'center'});const fb=finalBase(p.code);const fv=fb?fb.rb*b.size:null;xCell(r.getCell(7),fv,{fmt:fv&&fv<1?'0.0000':NF.m,bold:true,color:fb&&fb.src==='edited'?'FFD2691E':XC.green});xCell(r.getCell(8),fb?(fb.src==='edited'?'Edited by user':fb.src==='lpp'?'Last purchase (higher)':'Default (PM)'):'',{color:fb&&fb.src==='edited'?'FFD2691E':XC.mut});xCell(r.getCell(9),p.cat);});
+ ws.autoFilter={from:{row:4,column:1},to:{row:4+list.length,column:9}};}
 function sheetBOM(wb,list){const ws=wb.addWorksheet('BOM Ideal',{views:[{state:'frozen',ySplit:3}]});
  xTitle(ws,'BOM Ideal — stage-wise recipe costing','Issue Qty = Usage ÷ (1 − Wastage%). Rate = HIGHER of Product Master rate and last purchase rate, converted to the line unit (L1/L2/L3). Value = Issue Qty × Rate. Blue = editable. Totals are formulas.',15);
  xHead(ws,3,['BOM Code','Section','Stage','Product Code','Product Name','Category','Type','Unit','Usage Qty','Wastage %','Issue Qty','Rate (per unit)','Value ₹','OPQty','Rate calculation','Recipe type','Approval'],[12,9,9,12,40,11,8,8,11,10,11,12,13,10,60,12,22]);
