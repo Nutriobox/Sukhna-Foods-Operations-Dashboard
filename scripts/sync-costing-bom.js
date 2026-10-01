@@ -13,6 +13,8 @@ const HEADERS = ['Section','Stage','BOMCode','BOM','Product Code','Product Name'
 
 // Numeric coercion for PACT string/number fields (strips commas, blanks -> 0).
 const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isFinite(n) ? n : 0; };
+// Wastage % lives in the Remarks field; blank or non-numeric text means no wastage.
+const wastePct = (r) => { const v = String(r.Remarks == null ? '' : r.Remarks).trim(); if (!v) return 0; const n = Number(v.replace(/,/g, '')); return isFinite(n) && n > 0 ? n : 0; };
 
 const COLMAP = {
   'Section':       ['Section'],
@@ -22,15 +24,17 @@ const COLMAP = {
   'Product Code':  ['ProductCode'],
   'Product Name':  ['ProductName'],
   'Unit':          ['Unit'],
-  // PACT report-definition formulas (Stage-Wise BOM With Wastage Summary):
-  //   Raw Qty   = IPQty                                    (this is the "Issue Qty")
-  //   Wastage % = IPWastage
-  //   Qty       = If(Wastage="") "" else RawQty-(RawQty*Wastage/100)
-  //   Usage Qty = If(Qty="") RawQty else Qty
-  // => Usage Qty = RawQty when no wastage, else RawQty*(1 - Wastage%/100).
-  'Usage Qty':     (r) => { const raw = num(r.IPQty), w = num(r.IPWastage);
+  // PACT report-definition formulas (Stage Wise BOM With Wastage Summary, verified
+  // against the report's ReportDefnXML and recorded data):
+  //   Wastage %  = Remarks            (ColumnDef ID "Remarks", Caption "Wastage", FLOAT —
+  //                                    NOT IPWastage, which is "EffectiveWastage" and ~always 0)
+  //   Raw Qty    = IPQty              (this is the "Issue Qty")
+  //   Qty        = If(Remarks="") "" else IPQty-(IPQty*Remarks/100)
+  //   Usage Qty  = If(Qty="") RawQty else Qty
+  // Remarks occasionally holds free text ("For Tadka") -> treated as no wastage (0).
+  'Usage Qty':     (r) => { const raw = num(r.IPQty), w = wastePct(r);
                             return w > 0 ? Math.round((raw - raw * w / 100) * 10000) / 10000 : raw; },
-  'Wastage':       ['IPWastage'],   // wastage %, shown as "Wastage %" in the dashboard
+  'Wastage':       (r) => wastePct(r),   // wastage %, shown as "Wastage %" in the dashboard
   'Raw Qty':       ['IPQty'],       // = Issue Qty
   'OPQty':         ['OPQty'],
 };
