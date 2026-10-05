@@ -126,6 +126,10 @@ img{max-width:100%}
 @media(max-width:820px){.gallery{grid-template-columns:1fr}}
 .itemlist{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
   position:sticky;top:calc(env(safe-area-inset-top,0px) + 74px)}
+/* On mobile the list stacks ABOVE the viewer; sticky would pin it and let the 3D box (its own
+   compositing layer) scroll and paint over it. Keep it in normal flow so the page scrolls as one.
+   (Placed AFTER the base .itemlist rule so it wins at equal specificity.) */
+@media(max-width:820px){.itemlist{position:static;top:auto}.il{max-height:42vh}}
 .itemlist .head{padding:12px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2);font-weight:650;
   display:flex;justify-content:space-between;background:var(--surface-2)}
 .itemlist .head .n{color:var(--muted);font-weight:400}
@@ -460,7 +464,7 @@ async function renderGallery(){await load();const list=$("#itemList");list.inner
   if(!selectedId||!items.some(i=>i.id===selectedId))selectedId=items[0].id;
   for(const it of items){const li=el("button","li"+(it.id===selectedId?" on":""));
     const coverId=it.faces.front||it.faces.back||Object.values(it.faces)[0]||it.extra[0];
-    if(coverId){const u=await url(coverId);const img=el("img","lithumb");img.src=u;li.appendChild(img);}else li.appendChild(el("div","lithumb ph","—"));
+    if(coverId){const img=el("img","lithumb");li.appendChild(img);url(coverId).then(u=>{if(u)img.src=u;});}else li.appendChild(el("div","lithumb ph","—"));
     const SIi=itemSides(it);const filled=SIi.filter(([k])=>it.faces[k]).length;const txt=el("div","txt");
     txt.innerHTML=`<div class="linm">${esc(it.name||"Untitled")}</div><div class="licnt">${filled}/${SIi.length} sides · ${it.extra.length} extra</div>`;
     li.appendChild(txt);li.title="Double-click to edit name, size or delete";
@@ -552,7 +556,7 @@ async function openItem(id){const it=items.find(i=>i.id===id);if(!it)return;
   stage.appendChild(panel);
   v.appendChild(stage);
 
-  const faceUrls={};for(const [k] of SI)faceUrls[k]=await url(it.faces[k]);
+  const faceUrls={};await Promise.all(SI.map(async([k])=>{faceUrls[k]=await url(it.faces[k]);}));
   // measure each image's aspect ratio (to auto-shape the box) and its average colour
   // (used to blend any margins on the box's narrow side faces instead of showing white).
   // Measure the FRONT image aspect only — used solely as a sensible DEFAULT for W:H when the
