@@ -4,14 +4,15 @@ import { NextResponse } from "next/server";
  * Inventory Orders for the scanner's Inventory Order flow.
  * Stored in Supabase `inventory_orders`. Server-side (service key) — no keys in the app.
  *
- *  GET  /api/inventory-orders         -> { ok, orders: [{id, orderNo, itemCount, status, createdAt}] }
- *  GET  /api/inventory-orders?id=UUID -> { ok, order: {id, orderNo, itemCount, status, createdAt, codes:[...]} }
- *  POST /api/inventory-orders  {orderNo, codes:[...]} -> { ok, id }
+ *  GET    /api/inventory-orders         -> { ok, orders: [{id, orderNo, itemCount, status, createdAt, codes:[...]}] }
+ *  GET    /api/inventory-orders?id=UUID -> { ok, order: {id, orderNo, itemCount, status, createdAt, codes:[...]} }
+ *  POST   /api/inventory-orders  {orderNo, codes:[...]} -> { ok, id }
+ *  DELETE /api/inventory-orders?id=UUID -> { ok }
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "content-type" };
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS", "Access-Control-Allow-Headers": "content-type" };
 
 function creds() {
   const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
@@ -41,10 +42,11 @@ export async function GET(req: Request) {
         order: { id: o.id, orderNo: o.order_no, itemCount: o.item_count, status: o.status, createdAt: o.created_at, codes: Array.isArray(o.codes) ? o.codes : [] },
       }, { headers: CORS });
     }
-    const r = await fetch(`${base}?select=id,order_no,item_count,status,created_at&order=created_at.desc`, { headers: headers(), cache: "no-store" });
+    const r = await fetch(`${base}?select=id,order_no,item_count,status,created_at,codes&order=created_at.desc`, { headers: headers(), cache: "no-store" });
     const rows = (await r.json()) as Array<Record<string, unknown>>;
     const orders = (Array.isArray(rows) ? rows : []).map((o) => ({
       id: o.id, orderNo: o.order_no, itemCount: o.item_count, status: o.status, createdAt: o.created_at,
+      codes: Array.isArray(o.codes) ? o.codes : [],
     }));
     return NextResponse.json({ ok: true, orders }, { headers: CORS });
   } catch (e) {
@@ -71,6 +73,23 @@ export async function POST(req: Request) {
     }
     const rows = (await r.json().catch(() => [])) as Array<Record<string, unknown>>;
     return NextResponse.json({ ok: true, id: rows[0]?.id ?? null, orderNo }, { headers: CORS });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: String(e) }, { status: 500, headers: CORS });
+  }
+}
+
+export async function DELETE(req: Request) {
+  const { url, key } = creds();
+  if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400, headers: CORS });
+  try {
+    const r = await fetch(`${url}/rest/v1/inventory_orders?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", headers: headers() });
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      return NextResponse.json({ ok: false, error: `Delete failed: ${r.status} ${t}`.slice(0, 300) }, { status: 502, headers: CORS });
+    }
+    return NextResponse.json({ ok: true }, { headers: CORS });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500, headers: CORS });
   }
