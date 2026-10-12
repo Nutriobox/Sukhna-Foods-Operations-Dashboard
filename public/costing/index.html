@@ -59,7 +59,7 @@ tr.grp td{background:var(--grp)!important;color:var(--grpink);font-weight:700;te
 .catb{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:20px;background:#2f5597;color:#fff;font-size:10.5px;font-weight:700;vertical-align:1px}
 tr.tot td{background:var(--chip)!important;font-weight:700}
 tr.stot td{background:#f3f0e4!important;border-top:2px solid #cbbd8a}
-tr.grp.approved td{background:#cfe9d6!important;color:#0f4a22}
+tr.grp.approved td{background:#cfe9d6!important;color:#0f4a22} tr.grp.inactive td{background:#f3f4f6!important;color:#6b7280!important;opacity:.78}
 tr.brow.approved td{background:#e9f6ec!important}
 tr.secrow td{background:#e3e8f0!important;color:var(--ink);cursor:pointer;font-size:13px;padding:9px 10px}
 tr.secrow:hover td{background:#d3dbe8!important}
@@ -226,6 +226,8 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
   <div style="flex:2"><label>Search BOM</label><input id="qbom" placeholder="recipe name or code…" oninput="deb(renderBOM)"></div>
   <div><label>Category</label><select id="bomcat" onchange="renderBOM()"><option value="">All</option><option>Gravy</option><option>Beverages</option><option>Snacks</option><option>Biryani</option></select></div>
   <div><label>Stages</label><select id="bomstg" onchange="renderBOM()"><option value="">All</option><option value="1">1-stage BOMs</option><option value="2">2-stage BOMs</option></select></div>
+  <div><label>Status</label><select id="bomactive" onchange="renderBOM()"><option value="">All</option><option value="y">Active only</option><option value="n">Inactive only</option></select></div>
+  <div><label>Approval</label><select id="bomappr" onchange="renderBOM()"><option value="">All</option><option value="y">Approved only</option><option value="n">Not approved</option></select></div>
   <div style="flex:0 0 auto;position:relative"><label>&nbsp;</label><button class="xbtn" style="background:var(--mut)" onclick="document.getElementById('bomcolbox').classList.toggle('hide')" title="Show / hide columns">☰ Columns</button><div id="bomcolbox" class="hide" style="position:absolute;right:0;top:100%;z-index:30"><div class="card" style="padding:10px 12px;display:grid;gap:5px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.15)"><div id="bomcols" style="display:grid;gap:4px;font-size:12.5px"></div><button class="xbtn" style="margin-top:4px" onclick="resetBomCols()">Show all</button></div></div></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" onclick="exportOne('bom')" title="This dashboard only (rows matching your current search/filter)">⬇ This sheet (Excel)</button><button class="xbtn all" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets (full data)">⬇ All dashboards (Excel)</button></div></div>
  </div></div>
@@ -243,6 +245,8 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
   <div style="flex:2"><label>Search item — type &amp; press Enter (or + Add) to select several</label><div style="display:flex;gap:6px"><input id="qsum" list="sumdl" placeholder="item name or code…" oninput="deb(renderSum)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSel();}"><datalist id="sumdl"></datalist><button class="xbtn" style="background:var(--brand)" onclick="addSel()">+ Add</button><button class="xbtn" style="background:var(--mut)" onclick="clearSel()">Clear</button></div></div>
   <div><label>Category</label><select id="sumcat" onchange="renderSum()"><option value="">All</option><option>Gravy</option><option>Beverages</option><option>Snacks</option><option>Biryani</option></select></div>
   <div><label>Stages</label><select id="sumstg" onchange="renderSum()"><option value="">All</option><option value="1">Stage 1 only</option><option value="2">Stage 1 &amp; 2</option></select></div>
+  <div><label>Status</label><select id="sumactive" onchange="renderSum()"><option value="">All</option><option value="y">Active only</option><option value="n">Inactive only</option></select></div>
+  <div><label>Approval</label><select id="sumappr" onchange="renderSum()"><option value="">All</option><option value="y">Approved only</option><option value="n">Not approved</option></select></div>
   <div><label>Sort</label><select id="sumsort" onchange="renderSum()"><option value="name">Name A–Z</option><option value="cat">Category</option><option value="sell">Derived Selling ↓</option><option value="food">Food cost ↓</option><option value="cons">Consumable ↓</option><option value="appr">Approved first</option></select></div>
   <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="xbtn" onclick="exportOne('sum')" title="This dashboard only (rows matching your current search/filter)">⬇ This sheet (Excel)</button><button class="xbtn all" onclick="exportAll()" title="One Excel file with all 5 dashboards as separate sheets (full data)">⬇ All dashboards (Excel)</button></div></div>
  </div><div id="selchips" style="margin-top:8px"></div><div class="muted note hide" style="margin-top:6px">All <b>factory BOMs</b>; approved ones are green (approve in BOM Ideal). Outlet recipes are collapsed below — double-click the line to open. Ideal costing uses the <b>higher</b> of Product Master rate and last purchase rate. All costs per unit (UOM). Production Cost = (Processing + Primary + Secondary ₹/Kg) × Wt/Unit. <span class="wflag">⚠</span> = weight needs checking (hover for reason). Min Selling is editable. Double-click a row for the detailed cost.</div></div>
@@ -426,6 +430,16 @@ function toggleApprove(code){if(APPR[code])delete APPR[code];else APPR[code]=new
  const r=D.recipes.find(x=>x.code===code);if(r){const g=document.querySelector('#bomtbl tr.grp[data-code="'+cssEsc(code)+'"]');if(g){g.outerHTML=bomGrpRow(r,computeIdeal(r));}}
  markDirty();DIRTY[CUR]=0;if(CUR==='sum')renderSum();if(CUR==='ai')renderAI();renderRem();}
 const apprText=code=>APPR[code]?('Approved '+fmtD(APPR[code].slice(0,10))):'';
+// --- Active / Inactive BOM flag (dashboard-only, per-device) ----
+let ACTIVE={};try{ACTIVE=JSON.parse(localStorage.getItem('bom_active')||'{}');}catch(e){ACTIVE={};}
+const isActive=code=>ACTIVE[code]!==false;   // default true until you turn it off
+function toggleActive(code){
+  if(ACTIVE[code]===false)delete ACTIVE[code]; else ACTIVE[code]=false;
+  try{localStorage.setItem('bom_active',JSON.stringify(ACTIVE));}catch(e){}
+  const r=D.recipes.find(x=>x.code===code);
+  if(r){const g=document.querySelector('#bomtbl tr.grp[data-code="'+cssEsc(code)+'"]');if(g)g.outerHTML=bomGrpRow(r,computeIdeal(r));}
+  markDirty();DIRTY[CUR]=0;if(CUR==='sum')renderSum();if(CUR==='ai')renderAI();renderRem();
+}
 const SEC={};
 function secRow(tbl,sec,label,cols){const open=!!SEC[tbl+'|'+sec];return `<tr class="grp secrow" data-sec="${sec}" onclick="secClick('${tbl}','${sec}',this)" ondblclick="secDbl('${tbl}','${sec}',this)"><td colspan="${cols}">${open?'▼':'▶'} ${label} — <small>${open?'click to close':'click / double-click to open'}</small></td></tr>`;}
 function secClick(tbl,sec,tr){clearTimeout(tr._t);tr._t=setTimeout(()=>toggleSec(tbl,sec),260);}
@@ -567,7 +581,14 @@ function renderRate(){const list=rateList();let rows='';if(renderRate._lvl!==val
 
 // ===== TAB 2: BOM IDEAL =====
 const stgOk=(r,s)=>!s||(s==='1'?r.st.length===1:r.st.length>=2);
-function bomList(){const q=lc(val('qbom')),cat=val('bomcat'),s=val('bomstg');return D.recipes.filter(r=>stgOk(r,s)&&(!cat||catOfR(r)===cat)&&(!q||lc(r.name).includes(q)||lc(r.code).includes(q)));}
+function bomList(){
+  const q=lc(val('qbom')),cat=val('bomcat'),s=val('bomstg'),ac=val('bomactive'),ap=val('bomappr');
+  return D.recipes.filter(r=>
+    stgOk(r,s) && (!cat||catOfR(r)===cat) && (!q||lc(r.name).includes(q)||lc(r.code).includes(q))
+    && (!ac || (ac==='y' ? isActive(r.code) : !isActive(r.code)))
+    && (!ap || (ap==='y' ? isApproved(r.code) : !isApproved(r.code)))
+  );
+}
 function outL1(o){const e=entry(o[3],o[0]);let r=null;
  if(e){const [f,how]=baseFactor(e,o[2],o[0]);const bu=baseU(e);if(how!=='assumed'&&how!=='no PM'&&canonU(bu)!==canonU(o[2]))r={q:o[1]*f,u:bu};}
  if(!r||!unitG(r.u)){const g=nameGrams(o[0],o[2]);if(g&&!unitG(o[2]))return {q:o[1]*g,u:'Gms'};}
@@ -629,7 +650,8 @@ function renderVeg(){const q=lc(val('qveg')),fl=val('vegfilt')||'all';const ws=d
 function vBadge(r){const v=validateBOM(r);const cls=v.errs?'err':v.warns?'warn':'ok',txt=v.errs?('✖ '+v.errs+(v.warns?' · ⚠ '+v.warns:'')):v.warns?('⚠ '+v.warns):'✔ AI OK';
  return `<span class="vb ${cls}" title="${esc('AI BOM check — click to open\n'+v.lines.map(x=>(x.level==='err'?'✖ ':x.level==='warn'?'⚠ ':'✔ ')+x.msg).join('\n'))}" onclick="event.stopPropagation();openRemarks('${esc(r.code)}','ai',event)">${txt}</span>`;}
 function bomGrpRow(r,c,cls){const fac=(r.kind||'factory')==='factory',ap=isApproved(r.code);const rcat=c.cat;
- return `<tr class="grp${ap?' approved':''}${cls?' '+cls:''}" data-code="${esc(r.code)}"><td colspan="${bomNV()}"><span style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span><b>${esc(r.name)}</b>${fac?` <button class="abtn${ap?' on':''}" onclick="event.stopPropagation();toggleApprove('${esc(r.code)}')">${ap?'Approved ✔ (undo)':'✓ Approve'}</button>`:''}${vBadge(r)}<span class="catb clk${CATOVR[r.oc]?' edited':''}" style="${CATOVR[r.oc]?'background:#d2691e':''}" title="Click: ${esc(rcat)} validation & calculation" onclick="event.stopPropagation();openRemarks('${esc(r.code)}','cat',event)">${esc(rcat)}</span><span class="catb clk" style="background:${fac?'#1f6032':'#7030a0'}" title="Click: general remarks" onclick="event.stopPropagation();openRemarks('${esc(r.code)}','gen',event)">${fac?'Factory':'Outlet'}</span>  ·  (FP: ${esc(r.name)} · Qty: ${qty(c.q)} · Units: ${esc(c.u)})${ap?'  ·  <b class="ok">✔ '+apprText(r.code)+'</b>':''}</span></span></td></tr>`;}
+ const act=isActive(r.code);
+  return `<tr class="grp${ap?' approved':''}${act?'':' inactive'}${cls?' '+cls:''}" data-code="${esc(r.code)}"><td colspan="${bomNV()}"><span style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span><b>${esc(r.name)}</b>${act?'':' <span class="catb" style="background:#9ca3af" title="Marked inactive — hidden by Status filter">Inactive</span>'}${fac?` <button class="abtn${ap?' on':''}" onclick="event.stopPropagation();toggleApprove('${esc(r.code)}')">${ap?'Approved ✔ (undo)':'✓ Approve'}</button>`:''}<button class="abtn${act?'':' on'}" style="background:${act?'#6b7280':'#9ca3af'}" onclick="event.stopPropagation();toggleActive('${esc(r.code)}')" title="Mark this BOM ${act?'Inactive':'Active'}">${act?'· Mark Inactive':'↺ Mark Active'}</button>${vBadge(r)}<span class="catb clk${CATOVR[r.oc]?' edited':''}" style="${CATOVR[r.oc]?'background:#d2691e':''}" title="Click: ${esc(rcat)} validation & calculation" onclick="event.stopPropagation();openRemarks('${esc(r.code)}','cat',event)">${esc(rcat)}</span><span class="catb clk" style="background:${fac?'#1f6032':'#7030a0'}" title="Click: general remarks" onclick="event.stopPropagation();openRemarks('${esc(r.code)}','gen',event)">${fac?'Factory':'Outlet'}</span>  ·  (FP: ${esc(r.name)} · Qty: ${qty(c.q)} · Units: ${esc(c.u)})${ap?'  ·  <b class="ok">✔ '+apprText(r.code)+'</b>':''}</span></span></td></tr>`;}
 function bomRows(r,c,cls){let h=bomGrpRow(r,c,cls);const rc=cls?` class="${cls}"`:'';
  r.st.forEach(s=>{s.i.forEach(it=>{const [nm,us,wa,un,bk,veg,pc]=it,ur=bk==='W'?{r:0,calc:''}:unitRate(nm,pc,un),rt=ur.r,rb=rt,iss=issueOf(it),v=bk==='W'?0:iss*rt,iy=iyieldOf(it),vy=vegYieldOf(it);
    const pill=bk==='P'?'<span class="pill pP">Pack</span>':bk==='W'?'<span class="pill pW">WIP</span>':'';
@@ -853,7 +875,16 @@ function clearSel(){SEL=[];document.getElementById('qsum').value='';renderSum();
 function renderChips(){const el=document.getElementById('selchips');if(!el)return;el.innerHTML=SEL.length?'<span class="muted" style="margin-right:6px">Selected:</span>'+SEL.map(cd=>{const r=D.recipes.find(x=>x.code===cd);return `<span class="chip2">${esc(r?r.name:cd)}<b onclick="rmSel('${esc(cd)}')" title="Remove">✕</b></span>`;}).join(''):'';}
 function sumSorted(list){const k=val('sumsort')||'name';const key={name:r=>lc(r.name),cat:r=>catOfR(r)+'|'+lc(r.name),sell:r=>-computeIdeal(r).derivedPU,food:r=>-computeIdeal(r).foodPU,cons:r=>-computeIdeal(r).consumPU,appr:r=>(isApproved(r.code)?0:1)+'|'+lc(r.name)}[k];
  return [...list].sort((a,b)=>{const p=key(a),q=key(b);return p>q?1:p<q?-1:0;});}
-function sumList(){const s=val('sumstg');if(SEL.length)return D.recipes.filter(r=>SEL.includes(r.code)&&stgOk(r,s));const q=lc(val('qsum')),cat=val('sumcat');return D.recipes.filter(r=>stgOk(r,s)&&(!cat||catOfR(r)===cat)&&(!q||lc(r.name).includes(q)||lc(r.code).includes(q)));}
+function sumList(){
+  const s=val('sumstg'),ac=val('sumactive'),ap=val('sumappr');
+  if(SEL.length)return D.recipes.filter(r=>SEL.includes(r.code)&&stgOk(r,s));
+  const q=lc(val('qsum')),cat=val('sumcat');
+  return D.recipes.filter(r=>
+    stgOk(r,s) && (!cat||catOfR(r)===cat) && (!q||lc(r.name).includes(q)||lc(r.code).includes(q))
+    && (!ac || (ac==='y' ? isActive(r.code) : !isActive(r.code)))
+    && (!ap || (ap==='y' ? isApproved(r.code) : !isApproved(r.code)))
+  );
+}
 function wtCell(r,c){const f=r.cv&&r.cv.flag;return (c.wg>0?qty(c.wg):'—')+(f?` <span class="wflag" title="${esc(f+' · source: '+r.cv.src)}">⚠</span>`:'');}
 function sumGroups(){const l=sumList();return {approved:l.filter(r=>(r.kind||'factory')==='factory'&&isApproved(r.code)),pending:l.filter(r=>(r.kind||'factory')==='factory'&&!isApproved(r.code)),outlet:l.filter(r=>r.kind==='outlet')};}
 function sumRemark(r){return (r.kind||'factory')==='factory'?(isApproved(r.code)?'<span class="ok">✔ '+apprText(r.code)+'</span>':'<span class="muted">Pending approval</span>'):'<span class="muted">Outlet recipe</span>';}
