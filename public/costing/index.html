@@ -430,6 +430,23 @@ function toggleApprove(code){if(APPR[code])delete APPR[code];else APPR[code]=new
  const r=D.recipes.find(x=>x.code===code);if(r){const g=document.querySelector('#bomtbl tr.grp[data-code="'+cssEsc(code)+'"]');if(g){g.outerHTML=bomGrpRow(r,computeIdeal(r));}}
  markDirty();DIRTY[CUR]=0;if(CUR==='sum')renderSum();if(CUR==='ai')renderAI();renderRem();}
 const apprText=code=>APPR[code]?('Approved '+fmtD(APPR[code].slice(0,10))):'';
+// --- Per-BOM editable overrides: weight per unit (grams) and secondary packaging ₹/unit ---
+let WT_OVR={};try{WT_OVR=JSON.parse(localStorage.getItem('bom_wt_ovr')||'{}');}catch(e){WT_OVR={};}
+let SPK_OVR={};try{SPK_OVR=JSON.parse(localStorage.getItem('bom_spk_ovr')||'{}');}catch(e){SPK_OVR={};}
+function setWtOvr(code,v){
+  const n=+v;
+  if(v===''||v==null||isNaN(n)||n<=0)delete WT_OVR[code];else WT_OVR[code]=n;
+  try{localStorage.setItem('bom_wt_ovr',JSON.stringify(WT_OVR));}catch(e){}
+  if(typeof bump==='function')bump();     // invalidate computeIdeal cache
+  markDirty();DIRTY[CUR]=0;refresh();
+}
+function setSpkOvr(code,v){
+  const n=+v;
+  if(v===''||v==null||isNaN(n))delete SPK_OVR[code];else SPK_OVR[code]=n;
+  try{localStorage.setItem('bom_spk_ovr',JSON.stringify(SPK_OVR));}catch(e){}
+  if(typeof bump==='function')bump();
+  markDirty();DIRTY[CUR]=0;refresh();
+}
 // --- Active / Inactive BOM flag (dashboard-only, per-device) ----
 let ACTIVE={};try{ACTIVE=JSON.parse(localStorage.getItem('bom_active')||'{}');}catch(e){ACTIVE={};}
 const isActive=code=>ACTIVE[code]!==false;   // default true until you turn it off
@@ -477,9 +494,15 @@ function bump(){CI_CACHE.clear();VEGCAT=null;VEGMAP=null;POOL=null;STATS_CACHE.c
 function computeIdeal(r){const hit=CI_CACHE.get(r.code);if(hit&&hit.r===r)return hit;const res=computeIdeal_(r);CI_CACHE.set(r.code,res);return res;}
 function computeIdeal_(r){const v=gv();let food=0,pack=0,waste=0;const zero=[];
  r.st.forEach(s=>s.i.forEach(it=>{if(it[4]==='W')return;const rt=unitRate(it[0],it[6],it[3]).r;const iss=issueOf(it),c=iss*rt;if(it[4]==='F')food+=c;else pack+=c;waste+=(iss-(it[1]||0))*rt;if(!rt)zero.push(it[0]);}));
- const q=r.y[0]||1,u=r.y[1],wg=(r.cv&&r.cv.g)||0,wkg=wg/1000,cat=catOfR(r),pr=procRate(cat,v);
- const foodPU=food/q,packPU=pack/q,procPU=pr*wkg,ppPU=v.pp*wkg,spPU=v.sp*wkg,prodPU=procPU+ppPU+spPU,consumPU=foodPU+packPU,totalPU=consumPU+prodPU;
- return {r,v,cat,food,pack,waste,wastePU:waste/q,q,u,wg,pr,foodPU,packPU,procPU,ppPU,spPU,prodPU,consumPU,totalPU,derivedPU:totalPU*(1+v.va)/(1-v.mg),zero};}
+ const q=r.y[0]||1,u=r.y[1];
+ // Weight per unit (g): editable override wins over the detected r.cv.g
+ const wgOvr=WT_OVR[r.code], wgBase=(r.cv&&r.cv.g)||0, wg=(wgOvr!=null?wgOvr:wgBase), wkg=wg/1000;
+ const cat=catOfR(r),pr=procRate(cat,v);
+ const foodPU=food/q,packPU=pack/q,procPU=pr*wkg,ppPU=v.pp*wkg;
+ // Secondary packaging ₹/unit: editable override wins over global rate × weight
+ const spOvr=SPK_OVR[r.code], spPU=(spOvr!=null?spOvr:(v.sp*wkg));
+ const prodPU=procPU+ppPU+spPU,consumPU=foodPU+packPU,totalPU=consumPU+prodPU;
+ return {r,v,cat,food,pack,waste,wastePU:waste/q,q,u,wg,wgBase,wgEdited:wgOvr!=null,spPU,spEdited:spOvr!=null,pr,foodPU,packPU,procPU,ppPU,prodPU,consumPU,totalPU,derivedPU:totalPU*(1+v.va)/(1-v.mg),zero};}
 function getMin(code){try{const m=JSON.parse(localStorage.getItem('minsell')||'{}');return m[code]!=null?m[code]:null;}catch(e){return null;}}
 function setMin(code,v){try{const m=JSON.parse(localStorage.getItem('minsell')||'{}');if(v===''||v==null)delete m[code];else m[code]=+v;localStorage.setItem('minsell',JSON.stringify(m));}catch(e){}}
 const idealFor=b=>RBYOC[b.code]||RBYNAME[lc(b.name)]||null;
@@ -662,7 +685,12 @@ function bomRows(r,c,cls){let h=bomGrpRow(r,c,cls);const rc=cls?` class="${cls}"
  h+=bomSpanTr(`tot${cls?' '+cls:''}`,`TOTAL — Food ${money(c.food)} <small>(${c.wg>0?money(c.food/(c.q*c.wg/1000))+'/Kg · ':''}${money(c.foodPU)}/${esc(c.u)})</small> · Packing ${money(c.pack)} · Cost / ${esc(c.u)} ${money(c.consumPU)}`,{value:`<td>${money(c.food+c.pack)}</td>`});
  yieldLines(r).forEach(y=>{h+=bomSpanTr(`stot${cls?' '+cls:''}`,y.label,{usage:`<td>${y.usage}</td>`,issue:`<td>${y.issue}</td>`,value:`<td>${y.val!=null?'<b>'+money(y.val)+'</b>':''}</td>`});});
  const outs=stageOutputs(r).map(o=>`${esc(o.stage)} ${o.kind} output: <b>${qty(o.q)} ${esc(o.u)}</b>${outL1Txt([o.name,o.q,o.u,o.code])}`).join('  ·  ');
- h+=`<tr class="outl${cls?' '+cls:''}"><td colspan="${bomNV()}">📦 Batch output — ${outs||'—'}${c.wg>0?'  ·  Wt/unit '+qty(c.wg)+' g':''}</td></tr>`;return h;}
+ const _wtEd=c.wgEdited?'border-color:var(--brand2);color:var(--brand2);font-weight:700':'';
+ const _spEd=c.spEdited?'border-color:var(--brand2);color:var(--brand2);font-weight:700':'';
+ const _wtTip=c.wgEdited?('Edited — original '+(c.wgBase>0?qty(c.wgBase)+' g':'(no base)')+'. Clear to revert.') :'Weight per unit in grams — edit to recompute production cost';
+ const _wtInp=`<input class="mini" type="number" step="any" placeholder="—" style="width:76px;${_wtEd}" value="${c.wg>0?c.wg:''}" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()" onchange="setWtOvr('${esc(r.code)}',this.value)" title="${esc(_wtTip)}">`;
+ const _spInp=`<input class="mini" type="number" step="any" placeholder="auto" style="width:76px;${_spEd}" value="${c.spEdited?c.spPU:''}" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()" onchange="setSpkOvr('${esc(r.code)}',this.value)" title="Secondary packaging ₹ per unit — blank uses global rate">`;
+ h+=`<tr class="outl${cls?' '+cls:''}"><td colspan="${bomNV()}">📦 Batch output — ${outs||'—'}  ·  Wt/unit ${_wtInp} g  ·  Sec. Pack ₹/unit ${_spInp}</td></tr>`;return h;}
 const BOM_W={sec:62,stage:58,pcode:82,pname:330,cat:74,unit:54,usage:82,wast:68,issue:88,iyield:98,rate:82,value:94,op:112};
 let BOM_TOKEN=0;
 function bomFitWidths(vis){const box=(document.querySelector('#bom .overflow')||{}).clientWidth||0;let w=vis.map(c=>BOM_W[c[0]]||90);const pi=vis.findIndex(c=>c[0]==='pname');
@@ -885,16 +913,22 @@ function sumList(){
     && (!ap || (ap==='y' ? isApproved(r.code) : !isApproved(r.code)))
   );
 }
-function wtCell(r,c){const f=r.cv&&r.cv.flag;return (c.wg>0?qty(c.wg):'—')+(f?` <span class="wflag" title="${esc(f+' · source: '+r.cv.src)}">⚠</span>`:'');}
+function wtCell(r,c){
+  const f=r.cv&&r.cv.flag;
+  const flag=f?` <span class="wflag" title="${esc(f+' · source: '+r.cv.src)}">⚠</span>`:'';
+  const edStyle=c.wgEdited?'border-color:var(--brand2);color:var(--brand2);font-weight:700':'';
+  const tip=c.wgEdited?('Edited — original '+(c.wgBase>0?qty(c.wgBase)+' g':'(no base)')+'. Clear to revert.') :'Weight per unit in grams — edit to recompute production cost';
+  return `<input class="mini" type="number" step="any" placeholder="—" value="${c.wg>0?c.wg:''}" style="${edStyle}" ondblclick="event.stopPropagation()" onchange="setWtOvr('${esc(r.code)}',this.value)" title="${esc(tip)}">`+flag;
+}
 function sumGroups(){const l=sumList();return {approved:l.filter(r=>(r.kind||'factory')==='factory'&&isApproved(r.code)),pending:l.filter(r=>(r.kind||'factory')==='factory'&&!isApproved(r.code)),outlet:l.filter(r=>r.kind==='outlet')};}
 function sumRemark(r){return (r.kind||'factory')==='factory'?(isApproved(r.code)?'<span class="ok">✔ '+apprText(r.code)+'</span>':'<span class="muted">Pending approval</span>'):'<span class="muted">Outlet recipe</span>';}
 function sumRow(r,cls){const c=computeIdeal(r),mn=getMin(r.code);
- return `<tr class="brow${isApproved(r.code)?' approved':''}${cls?' '+cls:''}" ondblclick="sumDetail('${esc(r.code)}',this)"><td class="l" title="${esc(r.name)}">${esc(r.name)} <small class="muted">(${esc(r.code)})</small></td><td class="l${CATOVR[r.oc]?' edited':''}">${esc(c.cat)}</td><td>${esc(c.u)}</td><td>${wtCell(r,c)}</td><td>${money(c.foodPU)}</td><td>${money(c.packPU)}</td><td>${money(c.consumPU)}</td><td>${money(c.prodPU)}</td><td>${(c.v.va*100).toFixed(0)}%</td><td>${(c.v.mg*100).toFixed(0)}%</td><td style="color:var(--brand2);font-weight:700">${money(c.derivedPU)}</td><td><input class="mini" type="number" placeholder="—" value="${mn!=null?mn:''}" ondblclick="event.stopPropagation()" onchange="setMin('${esc(r.code)}',this.value)"></td><td class="l">${sumRemark(r)}</td></tr>`;}
+ return `<tr class="brow${isApproved(r.code)?' approved':''}${cls?' '+cls:''}" ondblclick="sumDetail('${esc(r.code)}',this)"><td class="l" title="${esc(r.name)}">${esc(r.name)} <small class="muted">(${esc(r.code)})</small></td><td class="l${CATOVR[r.oc]?' edited':''}">${esc(c.cat)}</td><td>${esc(c.u)}</td><td>${wtCell(r,c)}</td><td>${money(c.foodPU)}</td><td>${money(c.packPU)}</td><td title="Secondary packaging ₹ per unit — type to override, blank uses the global rate from Edit Rates panel"><input class="mini" type="number" step="any" placeholder="auto" value="${c.spEdited?c.spPU:''}" style="${c.spEdited?'border-color:var(--brand2);color:var(--brand2);font-weight:700':''}" ondblclick="event.stopPropagation()" onchange="setSpkOvr('${esc(r.code)}',this.value)"></td><td>${money(c.consumPU)}</td><td>${money(c.prodPU)}</td><td>${(c.v.va*100).toFixed(0)}%</td><td>${(c.v.mg*100).toFixed(0)}%</td><td style="color:var(--brand2);font-weight:700">${money(c.derivedPU)}</td><td><input class="mini" type="number" placeholder="—" value="${mn!=null?mn:''}" ondblclick="event.stopPropagation()" onchange="setMin('${esc(r.code)}',this.value)"></td><td class="l">${sumRemark(r)}</td></tr>`;}
 function renderSum(){fillSumDl();renderChips();const g=sumGroups();let rows='';const fac=sumSorted([...g.approved,...g.pending]),out=sumSorted(g.outlet);
  for(const r of fac)rows+=sumRow(r);
  if(SEL.length){for(const r of out)rows+=sumRow(r);}
- else{rows+=secRow('sumtbl','outlet',`Outlet recipes (${out.length})`,13);if(SEC['sumtbl|outlet'])for(const r of out)rows+=sumRow(r,'sec-outlet');}
- document.getElementById('sumtbl').innerHTML=`<tr><th class="l">Item</th><th class="l">Category</th><th>UOM</th><th>Wt / Unit (g)</th><th>Ideal Food Cost</th><th>Packaging Cost</th><th>Total Consumable</th><th>Production Cost</th><th>Var</th><th>Margin</th><th>Derived Selling</th><th>Min Selling ✏️</th><th class="l">Remarks</th></tr>${rows}<tr class="tot"><td colspan="13" class="l">${fac.length} factory BOMs (${g.approved.length} approved, shown green) · ${g.outlet.length} outlet</td></tr>`;
+ else{rows+=secRow('sumtbl','outlet',`Outlet recipes (${out.length})`,14);if(SEC['sumtbl|outlet'])for(const r of out)rows+=sumRow(r,'sec-outlet');}
+ document.getElementById('sumtbl').innerHTML=`<tr><th class="l">Item</th><th class="l">Category</th><th>UOM</th><th>Wt / Unit (g)</th><th>Ideal Food Cost</th><th>Packaging Cost</th><th title="Secondary packaging ₹ per unit — editable; blank uses global rate">Sec Pack ₹ ✏️</th><th>Total Consumable</th><th>Production Cost</th><th>Var</th><th>Margin</th><th>Derived Selling</th><th>Min Selling ✏️</th><th class="l">Remarks</th></tr>${rows}<tr class="tot"><td colspan="14" class="l">${fac.length} factory BOMs (${g.approved.length} approved, shown green) · ${g.outlet.length} outlet</td></tr>`;
  sizeTable('sumtbl',0.75,58);}
 function ingTable(r,c){let h='';const q=c?c.q:(r.y[0]||1);let food=0,pack=0;const YL=yieldLines(r);
  r.st.forEach((s,si)=>{h+=`<tr class="stagehdr"><td colspan="9">${esc(s.s)}${s.o.length?' → output: '+s.o.map(o=>esc(o[0])+' — '+qty(o[1])+' '+esc(o[2])+outL1Txt(o)).join(', '):''}</td></tr>`;
