@@ -34,6 +34,7 @@ ARM_FILE   = os.path.join(PACT_DIR, "ARM_DISPATCH")
 RESULT_JSON= os.path.join(PACT_DIR, "pact_result.json")
 ENV_FILE   = os.path.join(PACT_DIR, "dispatch.env")
 POLL       = int(os.environ.get("POLL_SECONDS", "6"))
+WAIT       = os.environ.get("DISPATCH_WAIT", "45")  # agent voucher-readback wait (was 90); lower => queue advances sooner
 PYEXE      = sys.executable or "py"
 PER_LINE   = 3.5
 BASE_SEC   = 200
@@ -86,7 +87,7 @@ def claim_next():
     # atomic claim: only if still queued
     updated = sb("PATCH",
                  "dispatch_jobs?id=eq.%s&status=eq.queued" % urllib.parse.quote(job["id"]),
-                 body={"status": "processing", "updated_at": now()},
+                 body={"status": "processing", "force_finalize": False, "updated_at": now()},
                  headers={"Prefer": "return=representation"})
     if not updated:  # someone else took it
         return None
@@ -111,31 +112,86 @@ def set_job(job_id, status, voucher="", note=""):
         log("  set_job failed:", e)
 
 # --------------------------------------------------------------- agent runner
-def run_agent(local_txt, nlines):
+def job_forced(job_id):
+    """True when the operator has confirmed in PACT that this order posted."""
+    try:
+        rows = sb("GET", "dispatch_jobs?id=eq.%s&select=force_finalize" % urllib.parse.quote(job_id))
+        return bool(rows and rows[0].get("force_finalize"))
+    except Exception:
+        return False
+
+def read_result():
+    try:
+        rec = json.load(open(RESULT_JSON, encoding="utf-8"))
+        return rec.get("status", "UNKNOWN"), rec.get("voucher", ""), rec.get("note", "")
+    except Exception as e:
+        return "UNKNOWN", "", "no pact_result.json (%s)" % e
+
+def run_agent(local_txt, nlines, job_id):
     try:
         if os.path.exists(RESULT_JSON): os.remove(RESULT_JSON)
     except Exception: pass
-    cmd = [PYEXE, AGENT, "dispatch", "--txt", local_txt, "--new", "--wait", "90"]
+    cmd = [PYEXE, AGENT, "dispatch", "--txt", local_txt, "--new", "--wait", str(WAIT)]
     if armed():
         cmd.insert(cmd.index("--new"), "--post")
         log("  ARMED -> agent WILL post one voucher")
     else:
         log("  NOT armed (no ARM_DISPATCH) -> agent FILLS but does NOT post")
     timeout = int(BASE_SEC + PER_LINE * max(1, nlines))
-    log("  running:", " ".join(cmd), "(timeout", timeout, "s)")
+    log("  running:", " ".join(cmd), "(timeout", timeout, "s, wait", WAIT, ")")
+    # Run the agent as a child we can monitor, so an operator "finalize now" can
+    # stop it and free the queue. Its output goes to a file (never a PIPE) so a
+    # chatty agent can't deadlock us while we watch.
+    out_path = os.path.join(LOG_DIR, "agent_last.out")
     try:
-        p = subprocess.run(cmd, cwd=PACT_DIR, capture_output=True, text=True, timeout=timeout)
-        tail = (p.stdout or "").strip().splitlines()
-        if tail: log("  agent tail:", tail[-1][:200])
-    except subprocess.TimeoutExpired:
-        return "FAILED", "", "agent timed out after %ss" % timeout
+        os.makedirs(LOG_DIR, exist_ok=True)
+        fout = open(out_path, "w", encoding="utf-8")
+    except Exception:
+        fout = subprocess.DEVNULL
+    try:
+        p = subprocess.Popen(cmd, cwd=PACT_DIR, stdout=fout, stderr=subprocess.STDOUT, text=True)
     except Exception as e:
+        try:
+            if fout not in (None, subprocess.DEVNULL): fout.close()
+        except Exception: pass
         return "FAILED", "", "agent launch error: %s" % e
+
+    forced = False
+    start = time.time()
+    last_check = 0.0
+    while p.poll() is None:
+        el = time.time() - start
+        if el > timeout:
+            try: p.kill()
+            except Exception: pass
+            break
+        if el - last_check >= 3:          # check the finalize flag every ~3s
+            last_check = el
+            if job_forced(job_id):
+                forced = True
+                log("  FORCE-FINALIZE: operator confirmed posted in PACT -> stopping agent")
+                try: p.terminate()
+                except Exception: pass
+                try: p.wait(timeout=8)
+                except Exception:
+                    try: p.kill()
+                    except Exception: pass
+                break
+        time.sleep(0.5)
     try:
-        rec = json.load(open(RESULT_JSON, encoding="utf-8"))
-        return rec.get("status", "UNKNOWN"), rec.get("voucher", ""), rec.get("note", "")
-    except Exception as e:
-        return "UNKNOWN", "", "no pact_result.json (%s)" % e
+        if fout not in (None, subprocess.DEVNULL): fout.close()
+    except Exception: pass
+    try:
+        lines = [l.rstrip() for l in open(out_path, encoding="utf-8")] if os.path.exists(out_path) else []
+        if lines: log("  agent tail:", lines[-1][:200])
+    except Exception: pass
+
+    if forced:
+        _st, vo, nt = read_result()
+        return "FORCED", vo, ("operator-confirmed posted in PACT" + ("; " + nt if nt else ""))
+    if p.returncode is None or (time.time() - start) > timeout:
+        return "FAILED", "", "agent timed out after %ss" % timeout
+    return read_result()
 
 # --------------------------------------------------------------- core
 def process_one():
@@ -148,6 +204,11 @@ def process_one():
     if not job: return False
     order = job.get("order_no") or ""
     log("claimed job", job["id"], "order", order)
+
+    if (not order) or re.search(r"test", order, re.I) or not re.search(r"\d{2}-\d{2}/\d+", order):
+        log("  REJECTED non-order '%s' -> skipped (never posted)" % order)
+        set_job(job["id"], "skipped", note="not a valid order number; never posted")
+        return True
 
     dup = already_posted(order)
     if dup:
@@ -168,10 +229,13 @@ def process_one():
     with open(local_txt, "w", encoding="utf-8") as f:
         f.write(txt)
 
-    status, voucher, note = run_agent(local_txt, nlines)
+    status, voucher, note = run_agent(local_txt, nlines, job["id"])
     if status == "POSTED" and voucher:
         set_job(job["id"], "posted", voucher=voucher, note=note)
         log("  DONE: order", order, "posted as", voucher)
+    elif status == "FORCED":
+        set_job(job["id"], "posted", voucher=voucher, note=note)
+        log("  FORCED DONE: order", order, "marked posted by operator", voucher or "(no voucher captured)")
     elif status in ("FILLED_NOT_POSTED",):
         # safe mode: put it back so an armed run can post it
         set_job(job["id"], "queued", note="filled (not armed); awaiting arm")
