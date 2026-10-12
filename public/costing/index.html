@@ -499,9 +499,10 @@ function computeIdeal_(r){const v=gv();let food=0,pack=0,waste=0;const zero=[];
  const wgOvr=WT_OVR[r.code], wgBase=(r.cv&&r.cv.g)||0, wg=(wgOvr!=null?wgOvr:wgBase), wkg=wg/1000;
  const cat=catOfR(r),pr=procRate(cat,v);
  const foodPU=food/q,packPU=pack/q,procPU=pr*wkg,ppPU=v.pp*wkg;
- // Secondary packaging ₹/unit: editable override wins over global rate × weight
+ // Secondary packaging ₹/unit: editable override wins over global rate × weight.
+ // Rolls into Total Consumable (treated as a consumable material), NOT into Production Cost.
  const spOvr=SPK_OVR[r.code], spPU=(spOvr!=null?spOvr:(v.sp*wkg));
- const prodPU=procPU+ppPU+spPU,consumPU=foodPU+packPU,totalPU=consumPU+prodPU;
+ const prodPU=procPU+ppPU,consumPU=foodPU+packPU+spPU,totalPU=consumPU+prodPU;
  return {r,v,cat,food,pack,waste,wastePU:waste/q,q,u,wg,wgBase,wgEdited:wgOvr!=null,spPU,spEdited:spOvr!=null,pr,foodPU,packPU,procPU,ppPU,prodPU,consumPU,totalPU,derivedPU:totalPU*(1+v.va)/(1-v.mg),zero};}
 function getMin(code){try{const m=JSON.parse(localStorage.getItem('minsell')||'{}');return m[code]!=null?m[code]:null;}catch(e){return null;}}
 function setMin(code,v){try{const m=JSON.parse(localStorage.getItem('minsell')||'{}');if(v===''||v==null)delete m[code];else m[code]=+v;localStorage.setItem('minsell',JSON.stringify(m));}catch(e){}}
