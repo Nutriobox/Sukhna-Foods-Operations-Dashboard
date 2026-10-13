@@ -1691,6 +1691,13 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
           <span className="tile-meta">Sync PACT reports</span>
           <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
         </a>
+        <a className="tile consumption" href="/outlet-consumption/index.html">
+          <span className="tile-ic"><Icon n="file" size={30} /></span>
+          <span className="tile-ttl">Outlet Consumption</span>
+          <span className="tile-sub">PACT Product Master &mdash; browse, search and sync the single Product Master every tool reads from.</span>
+          <span className="tile-meta">Shared PACT product master</span>
+          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+        </a>
       </div>
     </div>
   );

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+ <title>Outlet Consumption · Product Master</title>
+ <style>
+  :root{--ink:#0f172a;--mut:#64748b;--line:#e5e7eb;--card:#fff;--bg:#f6f7fb;--brand:#059669;--brand2:#1d4ed8;--warn:#b45309;--err:#b91c1c}
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  a{color:var(--brand2);text-decoration:none}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px}
+  .hdr{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .hdr h1{font-size:22px;margin:0;color:var(--ink)}
+  .hdr .sub{color:var(--mut);font-size:13px}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;color:var(--ink)}
+  .pill.ok{border-color:#bbf7d0;background:#f0fdf4;color:#047857}
+  .pill.warn{border-color:#fde68a;background:#fffbeb;color:#92400e}
+  .pill.err{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+  .pill.live{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 14px;border-radius:9px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{border-color:#cbd5e1}
+  .btn.prim{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+  .btn.prim:hover{background:#1e40af}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}
+  .search{flex:1 1 280px;max-width:420px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0;overflow:hidden}
+  .scroll{max-height:calc(100vh - 240px);overflow:auto}
+  table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:#f8fafc;position:sticky;top:0;z-index:2;font-weight:600;color:#334155}
+  tr:hover td{background:#f8fafc}
+  td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+  .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#475569}
+  .wh{color:#334155}
+  .mut{color:var(--mut)}
+  .pbl{color:var(--brand2);font-weight:600}
+  .sb{display:inline-block;padding:1px 7px;border-radius:6px;background:#eef2ff;color:#4338ca;font-size:11.5px;font-weight:600}
+  .footer{margin:12px 0 24px;color:var(--mut);font-size:12.5px;display:flex;gap:18px;flex-wrap:wrap}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .18s}
+  .toast.on{opacity:1}
+  @media (max-width:720px){th,td{padding:8px 9px}}
+ </style>
+</head>
+<body>
+<div class="wrap">
+ <div class="hdr">
+  <h1>Outlet Consumption</h1>
+  <span class="sub">PACT Product Master — the single source every tool reads from.</span>
+  <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+   <span id="statSrc" class="pill live">source: …</span>
+   <span id="statCnt" class="pill">… products</span>
+   <span id="statAt" class="pill">synced: …</span>
+  </span>
+ </div>
+
+ <div class="toolbar">
+  <input id="q" class="search" placeholder="Search product name or code…" oninput="renderPage()">
+  <select id="grp" onchange="renderPage()" class="btn" style="padding-right:28px">
+   <option value="">All groups</option>
+  </select>
+  <button class="btn" onclick="exportCsv()" title="Download the Product Master as CSV">⬇ Export CSV</button>
+  <button class="btn prim" id="btnSync" onclick="syncFromPACT()" title="Pull the latest Product Master from PACT (via the EC2 worker). Runs in ~45s. All tools pick up the new data as soon as the sync finishes.">⚡ Sync from PACT</button>
+  <span id="syncStat" class="mut" style="font-size:12.5px"></span>
+ </div>
+
+ <div class="card"><div class="scroll"><table id="tbl">
+  <thead><tr>
+   <th>#</th>
+   <th>Code</th>
+   <th>Product</th>
+   <th>Group</th>
+   <th>Print Level</th>
+   <th>Print Unit</th>
+   <th class="r">Per unit (base)</th>
+   <th>L1</th><th>L2</th><th>L3</th>
+   <th>Warehouse</th>
+   <th>Scan Batches</th>
+  </tr></thead>
+  <tbody id="tbody"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+ </table></div></div>
+
+ <div class="footer">
+  <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner app · Bills verifier</span>
+  <span>Auto-refresh from PACT: every hour</span>
+ </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* Outlet Consumption — read-only Product Master viewer backed by the unified
+   /api/product-master endpoint (fed by the EC2 worker's hourly PACT sync into
+   Supabase costing_snapshots). */
+
+let PRODUCTS = [];
+let META = { source: '', synced_at: null };
+const $ = (id) => document.getElementById(id);
+function toast(msg, ms){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._); toast._=setTimeout(()=>t.classList.remove('on'), ms||2400); }
+function fmtTime(iso){ if(!iso)return '—'; try{ return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}); }catch(e){ return iso; } }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function qty(n){ if(n==null||isNaN(n))return ''; const x=Number(n); return x.toLocaleString('en-IN',{maximumFractionDigits:3}); }
+
+async function loadMaster(fresh){
+  const url = '/api/product-master' + (fresh ? '?fresh=1' : '');
+  const r = await fetch(url, {cache:'no-store'});
+  const j = await r.json();
+  if(!j.ok){ throw new Error(j.error || ('product-master returned '+r.status)); }
+  PRODUCTS = Array.isArray(j.products) ? j.products : [];
+  META = { source: j.source || '', synced_at: j.synced_at || null, count: j.count };
+  // Groups dropdown
+  const groups = [...new Set(PRODUCTS.map(p => p.group).filter(Boolean))].sort();
+  const sel = $('grp');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All groups</option>' + groups.map(g => `<option value="${esc(g)}"${cur===g?' selected':''}>${esc(g)}</option>`).join('');
+  // Header stats
+  $('statSrc').textContent = 'source: ' + (META.source === 'pact-live' ? 'PACT live' : META.source);
+  $('statSrc').className = 'pill ' + (META.source === 'pact-live' ? 'live' : 'warn');
+  $('statCnt').textContent = (META.count ?? PRODUCTS.length).toLocaleString('en-IN') + ' products';
+  $('statAt').textContent = 'synced: ' + fmtTime(META.synced_at);
+  renderPage();
+}
+
+function renderPage(){
+  const q = ($('q').value || '').trim().toLowerCase();
+  const g = $('grp').value || '';
+  const list = PRODUCTS.filter(p =>
+    (!g || p.group === g) &&
+    (!q || String(p.name||'').toLowerCase().includes(q) || String(p.code||'').toLowerCase().includes(q))
+  );
+  const rows = list.slice(0, 2000).map((p, i) => {
+    const L1 = p.levels && p.levels.L1, L2 = p.levels && p.levels.L2, L3 = p.levels && p.levels.L3;
+    const scale = p.scale != null ? qty(p.scale) : '';
+    const prod = L1 && L1.u ? L1.u : '';
+    return `<tr>
+      <td class="mut">${i+1}</td>
+      <td class="code">${esc(p.code)}</td>
+      <td>${esc(p.name)}</td>
+      <td>${esc(p.group || '')}</td>
+      <td>${p.printLevel ? '<span class="sb">'+esc(p.printLevel)+'</span>' : '<span class="mut">—</span>'}</td>
+      <td>${esc(p.unit || '')}</td>
+      <td class="r">${scale ? scale + ' ' + esc(prod) : '<span class="mut">—</span>'}</td>
+      <td>${L1 ? esc((L1.u||'')) : '<span class="mut">—</span>'}</td>
+      <td>${L2 ? esc((L2.u||'')) + (L2.s ? ' <span class="mut">('+qty(L2.s)+')</span>' : '') : '<span class="mut">—</span>'}</td>
+      <td>${L3 ? esc((L3.u||'')) + (L3.s ? ' <span class="mut">('+qty(L3.s)+')</span>' : '') : '<span class="mut">—</span>'}</td>
+      <td class="wh">${esc(p.idealWarehouse || '')}</td>
+      <td>${p.scanBatches === true ? '<span class="pbl">Yes</span>' : p.scanBatches === false ? '<span class="mut">No</span>' : '<span class="mut">—</span>'}</td>
+    </tr>`;
+  });
+  const extra = list.length > 2000 ? `<tr><td colspan="12" class="mut" style="padding:14px;text-align:center">… ${list.length-2000} more rows — refine the search to see them</td></tr>` : '';
+  $('tbody').innerHTML = rows.join('') + extra || '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No products match.</td></tr>';
+}
+
+function exportCsv(){
+  const q = ($('q').value || '').trim().toLowerCase();
+  const g = $('grp').value || '';
+  const list = PRODUCTS.filter(p =>
+    (!g || p.group === g) &&
+    (!q || String(p.name||'').toLowerCase().includes(q) || String(p.code||'').toLowerCase().includes(q))
+  );
+  const header = ['Code','Product Name','Group','Print Level','Print Unit','Per Unit (base)','L1 Unit','L2 Unit','L2 Rate','L3 Unit','L3 Rate','Warehouse','Scan Batches'];
+  const esc = (v) => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = [header.map(esc).join(',')];
+  for(const p of list){
+    const L1=p.levels&&p.levels.L1||{}, L2=p.levels&&p.levels.L2||{}, L3=p.levels&&p.levels.L3||{};
+    lines.push([p.code,p.name,p.group||'',p.printLevel||'',p.unit||'',p.scale??'',L1.u||'',L2.u||'',L2.s??'',L3.u||'',L3.s??'',p.idealWarehouse||'',p.scanBatches??''].map(esc).join(','));
+  }
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  const dt = (META.synced_at||new Date().toISOString()).slice(0,10);
+  a.href = URL.createObjectURL(blob);
+  a.download = 'product-master-'+dt+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+
+let SYNC_BUSY = false;
+async function syncFromPACT(){
+  if(SYNC_BUSY){ toast('Sync already running…'); return; }
+  SYNC_BUSY = true;
+  const btn = $('btnSync'), stat = $('syncStat');
+  btn.disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(()=>{ stat.textContent = 'syncing from PACT… ' + Math.round((Date.now()-t0)/1000) + 's'; }, 400);
+  try{
+    const q = await fetch('/api/sync-costing?report=pm', {method:'POST'}).then(r => r.json()).catch(e => ({ok:false,error:String(e)}));
+    if(!q.ok) throw new Error(q.error || 'queue failed');
+    const baseline = META.synced_at || '';
+    const deadline = Date.now() + 180000;  // 3 min hard cap
+    while(Date.now() < deadline){
+      await new Promise(r => setTimeout(r, 4000));
+      const j = await fetch('/api/costing/pm', {cache:'no-store'}).then(r => r.json()).catch(()=>null);
+      if(j && j.synced_at && j.synced_at !== baseline){
+        await loadMaster(true);  // bust the 60s API cache and refetch
+        const secs = Math.round((Date.now()-t0)/1000);
+        stat.textContent = '✓ synced ' + ((META.count ?? PRODUCTS.length).toLocaleString('en-IN')) + ' products · ' + secs + 's';
+        toast('Product Master synced from PACT (' + ((META.count ?? PRODUCTS.length)) + ' products, ' + secs + 's)');
+        return;
+      }
+    }
+    throw new Error('timed out waiting for PACT (3 min)');
+  }catch(e){
+    stat.textContent = '✗ ' + (e.message || e);
+    toast('Sync failed: ' + (e.message || e), 4000);
+  }finally{
+    clearInterval(tick);
+    btn.disabled = false;
+    SYNC_BUSY = false;
+  }
+}
+
+loadMaster(false).catch(e => {
+  $('tbody').innerHTML = `<tr><td colspan="12" style="padding:18px;color:#b91c1c">Failed to load Product Master: ${esc(e.message || e)}</td></tr>`;
+  toast('Load failed: ' + (e.message || e), 4000);
+});
+</script>
+</body>
+</html>
