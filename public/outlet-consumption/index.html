@@ -3,7 +3,7 @@
 <head>
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width, initial-scale=1">
- <title>Outlet Consumption · Product Master</title>
+ <title>Outlet Consumption · Product Master &amp; BOM</title>
  <style>
   :root{--ink:#0f172a;--mut:#64748b;--line:#e5e7eb;--card:#fff;--bg:#f6f7fb;--brand:#059669;--brand2:#1d4ed8;--warn:#b45309;--err:#b91c1c}
   *{box-sizing:border-box}
@@ -23,23 +23,33 @@
   .btn.prim{background:var(--brand2);color:#fff;border-color:var(--brand2)}
   .btn.prim:hover{background:#1e40af}
   .btn:disabled{opacity:.6;cursor:not-allowed}
+  .tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+  .tab{flex:0 0 auto;padding:11px 20px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:pointer;font-weight:600;color:var(--mut);text-align:center;font-size:14px}
+  .tab.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
   .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}
-  .search{flex:1 1 280px;max-width:420px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:14px}
+  .search{flex:1 1 280px;max-width:460px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0;overflow:hidden}
-  .scroll{max-height:calc(100vh - 240px);overflow:auto}
+  .scroll{max-height:calc(100vh - 280px);overflow:auto}
   table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top}
   th{background:#f8fafc;position:sticky;top:0;z-index:2;font-weight:600;color:#334155}
-  tr:hover td{background:#f8fafc}
+  tr.bomhdr{cursor:pointer;background:#f1f5f9}
+  tr.bomhdr:hover td{background:#e2e8f0}
+  tr.bomhdr td{font-weight:600}
+  tr.stagehdr td{background:#faf5ff;color:#6b21a8;font-weight:600;font-size:12.5px}
+  tr.inrow td{background:#fff}
+  tr.outrow td{background:#f0fdf4}
+  tr:hover td{filter:brightness(.98)}
   td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
   .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#475569}
-  .wh{color:#334155}
   .mut{color:var(--mut)}
   .pbl{color:var(--brand2);font-weight:600}
   .sb{display:inline-block;padding:1px 7px;border-radius:6px;background:#eef2ff;color:#4338ca;font-size:11.5px;font-weight:600}
+  .sb.out{background:#dcfce7;color:#166534}
   .footer{margin:12px 0 24px;color:var(--mut);font-size:12.5px;display:flex;gap:18px;flex-wrap:wrap}
   .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .18s}
   .toast.on{opacity:1}
+  .expbtn{display:inline-block;width:16px;color:var(--mut);text-align:center}
   @media (max-width:720px){th,td{padding:8px 9px}}
  </style>
 </head>
@@ -47,85 +57,112 @@
 <div class="wrap">
  <div class="hdr">
   <h1>Outlet Consumption</h1>
-  <span class="sub">PACT Product Master — the single source every tool reads from.</span>
+  <span class="sub">PACT masters — the single source every tool reads from.</span>
   <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
    <span id="statSrc" class="pill live">source: …</span>
-   <span id="statCnt" class="pill">… products</span>
+   <span id="statCnt" class="pill">… rows</span>
    <span id="statAt" class="pill">synced: …</span>
   </span>
  </div>
 
- <div class="toolbar">
-  <input id="q" class="search" placeholder="Search product name or code…" oninput="renderPage()">
-  <select id="grp" onchange="renderPage()" class="btn" style="padding-right:28px">
-   <option value="">All groups</option>
-  </select>
-  <button class="btn" onclick="exportCsv()" title="Download the Product Master as CSV">⬇ Export CSV</button>
-  <button class="btn prim" id="btnSync" onclick="syncFromPACT()" title="Pull the latest Product Master from PACT (via the EC2 worker). Runs in ~45s. All tools pick up the new data as soon as the sync finishes.">⚡ Sync from PACT</button>
-  <span id="syncStat" class="mut" style="font-size:12.5px"></span>
+ <div class="tabs">
+  <div class="tab on" data-t="pm" onclick="selTab('pm')">📦 Product Master</div>
+  <div class="tab" data-t="bom" onclick="selTab('bom')">🧱 BOM (Stage Wise)</div>
  </div>
 
- <div class="card"><div class="scroll"><table id="tbl">
-  <thead><tr>
-   <th>#</th>
-   <th>Code</th>
-   <th>Product</th>
-   <th>Group</th>
-   <th>Print Level</th>
-   <th>Print Unit</th>
-   <th class="r">Per unit (base)</th>
-   <th>L1</th><th>L2</th><th>L3</th>
-   <th>Warehouse</th>
-   <th>Scan Batches</th>
-  </tr></thead>
-  <tbody id="tbody"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
- </table></div></div>
+ <!-- ============== Product Master tab ============== -->
+ <div id="tabPm">
+  <div class="toolbar">
+   <input id="qpm" class="search" placeholder="Search product name or code…" oninput="renderPm()">
+   <select id="grpPm" onchange="renderPm()" class="btn" style="padding-right:28px"><option value="">All groups</option></select>
+   <button class="btn" onclick="exportCsvPm()">⬇ Export CSV</button>
+   <button class="btn prim" id="btnSyncPm" onclick="syncPM()" title="Pull the latest Product Master from PACT (via the EC2 worker). Runs in ~45s.">⚡ Sync Product Master</button>
+   <span id="syncStatPm" class="mut" style="font-size:12.5px"></span>
+  </div>
+  <div class="card"><div class="scroll"><table id="tblPm">
+   <thead><tr><th>#</th><th>Code</th><th>Product</th><th>Group</th><th>Print Level</th><th>Print Unit</th><th class="r">Per unit (base)</th><th>L1</th><th>L2</th><th>L3</th><th>Warehouse</th><th>Scan Batches</th></tr></thead>
+   <tbody id="tbodyPm"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  </table></div></div>
+ </div>
+
+ <!-- ============== BOM tab ============== -->
+ <div id="tabBom" style="display:none">
+  <div class="toolbar">
+   <input id="qbom" class="search" placeholder="Search BOM name, code, or an input product…" oninput="renderBom()">
+   <select id="secBom" onchange="renderBom()" class="btn" style="padding-right:28px">
+    <option value="">Both sections</option><option value="INPUT">Inputs only</option><option value="OUTPUT">Outputs only</option>
+   </select>
+   <button class="btn" onclick="exportCsvBom()">⬇ Export CSV (flat)</button>
+   <button class="btn prim" id="btnSyncBom" onclick="syncBOM()" title="Pull the latest BOM With Wastage Summary from PACT. Runs in ~45s.">⚡ Sync BOM</button>
+   <span id="syncStatBom" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Click a BOM row to expand its stages</span>
+  </div>
+  <div class="card"><div class="scroll"><table id="tblBom">
+   <thead><tr><th class="r">#</th><th>BOM</th><th>Code</th><th>Final Product</th><th class="r">Batch Qty</th><th>Unit</th><th class="r">Stages</th><th class="r">Inputs</th></tr></thead>
+   <tbody id="tbodyBom"><tr><td colspan="8" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  </table></div></div>
+ </div>
 
  <div class="footer">
-  <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner app · Bills verifier</span>
-  <span>Auto-refresh from PACT: every hour</span>
+  <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
+  <span>Auto-refresh from PACT: hourly</span>
  </div>
 </div>
 
 <div id="toast" class="toast"></div>
 
 <script>
-/* Outlet Consumption — read-only Product Master viewer backed by the unified
-   /api/product-master endpoint (fed by the EC2 worker's hourly PACT sync into
-   Supabase costing_snapshots). */
+/* Outlet Consumption — read-only PACT masters viewer, backed by the unified
+   /api/product-master and /api/costing/bom endpoints (both fed by the EC2
+   worker's PACT sync into Supabase). */
 
-let PRODUCTS = [];
-let META = { source: '', synced_at: null };
 const $ = (id) => document.getElementById(id);
+let CURTAB = 'pm';
+let PM = { products: [], meta: {} };
+let BOM = { rows: [], boms: [], meta: {} };
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false };
+
 function toast(msg, ms){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._); toast._=setTimeout(()=>t.classList.remove('on'), ms||2400); }
 function fmtTime(iso){ if(!iso)return '—'; try{ return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}); }catch(e){ return iso; } }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function qty(n){ if(n==null||isNaN(n))return ''; const x=Number(n); return x.toLocaleString('en-IN',{maximumFractionDigits:3}); }
+function qty(n){ if(n==null||isNaN(Number(n))||n==='')return ''; return Number(n).toLocaleString('en-IN',{maximumFractionDigits:3}); }
 
-async function loadMaster(fresh){
+function selTab(t){
+  CURTAB = t;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  $('tabPm').style.display = t === 'pm' ? '' : 'none';
+  $('tabBom').style.display = t === 'bom' ? '' : 'none';
+  updateHeaderStats();
+  if(t === 'bom' && !BOM_LOADED.v) loadBom(false);
+}
+
+function updateHeaderStats(){
+  const m = (CURTAB === 'pm' ? PM : BOM).meta;
+  $('statSrc').textContent = 'source: ' + (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
+  $('statSrc').className = 'pill ' + (m.source === 'pact-live' ? 'live' : m.source ? 'warn' : 'live');
+  $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + (CURTAB === 'pm' ? ' products' : ' BOMs');
+  $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
+}
+
+/* ======================== PRODUCT MASTER ======================== */
+async function loadPm(fresh){
   const url = '/api/product-master' + (fresh ? '?fresh=1' : '');
   const r = await fetch(url, {cache:'no-store'});
   const j = await r.json();
   if(!j.ok){ throw new Error(j.error || ('product-master returned '+r.status)); }
-  PRODUCTS = Array.isArray(j.products) ? j.products : [];
-  META = { source: j.source || '', synced_at: j.synced_at || null, count: j.count };
-  // Groups dropdown
-  const groups = [...new Set(PRODUCTS.map(p => p.group).filter(Boolean))].sort();
-  const sel = $('grp');
-  const cur = sel.value;
+  PM.products = Array.isArray(j.products) ? j.products : [];
+  PM.meta = { source: j.source || '', synced_at: j.synced_at || null, count: j.count ?? PM.products.length };
+  const groups = [...new Set(PM.products.map(p => p.group).filter(Boolean))].sort();
+  const sel = $('grpPm'); const cur = sel.value;
   sel.innerHTML = '<option value="">All groups</option>' + groups.map(g => `<option value="${esc(g)}"${cur===g?' selected':''}>${esc(g)}</option>`).join('');
-  // Header stats
-  $('statSrc').textContent = 'source: ' + (META.source === 'pact-live' ? 'PACT live' : META.source);
-  $('statSrc').className = 'pill ' + (META.source === 'pact-live' ? 'live' : 'warn');
-  $('statCnt').textContent = (META.count ?? PRODUCTS.length).toLocaleString('en-IN') + ' products';
-  $('statAt').textContent = 'synced: ' + fmtTime(META.synced_at);
-  renderPage();
+  PM_LOADED.v = true;
+  if(CURTAB === 'pm') updateHeaderStats();
+  renderPm();
 }
-
-function renderPage(){
-  const q = ($('q').value || '').trim().toLowerCase();
-  const g = $('grp').value || '';
-  const list = PRODUCTS.filter(p =>
+function renderPm(){
+  const q = ($('qpm').value || '').trim().toLowerCase();
+  const g = $('grpPm').value || '';
+  const list = PM.products.filter(p =>
     (!g || p.group === g) &&
     (!q || String(p.name||'').toLowerCase().includes(q) || String(p.code||'').toLowerCase().includes(q))
   );
@@ -141,77 +178,190 @@ function renderPage(){
       <td>${p.printLevel ? '<span class="sb">'+esc(p.printLevel)+'</span>' : '<span class="mut">—</span>'}</td>
       <td>${esc(p.unit || '')}</td>
       <td class="r">${scale ? scale + ' ' + esc(prod) : '<span class="mut">—</span>'}</td>
-      <td>${L1 ? esc((L1.u||'')) : '<span class="mut">—</span>'}</td>
-      <td>${L2 ? esc((L2.u||'')) + (L2.s ? ' <span class="mut">('+qty(L2.s)+')</span>' : '') : '<span class="mut">—</span>'}</td>
-      <td>${L3 ? esc((L3.u||'')) + (L3.s ? ' <span class="mut">('+qty(L3.s)+')</span>' : '') : '<span class="mut">—</span>'}</td>
-      <td class="wh">${esc(p.idealWarehouse || '')}</td>
+      <td>${L1 ? esc(L1.u||'') : '<span class="mut">—</span>'}</td>
+      <td>${L2 ? esc(L2.u||'') + (L2.s ? ' <span class="mut">('+qty(L2.s)+')</span>' : '') : '<span class="mut">—</span>'}</td>
+      <td>${L3 ? esc(L3.u||'') + (L3.s ? ' <span class="mut">('+qty(L3.s)+')</span>' : '') : '<span class="mut">—</span>'}</td>
+      <td>${esc(p.idealWarehouse || '')}</td>
       <td>${p.scanBatches === true ? '<span class="pbl">Yes</span>' : p.scanBatches === false ? '<span class="mut">No</span>' : '<span class="mut">—</span>'}</td>
     </tr>`;
   });
   const extra = list.length > 2000 ? `<tr><td colspan="12" class="mut" style="padding:14px;text-align:center">… ${list.length-2000} more rows — refine the search to see them</td></tr>` : '';
-  $('tbody').innerHTML = rows.join('') + extra || '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No products match.</td></tr>';
+  $('tbodyPm').innerHTML = (rows.join('') || '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No products match.</td></tr>') + extra;
 }
-
-function exportCsv(){
-  const q = ($('q').value || '').trim().toLowerCase();
-  const g = $('grp').value || '';
-  const list = PRODUCTS.filter(p =>
+function exportCsvPm(){
+  const q = ($('qpm').value || '').trim().toLowerCase();
+  const g = $('grpPm').value || '';
+  const list = PM.products.filter(p =>
     (!g || p.group === g) &&
     (!q || String(p.name||'').toLowerCase().includes(q) || String(p.code||'').toLowerCase().includes(q))
   );
   const header = ['Code','Product Name','Group','Print Level','Print Unit','Per Unit (base)','L1 Unit','L2 Unit','L2 Rate','L3 Unit','L3 Rate','Warehouse','Scan Batches'];
-  const esc = (v) => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const lines = [header.map(esc).join(',')];
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = [header.map(esc2).join(',')];
   for(const p of list){
     const L1=p.levels&&p.levels.L1||{}, L2=p.levels&&p.levels.L2||{}, L3=p.levels&&p.levels.L3||{};
-    lines.push([p.code,p.name,p.group||'',p.printLevel||'',p.unit||'',p.scale??'',L1.u||'',L2.u||'',L2.s??'',L3.u||'',L3.s??'',p.idealWarehouse||'',p.scanBatches??''].map(esc).join(','));
+    lines.push([p.code,p.name,p.group||'',p.printLevel||'',p.unit||'',p.scale??'',L1.u||'',L2.u||'',L2.s??'',L3.u||'',L3.s??'',p.idealWarehouse||'',p.scanBatches??''].map(esc2).join(','));
   }
-  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  downloadBlob(lines.join('\n'), 'product-master-'+((PM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
+}
+
+/* ============================ BOM ============================ */
+const BOM_EXP = new Set();  // which BOMCodes are expanded
+
+async function loadBom(fresh){
+  const url = '/api/costing/bom' + (fresh ? '?fresh=1' : '');  // the costing endpoint ignores query but harmless
+  const r = await fetch(url, {cache:'no-store'});
+  const j = await r.json();
+  if(!j.ok){ throw new Error(j.error || ('/api/costing/bom returned '+r.status)); }
+  const data = Array.isArray(j.data) ? j.data : [];
+  BOM.rows = data.length > 1 ? data.slice(1) : [];
+  BOM.meta = { source: 'pact-live', synced_at: j.synced_at || null };
+  // Group into BOMs
+  const map = new Map();
+  for(const r of BOM.rows){
+    // columns: 0 Section, 1 Stage, 2 BOMCode, 3 BOM, 4 Product Code, 5 Product Name, 6 Unit, 7 Usage Qty, 8 Wastage, 9 Raw Qty, 10 OPQty
+    const code = r[2]; if(!code) continue;
+    if(!map.has(code)) map.set(code, { code, name:'', fp:'', fpQty:null, fpUnit:'', stages:new Map(), nIn:0, nOut:0 });
+    const b = map.get(code);
+    // Parse "140G BASA FISH (10 PKT/BUNCH)   (FP: 140g Basa Fish (10 Pkt/Bunch)   Qty: 30   Units: Bunch)"
+    if(!b.name){
+      const bomStr = String(r[3]||'');
+      const nameMatch = bomStr.split('   (FP:')[0].trim();
+      b.name = nameMatch || bomStr;
+      const fpMatch = bomStr.match(/\(FP:\s*(.+?)\s{2,}Qty:\s*([\d.]+)\s{2,}Units:\s*([^)]+)\)/);
+      if(fpMatch){ b.fp = fpMatch[1].trim(); b.fpQty = Number(fpMatch[2]); b.fpUnit = fpMatch[3].trim(); }
+    }
+    const stg = r[1] || 'Stage 1';
+    if(!b.stages.has(stg)) b.stages.set(stg, { stage:stg, inputs:[], outputs:[] });
+    const s = b.stages.get(stg);
+    if(r[0] === 'OUTPUT'){ s.outputs.push(r); b.nOut++; }
+    else { s.inputs.push(r); b.nIn++; }
+  }
+  BOM.boms = [...map.values()].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  BOM.meta.count = BOM.boms.length;
+  BOM_LOADED.v = true;
+  if(CURTAB === 'bom') updateHeaderStats();
+  renderBom();
+}
+function renderBom(){
+  const q = ($('qbom').value || '').trim().toLowerCase();
+  const sec = $('secBom').value || '';
+  // match by BOM name/code or an input product
+  const list = BOM.boms.filter(b => {
+    if(!q) return true;
+    if(String(b.name||'').toLowerCase().includes(q)) return true;
+    if(String(b.code||'').toLowerCase().includes(q)) return true;
+    if(String(b.fp||'').toLowerCase().includes(q)) return true;
+    for(const s of b.stages.values()){
+      for(const row of [...s.inputs, ...s.outputs]){
+        if(String(row[5]||'').toLowerCase().includes(q) || String(row[4]||'').toLowerCase().includes(q)) return true;
+      }
+    }
+    return false;
+  });
+  const rows = [];
+  let n = 0;
+  for(const b of list.slice(0, 500)){
+    n++;
+    const open = BOM_EXP.has(b.code);
+    rows.push(`<tr class="bomhdr" onclick="toggleBom('${esc(b.code)}')">
+      <td class="r mut">${n}</td>
+      <td><span class="expbtn">${open?'▼':'▶'}</span> ${esc(b.name || '(unnamed)')}</td>
+      <td class="code">${esc(b.code)}</td>
+      <td>${esc(b.fp || '')}</td>
+      <td class="r">${b.fpQty != null ? qty(b.fpQty) : '<span class="mut">—</span>'}</td>
+      <td>${esc(b.fpUnit || '')}</td>
+      <td class="r">${b.stages.size}</td>
+      <td class="r">${b.nIn}</td>
+    </tr>`);
+    if(open){
+      for(const s of [...b.stages.values()].sort((a,b)=>a.stage.localeCompare(b.stage))){
+        const showIn  = (!sec || sec === 'INPUT') && s.inputs.length;
+        const showOut = (!sec || sec === 'OUTPUT') && s.outputs.length;
+        if(showIn || showOut) rows.push(`<tr class="stagehdr"><td></td><td colspan="7">${esc(s.stage)}</td></tr>`);
+        if(showIn) for(const r of s.inputs){
+          rows.push(`<tr class="inrow"><td></td><td colspan="2">↳ <span class="sb">IN</span> <span class="code">${esc(r[4]||'')}</span>  ${esc(r[5]||'')}</td><td>${esc(r[6]||'')}</td><td class="r">${qty(r[7])}</td><td class="r">${r[8]?esc(r[8])+'%':'0%'}</td><td class="r" colspan="2">Raw ${qty(r[9])}</td></tr>`);
+        }
+        if(showOut) for(const r of s.outputs){
+          rows.push(`<tr class="outrow"><td></td><td colspan="2">↳ <span class="sb out">OUT</span> <span class="code">${esc(r[4]||'')}</span>  ${esc(r[5]||'')}</td><td>${esc(r[6]||'')}</td><td class="r" colspan="2"></td><td class="r" colspan="2">OPQty ${qty(r[10])}</td></tr>`);
+        }
+      }
+    }
+  }
+  const extra = list.length > 500 ? `<tr><td colspan="8" class="mut" style="padding:14px;text-align:center">… ${list.length-500} more BOMs — refine the search to see them</td></tr>` : '';
+  $('tbodyBom').innerHTML = (rows.join('') || '<tr><td colspan="8" class="mut" style="padding:20px;text-align:center">No BOMs match.</td></tr>') + extra;
+}
+function toggleBom(code){ if(BOM_EXP.has(code)) BOM_EXP.delete(code); else BOM_EXP.add(code); renderBom(); }
+function exportCsvBom(){
+  const q = ($('qbom').value || '').trim().toLowerCase();
+  const sec = $('secBom').value || '';
+  const matches = (b) => {
+    if(!q) return true;
+    if(String(b.name||'').toLowerCase().includes(q)) return true;
+    if(String(b.code||'').toLowerCase().includes(q)) return true;
+    for(const s of b.stages.values()) for(const r of [...s.inputs, ...s.outputs]) {
+      if(String(r[5]||'').toLowerCase().includes(q)) return true;
+    }
+    return false;
+  };
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const header = ['BOM Code','BOM Name','FG Product','FG Qty','FG Unit','Section','Stage','Product Code','Product Name','Unit','Usage Qty','Wastage %','Raw Qty','OPQty'];
+  const lines = [header.map(esc2).join(',')];
+  for(const b of BOM.boms.filter(matches)){
+    for(const s of b.stages.values()){
+      for(const r of [...s.inputs, ...s.outputs]){
+        if(sec && r[0] !== sec) continue;
+        lines.push([b.code,b.name,b.fp,b.fpQty,b.fpUnit, r[0],r[1],r[4],r[5],r[6],r[7],r[8],r[9],r[10]].map(esc2).join(','));
+      }
+    }
+  }
+  downloadBlob(lines.join('\n'), 'bom-'+((BOM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
+}
+
+/* ======================= SYNC HELPERS ======================= */
+async function syncReport(report, btnId, statId, baselineAt, afterLoad){
+  const btn = $(btnId), stat = $(statId);
+  if(btn.disabled) return;
+  btn.disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(() => { stat.textContent = 'syncing… ' + Math.round((Date.now()-t0)/1000) + 's'; }, 400);
+  try{
+    const q = await fetch('/api/sync-costing?report='+report, {method:'POST'}).then(r => r.json()).catch(e => ({ok:false,error:String(e)}));
+    if(!q.ok) throw new Error(q.error || 'queue failed');
+    const deadline = Date.now() + 180000;
+    while(Date.now() < deadline){
+      await new Promise(r => setTimeout(r, 4000));
+      const j = await fetch('/api/costing/'+report, {cache:'no-store'}).then(r => r.json()).catch(()=>null);
+      if(j && j.synced_at && j.synced_at !== baselineAt){
+        await afterLoad();
+        const secs = Math.round((Date.now()-t0)/1000);
+        stat.textContent = '✓ synced · ' + secs + 's';
+        toast('Synced from PACT (' + secs + 's)');
+        return;
+      }
+    }
+    throw new Error('timed out waiting for PACT (3 min). Check the EC2 worker.');
+  }catch(e){
+    stat.textContent = '✗ ' + (e.message || e);
+    toast('Sync failed: ' + (e.message || e), 5000);
+  }finally{
+    clearInterval(tick); btn.disabled = false;
+  }
+}
+function syncPM(){ syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
+function syncBOM(){ syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
+
+function downloadBlob(content, filename){
+  const blob = new Blob([content], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
-  const dt = (META.synced_at||new Date().toISOString()).slice(0,10);
-  a.href = URL.createObjectURL(blob);
-  a.download = 'product-master-'+dt+'.csv';
+  a.href = URL.createObjectURL(blob); a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 
-let SYNC_BUSY = false;
-async function syncFromPACT(){
-  if(SYNC_BUSY){ toast('Sync already running…'); return; }
-  SYNC_BUSY = true;
-  const btn = $('btnSync'), stat = $('syncStat');
-  btn.disabled = true;
-  const t0 = Date.now();
-  const tick = setInterval(()=>{ stat.textContent = 'syncing from PACT… ' + Math.round((Date.now()-t0)/1000) + 's'; }, 400);
-  try{
-    const q = await fetch('/api/sync-costing?report=pm', {method:'POST'}).then(r => r.json()).catch(e => ({ok:false,error:String(e)}));
-    if(!q.ok) throw new Error(q.error || 'queue failed');
-    const baseline = META.synced_at || '';
-    const deadline = Date.now() + 180000;  // 3 min hard cap
-    while(Date.now() < deadline){
-      await new Promise(r => setTimeout(r, 4000));
-      const j = await fetch('/api/costing/pm', {cache:'no-store'}).then(r => r.json()).catch(()=>null);
-      if(j && j.synced_at && j.synced_at !== baseline){
-        await loadMaster(true);  // bust the 60s API cache and refetch
-        const secs = Math.round((Date.now()-t0)/1000);
-        stat.textContent = '✓ synced ' + ((META.count ?? PRODUCTS.length).toLocaleString('en-IN')) + ' products · ' + secs + 's';
-        toast('Product Master synced from PACT (' + ((META.count ?? PRODUCTS.length)) + ' products, ' + secs + 's)');
-        return;
-      }
-    }
-    throw new Error('timed out waiting for PACT (3 min)');
-  }catch(e){
-    stat.textContent = '✗ ' + (e.message || e);
-    toast('Sync failed: ' + (e.message || e), 4000);
-  }finally{
-    clearInterval(tick);
-    btn.disabled = false;
-    SYNC_BUSY = false;
-  }
-}
-
-loadMaster(false).catch(e => {
-  $('tbody').innerHTML = `<tr><td colspan="12" style="padding:18px;color:#b91c1c">Failed to load Product Master: ${esc(e.message || e)}</td></tr>`;
+// Boot: load PM first (visible tab), lazy-load BOM when its tab opens.
+loadPm(false).catch(e => {
+  $('tbodyPm').innerHTML = `<tr><td colspan="12" style="padding:18px;color:#b91c1c">Failed to load Product Master: ${esc(e.message || e)}</td></tr>`;
   toast('Load failed: ' + (e.message || e), 4000);
 });
 </script>
