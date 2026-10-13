@@ -176,16 +176,16 @@ setInterval(() => {
 // /api/sync-costing button uses, on each report's natural cadence:
 //   Stock Inward  every COSTING_SI_HOURS hours   (default 3)
 //   Process Flow  daily at COSTING_PF_HOUR IST   (default 20 = 8pm)
-//   Product Master + BOM  daily at COSTING_MASTER_HOUR IST (default 21 = 9pm)
+//   Product Master + BOM  daily at COSTING_MASTER_HOUR IST (default 4 = 4am)
 // Times are IST (worker box is usually UTC). In-memory guards prevent repeats;
 // a worker restart may enqueue at most one extra job — harmless.
 if (String(process.env.COSTING_CRON || '') === '1') {
   const SI_HOURS = Number(process.env.COSTING_SI_HOURS || 3);
   const PF_HOUR = Number(process.env.COSTING_PF_HOUR || 20);
-  const MASTER_HOUR = Number(process.env.COSTING_MASTER_HOUR || 21);
+  const MASTER_HOUR = Number(process.env.COSTING_MASTER_HOUR || 4);    // 4 = PM + BOM daily at 04:00 IST
   const ist = () => new Date(Date.now() + 5.5 * 3600 * 1000);
   const dayKey = (d) => d.toISOString().slice(0, 10);
-  const PM_HOURLY = Number(process.env.COSTING_PM_HOURLY || 1);        // 1 = refresh PM every hour
+  const PM_HOURLY = Number(process.env.COSTING_PM_HOURLY || 0);        // 0 = off (PM only on the daily 4 AM run + manual Sync); set to 1 to also refresh PM every hour at :07
   const PM_MIN = Math.min(59, Math.max(0, Number(process.env.COSTING_PM_MIN || 7)));  // minute of each hour to fire
   let lastSI = Date.now();          // wait a full interval before the first SI pull
   let lastPFDay = '', lastMasterDay = '';
