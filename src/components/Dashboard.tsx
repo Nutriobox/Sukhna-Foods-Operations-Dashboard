@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Bill, Item } from "@/lib/types";
 import { validate, allUploaded, canUpload, BUYER_GST, BUYER_NAME } from "@/lib/validate";
 import { resolveLine, productByName, productCode, matchProduct, canonUnit, ALL_UNITS, CATALOG, idealWarehouse, type PactLine } from "@/lib/pact";
@@ -334,7 +334,30 @@ export default function Dashboard({ initialBills }: { initialBills: Bill[] }) {
             <button className="pmbtn guide" onClick={() => setFlowOpen(true)} title="Step-by-step: how the dashboard maps to PACT"><Icon n="file" size={14} />PACT flow guide</button>
             <button className="pmbtn" onClick={() => setPmOpen(true)}><Icon n="file" size={14} />View product master</button>
             <button className="pmbtn" onClick={() => setSmOpen(true)}><Icon n="mail" size={14} />View supplier master</button>
-            <button className="pmbtn ghost" onClick={() => ping("Product master re-upload — connect the source/server to enable live sync.")}><Icon n="refresh" size={14} />Reupload product master</button>
+            <button className="pmbtn ghost" onClick={async () => {
+              try {
+                ping("Syncing Product Master from PACT…");
+                const t0 = Date.now();
+                const q = await fetch("/api/sync-costing?report=pm", { method: "POST" });
+                const qj = await q.json().catch(() => ({}));
+                if (!qj.ok) { ping("Could not queue sync: " + (qj.error || q.status)); return; }
+                // Poll /api/costing/pm until synced_at advances past our start
+                const baseline = await fetch("/api/costing/pm", { cache: "no-store" }).then(r => r.json()).then(j => j.synced_at || "").catch(() => "");
+                const deadline = Date.now() + 180000;
+                while (Date.now() < deadline) {
+                  await new Promise(r => setTimeout(r, 4000));
+                  const j = await fetch("/api/costing/pm", { cache: "no-store" }).then(r => r.json()).catch(() => ({}));
+                  if (j.synced_at && j.synced_at !== baseline) {
+                    const secs = Math.round((Date.now() - t0) / 1000);
+                    // Bust the /api/product-master in-memory cache for callers
+                    await fetch("/api/product-master?fresh=1", { cache: "no-store" }).catch(() => {});
+                    ping("Product Master synced from PACT (" + (j.row_count || "?") + " products, " + secs + "s)");
+                    return;
+                  }
+                }
+                ping("Sync queued but hasn't finished yet — try again in a minute.");
+              } catch (e) { ping("Sync failed: " + ((e as Error).message || "unknown")); }
+            }}><Icon n="refresh" size={14} />Sync product master from PACT</button>
             <button className="pmbtn add" onClick={() => setBillOpen(true)}><Icon n="plus" size={14} />Bill Upload</button>
           </>}
           {view === "sales" && <>
@@ -2607,17 +2630,162 @@ function SupplierMaster({ onClose }: { onClose: () => void }) {
   );
 }
 
+// Checkbox that also supports an indeterminate ("some selected") state.
+function TriCheck({ state, onChange, title }: { state: "all" | "some" | "none"; onChange: () => void; title?: string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = state === "some"; }, [state]);
+  return <input ref={ref} type="checkbox" className="pmchk" checked={state === "all"} onChange={onChange} title={title} onClick={(e) => e.stopPropagation()} />;
+}
+
+// A single product row, memoised so ticking one checkbox never re-renders the
+// whole (2k-row) list — only the row whose `checked` actually changed.
+const PMRow = React.memo(function PMRow({ p, idx, checked, onToggle }: { p: (typeof CATALOG)[number]; idx: number; checked: boolean; onToggle: (code: string) => void }) {
+  const code = p.code || p.name;
+  const lvl = (["L1", "L2", "L3"] as const).filter((k) => p.levels[k]).map((k) => `${k}:${p.levels[k].u}${p.levels[k].s != null ? ` (${p.levels[k].s})` : ""}`).join("  ");
+  return (
+    <tr className={checked ? "pmrow pmsel" : "pmrow"} onClick={() => onToggle(code)}>
+      <td className="pmchkc"><input type="checkbox" className="pmchk" checked={checked} onChange={() => onToggle(code)} onClick={(e) => e.stopPropagation()} /></td>
+      <td className="n">{idx}</td>
+      <td className="nm">{p.name}<span className="pmcode"> · {p.code || "—"}</span></td>
+      <td>{p.units.join(", ") || "—"}</td>
+      <td>{p.printLevel || "—"}</td>
+      <td className="lv">{lvl || "—"}</td>
+    </tr>
+  );
+});
+
+const PM_GROUP_ORDER = ["Finished Goods", "Work In Progress", "Semi Process", "Raw Material", "Packing Materials"];
+const PM_UNCAT = "Uncategorised";
+const pmCsv = (s: string | number) => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
+
 function ProductMaster({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
-  const rows = useMemo(() => {
-    // Show every matching product (the list is virtual-free but a plain scroll
-    // handles ~2k rows fine); no artificial cap.
-    return ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql)) : CATALOG;
-  }, [ql]);
-  const total = ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql)).length : CATALOG.length;
-  const lvlTxt = (p: (typeof CATALOG)[number]) =>
-    (["L1", "L2", "L3"] as const).filter((k) => p.levels[k]).map((k) => `${k}:${p.levels[k].u}${p.levels[k].s != null ? ` (${p.levels[k].s})` : ""}`).join("  ");
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set()); // groups start collapsed (fast first paint)
+  const [view, setView] = useState<"list" | "inv">("list");
+
+  // live-inventory sync state
+  const [inv, setInv] = useState<SoIndex>({});
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [note, setNote] = useState("");
+  // Local working edits to batch qty / rate, keyed `${code}|${batchIndex}`.
+  const [edits, setEdits] = useState<Record<string, { qty: number; rate: string }>>({});
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const codeOf = (p: (typeof CATALOG)[number]) => (p.code || p.name);
+  const groupOf = (p: (typeof CATALOG)[number]) => ((p.group && String(p.group).trim()) || PM_UNCAT);
+  const nf = (n: number) => (Math.round(n * 100) / 100).toLocaleString("en-IN");
+
+  const filtered = useMemo(() =>
+    ql ? CATALOG.filter((p) => p.name.toLowerCase().includes(ql) || String(p.code || "").toLowerCase().includes(ql) || groupOf(p).toLowerCase().includes(ql)) : CATALOG,
+    [ql]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Group the filtered rows, ordered by the production flow (Uncategorised last).
+  const groups = useMemo(() => {
+    const m = new Map<string, (typeof CATALOG)[number][]>();
+    for (const p of filtered) { const g = groupOf(p); const arr = m.get(g) || []; if (!m.has(g)) m.set(g, arr); arr.push(p); }
+    const names = Array.from(m.keys()).sort((a, b) => {
+      const aa = a === PM_UNCAT, ba = b === PM_UNCAT;
+      if (aa !== ba) return aa ? 1 : -1;
+      const ai = PM_GROUP_ORDER.indexOf(a), bi = PM_GROUP_ORDER.indexOf(b);
+      if (ai !== bi) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      return a.localeCompare(b);
+    });
+    return names.map((name) => ({ name, items: m.get(name)! }));
+  }, [filtered]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const searching = ql.length > 0;
+
+  // ---- selection ----
+  const selCount = sel.size;
+  const allCodes = useMemo(() => filtered.map((p) => p.code || p.name), [filtered]);
+  const countIn = (items: (typeof CATALOG)[number][]) => { let n = 0; for (const p of items) if (sel.has(codeOf(p))) n++; return n; };
+  const stateOf = (items: (typeof CATALOG)[number][]): "all" | "some" | "none" => {
+    if (!items.length) return "none"; const n = countIn(items); return n === 0 ? "none" : n === items.length ? "all" : "some";
+  };
+  const allState: "all" | "some" | "none" = (() => {
+    if (!allCodes.length) return "none"; let n = 0; for (const c of allCodes) if (sel.has(c)) n++;
+    return n === 0 ? "none" : n === allCodes.length ? "all" : "some";
+  })();
+  const onToggle = useCallback((code: string) => setSel((s) => { const n = new Set(s); if (n.has(code)) n.delete(code); else n.add(code); return n; }), []);
+  const toggleGroup = (items: (typeof CATALOG)[number][]) => setSel((s) => {
+    const n = new Set(s); const codes = items.map((p) => p.code || p.name); const every = codes.every((c) => n.has(c));
+    for (const c of codes) { if (every) n.delete(c); else n.add(c); } return n;
+  });
+  const toggleAll = () => setSel((s) => {
+    const n = new Set(s); const every = allCodes.every((c) => n.has(c));
+    for (const c of allCodes) { if (every) n.delete(c); else n.add(c); } return n;
+  });
+  const clearSel = () => setSel(new Set());
+  const toggleExpand = (name: string) => setExpanded((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+
+  // ---- inventory sync ----
+  const fmtSynced = (iso: string | null) => {
+    if (!iso) return ""; const d = new Date(iso); const mins = Math.round((Date.now() - d.getTime()) / 60000);
+    if (mins <= 0) return "just now"; if (mins === 1) return "1 min ago"; if (mins < 60) return mins + " min ago";
+    return d.toLocaleString("en-IN");
+  };
+  const loadLatest = async (): Promise<string | null> => {
+    if (!supabase) { setNote("Live inventory isn't configured for this dashboard yet."); return null; }
+    const { data, error } = await supabase.from("inventory_snapshots")
+      .select("synced_at,products,batches,data").eq("status", "ok")
+      .order("synced_at", { ascending: false }).limit(1).maybeSingle();
+    if (error || !data) return null;
+    const { idx } = soIndexFromRows((data.data as Array<Record<string, unknown>>) || []);
+    setInv(idx); setSyncedAt(data.synced_at as string); return data.synced_at as string;
+  };
+  const syncInventory = async () => {
+    if (!selCount) return;
+    setView("inv"); setSyncing(true);
+    setNote("Pulling the latest stock for the selected items from PACT (about 1–2 min). Showing the last synced figures meanwhile.");
+    const before = await loadLatest();
+    try {
+      const r = await fetch("/api/sync-inventory", { method: "POST" });
+      const j = await r.json().catch(() => ({} as { ok?: boolean; error?: string }));
+      if (!r.ok || !j.ok) { setNote("Couldn't start a fresh sync" + (j.error ? ": " + j.error : "") + ". Showing the last synced inventory."); setSyncing(false); return; }
+      let tries = 0;
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        tries++;
+        const at = await loadLatest();
+        if (at && at !== before) { setNote(""); setSyncing(false); if (pollRef.current) clearInterval(pollRef.current); }
+        else if (tries > 50) { setNote("Sync is taking longer than usual — close and reopen the list to refresh."); setSyncing(false); if (pollRef.current) clearInterval(pollRef.current); }
+      }, 3000);
+    } catch { setNote("Sync trigger failed — showing the last synced inventory."); setSyncing(false); }
+  };
+
+  const selectedProducts = useMemo(() => CATALOG.filter((p) => sel.has(p.code || p.name)), [sel]);
+
+  // ---- editable working copy of the synced stock ----
+  const ekey = (p: (typeof CATALOG)[number], bi: number) => codeOf(p) + "|" + bi;
+  const getQty = (p: (typeof CATALOG)[number], bi: number, b: SoBatch) => { const e = edits[ekey(p, bi)]; return e ? e.qty : b.available; };
+  const getRate = (p: (typeof CATALOG)[number], bi: number, b: SoBatch) => { const e = edits[ekey(p, bi)]; return e ? e.rate : b.rate; };
+  const setQty = (p: (typeof CATALOG)[number], bi: number, b: SoBatch, v: string) =>
+    setEdits((s) => ({ ...s, [ekey(p, bi)]: { qty: parseFloat(v) || 0, rate: (s[ekey(p, bi)]?.rate ?? b.rate) } }));
+  const setRate = (p: (typeof CATALOG)[number], bi: number, b: SoBatch, v: string) =>
+    setEdits((s) => ({ ...s, [ekey(p, bi)]: { qty: (s[ekey(p, bi)]?.qty ?? b.available), rate: v } }));
+  const editCount = Object.keys(edits).length;
+  const resetEdits = () => setEdits({});
+
+  const exportCsv = () => {
+    const head = ["Product code", "Product name", "Group", "Warehouse", "Batch", "Quantity", "Unit", "Rate", "Mfg", "Expiry", "Edited"];
+    const lines = [head.join(",")];
+    for (const p of selectedProducts) {
+      const batches = inv[codeOf(p)] || inv[p.code || ""] || [];
+      if (!batches.length) { lines.push([pmCsv(p.code || ""), pmCsv(p.name), pmCsv(groupOf(p)), "", "", "", "", "", "", "", ""].join(",")); continue; }
+      batches.forEach((b, bi) => {
+        const edited = !!edits[ekey(p, bi)];
+        lines.push([pmCsv(p.code || ""), pmCsv(p.name), pmCsv(groupOf(p)), pmCsv(b.warehouse), pmCsv(b.batchNumber), getQty(p, bi, b), pmCsv(b.unit), pmCsv(getRate(p, bi, b)), pmCsv(b.mfg), pmCsv(b.exp), edited ? "yes" : ""].join(","));
+      });
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob); const a = document.createElement("a");
+    a.href = url; a.download = "selected-inventory.csv"; a.click(); URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="overlay show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="pmodal">
@@ -2625,36 +2793,98 @@ function ProductMaster({ onClose }: { onClose: () => void }) {
           <span className="pbadge"><Icon n="file" size={15} /></span>
           <div className="pttl">
             <h2>PACT Product Master</h2>
-            <div className="sub">{CATALOG.length.toLocaleString("en-IN")} products · L1 base / L2 / L3 packaging levels</div>
+            <div className="sub">{CATALOG.length.toLocaleString("en-IN")} products · grouped by PACT category · tick items or groups to sync stock</div>
           </div>
           <button className="mclose" onClick={onClose}><Icon n="x" size={16} /></button>
         </div>
-        <div className="pmsearch">
-          <Icon n="search" size={15} />
-          <input placeholder="Search product name…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
-          <span className="pmcount">{rows.length === total ? total : `${rows.length} of ${total}`} shown</span>
-        </div>
-        <div className="pmbody">
-          <table className="pmtable">
-            <thead><tr><th>#</th><th>Product Name</th><th>Purchase Units</th><th>Print level</th><th>Packaging levels</th></tr></thead>
-            <tbody>
-              {rows.map((p, i) => (
-                <tr key={p.name + i}>
-                  <td className="n">{i + 1}</td>
-                  <td className="nm">{p.name}</td>
-                  <td>{p.units.join(", ") || "—"}</td>
-                  <td>{p.printLevel || "—"}</td>
-                  <td className="lv">{lvlTxt(p) || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {total > rows.length && <div className="pmmore">Showing first {rows.length}. Refine your search to see the rest.</div>}
-        </div>
-        <div className="pfoot">
-          <span className="pstatus ok"><Icon n="shield" size={16} />Read-only view · reupload to refresh from source</span>
-          <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
-        </div>
+
+        {view === "inv" ? (
+          <>
+            <div className="pmsearch">
+              <button className="pmbtn ghost" onClick={() => setView("list")}>← Back to selection</button>
+              <span className="pmcount">{selectedProducts.length} item{selectedProducts.length === 1 ? "" : "s"} · {syncedAt ? "synced " + fmtSynced(syncedAt) : "no snapshot yet"}{syncing ? " · refreshing…" : ""}{editCount ? ` · ${editCount} edited` : ""}</span>
+              <button className="pmbtn" disabled={syncing} onClick={syncInventory}><Icon n="refresh" size={14} /><span>{syncing ? "Syncing…" : "Sync again"}</span></button>
+            </div>
+            {note && <div className="pmnote">{note}</div>}
+            <div className="pmnote info">Edit a batch&apos;s quantity or rate below to adjust it. These stay a local working copy — they are not written back to PACT yet. Use Export CSV to take them out.</div>
+            <div className="pmbody">
+              <table className="pmtable invtable">
+                <thead><tr><th>Product</th><th>Warehouse</th><th>Batch</th><th>Quantity</th><th>Rate</th><th>Mfg</th><th>Expiry</th></tr></thead>
+                <tbody>
+                  {selectedProducts.map((p) => {
+                    const batches = inv[codeOf(p)] || inv[p.code || ""] || [];
+                    if (!batches.length) return (
+                      <tr key={"np_" + codeOf(p)}><td className="nm">{p.name}<span className="pmcode"> · {p.code || "—"}</span></td><td className="dim" colSpan={6}>No stock in the latest PACT inventory</td></tr>
+                    );
+                    const tot = batches.reduce((a, b, bi) => a + (getQty(p, bi, b) || 0), 0);
+                    return batches.map((b, bi) => (
+                      <tr key={codeOf(p) + "_" + bi}>
+                        {bi === 0 ? <td className="nm" rowSpan={batches.length}>{p.name}<span className="pmcode"> · {p.code || "—"}</span><div className="pmtot">{nf(tot)} {batches[0].unit} total</div></td> : null}
+                        <td>{b.warehouse}</td>
+                        <td>{b.batchNumber}</td>
+                        <td className="lv"><input className={"pmqty" + (edits[ekey(p, bi)] ? " edited" : "")} inputMode="decimal" value={String(getQty(p, bi, b))} onChange={(e) => setQty(p, bi, b, e.target.value)} /> {b.unit}</td>
+                        <td className="lv"><input className={"pmrate" + (edits[ekey(p, bi)] ? " edited" : "")} value={getRate(p, bi, b)} onChange={(e) => setRate(p, bi, b, e.target.value)} /></td>
+                        <td className="lv">{b.mfg}</td>
+                        <td className="lv">{b.exp}</td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="pfoot">
+              <span className="pstatus ok"><Icon n="shield" size={16} />Live stock for {selectedProducts.length} selected item{selectedProducts.length === 1 ? "" : "s"}{editCount ? ` · ${editCount} edit${editCount === 1 ? "" : "s"}` : ""}</span>
+              {editCount ? <button className="pmlink" onClick={resetEdits}>reset edits</button> : null}
+              <button className="pmbtn ghost" onClick={exportCsv}><Icon n="download" size={14} /><span>Export CSV</span></button>
+              <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="pmsearch">
+              <Icon n="search" size={15} />
+              <input placeholder="Search product, code or category…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+              <span className="pmcount">{filtered.length === CATALOG.length ? CATALOG.length : `${filtered.length} of ${CATALOG.length}`} shown</span>
+            </div>
+            <div className="pmbody">
+              <table className="pmtable pmselect">
+                <thead><tr>
+                  <th className="pmchkc"><TriCheck state={allState} onChange={toggleAll} title="Select all shown" /></th>
+                  <th>#</th><th>Product Name</th><th>Purchase Units</th><th>Print level</th><th>Packaging levels</th>
+                </tr></thead>
+                <tbody>
+                  {groups.flatMap((grp) => {
+                    const open = searching || expanded.has(grp.name);
+                    const nSel = countIn(grp.items);
+                    const header = (
+                      <tr className="pmgrp" key={"g_" + grp.name} onClick={() => toggleExpand(grp.name)}>
+                        <td className="pmchkc"><TriCheck state={stateOf(grp.items)} onChange={() => toggleGroup(grp.items)} title={"Select all in " + grp.name} /></td>
+                        <td colSpan={5}>
+                          <span className={"pmchev" + (open ? " open" : "")}>▸</span>
+                          <span className="pmgname">{grp.name}</span>
+                          <span className="pmgcount">{grp.items.length} item{grp.items.length === 1 ? "" : "s"}{nSel ? ` · ${nSel} selected` : ""}</span>
+                          {!open && <span className="pmghint">tap to open</span>}
+                        </td>
+                      </tr>
+                    );
+                    if (!open) return [header];
+                    const rows = grp.items.map((p, j) => (
+                      <PMRow key={(p.code || p.name) + "_" + j} p={p} idx={j + 1} checked={sel.has(p.code || p.name)} onToggle={onToggle} />
+                    ));
+                    return [header, ...rows];
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="pfoot">
+              {selCount > 0
+                ? <span className="pstatus ok"><Icon n="shield" size={16} />{selCount} selected <button className="pmlink" onClick={clearSel}>clear</button></span>
+                : <span className="pstatus"><Icon n="shield" size={16} />Open a group, tick items (or a whole group), then sync their stock</span>}
+              <button className="pmbtn so" disabled={!selCount} onClick={syncInventory}><Icon n="refresh" size={14} /><span>Sync inventory{selCount ? ` (${selCount})` : ""}</span></button>
+              <button className="btn btn-ghost" style={{ padding: "10px 15px" }} onClick={onClose}>Close</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

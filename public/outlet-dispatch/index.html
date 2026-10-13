@@ -339,6 +339,8 @@ table.rtable.rtot tfoot td{background:var(--green-soft)}
 
 <section class="card" id="refCard">
   <div class="card-head"><span class="step">&#9881;</span><h2>Reference files</h2>
+    <button id="btnSyncPM" class="xbtn" style="margin-left:auto;background:#2563eb;color:#fff;font-weight:600" onclick="syncPMFromPACT()" title="Pull the latest Product Master from PACT (via the EC2 worker, Supabase-backed) and apply it here immediately">⚡ Sync Product Master from PACT</button>
+    <span id="syncPMStat" class="hint" style="margin-left:10px"></span>
     <span class="hint" style="margin-left:auto">used whenever the date folder does not carry its own copy</span>
   </div>
   <div id="refRows"></div>
@@ -4542,6 +4544,82 @@ const localDate=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-
  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', startupPull);
  else setTimeout(startupPull, 0);
 })();
+</script>
+
+<script>
+/* ===== Manual "Sync Product Master from PACT" (one-click) ================
+   Fires the EC2 worker's PM sync via /api/sync-costing?report=pm, polls the
+   Supabase snapshot until synced_at advances, then fetches /api/product-master
+   (fresh) and converts the live row set into the same XLSX shape readMaster()
+   consumes — so the dispatch tool uses the latest PACT Product Master without
+   an Excel upload. Mirrored into REF.master so it survives reloads via the
+   existing Supabase mirror. */
+let SYNC_PM_BUSY=false;
+async function syncPMFromPACT(){
+ if(SYNC_PM_BUSY){toast('Sync already in progress…');return;}
+ SYNC_PM_BUSY=true;
+ const btn=document.getElementById('btnSyncPM'), stat=document.getElementById('syncPMStat');
+ const setStat=t=>{if(stat)stat.textContent=t;};
+ const t0=Date.now();
+ const tick=setInterval(()=>setStat('syncing… '+Math.round((Date.now()-t0)/1000)+'s'),500);
+ if(btn)btn.disabled=true;
+ try{
+  const q=await fetch('/api/sync-costing?report=pm',{method:'POST'}).then(r=>r.json()).catch(e=>({ok:false,error:String(e)}));
+  if(!q.ok){throw new Error(q.error||'queue failed');}
+  const base=await fetch('/api/costing/pm',{cache:'no-store'}).then(r=>r.json()).then(j=>j.synced_at||'').catch(()=>'');
+  const deadline=Date.now()+180000;
+  let done=null;
+  while(Date.now()<deadline){
+   await new Promise(r=>setTimeout(r,4000));
+   const j=await fetch('/api/costing/pm',{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+   if(j && j.synced_at && j.synced_at!==base){done=j;break;}
+  }
+  if(!done){throw new Error('timed out waiting for PACT (3 min)');}
+  // Fetch the reshaped product list (bust the 60s cache)
+  const pm=await fetch('/api/product-master?fresh=1',{cache:'no-store'}).then(r=>r.json());
+  if(!pm.ok||!pm.products){throw new Error('product-master endpoint returned no products');}
+  const rows=buildMasterRowsFromAPI(pm.products);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,'Product Master');
+  // Apply directly to S.master and mirror to REF.master for persistence
+  S.master=wb; S.names.master='Product Master (live PACT · '+new Date(done.synced_at).toLocaleString('en-IN',{hour12:true})+')';
+  try{readMaster();}catch(e){console.error(e);}
+  // Persist as REF.master too (via existing REF b64 roundtrip)
+  try{
+   const wbout=XLSX.write(wb,{type:'base64',bookType:'xlsx'});
+   REF.master={name:S.names.master,b64:wbout,when:new Date().toISOString().slice(0,10),wb};
+   if(typeof saveRef==='function')saveRef();
+   if(typeof dispatchRefSave==='function')dispatchRefSave();
+  }catch(e){console.error('persist REF.master failed',e);}
+  const secs=Math.round((Date.now()-t0)/1000);
+  setStat('✓ synced '+(pm.count||rows.length-2)+' products · '+secs+'s');
+  toast('Product Master synced from PACT — '+(pm.count||rows.length-2)+' products ('+secs+'s)');
+  if(typeof render==='function')render();
+  if(typeof renderRef==='function')renderRef();
+  if(typeof renderLinks==='function')renderLinks();
+ }catch(e){setStat('✗ '+(e.message||e)); toast('Sync failed: '+(e.message||e));}
+ finally{clearInterval(tick); if(btn)btn.disabled=false; SYNC_PM_BUSY=false;}
+}
+// Convert the API products array to the AoA shape readMaster() expects.
+// readMaster reads R.slice(2), with columns: [sno, code, label, name, group, vendor, L1U, L1R, L2U, L2R, L3U, L3R].
+function buildMasterRowsFromAPI(products){
+ const out=[['Product Master','','','','','','','','','','',''],
+            ['S.No','Product Code','Label','Product Name','Group','Vendor','L1 Unit','L1 Rate','L2 Unit','L2 Rate','L3 Unit','L3 Rate']];
+ let sn=0;
+ for(const p of products){
+  if(!p || !p.code || !p.name) continue;
+  const lv=(p.levels||{});
+  const L1=lv.L1||{}, L2=lv.L2||{}, L3=lv.L3||{};
+  out.push([++sn, p.code, p.code, p.name, p.group||'', '',
+            L1.u||'', 1,
+            L2.u||'', (L2.s!=null?L2.s:''),
+            L3.u||'', (L3.s!=null?L3.s:'')]);
+ }
+ return out;
+}
+window.syncPMFromPACT=syncPMFromPACT;
+window.buildMasterRowsFromAPI=buildMasterRowsFromAPI;
 </script>
 </body>
 </html>

@@ -185,8 +185,11 @@ if (String(process.env.COSTING_CRON || '') === '1') {
   const MASTER_HOUR = Number(process.env.COSTING_MASTER_HOUR || 21);
   const ist = () => new Date(Date.now() + 5.5 * 3600 * 1000);
   const dayKey = (d) => d.toISOString().slice(0, 10);
+  const PM_HOURLY = Number(process.env.COSTING_PM_HOURLY || 1);        // 1 = refresh PM every hour
+  const PM_MIN = Math.min(59, Math.max(0, Number(process.env.COSTING_PM_MIN || 7)));  // minute of each hour to fire
   let lastSI = Date.now();          // wait a full interval before the first SI pull
   let lastPFDay = '', lastMasterDay = '';
+  let lastPmHourKey = '';           // 'YYYY-MM-DD:HH' guard so we fire once per hour
 
   async function enqueueCosting(reports) {
     const jobs = reports.map((k) => ({
@@ -205,8 +208,45 @@ if (String(process.env.COSTING_CRON || '') === '1') {
       if (Date.now() - lastSI >= SI_HOURS * 3600 * 1000) { lastSI = Date.now(); await enqueueCosting(['si']); }
       if (h === PF_HOUR && lastPFDay !== today) { lastPFDay = today; await enqueueCosting(['pf']); }
       if (h === MASTER_HOUR && lastMasterDay !== today) { lastMasterDay = today; await enqueueCosting(['pm', 'bom']); }
+      // Hourly PM refresh (unified product-master for every tool) — minute PM_MIN of each hour.
+      if (PM_HOURLY && d.getUTCMinutes() === PM_MIN) {
+        const key = today + ':' + h;
+        if (lastPmHourKey !== key) { lastPmHourKey = key; await enqueueCosting(['pm']); }
+      }
     } catch (e) { log('[costing-cron] tick error:', e && e.message ? e.message : e); }
   }
-  log('Costing scheduler ON  (SI every ' + SI_HOURS + 'h, PF @' + PF_HOUR + ':00 IST, PM+BOM @' + MASTER_HOUR + ':00 IST)');
+  log('Costing scheduler ON  (SI every ' + SI_HOURS + 'h, PF @' + PF_HOUR + ':00 IST, PM+BOM @' + MASTER_HOUR + ':00 IST'
+      + (PM_HOURLY ? ', PM also hourly @ :' + String(PM_MIN).padStart(2,'0') + ' past the hour' : '')
+      + ')');
   setInterval(cronTick, 60 * 1000);
+}
+
+
+// ---------------------------------------------------------------------------
+// Scheduled inventory sync — pre-warms the BatchWise snapshot so the scanner's
+// Active Inventory screen shows fresh stock INSTANTLY instead of waiting ~2 min
+// for a live pull. Enabled with INVENTORY_CRON=1; cadence INVENTORY_SYNC_MIN
+// minutes (default 15, min 5). Skips a tick if an inventory sync is already
+// queued/processing, so slow runs never pile up.
+if (String(process.env.INVENTORY_CRON || '') === '1') {
+  const EVERY_MS = Math.max(5, Number(process.env.INVENTORY_SYNC_MIN || 15)) * 60 * 1000;
+  let lastInv = 0;
+  async function invTick() {
+    try {
+      if (Date.now() - lastInv < EVERY_MS) return;
+      const { data: pend } = await sb.from('pact_jobs')
+        .select('id').eq('invoice', 'sync:inventory').in('status', ['queued', 'processing']).limit(1);
+      if (pend && pend.length) { lastInv = Date.now(); return; }
+      lastInv = Date.now();
+      const { error } = await sb.from('pact_jobs').insert({
+        id: (require('crypto').randomUUID && require('crypto').randomUUID()) || (Date.now() + '-inv'),
+        invoice: 'sync:inventory', status: 'queued', dry_run: false, payload: { __sync: 'inventory' },
+      });
+      if (error) log('[inventory-cron] enqueue failed:', error.message);
+      else log('[inventory-cron] queued inventory sync');
+    } catch (e) { log('[inventory-cron] tick error:', e && e.message ? e.message : e); }
+  }
+  log('Inventory scheduler ON  (every ' + (EVERY_MS / 60000) + ' min)');
+  setInterval(invTick, 60 * 1000);
+  setTimeout(invTick, 30 * 1000); // first pre-warm shortly after boot
 }
