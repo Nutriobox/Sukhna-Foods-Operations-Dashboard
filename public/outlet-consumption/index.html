@@ -68,6 +68,7 @@
  <div class="tabs">
   <div class="tab on" data-t="pm" onclick="selTab('pm')">📦 Product Master</div>
   <div class="tab" data-t="bom" onclick="selTab('bom')">🧱 BOM (Stage Wise)</div>
+  <div class="tab" data-t="or" onclick="selTab('or')">🍽️ Outlet Recipes &amp; BOM</div>
  </div>
 
  <!-- ============== Product Master tab ============== -->
@@ -103,6 +104,38 @@
   </table></div></div>
  </div>
 
+ <!-- ============== Outlet Recipes &amp; BOM tab ============== -->
+ <div id="tabOr" style="display:none">
+  <div class="toolbar">
+   <input id="qor" class="search" placeholder="Search outlet recipe name, product code, or an RM input…" oninput="renderOr()">
+   <select id="typeOr" onchange="renderOr()" class="btn" style="padding-right:28px" title="Filter by outlet item type">
+    <option value="">All types</option>
+    <option value="Dining item">Dining item</option>
+    <option value="Add-on item">Add-on item</option>
+   </select>
+   <select id="modeOr" onchange="renderOr()" class="btn" style="padding-right:28px" title="Filter by mode of serving">
+    <option value="">All modes</option>
+    <option value="Dining">Dining</option>
+    <option value="Delivery">Delivery</option>
+   </select>
+   <button class="btn" onclick="exportCsvOr()">⬇ Export CSV</button>
+   <button class="btn prim" id="btnSyncOr" onclick="syncOR()" title="Refreshes the outlet recipe view by syncing the BOM report from PACT. Runs in ~45s.">⚡ Sync Outlet Recipes</button>
+   <span id="syncStatOr" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Click a row to expand its BOM</span>
+  </div>
+  <div class="card"><div class="scroll"><table id="tblOr">
+   <thead><tr>
+    <th class="r">#</th>
+    <th>Type of Outlet Item</th>
+    <th>Outlet Recipe Name</th>
+    <th>Mode of Serving</th>
+    <th>BOM Code</th>
+    <th class="r">BOM Details (inputs)</th>
+   </tr></thead>
+   <tbody id="tbodyOr"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  </table></div></div>
+ </div>
+
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
   <span>Auto-refresh from PACT: hourly</span>
@@ -120,7 +153,24 @@ const $ = (id) => document.getElementById(id);
 let CURTAB = 'pm';
 let PM = { products: [], meta: {} };
 let BOM = { rows: [], boms: [], meta: {} };
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false };
+let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: list of {type, name, mode, bomCode, bomName, outCode, inputs:[]}
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false };
+const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
+
+/* Add-on heuristic: tag an outlet item "Add-on item" when the whole
+   dish IS a side / beverage / sauce — not when a main dish merely
+   mentions one in its name ("Hummus Salad", "Sauce Pasta" stay as
+   dining items). Signals that trigger "Add-on":
+     • an explicit "Add-On" / "Add On" / "Addon" marker in the name,
+     • a short name (≤ 4 words) made up mostly of beverage / side /
+       sauce vocabulary.
+   Everything else classifies as "Dining item". The dashboard groups
+   outlet BOMs by naming convention (DIN_BOM = dine-in; BOM_O =
+   delivery) so Mode of Serving is derived from the BOM code — see
+   classifyOutletBom() below. */
+const OR_ADDON_EXPLICIT = /\b(add[\s-]?on|add[\s-]?ons|addon|take[\s-]?away add|delivery[\s-]add)\b/i;
+const OR_ADDON_BEVERAGE = /\b(coke|coca[\s-]?cola|pepsi|sprite|fanta|7[\s-]?up|limca|thums ?up|lemonade|iced tea|cold brew|latte|cappuccino|espresso|mocha|americano|coffee|chai|tea|water|juice|smoothie|lassi|soda|beverage|drink|milkshake|shake|energy drink|redbull|mojito|cooler)\b/i;
+const OR_ADDON_SIDE = /\b(fries|chips|crisps|side|sauce|dip|chutney|mayo|mayonnaise|ketchup|salsa|hummus|dressing|extra|topping|garnish|bread|biscuit|cookie|cracker|nugget|wedge)\b/i;
 
 function toast(msg, ms){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._); toast._=setTimeout(()=>t.classList.remove('on'), ms||2400); }
 function fmtTime(iso){ if(!iso)return '—'; try{ return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}); }catch(e){ return iso; } }
@@ -132,15 +182,18 @@ function selTab(t){
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t));
   $('tabPm').style.display = t === 'pm' ? '' : 'none';
   $('tabBom').style.display = t === 'bom' ? '' : 'none';
+  $('tabOr').style.display = t === 'or' ? '' : 'none';
   updateHeaderStats();
   if(t === 'bom' && !BOM_LOADED.v) loadBom(false);
+  if(t === 'or' && !OR_LOADED.v) loadOr(false);
 }
 
 function updateHeaderStats(){
-  const m = (CURTAB === 'pm' ? PM : BOM).meta;
+  const m = (CURTAB === 'pm' ? PM : (CURTAB === 'bom' ? BOM : OR)).meta;
   $('statSrc').textContent = 'source: ' + (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').className = 'pill ' + (m.source === 'pact-live' ? 'live' : m.source ? 'warn' : 'live');
-  $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + (CURTAB === 'pm' ? ' products' : ' BOMs');
+  const unit = CURTAB === 'pm' ? ' products' : (CURTAB === 'bom' ? ' BOMs' : ' outlet recipes');
+  $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
   $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
 }
 
@@ -350,6 +403,211 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
 }
 function syncPM(){ syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
 function syncBOM(){ syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
+function syncOR(){ syncReport('bom','btnSyncOr','syncStatOr', BOM.meta.synced_at || '', async () => { await loadBom(true); await loadOr(false); }); }
+
+/* ======================= OUTLET RECIPES &amp; BOM =======================
+   Derived view: an outlet recipe is a BOM whose code marks it as an
+   outlet item (prefixes DIN_BOM = Dine In; BOM_O = Delivery/Outlet
+   dispatch). Both the BOM snapshot and the Product Master snapshot are
+   already live from PACT; this tab just reshapes them for the kitchen /
+   outlet team.
+
+   Mode of serving comes from BOMCode prefix. Type of outlet item comes
+   from a name-based heuristic (OR_ADDON_WORDS) — safe to refine later or
+   back with a dedicated PACT field without changing this tab's layout. */
+
+function classifyOutletBom(bomCode, bomName){
+  const c = String(bomCode || '').toUpperCase();
+  const n = String(bomName || '');
+  // Mode of serving: BOMCode prefix is the authoritative signal.
+  let mode = '';
+  if(/^DIN[_-]?BOM/.test(c))      mode = 'Dining';
+  else if(/^BOM[_-]?O/.test(c))   mode = 'Delivery';
+  // Fallback to name mentions when prefix is ambiguous.
+  else if(/dine[\s-]?in/i.test(n))  mode = 'Dining';
+  else if(/\bdelivery\b/i.test(n))  mode = 'Delivery';
+  return mode;
+}
+function classifyOutletType(name){
+  const s = String(name || '').trim();
+  if(!s) return 'Dining item';
+  if(OR_ADDON_EXPLICIT.test(s)) return 'Add-on item';
+  // Count tokens that are letters-only words (ignore parentheses, qty strings).
+  const words = s.replace(/\(.*?\)/g, ' ').split(/[^A-Za-z]+/).filter(w => w.length > 1);
+  if(words.length <= 4 && OR_ADDON_BEVERAGE.test(s)) return 'Add-on item';
+  // Side-vocab test: the vocabulary word must be the LAST meaningful word
+  // in a short name — so "Mint Mayo", "Extra Hummus" → add-on, but "Sauce
+  // Pasta" / "Hummus Pita" stay dining. Checks the last 2 words to allow
+  // "Red Chilli Sauce" too.
+  if(words.length <= 3){
+    // Match the add-on vocabulary ONLY as the trailing word, so "Mint Mayo",
+    // "Red Chilli Sauce" and "Extra Hummus" land as add-on while a main
+    // dish that merely mentions one of these words earlier in its name
+    // ("Hummus Pita", "Sauce Pasta") stays as a dining item.
+    const last = words[words.length - 1] || '';
+    if(OR_ADDON_SIDE.test(last)) return 'Add-on item';
+  }
+  return 'Dining item';
+}
+
+async function loadOr(fresh){
+  // The outlet-recipe view needs BOM (always) and PM (optional, for a
+  // human product name when the BOM output row doesn't carry one).
+  if(!BOM_LOADED.v || fresh) await loadBom(fresh);
+  if(!PM_LOADED.v) { try { await loadPm(false); } catch(e){ /* non-fatal */ } }
+
+  const pmByCode = new Map((PM.products || []).map(p => [String(p.code).toUpperCase(), p]));
+
+  // Walk BOM.boms (already grouped by BOMCode from loadBom) and keep the
+  // ones whose code marks them outlet.
+  const out = [];
+  for(const b of BOM.boms){
+    const mode = classifyOutletBom(b.code, b.name);
+    if(!mode) continue;
+    // Find the final-product code: first OUTPUT row that isn't a Dine In / Delivery sentinel.
+    let outCode = '', outName = '';
+    for(const s of b.stages.values()){
+      for(const r of s.outputs){
+        const pc = String(r[4] || '');
+        if(pc && pc !== 'Dine In' && pc !== 'Delivery' && !/^Delivery-?Add/i.test(pc)){
+          outCode = pc; outName = String(r[5] || '');
+          break;
+        }
+      }
+      if(outCode) break;
+    }
+    // Fallback: parse the BOM full name (FP:) or use the display name.
+    if(!outName){
+      const fp = String(b.full || '').match(/\(FP:\s*(.+?)\s{2,}Qty:/);
+      outName = fp ? fp[1].trim() : (b.name || '');
+    }
+    const pm = outCode ? pmByCode.get(outCode.toUpperCase()) : null;
+    const displayName = (pm && pm.name) || outName || b.name || '(unnamed)';
+
+    // Collect all INPUT rows across stages as the BOM detail.
+    const inputs = [];
+    for(const s of b.stages.values()){
+      for(const r of s.inputs){
+        inputs.push({ rmCode: r[4] || '', rmName: r[5] || '', unit: r[6] || '', qty: r[7], wastage: r[8], rawQty: r[9] });
+      }
+    }
+    out.push({
+      type: classifyOutletType(displayName),
+      recipeName: displayName,
+      mode,
+      bomCode: b.code,
+      bomName: b.name,
+      outCode,
+      inputs,
+    });
+  }
+  out.sort((a, b) =>
+    (a.recipeName || '').localeCompare(b.recipeName || '') ||
+    (a.mode || '').localeCompare(b.mode || '')
+  );
+  OR.recipes = out;
+  OR.meta = {
+    source: BOM.meta.source || '',
+    synced_at: BOM.meta.synced_at || null,
+    count: out.length,
+  };
+  OR_LOADED.v = true;
+  if(CURTAB === 'or') updateHeaderStats();
+  renderOr();
+}
+
+function renderOr(){
+  const q    = ($('qor').value || '').trim().toLowerCase();
+  const type = $('typeOr').value || '';
+  const mode = $('modeOr').value || '';
+
+  const list = OR.recipes.filter(r => {
+    if(type && r.type !== type) return false;
+    if(mode && r.mode !== mode) return false;
+    if(!q) return true;
+    if(String(r.recipeName || '').toLowerCase().includes(q)) return true;
+    if(String(r.outCode || '').toLowerCase().includes(q)) return true;
+    if(String(r.bomCode || '').toLowerCase().includes(q)) return true;
+    for(const i of r.inputs){
+      if(String(i.rmName || '').toLowerCase().includes(q)) return true;
+      if(String(i.rmCode || '').toLowerCase().includes(q)) return true;
+    }
+    return false;
+  });
+
+  const rows = [];
+  let n = 0;
+  for(const r of list.slice(0, 800)){
+    n++;
+    const open = OR_EXP.has(r.bomCode);
+    const typeBadge = r.type === 'Add-on item'
+      ? '<span class="sb" style="background:#fef3c7;color:#92400e">Add-on item</span>'
+      : '<span class="sb" style="background:#dbeafe;color:#1e40af">Dining item</span>';
+    const modeBadge = r.mode === 'Delivery'
+      ? '<span class="sb" style="background:#fce7f3;color:#9f1239">Delivery</span>'
+      : '<span class="sb out">Dining</span>';
+    rows.push(`<tr class="bomhdr" onclick="toggleOr('${esc(r.bomCode)}')">
+      <td class="r mut">${n}</td>
+      <td>${typeBadge}</td>
+      <td><span class="expbtn">${open?'▼':'▶'}</span> ${esc(r.recipeName)}${r.outCode ? ' <span class="code">· '+esc(r.outCode)+'</span>' : ''}</td>
+      <td>${modeBadge}</td>
+      <td class="code">${esc(r.bomCode)}</td>
+      <td class="r">${r.inputs.length} input${r.inputs.length===1?'':'s'}</td>
+    </tr>`);
+    if(open){
+      rows.push(`<tr class="stagehdr"><td></td><td colspan="5"><b>BOM details</b> — RM Input · RM Name · Quantity</td></tr>`);
+      if(!r.inputs.length){
+        rows.push(`<tr class="inrow"><td></td><td colspan="5" class="mut">No input rows in this BOM.</td></tr>`);
+      } else {
+        for(const i of r.inputs){
+          const wastage = i.wastage ? ' <span class="mut">· wastage '+esc(i.wastage)+'%</span>' : '';
+          rows.push(`<tr class="inrow">
+            <td></td>
+            <td></td>
+            <td colspan="2">↳ <span class="sb">RM</span> <span class="code">${esc(i.rmCode || '')}</span>  ${esc(i.rmName || '')}</td>
+            <td>${esc(i.unit || '')}</td>
+            <td class="r">${qty(i.qty)}${wastage}</td>
+          </tr>`);
+        }
+      }
+    }
+  }
+  const extra = list.length > 800
+    ? `<tr><td colspan="6" class="mut" style="padding:14px;text-align:center">… ${list.length-800} more outlet recipes — refine the search to see them</td></tr>`
+    : '';
+  $('tbodyOr').innerHTML = (rows.join('')
+    || '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No outlet recipes match these filters.</td></tr>') + extra;
+}
+function toggleOr(code){ if(OR_EXP.has(code)) OR_EXP.delete(code); else OR_EXP.add(code); renderOr(); }
+
+function exportCsvOr(){
+  const q = ($('qor').value || '').trim().toLowerCase();
+  const type = $('typeOr').value || '';
+  const mode = $('modeOr').value || '';
+  const matches = (r) => {
+    if(type && r.type !== type) return false;
+    if(mode && r.mode !== mode) return false;
+    if(!q) return true;
+    if(String(r.recipeName || '').toLowerCase().includes(q)) return true;
+    if(String(r.outCode || '').toLowerCase().includes(q)) return true;
+    if(String(r.bomCode || '').toLowerCase().includes(q)) return true;
+    for(const i of r.inputs){ if(String(i.rmName || '').toLowerCase().includes(q)) return true; }
+    return false;
+  };
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const header = ['Type of Outlet Item','Outlet Recipe Name','Mode of Serving','Product Code','BOM Code','BOM Name','RM Input (code)','RM Name','Unit','Quantity','Wastage %','Raw Qty'];
+  const lines = [header.map(esc2).join(',')];
+  for(const r of OR.recipes.filter(matches)){
+    if(!r.inputs.length){
+      lines.push([r.type, r.recipeName, r.mode, r.outCode, r.bomCode, r.bomName, '', '', '', '', '', ''].map(esc2).join(','));
+      continue;
+    }
+    for(const i of r.inputs){
+      lines.push([r.type, r.recipeName, r.mode, r.outCode, r.bomCode, r.bomName, i.rmCode, i.rmName, i.unit, i.qty, i.wastage, i.rawQty].map(esc2).join(','));
+    }
+  }
+  downloadBlob(lines.join('\n'), 'outlet-recipes-'+((OR.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
+}
 
 function downloadBlob(content, filename){
   const blob = new Blob([content], {type:'text/csv;charset=utf-8'});
