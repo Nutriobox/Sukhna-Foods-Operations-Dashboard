@@ -39,6 +39,15 @@
   tr.stagehdr td{background:#faf5ff;color:#6b21a8;font-weight:600;font-size:12.5px}
   tr.inrow td{background:#fff}
   tr.outrow td{background:#f0fdf4}
+  tr.bomsub td{background:#faf5ff;padding:0 12px 0 0;border-top:1px solid #e9d5ff;border-bottom:1px solid #e9d5ff}
+  .bomsub-wrap{padding:10px 0 12px}
+  .bomsub-title{display:flex;align-items:center;gap:8px;font-size:12px;color:#6b21a8;font-weight:600;margin-bottom:7px}
+  table.bomsub-tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e9d5ff;border-radius:8px;overflow:hidden}
+  table.bomsub-tbl th{background:#f5f3ff;color:#6b21a8;font-weight:600;font-size:12px;padding:7px 10px;text-align:left;border-bottom:1px solid #e9d5ff;position:static}
+  table.bomsub-tbl td{padding:6px 10px;border-bottom:1px solid #f3e8ff;background:#fff;white-space:nowrap;font-size:12.5px}
+  table.bomsub-tbl tr:last-child td{border-bottom:0}
+  table.bomsub-tbl td.r,table.bomsub-tbl th.r{text-align:right;font-variant-numeric:tabular-nums}
+  table.bomsub-tbl td.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#475569}
   tr:hover td{filter:brightness(.98)}
   td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
   .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#475569}
@@ -709,20 +718,45 @@ function renderOr(){
       <td class="r">${r.inputs.length} input${r.inputs.length===1?'':'s'}</td>
     </tr>`);
     if(open){
-      rows.push(`<tr class="stagehdr"><td></td><td colspan="5"><b>BOM details</b> — RM Input · RM Name · Quantity</td></tr>`);
+      // BOM-details expansion — nested sub-table so the five input columns
+      // (Raw Material / UOM / Used Qty / Wastage / Total Qty) stay cleanly
+      // aligned to each other instead of fighting the outer table's column
+      // widths. The "RM" badge sits in the sub-table's title row ONCE, not
+      // on every input line, since every row here is a raw material by
+      // definition.
       if(!r.inputs.length){
-        rows.push(`<tr class="inrow"><td></td><td colspan="5" class="mut">No input rows in this BOM.</td></tr>`);
+        rows.push(`<tr class="bomsub"><td></td><td colspan="5" class="mut" style="padding:14px">No input rows in this BOM.</td></tr>`);
       } else {
-        for(const i of r.inputs){
-          const wastage = i.wastage ? ' <span class="mut">· wastage '+esc(i.wastage)+'%</span>' : '';
-          rows.push(`<tr class="inrow">
-            <td></td>
-            <td></td>
-            <td colspan="2">↳ <span class="sb">RM</span> <span class="code">${esc(i.rmCode || '')}</span>  ${esc(i.rmName || '')}</td>
+        const inputRows = r.inputs.map(i => `
+          <tr>
+            <td class="code">${esc(i.rmCode || '')}</td>
+            <td>${esc(i.rmName || '')}</td>
             <td>${esc(i.unit || '')}</td>
-            <td class="r">${qty(i.qty)}${wastage}</td>
-          </tr>`);
-        }
+            <td class="r">${qty(i.qty)}</td>
+            <td class="r">${i.wastage ? esc(i.wastage)+'%' : '<span class="mut">—</span>'}</td>
+            <td class="r">${qty(i.rawQty)}</td>
+          </tr>`).join('');
+        rows.push(`<tr class="bomsub">
+          <td></td>
+          <td colspan="5">
+            <div class="bomsub-wrap">
+              <div class="bomsub-title"><span class="sb">RM</span> <span>BOM details</span> <span class="mut">· ${r.inputs.length} raw material${r.inputs.length===1?'':'s'}</span></div>
+              <table class="bomsub-tbl">
+                <thead>
+                  <tr>
+                    <th style="width:95px">RM Code</th>
+                    <th>Raw Material</th>
+                    <th style="width:60px">UOM</th>
+                    <th style="width:110px" class="r">Used Qty</th>
+                    <th style="width:90px" class="r">Wastage</th>
+                    <th style="width:110px" class="r">Total Qty</th>
+                  </tr>
+                </thead>
+                <tbody>${inputRows}</tbody>
+              </table>
+            </div>
+          </td>
+        </tr>`);
       }
     }
   }
