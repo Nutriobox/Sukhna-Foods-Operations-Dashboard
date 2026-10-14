@@ -42,12 +42,17 @@
   tr.bomsub td{background:#faf5ff;padding:0 12px 0 0;border-top:1px solid #e9d5ff;border-bottom:1px solid #e9d5ff}
   .bomsub-wrap{padding:10px 0 12px}
   .bomsub-title{display:flex;align-items:center;gap:8px;font-size:12px;color:#6b21a8;font-weight:600;margin-bottom:7px}
-  table.bomsub-tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e9d5ff;border-radius:8px;overflow:hidden}
-  table.bomsub-tbl th{background:#f5f3ff;color:#6b21a8;font-weight:600;font-size:12px;padding:7px 10px;text-align:left;border-bottom:1px solid #e9d5ff;position:static}
-  table.bomsub-tbl td{padding:6px 10px;border-bottom:1px solid #f3e8ff;background:#fff;white-space:nowrap;font-size:12.5px}
+  /* Sub-table sizes to its content (not 100% of the parent cell), so short
+     raw-material names don't leave a huge gap before the numeric columns.
+     Capped so a very long name can't overflow horizontally. */
+  table.bomsub-tbl{border-collapse:collapse;background:#fff;border:1px solid #e9d5ff;border-radius:8px;overflow:hidden;max-width:min(100%,860px)}
+  table.bomsub-tbl th{background:#f5f3ff;color:#6b21a8;font-weight:600;font-size:12px;padding:7px 14px;text-align:left;border-bottom:1px solid #e9d5ff;position:static;white-space:nowrap}
+  table.bomsub-tbl td{padding:6px 14px;border-bottom:1px solid #f3e8ff;background:#fff;white-space:nowrap;font-size:12.5px}
   table.bomsub-tbl tr:last-child td{border-bottom:0}
   table.bomsub-tbl td.r,table.bomsub-tbl th.r{text-align:right;font-variant-numeric:tabular-nums}
   table.bomsub-tbl td.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#475569}
+  /* Name column: cap width so a long name wraps rather than pushing numeric columns off-screen */
+  table.bomsub-tbl td.rmname{white-space:normal;max-width:360px;line-height:1.35}
   tr:hover td{filter:brightness(.98)}
   td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
   .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#475569}
@@ -730,7 +735,7 @@ function renderOr(){
         const inputRows = r.inputs.map(i => `
           <tr>
             <td class="code">${esc(i.rmCode || '')}</td>
-            <td>${esc(i.rmName || '')}</td>
+            <td class="rmname">${esc(i.rmName || '')}</td>
             <td>${esc(i.unit || '')}</td>
             <td class="r">${qty(i.qty)}</td>
             <td class="r">${i.wastage ? esc(i.wastage)+'%' : '<span class="mut">—</span>'}</td>
@@ -744,12 +749,12 @@ function renderOr(){
               <table class="bomsub-tbl">
                 <thead>
                   <tr>
-                    <th style="width:95px">RM Code</th>
+                    <th>RM Code</th>
                     <th>Raw Material</th>
-                    <th style="width:60px">UOM</th>
-                    <th style="width:110px" class="r">Used Qty</th>
-                    <th style="width:90px" class="r">Wastage</th>
-                    <th style="width:110px" class="r">Total Qty</th>
+                    <th>UOM</th>
+                    <th class="r">Used Qty</th>
+                    <th class="r">Wastage</th>
+                    <th class="r">Total Qty</th>
                   </tr>
                 </thead>
                 <tbody>${inputRows}</tbody>
