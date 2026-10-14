@@ -66,14 +66,14 @@
  </div>
 
  <div class="tabs">
-  <div class="tab on" data-t="pm" onclick="selTab('pm')">📦 Product Master</div>
+  <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
+  <div class="tab" data-t="pm" onclick="selTab('pm')">📦 Product Master</div>
   <div class="tab" data-t="bom" onclick="selTab('bom')">🧱 BOM (Stage Wise)</div>
   <div class="tab" data-t="or" onclick="selTab('or')">🍽️ Outlet Recipes &amp; BOM</div>
-  <div class="tab" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
  </div>
 
  <!-- ============== Product Master tab ============== -->
- <div id="tabPm">
+ <div id="tabPm" style="display:none">
   <div class="toolbar">
    <input id="qpm" class="search" placeholder="Search product name or code…" oninput="renderPm()">
    <select id="grpPm" onchange="renderPm()" class="btn" style="padding-right:28px"><option value="">All groups</option></select>
@@ -137,8 +137,8 @@
   </table></div></div>
  </div>
 
- <!-- ============== Raw Material Master tab ============== -->
- <div id="tabRm" style="display:none">
+ <!-- ============== Raw Material Master tab (default landing) ============== -->
+ <div id="tabRm">
   <div class="toolbar">
    <input id="qrm" class="search" placeholder="Search raw material name or code…" oninput="renderRm()">
    <select id="catRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter by input-material category">
@@ -182,7 +182,7 @@
    worker's PACT sync into Supabase). */
 
 const $ = (id) => document.getElementById(id);
-let CURTAB = 'pm';
+let CURTAB = 'rm';
 let PM = { products: [], meta: {} };
 let BOM = { rows: [], boms: [], meta: {} };
 let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: list of {type, name, mode, bomCode, bomName, outCode, inputs:[]}
@@ -771,9 +771,11 @@ function downloadBlob(content, filename){
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 
-// Boot: load PM first (visible tab), lazy-load BOM when its tab opens.
-loadPm(false).catch(e => {
-  $('tbodyPm').innerHTML = `<tr><td colspan="12" style="padding:18px;color:#b91c1c">Failed to load Product Master: ${esc(e.message || e)}</td></tr>`;
+// Boot: load Raw Material Master first (visible tab) — it pulls PM
+// under the hood, so PM is primed for its tab too. BOM / Outlet
+// Recipes lazy-load when their tabs open.
+loadRm(false).catch(e => {
+  $('tbodyRm').innerHTML = `<tr><td colspan="10" style="padding:18px;color:#b91c1c">Failed to load Raw Material Master: ${esc(e.message || e)}</td></tr>`;
   toast('Load failed: ' + (e.message || e), 4000);
 });
 </script>
