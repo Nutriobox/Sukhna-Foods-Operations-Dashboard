@@ -69,6 +69,7 @@
   <div class="tab on" data-t="pm" onclick="selTab('pm')">📦 Product Master</div>
   <div class="tab" data-t="bom" onclick="selTab('bom')">🧱 BOM (Stage Wise)</div>
   <div class="tab" data-t="or" onclick="selTab('or')">🍽️ Outlet Recipes &amp; BOM</div>
+  <div class="tab" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
  </div>
 
  <!-- ============== Product Master tab ============== -->
@@ -136,6 +137,37 @@
   </table></div></div>
  </div>
 
+ <!-- ============== Raw Material Master tab ============== -->
+ <div id="tabRm" style="display:none">
+  <div class="toolbar">
+   <input id="qrm" class="search" placeholder="Search raw material name or code…" oninput="renderRm()">
+   <select id="catRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter by input-material category">
+    <option value="rm">Raw Material only</option>
+    <option value="rm+pk">Raw Material + Packing Materials</option>
+    <option value="all">All input materials (RM + Pkg + Semi Process)</option>
+   </select>
+   <button class="btn" onclick="exportCsvRm()">⬇ Export CSV</button>
+   <button class="btn prim" id="btnSyncRm" onclick="syncRM()" title="Pulls the latest Product Master from PACT (same source as the Product Master tab).">⚡ Sync Raw Materials</button>
+   <span id="syncStatRm" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PACT Product Master (Inventory Category = Raw Material)</span>
+  </div>
+  <div class="card"><div class="scroll"><table id="tblRm">
+   <thead><tr>
+    <th>#</th>
+    <th>RM Code</th>
+    <th>Raw Material Name</th>
+    <th>Category</th>
+    <th>Base Unit</th>
+    <th>Pack / Issue Unit</th>
+    <th class="r">Pack &rarr; Base</th>
+    <th>Case / Carton Unit</th>
+    <th class="r">Case &rarr; Base</th>
+    <th>Warehouse</th>
+   </tr></thead>
+   <tbody id="tbodyRm"><tr><td colspan="10" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  </table></div></div>
+ </div>
+
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
   <span>Auto-refresh from PACT: hourly</span>
@@ -154,7 +186,8 @@ let CURTAB = 'pm';
 let PM = { products: [], meta: {} };
 let BOM = { rows: [], boms: [], meta: {} };
 let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: list of {type, name, mode, bomCode, bomName, outCode, inputs:[]}
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false };
+let RM = { items: [], meta: {} };              // derived view: PM products filtered to Raw Material / Packing / Semi Process
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
 /* Add-on heuristic: tag an outlet item "Add-on item" when the whole
@@ -183,16 +216,24 @@ function selTab(t){
   $('tabPm').style.display = t === 'pm' ? '' : 'none';
   $('tabBom').style.display = t === 'bom' ? '' : 'none';
   $('tabOr').style.display = t === 'or' ? '' : 'none';
+  $('tabRm').style.display = t === 'rm' ? '' : 'none';
   updateHeaderStats();
   if(t === 'bom' && !BOM_LOADED.v) loadBom(false);
   if(t === 'or' && !OR_LOADED.v) loadOr(false);
+  if(t === 'rm' && !RM_LOADED.v) loadRm(false);
 }
 
 function updateHeaderStats(){
-  const m = (CURTAB === 'pm' ? PM : (CURTAB === 'bom' ? BOM : OR)).meta;
+  const m = (CURTAB === 'pm' ? PM
+          : CURTAB === 'bom' ? BOM
+          : CURTAB === 'or'  ? OR
+          : RM).meta;
   $('statSrc').textContent = 'source: ' + (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').className = 'pill ' + (m.source === 'pact-live' ? 'live' : m.source ? 'warn' : 'live');
-  const unit = CURTAB === 'pm' ? ' products' : (CURTAB === 'bom' ? ' BOMs' : ' outlet recipes');
+  const unit = CURTAB === 'pm'  ? ' products'
+             : CURTAB === 'bom' ? ' BOMs'
+             : CURTAB === 'or'  ? ' outlet recipes'
+             : ' raw materials';
   $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
   $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
 }
@@ -404,6 +445,119 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
 function syncPM(){ syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
 function syncBOM(){ syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
 function syncOR(){ syncReport('bom','btnSyncOr','syncStatOr', BOM.meta.synced_at || '', async () => { await loadBom(true); await loadOr(false); }); }
+function syncRM(){ syncReport('pm','btnSyncRm','syncStatRm', PM.meta.synced_at || '', async () => { await loadPm(true); await loadRm(false); }); }
+
+/* ======================= RAW MATERIAL MASTER =======================
+   Derived view of /api/product-master. The current PACT Product Master
+   already carries an Inventory Category per product (Raw Material /
+   Packing Materials / Semi Process / Finished Goods / Work in Progress
+   / "-"). This tab filters to the input-material side (Raw Material by
+   default; Packing + Semi Process are opt-in via the category select)
+   and reshapes the per-level unit / scale fields into procurement-
+   friendly columns:  Base Unit (L1), Pack Unit (L2), Case Unit (L3),
+   and the pack/case conversions back to base.
+
+   No new server-side source and no new worker job — this uses the same
+   PM snapshot the Product Master tab reads. Re-syncing from here hits
+   the same /api/sync-costing?report=pm endpoint the Product Master Sync
+   button hits.  Later, when the user wants dedicated RM-only fields
+   (vendor, HSN, GST, moisture spec, …), the plan is to layer them on
+   top of this view from a separate rm_master table, not to touch the
+   PM snapshot.  */
+
+const RM_GROUPS = {
+  rm:    new Set(['Raw Material']),
+  'rm+pk': new Set(['Raw Material','Packing Materials']),
+  all:   new Set(['Raw Material','Packing Materials','Semi Process']),
+};
+
+async function loadRm(fresh){
+  if(!PM_LOADED.v || fresh) await loadPm(fresh);
+  // Reshape the PM rows into procurement-friendly RM rows. We keep the raw
+  // PM level objects on `levels` so the renderer can show L1/L2/L3 as
+  // base / pack / case cleanly.
+  const list = (PM.products || []).map(p => {
+    const L1 = (p.levels && p.levels.L1) || {};
+    const L2 = (p.levels && p.levels.L2) || {};
+    const L3 = (p.levels && p.levels.L3) || {};
+    return {
+      code: p.code || '',
+      name: p.name || '',
+      group: p.group || '-',
+      baseUnit: L1.u || '',
+      packUnit: L2.u || '',
+      packScale: typeof L2.s === 'number' ? L2.s : null,
+      caseUnit: L3.u || '',
+      caseScale: typeof L3.s === 'number' ? L3.s : null,
+      warehouse: p.idealWarehouse || '',
+      printLevel: p.printLevel || '',
+    };
+  });
+  RM.items = list;
+  // Count reflects the current filter so the header pill is useful.
+  const filterSet = RM_GROUPS[$('catRm').value] || RM_GROUPS.rm;
+  RM.meta = {
+    source: PM.meta.source || '',
+    synced_at: PM.meta.synced_at || null,
+    count: list.filter(x => filterSet.has(x.group)).length,
+  };
+  RM_LOADED.v = true;
+  if(CURTAB === 'rm') updateHeaderStats();
+  renderRm();
+}
+
+function renderRm(){
+  const q = ($('qrm').value || '').trim().toLowerCase();
+  const filterSet = RM_GROUPS[$('catRm').value] || RM_GROUPS.rm;
+  const list = RM.items.filter(x =>
+    filterSet.has(x.group) &&
+    (!q || x.code.toLowerCase().includes(q) || x.name.toLowerCase().includes(q))
+  );
+  // Refresh header count on filter change.
+  RM.meta.count = list.length;
+  if(CURTAB === 'rm') updateHeaderStats();
+
+  const rows = list.slice(0, 3000).map((x, i) => {
+    const groupBadge = x.group === 'Raw Material'
+      ? '<span class="sb" style="background:#dcfce7;color:#166534">RM</span>'
+      : x.group === 'Packing Materials'
+        ? '<span class="sb" style="background:#fef3c7;color:#92400e">Pkg</span>'
+        : x.group === 'Semi Process'
+          ? '<span class="sb" style="background:#ede9fe;color:#5b21b6">Semi</span>'
+          : `<span class="sb">${esc(x.group || '-')}</span>`;
+    return `<tr>
+      <td class="mut">${i+1}</td>
+      <td class="code">${esc(x.code)}</td>
+      <td>${esc(x.name)}</td>
+      <td>${groupBadge}</td>
+      <td>${esc(x.baseUnit) || '<span class="mut">—</span>'}</td>
+      <td>${esc(x.packUnit) || '<span class="mut">—</span>'}</td>
+      <td class="r">${x.packScale != null ? qty(x.packScale) + ' ' + esc(x.baseUnit) : '<span class="mut">—</span>'}</td>
+      <td>${esc(x.caseUnit) || '<span class="mut">—</span>'}</td>
+      <td class="r">${x.caseScale != null ? qty(x.caseScale) + ' ' + esc(x.baseUnit) : '<span class="mut">—</span>'}</td>
+      <td>${esc(x.warehouse) || '<span class="mut">—</span>'}</td>
+    </tr>`;
+  }).join('');
+  const extra = list.length > 3000
+    ? `<tr><td colspan="10" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
+    : '';
+  $('tbodyRm').innerHTML = (rows
+    || '<tr><td colspan="10" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>') + extra;
+}
+
+function exportCsvRm(){
+  const q = ($('qrm').value || '').trim().toLowerCase();
+  const filterSet = RM_GROUPS[$('catRm').value] || RM_GROUPS.rm;
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const header = ['RM Code','Raw Material Name','Category','Base Unit','Pack / Issue Unit','Pack Scale (in base units)','Case / Carton Unit','Case Scale (in base units)','Warehouse'];
+  const lines = [header.map(esc2).join(',')];
+  for(const x of RM.items){
+    if(!filterSet.has(x.group)) continue;
+    if(q && !x.code.toLowerCase().includes(q) && !x.name.toLowerCase().includes(q)) continue;
+    lines.push([x.code, x.name, x.group, x.baseUnit, x.packUnit, x.packScale, x.caseUnit, x.caseScale, x.warehouse].map(esc2).join(','));
+  }
+  downloadBlob(lines.join('\n'), 'rm-master-'+((RM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
+}
 
 /* ======================= OUTLET RECIPES &amp; BOM =======================
    Derived view: an outlet recipe is a BOM whose code marks it as an
