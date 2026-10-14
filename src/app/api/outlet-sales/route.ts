@@ -12,22 +12,14 @@ import { NextResponse } from "next/server";
  *     ?from=YYYY-MM-DD        default: 7 days ago (IST)
  *     ?to=YYYY-MM-DD          default: today (IST, inclusive)
  *     ?outlet_id=<n>          restaurants.id (optional)
- *     ?channel=<zomato|swiggy|dine-in|delivery|...>  (optional, case-insensitive)
+ *     ?channel=<zomato|swiggy|pos|...>  (optional, case-insensitive)
  *     ?limit_orders=N         pulled-order cap (default 50 000, max 100 000)
  *
- *   Response:
- *   {
- *     ok, from, to, filters,
- *     outlets:         [{id, name, pp_rest_id}],
- *     categories:      [string],                   // for the filter dropdown
- *     rows: [{
- *       dish_id, dish_name, category, pp_item_id,
- *       outlet_id, outlet_name,
- *       sold_qty, order_count,
- *       channels: { Zomato: n, Swiggy: n, Dine-In: n, ... }
- *     }],
- *     totals: { orders, line_items, unique_dishes, unique_outlets }
- *   }
+ * Pagination: Supabase REST hard-caps a single response at ~1 000 rows
+ * regardless of a `limit=…` query param. The fetcher below pages through
+ * the result set with the `Range` header until either the data is exhausted
+ * or `limit_orders` is reached, so one API call to this endpoint always
+ * returns the complete window (short of the safety cap).
  *
  * Everything cross-project — the OPS DASHBOARD Supabase is not touched, nothing
  * is written to the AIFI side. 60 s in-memory cache per (from, to, outlet,
@@ -41,8 +33,8 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods
 const TTL_MS = 60 * 1000;
 const MAX_LIMIT = 100_000;
 const DEFAULT_LIMIT = 50_000;
+const PAGE_SIZE = 1_000; // Supabase REST default max_rows
 
-// ─── tiny in-process cache (lives for the duration of the Vercel instance) ───
 type CacheEntry = { at: number; body: unknown };
 const CACHE = new Map<string, CacheEntry>();
 
@@ -62,6 +54,7 @@ type OrderItem = { order_id: number; dish_id: number; quantity: number | null };
 type Dish = { id: number; name: string; category: string | null; pp_item_id: string | null; expected_grams: number | null };
 type Restaurant = { id: number; name: string; pp_rest_id: string | null };
 
+/** Single-page REST GET to Supabase (no pagination). */
 async function sbGet<T>(url: string, key: string, path: string): Promise<T[]> {
   const r = await fetch(`${url.replace(/\/$/, "")}/rest/v1/${path}`, {
     headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
@@ -74,15 +67,45 @@ async function sbGet<T>(url: string, key: string, path: string): Promise<T[]> {
   return (await r.json()) as T[];
 }
 
-// Fetch orders in chunks when the id-list IN(…) clause is long. Supabase REST
-// handles ~1-2k ids per request comfortably; we batch at 500.
+/** Paginated REST GET using the `Range` header. Pulls PAGE_SIZE rows per
+ *  request until the result set is exhausted or `max` rows have been
+ *  collected. Supabase sends a `Content-Range` header on each response, so
+ *  we stop when the returned slice is shorter than the page size. */
+async function sbGetPaged<T>(url: string, key: string, path: string, max: number): Promise<T[]> {
+  const out: T[] = [];
+  let from = 0;
+  while (out.length < max) {
+    const to = Math.min(from + PAGE_SIZE - 1, max - 1);
+    const r = await fetch(`${url.replace(/\/$/, "")}/rest/v1/${path}`, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        Accept: "application/json",
+        Range: `${from}-${to}`,
+        "Range-Unit": "items",
+      },
+      cache: "no-store",
+    });
+    if (!r.ok && r.status !== 206) {
+      const t = await r.text().catch(() => "");
+      throw new Error(`AIFI ${path.split("?")[0]}: HTTP ${r.status} ${t.slice(0, 200)}`);
+    }
+    const page = (await r.json()) as T[];
+    out.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return out;
+}
+
 async function fetchOrderItemsForOrders(url: string, key: string, orderIds: number[]): Promise<OrderItem[]> {
   const out: OrderItem[] = [];
-  const BATCH = 500;
+  const BATCH = 400; // keep the IN(…) clause reasonable
   for (let i = 0; i < orderIds.length; i += BATCH) {
     const batch = orderIds.slice(i, i + BATCH);
     const q = `order_items?select=order_id,dish_id,quantity&order_id=in.(${batch.join(",")})`;
-    const rows = await sbGet<OrderItem>(url, key, q);
+    // order_items can also exceed 1 000 rows for a batch of 400 orders — paginate it too.
+    const rows = await sbGetPaged<OrderItem>(url, key, q, 50_000);
     out.push(...rows);
   }
   return out;
@@ -91,7 +114,7 @@ async function fetchOrderItemsForOrders(url: string, key: string, orderIds: numb
 async function fetchDishes(url: string, key: string, dishIds: number[]): Promise<Map<number, Dish>> {
   const map = new Map<number, Dish>();
   if (!dishIds.length) return map;
-  const BATCH = 500;
+  const BATCH = 400;
   for (let i = 0; i < dishIds.length; i += BATCH) {
     const batch = dishIds.slice(i, i + BATCH);
     const q = `dishes?select=id,name,category,pp_item_id,expected_grams&id=in.(${batch.join(",")})`;
@@ -101,7 +124,6 @@ async function fetchDishes(url: string, key: string, dishIds: number[]): Promise
   return map;
 }
 
-// ─── date helpers (IST) ───────────────────────────────────────────────────────
 function istToday(): string {
   const d = new Date(Date.now() + 5.5 * 3600 * 1000);
   return d.toISOString().slice(0, 10);
@@ -135,12 +157,11 @@ export async function GET(req: Request) {
   }
 
   try {
-    // 1. restaurants — small (10 rows); always fetch so outlet names resolve.
     const restaurants = await sbGet<Restaurant>(url, key, "restaurants?select=id,name,pp_rest_id&order=id.asc");
     const restByCode = new Map(restaurants.map((r) => [r.id, r]));
 
-    // 2. orders in the window. placed_at is TEXT in AIFI ("YYYY-MM-DD HH:MM:SS")
-    // which sorts lexicographically — so a text-range filter is correct.
+    // orders.placed_at is TEXT ("YYYY-MM-DD HH:MM:SS"), which sorts
+    // lexicographically — a text-range filter is correct.
     const fromTs = `${from} 00:00:00`;
     const toTs   = `${to} 23:59:59`;
     const orderFilters = [
@@ -148,11 +169,10 @@ export async function GET(req: Request) {
       `placed_at=gte.${encodeURIComponent(fromTs)}`,
       `placed_at=lte.${encodeURIComponent(toTs)}`,
       `order=placed_at.desc`,
-      `limit=${limit}`,
     ];
     if (outletFilter) orderFilters.push(`restaurant_id=eq.${encodeURIComponent(outletFilter)}`);
     if (channelFilter) orderFilters.push(`channel=ilike.${encodeURIComponent(channelFilter)}`);
-    const orders = await sbGet<Order>(url, key, `orders?${orderFilters.join("&")}`);
+    const orders = await sbGetPaged<Order>(url, key, `orders?${orderFilters.join("&")}`, limit);
 
     if (!orders.length) {
       const empty = {
@@ -166,15 +186,11 @@ export async function GET(req: Request) {
       return NextResponse.json(empty, { headers: CORS });
     }
 
-    // 3. order_items for those orders (batched)
     const orderIds = orders.map((o) => o.id);
     const orderItems = await fetchOrderItemsForOrders(url, key, orderIds);
-
-    // 4. dishes for the referenced dish ids (batched, uniques only)
     const dishIds = Array.from(new Set(orderItems.map((oi) => oi.dish_id).filter((v) => v != null)));
     const dishMap = await fetchDishes(url, key, dishIds);
 
-    // 5. join + aggregate: one row per (dish, outlet)
     const orderById = new Map(orders.map((o) => [o.id, o]));
     type Key = string;
     type AggRow = {
@@ -194,9 +210,9 @@ export async function GET(req: Request) {
 
     for (const oi of orderItems) {
       const o = orderById.get(oi.order_id);
-      if (!o) continue;                                   // order filtered out upstream
+      if (!o) continue;
       const d = dishMap.get(oi.dish_id);
-      if (!d) continue;                                   // orphaned dish ref — skip
+      if (!d) continue;
       const outlet = restByCode.get(o.restaurant_id);
       const outletName = outlet?.name || `restaurant ${o.restaurant_id}`;
       const qty = Number(oi.quantity) || 0;
@@ -234,6 +250,7 @@ export async function GET(req: Request) {
         line_items: orderItems.length,
         unique_dishes: new Set(rows.map((r) => r.dish_id)).size,
         unique_outlets: new Set(rows.map((r) => r.outlet_id)).size,
+        limit_hit: orders.length >= limit,
       },
     };
     CACHE.set(cacheKey, { at: Date.now(), body });
