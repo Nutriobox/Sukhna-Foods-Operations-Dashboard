@@ -76,41 +76,71 @@
 
  <div class="tabs">
   <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
-  <div class="tab" data-t="pm" onclick="selTab('pm')">📦 Product Master</div>
-  <div class="tab" data-t="bom" onclick="selTab('bom')">🧱 BOM (Stage Wise)</div>
+  <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
   <div class="tab" data-t="or" onclick="selTab('or')">🍽️ Outlet Recipes &amp; BOM</div>
  </div>
 
- <!-- ============== Product Master tab ============== -->
- <div id="tabPm" style="display:none">
-  <div class="toolbar">
-   <input id="qpm" class="search" placeholder="Search product name or code…" oninput="renderPm()">
-   <select id="grpPm" onchange="renderPm()" class="btn" style="padding-right:28px"><option value="">All groups</option></select>
-   <button class="btn" onclick="exportCsvPm()">⬇ Export CSV</button>
-   <button class="btn prim" id="btnSyncPm" onclick="syncPM()" title="Pull the latest Product Master from PACT (via the EC2 worker). Runs in ~45s.">⚡ Sync Product Master</button>
-   <span id="syncStatPm" class="mut" style="font-size:12.5px"></span>
-  </div>
-  <div class="card"><div class="scroll"><table id="tblPm">
-   <thead><tr><th>#</th><th>Code</th><th>Product</th><th>Group</th><th>Print Level</th><th>Print Unit</th><th class="r">Per unit (base)</th><th>L1</th><th>L2</th><th>L3</th><th>Warehouse</th><th>Scan Batches</th></tr></thead>
-   <tbody id="tbodyPm"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
-  </table></div></div>
- </div>
+ <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
+      2026-10-15 — the two data pipelines (PM + BOM) are still loaded in the
+      background because Raw Material Master's "Used In" classifier and the
+      Outlet Recipes & BOM tab both read from them. Only the top-level tab
+      UI is gone; the underlying loadPm() / loadBom() are still invoked. -->
 
- <!-- ============== BOM tab ============== -->
- <div id="tabBom" style="display:none">
-  <div class="toolbar">
-   <input id="qbom" class="search" placeholder="Search BOM name, code, or an input product…" oninput="renderBom()">
-   <select id="secBom" onchange="renderBom()" class="btn" style="padding-right:28px">
-    <option value="">Both sections</option><option value="INPUT">Inputs only</option><option value="OUTPUT">Outputs only</option>
+ <!-- ============== Sales Data tab (PetPooja webhook feed) ============== -->
+ <div id="tabSd" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap">
+   <input id="dateFromSd" type="date" onchange="loadSd(true)" class="btn" style="padding:7px 10px" title="From date (IST)">
+   <input id="dateToSd" type="date" onchange="loadSd(true)" class="btn" style="padding:7px 10px" title="To date (IST, inclusive)">
+   <select id="outletSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Outlet filter">
+    <option value="">All outlets</option>
    </select>
-   <button class="btn" onclick="exportCsvBom()">⬇ Export CSV (flat)</button>
-   <button class="btn prim" id="btnSyncBom" onclick="syncBOM()" title="Pull the latest BOM With Wastage Summary from PACT. Runs in ~45s.">⚡ Sync BOM</button>
-   <span id="syncStatBom" class="mut" style="font-size:12.5px"></span>
-   <span class="mut" style="font-size:12.5px;margin-left:auto">Click a BOM row to expand its stages</span>
+   <select id="channelSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Channel filter">
+    <option value="">All channels</option>
+    <option value="POS">POS (Dine-In)</option>
+    <option value="Swiggy">Swiggy</option>
+    <option value="Zomato">Zomato</option>
+    <option value="Delivery">Delivery</option>
+   </select>
+   <input id="qSd" class="search" placeholder="Search product name…" oninput="renderSd()" style="min-width:220px">
+   <button class="btn" onclick="exportCsvSd()">⬇ Export CSV</button>
+   <button class="btn prim" id="btnSyncSd" onclick="loadSd(true)" title="Re-fetch from AI Food Inspector Supabase (PetPooja webhook sink)">⚡ Refresh</button>
+   <span id="syncStatSd" class="mut" style="font-size:12.5px"></span>
   </div>
-  <div class="card"><div class="scroll"><table id="tblBom">
-   <thead><tr><th class="r">#</th><th>BOM</th><th>Code</th><th>Final Product</th><th class="r">Batch Qty</th><th>Unit</th><th class="r">Stages</th><th class="r">Inputs</th></tr></thead>
-   <tbody id="tbodyBom"><tr><td colspan="8" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fffbeb;border-color:#fcd34d">
+   <div style="font-size:12.5px;color:#92400e;line-height:1.45">
+    <b>Source:</b> PetPooja webhook feed (via AI Food Inspector Supabase) &mdash; captures date, outlet, product name, qty, channel in real time since 29 Jun 2026.
+    <br/><b>Billing-only columns</b> (Unit MRP Price, Value, Discounts, GST / HSN / SGST / CGST / IGST / Tax) sit in PetPooja's billing module and come through the <i>Global Sales API</i>, which is pending from PetPooja. Those columns show <code>—</code> until that feed lands; the layout is ready to receive them.
+   </div>
+  </div>
+  <div class="card"><div class="scroll"><table id="tblSd">
+   <thead><tr>
+    <th>Doc Prefix</th>
+    <th>Doc No</th>
+    <th>Doc Date</th>
+    <th>Outlet</th>
+    <th>Channel</th>
+    <th>Product Name</th>
+    <th>Category</th>
+    <th class="r">Qty</th>
+    <th>Units</th>
+    <th class="r">Unit MRP</th>
+    <th class="r">Value</th>
+    <th class="r">Disc %</th>
+    <th class="r">Disc Amt</th>
+    <th>GST HSN</th>
+    <th>Product Type</th>
+    <th class="r">Tax</th>
+    <th class="r">SGST</th>
+    <th class="r">SGST Amt</th>
+    <th class="r">CGST</th>
+    <th class="r">CGST Amt</th>
+    <th class="r">IGST</th>
+    <th class="r">IGST Amt</th>
+    <th class="r">Roff</th>
+    <th>Remarks</th>
+    <th>Created Date</th>
+   </tr></thead>
+   <tbody id="tbodySd"><tr><td colspan="25" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -204,7 +234,8 @@ let PM = { products: [], meta: {} };
 let BOM = { rows: [], boms: [], meta: {} };
 let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: list of {type, name, mode, bomCode, bomName, outCode, inputs:[]}
 let RM = { items: [], meta: {} };              // derived view: PM products filtered to Raw Material / Packing / Semi Process
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false };
+let SD = { rows: [], outlets: [], meta: {} };  // sales data from /api/outlet-invoices (PetPooja webhook via AIFI)
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
 /* Add-on heuristic: tag an outlet item "Add-on item" when the whole
@@ -230,26 +261,30 @@ function qty(n){ if(n==null||isNaN(Number(n))||n==='')return ''; return Number(n
 function selTab(t){
   CURTAB = t;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t));
-  $('tabPm').style.display = t === 'pm' ? '' : 'none';
-  $('tabBom').style.display = t === 'bom' ? '' : 'none';
+  // PM / BOM tabs were removed in 2026-10-15 — only the panes still live in the DOM
+  // for a brief transition were cleaned out, but we keep the loaders because RM-Master
+  // and Outlet-Recipes still depend on them.
   $('tabOr').style.display = t === 'or' ? '' : 'none';
   $('tabRm').style.display = t === 'rm' ? '' : 'none';
+  $('tabSd').style.display = t === 'sd' ? '' : 'none';
   updateHeaderStats();
-  if(t === 'bom' && !BOM_LOADED.v) loadBom(false);
   if(t === 'or' && !OR_LOADED.v) loadOr(false);
   if(t === 'rm' && !RM_LOADED.v) loadRm(false);
+  if(t === 'sd' && !SD_LOADED.v) loadSd(false);
 }
 
 function updateHeaderStats(){
-  const m = (CURTAB === 'pm' ? PM
-          : CURTAB === 'bom' ? BOM
+  const m = (CURTAB === 'rm' ? RM
           : CURTAB === 'or'  ? OR
+          : CURTAB === 'sd'  ? SD
           : RM).meta;
-  $('statSrc').textContent = 'source: ' + (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
-  $('statSrc').className = 'pill ' + (m.source === 'pact-live' ? 'live' : m.source ? 'warn' : 'live');
-  const unit = CURTAB === 'pm'  ? ' products'
-             : CURTAB === 'bom' ? ' BOMs'
-             : CURTAB === 'or'  ? ' outlet recipes'
+  const srcLabel = CURTAB === 'sd'
+    ? (m.source || 'PetPooja webhook')
+    : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
+  $('statSrc').textContent = 'source: ' + srcLabel;
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd') ? 'live' : m.source ? 'warn' : 'live');
+  const unit = CURTAB === 'or'  ? ' outlet recipes'
+             : CURTAB === 'sd'  ? ' sales rows'
              : ' raw materials';
   $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
   $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
@@ -879,6 +914,126 @@ function downloadBlob(content, filename){
   a.href = URL.createObjectURL(blob); a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ============================ SALES DATA (PetPooja) ============================
+   Row-level per-order-item view from AIFI's orders × order_items × dishes join,
+   served by /api/outlet-invoices. Formatted to mirror PetPooja's "POS Sale
+   Invoice Report" Excel column-for-column. Billing-only fields (price, GST,
+   HSN, tax) come through as null from the backend because the webhook feed
+   doesn't carry them — rendered as "—" with the yellow banner above the
+   table explaining the gap. */
+
+async function loadSd(fresh){
+  const stat = $('syncStatSd');
+  if(fresh && stat) stat.textContent = 'loading…';
+  // Default date range: last 7 days IST
+  const toInput = $('dateToSd'), fromInput = $('dateFromSd');
+  const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const todayStr = istNow.toISOString().slice(0, 10);
+  const weekAgoStr = new Date(istNow.getTime() - 7 * 86400 * 1000).toISOString().slice(0, 10);
+  if(!toInput.value)   toInput.value = todayStr;
+  if(!fromInput.value) fromInput.value = weekAgoStr;
+
+  const params = new URLSearchParams();
+  params.set('from', fromInput.value);
+  params.set('to',   toInput.value);
+  const outlet = $('outletSd').value;
+  const channel = $('channelSd').value;
+  if(outlet)  params.set('outlet_id', outlet);
+  if(channel) params.set('channel',   channel);
+  params.set('limit_rows', '5000');
+
+  const t0 = Date.now();
+  try {
+    const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache:'no-store' });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error || ('HTTP '+r.status));
+    SD.rows    = Array.isArray(j.rows)    ? j.rows    : [];
+    SD.outlets = Array.isArray(j.outlets) ? j.outlets : [];
+    SD.meta = {
+      source: 'PetPooja webhook (via AIFI)',
+      synced_at: new Date().toISOString(),
+      count: SD.rows.length,
+      rows_total: j.totals && j.totals.rows_total,
+      orders:   j.totals && j.totals.orders,
+      limit_hit: j.totals && j.totals.limit_hit,
+      warnings: j.warnings || [],
+    };
+    // Populate outlet filter options from the live restaurants list
+    const sel = $('outletSd'); const cur = sel.value;
+    sel.innerHTML = '<option value="">All outlets</option>' + SD.outlets.map(o =>
+      `<option value="${esc(o.id)}"${String(o.id)===cur?' selected':''}>${esc(o.name || ('restaurant '+o.id))}</option>`
+    ).join('');
+    SD_LOADED.v = true;
+    if(CURTAB === 'sd') updateHeaderStats();
+    renderSd();
+    if(stat) stat.textContent = '✓ ' + SD.rows.length.toLocaleString('en-IN') + ' rows · ' + Math.round((Date.now()-t0)/100)/10 + 's';
+  } catch(e){
+    if(stat) stat.textContent = '✗ ' + (e.message || e);
+    $('tbodySd').innerHTML = `<tr><td colspan="25" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales Data: ${esc(e.message || e)}</td></tr>`;
+  }
+}
+
+function renderSd(){
+  const q = ($('qSd').value || '').trim().toLowerCase();
+  const list = SD.rows.filter(r => !q || String(r.product_name || '').toLowerCase().includes(q));
+  const dash = '<span class="mut">—</span>';
+  const rows = list.slice(0, 3000).map(r => `
+    <tr>
+      <td class="code">${esc(r.doc_prefix || '')}</td>
+      <td class="code">${esc(r.doc_no || dash)}</td>
+      <td>${esc(r.doc_date || '')}</td>
+      <td>${esc(r.outlet_name || '')}</td>
+      <td>${r.channel ? `<span class="sb">${esc(r.channel)}</span>` : dash}</td>
+      <td>${esc(r.product_name || '')}</td>
+      <td>${r.category ? `<span class="mut">${esc(r.category)}</span>` : dash}</td>
+      <td class="r">${qty(r.qty)}</td>
+      <td>${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td>${dash}</td>
+      <td>${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td class="r">${dash}</td>
+      <td>${esc(r.remarks || '') || dash}</td>
+      <td class="mut" style="font-size:11.5px">${esc(r.created_date || '')}</td>
+    </tr>`).join('');
+  const extra = list.length > 3000
+    ? `<tr><td colspan="25" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more rows — narrow the search or shorten the date range</td></tr>`
+    : '';
+  const limitWarning = SD.meta.limit_hit
+    ? `<tr><td colspan="25" style="padding:14px;text-align:center;background:#fef3c7;color:#92400e;font-size:12.5px">⚠ Row cap of ${(SD.meta.rows_total||'?').toLocaleString('en-IN')} hit — narrow date range or add an outlet filter for the full window</td></tr>`
+    : '';
+  $('tbodySd').innerHTML = limitWarning + (rows ||
+    '<tr><td colspan="25" class="mut" style="padding:20px;text-align:center">No sales in this window.</td></tr>') + extra;
+}
+
+function exportCsvSd(){
+  const q = ($('qSd').value || '').trim().toLowerCase();
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  // Column order matches the PetPooja POS Sale Invoice Report Excel exactly
+  const header = ['Doc Prefix','Doc No','Doc Date','Outlet','Channel','Product Name','Category','Qty','Units','Unit MRP Price','Value','DiscPer','DiscAmt','GST HSN/SAC Code','Product Type','Tax','SGST','SGSTAmount','CGST','CGSTAmount','IGST','IGSTAmount','Roff','Remarks','CreatedDate'];
+  const lines = [header.map(esc2).join(',')];
+  for(const r of SD.rows){
+    if(q && !String(r.product_name||'').toLowerCase().includes(q)) continue;
+    lines.push([
+      r.doc_prefix, r.doc_no, r.doc_date, r.outlet_name, r.channel, r.product_name, r.category,
+      r.qty, r.units, r.unit_mrp_price, r.value, r.disc_per, r.disc_amt,
+      r.gst_hsn, r.product_type, r.tax, r.sgst_pct, r.sgst_amt, r.cgst_pct, r.cgst_amt,
+      r.igst_pct, r.igst_amt, r.roff, r.remarks, r.created_date,
+    ].map(esc2).join(','));
+  }
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), 'sales-data-'+today+'.csv');
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
