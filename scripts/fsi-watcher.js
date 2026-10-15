@@ -4,55 +4,60 @@
 // WHAT IT DOES
 //   Polls Supabase `pact_jobs` for queued B2B invoice jobs (the ones the gun
 //   creates via /api/push-fsi — invoice like 'FSOD%'), claims one at a time,
-//   opens PACT in a VISIBLE browser on this machine, fills + posts the Factory
-//   Sales Invoice, and writes the voucher/status back for the gun to read.
+//   writes an order TXT, and runs the PACT DESKTOP agent (fsi_agent.py) which
+//   drives the VISIBLE PACT RevenU Windows app → Factory Sales Invoice screen,
+//   fills + posts it, then reads back the voucher for the gun.
 //
-//   This replaces the old GitHub Actions path (push-fsi-to-pact.yml +
-//   scripts/run-fsi-job.js). Same posting code (src/lib/pact/*), now running on
-//   AWS where you can watch it and fix a PACT error live — exactly like NB.
+//   This is the same shape as the NB worker: the Node watcher does the Supabase
+//   queue plumbing, the Python agent does the desktop automation. You watch it
+//   fill the real PACT window on the box and fix any PACT error live.
 //
 // SAFETY
-//   * Runs in DRY RUN by default (FSI_DRY_RUN=true): it fills the invoice and
-//     STOPS before Post, so you can watch the whole thing with zero risk.
-//     Flip FSI_DRY_RUN=false only when you've confirmed it fills correctly.
+//   * DRY RUN by default (FSI_DRY_RUN=true): the agent fills the invoice and
+//     STOPS before Post, so you can watch the whole thing with zero risk. The
+//     job is left 'queued' so a later LIVE run can still post it. Flip
+//     FSI_DRY_RUN=false only once you've confirmed it fills correctly.
 //   * De-dupes: when it claims one job for an SO, it marks every other queued
 //     job for the SAME SO 'superseded' so a triple-submit can't post 3 invoices.
 //   * Pre-post guard: before posting it re-checks PACT — if that SO already
 //     shows delivered/completed, it marks the job done WITHOUT posting again.
-//   * Scope: only touches B2B invoice jobs (FSI_MATCH, default ^FSOD). It never
+//   * Scope: only touches B2B invoice jobs (FSI_MATCH, default FSOD). It never
 //     claims sync jobs or the NB/OMR stock-outward backlog.
 //
-// RUN (from the repo root, same place scripts/run-fsi-job.js is run):
+// RUN (from C:\sukhna-worker, same place run-worker.bat lives):
 //   node scripts/fsi-watcher.js
 //
-// ENV (.env at repo root):
-//   SUPABASE_URL, SUPABASE_SERVICE_KEY, PACT_USER, PACT_PASSWORD (or PACT_PASS),
-//   PACT_URL
-//   FSI_DRY_RUN     default 'true'  — 'false' to actually Post
-//   FSI_HEADLESS    default 'false' — visible browser so you can watch it
+// ENV (set in a run-fsi-watcher.bat, copy the SUPABASE_* lines from run-worker.bat):
+//   SUPABASE_URL, SUPABASE_SERVICE_KEY
+//   FSI_DRY_RUN     default 'true'   — 'false' to actually Post
+//   FSI_MATCH       default 'FSOD'   — SQL LIKE prefix for B2B invoice numbers
 //   FSI_POLL_MS     default '4000'
-//   FSI_MATCH       default 'FSOD'  — SQL LIKE prefix for B2B invoice numbers
+//   FSI_AGENT_DIR   default 'C:\\pact'        — where fsi_agent.py lives + writes
+//   FSI_AGENT       default 'fsi_agent.py'
+//   FSI_PY          default 'py'              — Python launcher (or full path)
+//   FSI_JOB_TIMEOUT_MS default '300000'
 //   DASHBOARD_URL   default 'https://opsdashboard.sukhnafoods.com' (pre-post check)
 
-const { chromium } = require('playwright');
 const { createClient } = require('@supabase/supabase-js');
-const { login } = require('../src/lib/pact/login');
-const { createFactorySalesInvoice } = require('../src/lib/pact/factory-sales-invoice');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const POLL_MS   = Number(process.env.FSI_POLL_MS || 4000);
 const DRY_RUN   = String(process.env.FSI_DRY_RUN ?? 'true').toLowerCase() !== 'false';   // SAFE default
-const HEADLESS  = String(process.env.FSI_HEADLESS ?? 'false').toLowerCase() === 'true';  // VISIBLE default
 const MATCH     = String(process.env.FSI_MATCH || 'FSOD');
 const DASH      = (process.env.DASHBOARD_URL || 'https://opsdashboard.sukhnafoods.com').replace(/\/$/, '');
 const MAX_JOB_MS = Number(process.env.FSI_JOB_TIMEOUT_MS || 300000);
+const AGENT_DIR = process.env.FSI_AGENT_DIR || 'C:\\pact';
+const AGENT     = process.env.FSI_AGENT || 'fsi_agent.py';
+const PY        = process.env.FSI_PY || 'py';
 
 const now = () => new Date().toISOString();
 const log = (...a) => console.log(now(), ...a);
 
 if (!SUPABASE_URL || !SUPABASE_KEY) { console.error('FATAL: SUPABASE_URL / SUPABASE_SERVICE_KEY not set.'); process.exit(2); }
-if (!process.env.PACT_PASSWORD && process.env.PACT_PASS) process.env.PACT_PASSWORD = process.env.PACT_PASS;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 
 let busy = false;
@@ -104,7 +109,6 @@ async function alreadyPosted(soNumber) {
     if (String(o.status || '').toLowerCase() === 'completed') return true;
     const items = o.items || [];
     if (!items.length) return false;
-    // every ordered line already fully delivered => nothing left to post
     return items.every((it) => Number(it.delivered || 0) >= Number(it.ordered || it.qty || 0) && Number(it.ordered || it.qty || 0) > 0);
   } catch (e) { log('pre-post check warn:', e && e.message); return false; }
 }
@@ -114,9 +118,46 @@ async function setStatus(jobId, patch) {
   if (error) log('status update failed:', error.message);
 }
 
+function readJsonSafe(p) {
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
+}
+function tailFile(p, n) {
+  try {
+    const t = fs.readFileSync(p, 'utf8').trim().split('\n');
+    return t.slice(-n).join('\n');
+  } catch { return ''; }
+}
+
+// Run the PACT desktop agent for this order and resolve with its result JSON.
+function runAgent(orderTxtPath, doPost) {
+  return new Promise((resolve) => {
+    const args = [AGENT, 'dispatch', '--txt', path.basename(orderTxtPath)];
+    if (doPost) args.push('--post');
+    log('spawn:', PY, args.join(' '), '(cwd', AGENT_DIR + ')');
+    const child = spawn(PY, args, { cwd: AGENT_DIR, windowsHide: false });
+    let done = false;
+    const finish = (res) => { if (!done) { done = true; resolve(res); } };
+    const killTimer = setTimeout(() => {
+      log('agent TIMEOUT — killing'); try { child.kill(); } catch {}
+      finish({ status: 'failed', voucher: '', note: 'Agent timed out.' });
+    }, MAX_JOB_MS);
+    child.stdout && child.stdout.on('data', (b) => process.stdout.write(b));
+    child.stderr && child.stderr.on('data', (b) => process.stderr.write(b));
+    child.on('error', (e) => { clearTimeout(killTimer); finish({ status: 'failed', voucher: '', note: 'spawn error: ' + (e && e.message) }); });
+    child.on('close', (code) => {
+      clearTimeout(killTimer);
+      const res = readJsonSafe(path.join(AGENT_DIR, 'pact_result.json'))
+                  || { status: 'failed', voucher: '', note: 'No pact_result.json (exit ' + code + ').' };
+      res._log = tailFile(path.join(AGENT_DIR, 'fsi_dispatch.txt'), 40) + '\n' + tailFile(path.join(AGENT_DIR, 'fsi_post.txt'), 20);
+      finish(res);
+    });
+  });
+}
+
 async function processJob(job) {
   const order = job.payload || {};
   const so = order.soNumber || job.invoice;
+  const customer = order.customer || order.vendor || '';
   log('claimed', job.id, '->', so, DRY_RUN ? '(DRY RUN)' : '(LIVE POST)');
 
   await supersedeSiblings(job);
@@ -133,37 +174,40 @@ async function processJob(job) {
     return;
   }
 
-  const RUN = [];
-  const cap = (...a) => { RUN.push(a.map(String).join(' ')); };
-  const browser = await chromium.launch({ headless: HEADLESS, args: ['--window-size=1680,1000', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--disable-software-rasterizer', '--disable-features=Vulkan'] });
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: null });
-  const page = await context.newPage();
-  page.setDefaultTimeout(20000);
-  const origLog = console.log;
-  console.log = (...a) => { try { RUN.push(a.map(String).join(' ')); } catch {} origLog(now(), ...a); };
-
-  const killTimer = setTimeout(() => { log('job', job.id, 'TIMEOUT — closing browser'); browser.close().catch(() => {}); }, MAX_JOB_MS);
-
+  // Write the order TXT the agent reads.
+  const txtPath = path.join(AGENT_DIR, 'fsi_order.txt');
+  const bodyLines = [
+    `Order: ${so}`,
+    customer ? `Customer: ${customer}` : '',
+    ...order.barcodes.map((b) => String(b)),
+  ].filter(Boolean);
   try {
-    await login(page);
-    cap('Logged in.');
-    const r = await createFactorySalesInvoice(page, order, { dryRun: DRY_RUN });
-    const filled = `Filled ${(r && r.entered) || 0}/${(r && r.total) || 0} item(s)` +
-      (r && r.skipped && r.skipped.length ? `, ${r.skipped.length} skipped (not in stock)` : '');
-
-    if (DRY_RUN) {
-      log('DRY RUN complete for', so, '—', filled, '(not posted).');
-      await setStatus(job.id, { status: 'queued', error: `DRY RUN — ${filled}. Re-queued (not posted). Set FSI_DRY_RUN=false to post.` });
-      // NOTE: left 'queued' on purpose so a later LIVE run can still post it.
-      return;
+    fs.writeFileSync(txtPath, bodyLines.join('\r\n') + '\r\n', 'utf8');
+    // clear stale agent outputs so we never read last run's result
+    for (const f of ['pact_result.json', 'pact_progress.json']) {
+      try { fs.unlinkSync(path.join(AGENT_DIR, f)); } catch {}
     }
+  } catch (e) {
+    await setStatus(job.id, { status: 'failed', error: 'Could not write order TXT: ' + (e && e.message) });
+    return;
+  }
 
-    if (!(r && r.posted)) {
-      throw new Error('Invoice NOT posted: ' + ((r && r.reason) || 'still Draft'));
-    }
-    const summary = `${filled} — POSTED${r && r.docNo ? ' as ' + r.docNo : ''}`;
-    log('POSTED', so, '->', (r && r.docNo) || '(voucher unknown)');
-    await setStatus(job.id, { status: 'done', invoice: (r && r.docNo) || so, error: summary });
+  const res = await runAgent(txtPath, !DRY_RUN);
+
+  if (DRY_RUN) {
+    log('DRY RUN complete for', so, '— filled (not posted).');
+    await setStatus(job.id, {
+      status: 'queued',
+      error: `DRY RUN — filled, not posted. Review the PACT window / after_fsi_dispatch.png. Set FSI_DRY_RUN=false to post.`,
+    });
+    // left 'queued' on purpose so a later LIVE run can post it.
+    return;
+  }
+
+  if (res.status === 'posted') {
+    const voucher = res.voucher || so;
+    log('POSTED', so, '->', res.voucher || '(voucher unknown)');
+    await setStatus(job.id, { status: 'done', invoice: voucher, error: ('POSTED' + (res.note ? ' — ' + res.note : '')).slice(0, 300) });
 
     // Record posted invoice for "View Past Sales Invoice"
     try {
@@ -173,21 +217,15 @@ async function processJob(job) {
       });
       await sb.from('sales_invoices').insert({
         vendor_name: order.customer || order.vendor || null,
-        invoice_number: (r && r.docNo) || null,
+        invoice_number: res.voucher || null,
         invoice_date: new Date().toISOString().slice(0, 10),
         amount: null, items,
       });
     } catch (e) { log('sales_invoices insert warn:', e && e.message); }
-  } catch (e) {
-    const msg = String(e && e.message ? e.message : e);
-    log('JOB FAILED', so, '-', msg.slice(0, 160));
-    await setStatus(job.id, { status: 'failed', error: (msg + '\n--- log ---\n' + RUN.slice(-40).join('\n')).slice(0, 3800) });
-  } finally {
-    console.log = origLog;
-    clearTimeout(killTimer);
-    // In headed mode, pause briefly so a watching operator can read the result.
-    if (!HEADLESS) await page.waitForTimeout(2500).catch(() => {});
-    await browser.close().catch(() => {});
+  } else {
+    const msg = (res.note || 'Invoice NOT posted') + (res._log ? '\n--- log ---\n' + res._log : '');
+    log('JOB FAILED', so, '-', (res.note || '').slice(0, 160));
+    await setStatus(job.id, { status: 'failed', error: msg.slice(0, 3800) });
   }
 }
 
@@ -202,6 +240,6 @@ async function tick() {
   } finally { busy = false; }
 }
 
-log(`B2B FSI watcher started. poll=${POLL_MS}ms  match=${MATCH}%  dryRun=${DRY_RUN}  headless=${HEADLESS}`);
+log(`B2B FSI watcher started. poll=${POLL_MS}ms  match=${MATCH}%  dryRun=${DRY_RUN}  agent=${PY} ${AGENT} @ ${AGENT_DIR}`);
 setInterval(tick, POLL_MS);
 tick();
