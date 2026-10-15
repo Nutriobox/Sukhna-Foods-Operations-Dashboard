@@ -62,17 +62,42 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: fa
 
 let busy = false;
 
+// The SO number can live in the `invoice` column OR only in payload.soNumber,
+// depending on which gun build created the job. Resolve it from both.
+function resolvedSo(job) {
+  return String((job && job.invoice) || (job && job.payload && job.payload.soNumber) || '').trim();
+}
+function matchesScope(job) {
+  const so = resolvedSo(job).toUpperCase();
+  return so.startsWith(MATCH.toUpperCase());
+}
+
+// One-time startup diagnostic: show exactly what's queued and what matches scope.
+async function logQueue() {
+  const { data, error } = await sb.from('pact_jobs')
+    .select('id,invoice,status,payload,created_at')
+    .eq('status', 'queued').order('created_at', { ascending: true }).limit(200);
+  if (error) { log('queue check error:', error.message); return; }
+  const rows = data || [];
+  log('queued jobs in table:', rows.length);
+  for (const j of rows) {
+    log('   queued', j.id,
+      'invoice=' + JSON.stringify(j.invoice),
+      'soNumber=' + JSON.stringify(j.payload && j.payload.soNumber),
+      matchesScope(j) ? '<= MATCHES scope' : '');
+  }
+}
+
 // Claim the oldest queued B2B invoice job (atomic: only one worker can win it).
 async function claimNextJob() {
   const { data, error } = await sb
     .from('pact_jobs')
     .select('id,invoice,status,payload,created_at')
     .eq('status', 'queued')
-    .like('invoice', MATCH + '%')
     .order('created_at', { ascending: true })
-    .limit(1);
+    .limit(200);
   if (error) { log('poll error:', error.message); return null; }
-  const job = data && data[0];
+  const job = (data || []).filter(matchesScope)[0];
   if (!job) return null;
 
   const upd = await sb.from('pact_jobs')
@@ -87,14 +112,19 @@ async function claimNextJob() {
 // Mark every OTHER still-queued job for the same SO as superseded, so a
 // double/triple submit of one order can never post more than one invoice.
 async function supersedeSiblings(job) {
-  const so = job.invoice;
+  const so = resolvedSo(job);
   if (!so) return;
   const { data, error } = await sb.from('pact_jobs')
-    .update({ status: 'superseded', updated_at: now(), error: 'Superseded — another job for this SO is being posted.' })
-    .eq('status', 'queued').eq('invoice', so).neq('id', job.id)
-    .select('id');
+    .select('id,invoice,status,payload')
+    .eq('status', 'queued').neq('id', job.id).limit(200);
   if (error) { log('supersede warn:', error.message); return; }
-  if (data && data.length) log('superseded', data.length, 'duplicate job(s) for', so);
+  const sibs = (data || []).filter((j) => resolvedSo(j) === so).map((j) => j.id);
+  if (!sibs.length) return;
+  const upd = await sb.from('pact_jobs')
+    .update({ status: 'superseded', updated_at: now(), error: 'Superseded — another job for this SO is being posted.' })
+    .in('id', sibs).eq('status', 'queued').select('id');
+  if (upd.error) { log('supersede warn:', upd.error.message); return; }
+  if (upd.data && upd.data.length) log('superseded', upd.data.length, 'duplicate job(s) for', so);
 }
 
 // Ask the dashboard what PACT currently shows for this SO. Returns true if the
@@ -156,7 +186,7 @@ function runAgent(orderTxtPath, doPost) {
 
 async function processJob(job) {
   const order = job.payload || {};
-  const so = order.soNumber || job.invoice;
+  const so = resolvedSo(job);
   const customer = order.customer || order.vendor || '';
   log('claimed', job.id, '->', so, DRY_RUN ? '(DRY RUN)' : '(LIVE POST)');
 
@@ -241,5 +271,4 @@ async function tick() {
 }
 
 log(`B2B FSI watcher started. poll=${POLL_MS}ms  match=${MATCH}%  dryRun=${DRY_RUN}  agent=${PY} ${AGENT} @ ${AGENT_DIR}`);
-setInterval(tick, POLL_MS);
-tick();
+logQueue().finally(() => { setInterval(tick, POLL_MS); tick(); });
