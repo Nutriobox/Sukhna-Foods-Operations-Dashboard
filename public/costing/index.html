@@ -1533,5 +1533,6 @@ function hasWarehouse(){return Object.values(D.conv||{}).some(e=>e&&e[10]);}
 IDB.get().then(v=>{if(v){try{D=JSON.parse(v);NAMECONV=null;const n=(D.ver!==DATA_VER)?migrateData():0;backfillData();rebuildIdx();bump();fillDates();renderSyncStat();refresh(true);if(n)toast('Synced data upgraded: '+n+' BOM lines re-classified Food / Packing (stage rule).',6000);}catch(e){}}}).finally(()=>{liveSyncPull(['pm','bom']);});
 
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/js/sync-refresh.js"></script>
 </body></html>
