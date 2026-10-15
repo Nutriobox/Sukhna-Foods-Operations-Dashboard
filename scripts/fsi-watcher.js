@@ -135,7 +135,7 @@ async function processJob(job) {
 
   const RUN = [];
   const cap = (...a) => { RUN.push(a.map(String).join(' ')); };
-  const browser = await chromium.launch({ headless: HEADLESS, args: ['--window-size=1680,1000', '--no-sandbox', '--disable-dev-shm-usage'] });
+  const browser = await chromium.launch({ headless: HEADLESS, args: ['--window-size=1680,1000', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--disable-software-rasterizer', '--disable-features=Vulkan'] });
   const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: null });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
