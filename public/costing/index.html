@@ -1481,6 +1481,34 @@ async function liveSyncNow(k){
 }
 window.liveSyncPull=liveSyncPull;window.liveSyncOne=liveSyncOne;window.liveSyncNow=liveSyncNow;
 
+/* Cross-tab auto-refresh. The /js/sync-refresh.js module calls this when it
+   detects (via 60-s poll or BroadcastChannel from another tab) that PM or BOM
+   advanced. Pulls the new snapshot and re-applies without re-triggering a
+   fresh PACT sync (the other tool already did that). */
+window.onDataChanged=async function(changed){
+ for(const k of changed){
+  if(k!=='pm'&&k!=='bom')continue;
+  try{
+   // Force a re-apply by clearing the "seen" marker for this report
+   let seen={};try{seen=JSON.parse(localStorage.getItem('live_seen')||'{}');}catch(e){}
+   delete seen[k];try{localStorage.setItem('live_seen',JSON.stringify(seen));}catch(e){}
+   const r=await liveSyncOne(k);
+   if(r&&r.ok&&!r.skipped){try{slog('🔄 '+(TYPE_LABEL[k]||k)+' auto-refreshed from another tab','ok');}catch(e){}}
+  }catch(e){ console.warn('[costing] auto-refresh '+k+' failed',e); }
+ }
+};
+
+/* After this tool's own ⚡ Sync Now button finishes, broadcast so sibling tabs
+   catch the new snapshot immediately instead of waiting for their next poll. */
+const _origLiveSyncNow=liveSyncNow;
+window.liveSyncNow=async function(k){
+ await _origLiveSyncNow.call(this,k);
+ try{
+  const latest=await (await fetch('/api/costing/'+k,{cache:'no-store'})).json();
+  if(latest&&latest.synced_at&&window.OpsSync)window.OpsSync.broadcast(k,latest.synced_at);
+ }catch(e){}
+};
+
 // ================= INIT =================
 document.querySelectorAll('.note').forEach(n=>{const card=n.closest('.card');const rf=card&&card.querySelector('.rowflex');if(!rf)return;const b=document.createElement('button');b.className='ibtn';b.textContent='i';b.title='Show / hide explanation';b.onclick=()=>n.classList.toggle('hide');const last=rf.lastElementChild;const wrap=document.createElement('div');wrap.style.flex='0 0 auto';wrap.innerHTML='<label>&nbsp;</label>';wrap.appendChild(b);rf.appendChild(wrap);});
 gvInit();fillDates();renderRate();DIRTY.rate=0;renderSyncStat();
@@ -1504,4 +1532,6 @@ function migrateData(){let changed=0;
 function hasWarehouse(){return Object.values(D.conv||{}).some(e=>e&&e[10]);}
 IDB.get().then(v=>{if(v){try{D=JSON.parse(v);NAMECONV=null;const n=(D.ver!==DATA_VER)?migrateData():0;backfillData();rebuildIdx();bump();fillDates();renderSyncStat();refresh(true);if(n)toast('Synced data upgraded: '+n+' BOM lines re-classified Food / Packing (stage rule).',6000);}catch(e){}}}).finally(()=>{liveSyncPull(['pm','bom']);});
 
-</script></body></html>
+</script>
+<script src="/js/sync-refresh.js"></script>
+</body></html>

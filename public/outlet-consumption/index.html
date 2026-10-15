@@ -1056,6 +1056,48 @@ loadRm(false).catch(e => {
   $('tbodyRm').innerHTML = `<tr><td colspan="11" style="padding:18px;color:#b91c1c">Failed to load Raw Material Master: ${esc(e.message || e)}</td></tr>`;
   toast('Load failed: ' + (e.message || e), 4000);
 });
+
+/* Cross-tab auto-refresh — when PM or BOM is synced from any tool (this one,
+   Outlet Dispatch, Costing Dashboard, Main Dashboard) in any browser tab, the
+   /js/sync-refresh.js module polls /api/product-master and /api/costing/bom
+   every 60s, listens on a BroadcastChannel for near-instant notification from
+   sibling tabs, and calls this handler so each affected tab/tool refreshes
+   itself without a manual reload. */
+window.onDataChanged = function(changed){
+  // changed is a subset of ['pm','bom','pf','si']
+  if(changed.includes('pm')){
+    // PM feeds Raw Material Master AND the Outlet Recipes (via dish names).
+    // Refresh both silently; the user sees updated data on their next tab click.
+    if(typeof loadPm === 'function') loadPm(true).catch(() => {});
+    if(RM_LOADED.v && typeof loadRm === 'function') loadRm(false).catch(() => {});
+    toast('Product Master refreshed from another tab', 2200);
+  }
+  if(changed.includes('bom')){
+    if(typeof loadBom === 'function') loadBom(true).catch(() => {});
+    if(OR_LOADED.v && typeof loadOr === 'function') loadOr(false).catch(() => {});
+    toast('BOM refreshed from another tab', 2200);
+  }
+};
+
+/* When this tool's OWN ⚡ Sync button completes, call OpsSync.broadcast so any
+   other open tabs refresh immediately instead of waiting for their next poll. */
+const _origSyncReport = typeof syncReport === 'function' ? syncReport : null;
+if(_origSyncReport){
+  window.syncReport = async function(report, btnId, statId, baselineAt, afterLoad){
+    const wrappedAfterLoad = async () => {
+      await afterLoad();
+      try{
+        // Fetch the new synced_at and broadcast
+        const freshEndpoint = report === 'pm' ? '/api/product-master' : ('/api/costing/' + report);
+        const j = await fetch(freshEndpoint, { cache:'no-store' }).then(r => r.json()).catch(() => null);
+        const at = j && j.synced_at;
+        if(at && window.OpsSync) window.OpsSync.broadcast(report, at);
+      }catch(e){ /* non-fatal */ }
+    };
+    return _origSyncReport(report, btnId, statId, baselineAt, wrappedAfterLoad);
+  };
+}
 </script>
+<script src="/js/sync-refresh.js"></script>
 </body>
 </html>

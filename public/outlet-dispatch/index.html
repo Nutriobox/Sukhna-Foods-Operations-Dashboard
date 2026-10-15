@@ -4620,6 +4620,50 @@ function buildMasterRowsFromAPI(products){
 }
 window.syncPMFromPACT=syncPMFromPACT;
 window.buildMasterRowsFromAPI=buildMasterRowsFromAPI;
+
+/* Cross-tab auto-refresh — hooks into /js/sync-refresh.js so when PM is
+   synced from another tool (Outlet Consumption, Costing Dashboard, Main
+   Dashboard) in any tab, this one refreshes its Product Master view too. */
+window.onDataChanged = async function(changed){
+  if(!changed.includes('pm')) return;
+  // Re-fetch /api/product-master and re-apply (without re-triggering the full PACT sync)
+  try{
+    const pm = await fetch('/api/product-master?fresh=1',{cache:'no-store'}).then(r=>r.json());
+    if(!pm || !pm.ok || !pm.products) return;
+    const rows = buildMasterRowsFromAPI(pm.products);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Product Master');
+    S.master = wb;
+    S.names.master = 'Product Master (live PACT · ' + new Date(pm.synced_at).toLocaleString('en-IN',{hour12:true}) + ')';
+    try{readMaster();}catch(e){console.error(e);}
+    try{
+      const wbout = XLSX.write(wb, {type:'base64', bookType:'xlsx'});
+      REF.master = { name: S.names.master, b64: wbout, when: new Date().toISOString().slice(0,10), wb };
+      if(typeof saveRef === 'function') saveRef();
+      // Skip dispatchRefSave() on an auto-refresh — the sync-triggering tool already persisted
+    }catch(e){}
+    if(typeof render === 'function') render();
+    if(typeof renderRef === 'function') renderRef();
+    if(typeof renderLinks === 'function') renderLinks();
+    if(typeof toast === 'function') toast('Product Master refreshed from another tab (' + (pm.count||0) + ' products)', 2500);
+  }catch(e){ console.warn('[Outlet Dispatch] auto-refresh failed', e); }
+};
+
+/* After our own ⚡ Sync button finishes, broadcast so other tabs catch up fast. */
+const _origSyncPM = window.syncPMFromPACT;
+window.syncPMFromPACT = async function(){
+  const base = await fetch('/api/product-master',{cache:'no-store'}).then(r=>r.json()).then(j=>j.synced_at||'').catch(()=>'');
+  await _origSyncPM.apply(this, arguments);
+  // Fire broadcast with the new timestamp
+  try{
+    const after = await fetch('/api/product-master?fresh=1',{cache:'no-store'}).then(r=>r.json());
+    if(after && after.synced_at && after.synced_at !== base && window.OpsSync){
+      window.OpsSync.broadcast('pm', after.synced_at);
+    }
+  }catch(e){}
+};
 </script>
+<script src="/js/sync-refresh.js"></script>
 </body>
 </html>
