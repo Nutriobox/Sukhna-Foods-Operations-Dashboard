@@ -37,8 +37,8 @@ TITLE_RE = re.compile(r"PACT\s*RevenU.*Allsure", re.I)
 # FACTORY SALES INVOICE header-field labels.
 # These are CANDIDATES -- the agent tries each until one resolves on screen.
 # After you run `map`, I'll pin these to the exact labels from fsi_map.txt.
-CUSTOMER_LABELS = ["Customer *", "Customer", "Party Name *", "Party Name",
-                   "Party *", "Party", "Customer Name *", "Customer Name",
+CUSTOMER_LABELS = ["Customer Name *", "Customer Name", "Customer *", "Customer",
+                   "Party Name *", "Party Name", "Party *", "Party",
                    "Buyer *", "Buyer"]
 SO_LABELS       = ["SO No", "SO No *", "Sales Order No", "Sales Order No *",
                    "Sales Order", "Sales Order *", "Order No", "Order No *",
@@ -103,6 +103,19 @@ def combo_after_label(desc, label, within=8):
             for d2 in desc[i+1:i+1+within]:
                 if ctype(d2)=="ComboBox": return d2,i
     return None,None
+
+def visible_combo_after_label(desc, labels, within=8):
+    """Find a VISIBLE ComboBox after any of the given label prefixes, trying the
+    labels in order. Skips hidden combos (e.g. fields on an inactive tab), which
+    is what made the Customer field match a hidden GST-tab combo before."""
+    for label in labels:
+        lab=label.lower()
+        for i,d in enumerate(desc):
+            if ctype(d)=="Text" and text(d).strip().lower().startswith(lab):
+                for d2 in desc[i+1:i+1+within]:
+                    if ctype(d2)=="ComboBox" and _is_visible(d2):
+                        return d2, label
+    return None, None
 
 def edit_after_label(desc, label, within=6, exact=True):
     lab=label.lower()
@@ -235,17 +248,21 @@ def _fill_combo_filtered(win, combo, filter_text, pick_token, lines, tag):
 def set_customer(win, desc, value, lines):
     """Fill the Customer/Party combo. Tries each candidate label until one has a
     combo next to it, then filters the list to the customer name and clicks it."""
-    for label in CUSTOMER_LABELS:
-        combo,_=combo_after_label(desc, label)
-        if combo is not None:
-            log(lines, f"  Customer field found via label {label!r}")
-            # try a couple of filter widths: full name, then first word
-            first = (value or "").split("(")[0].strip()
-            for filt in (value, first, (value or "")[:6]):
-                if _fill_combo_filtered(win, combo, filt, value, lines, "Customer"):
-                    return True
-            return False
-    log(lines, "  [MISS] Customer combo (none of CUSTOMER_LABELS matched) -- run `map` and send fsi_map.txt")
+    # Prefer a VISIBLE Customer Name combo; fall back to any match if needed.
+    combo, used = visible_combo_after_label(desc, CUSTOMER_LABELS)
+    if combo is None:
+        for label in CUSTOMER_LABELS:
+            c,_=combo_after_label(desc, label)
+            if c is not None: combo=c; used=label; break
+    if combo is None:
+        log(lines, "  [MISS] Customer combo (none of CUSTOMER_LABELS matched)")
+        return False
+    log(lines, f"  Customer field via label {used!r} visible={_is_visible(combo)}")
+    # try a few filter widths: full name, first word, short prefix
+    first = (value or "").split("(")[0].strip()
+    for filt in (value, first, (value or "")[:6]):
+        if _fill_combo_filtered(win, combo, filt, value, lines, "Customer"):
+            return True
     return False
 
 def set_so_ref(win, desc, value, lines):
@@ -255,17 +272,18 @@ def set_so_ref(win, desc, value, lines):
     value=(value or "").strip()
     if not value:
         log(lines, "  [SO] no SO number -> left blank"); return False
-    combo=None; used=None
-    for label in SO_LABELS:
-        c,_=combo_after_label(desc, label)
-        if c is None:
-            c,_=edit_after_label(desc, label, within=6, exact=False)
-        if c is not None:
-            combo=c; used=label; break
+    combo, used = visible_combo_after_label(desc, SO_LABELS)
     if combo is None:
-        log(lines, "  [MISS] SO reference field (none of SO_LABELS matched) -- run `map` and send fsi_map.txt")
+        for label in SO_LABELS:
+            c,_=combo_after_label(desc, label)
+            if c is None:
+                c,_=edit_after_label(desc, label, within=6, exact=False)
+            if c is not None:
+                combo=c; used=label; break
+    if combo is None:
+        log(lines, "  [MISS] SO reference field (none of SO_LABELS matched)")
         return False
-    log(lines, f"  SO field found via label {used!r}")
+    log(lines, f"  SO field via label {used!r} visible={_is_visible(combo)}")
     # SO No is a combo whose list is populated once the Customer is chosen.
     # Pick it the robust way: filter by full SO, then by the numeric tail.
     tail=value.split("/")[-1]
