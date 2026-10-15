@@ -298,14 +298,21 @@ async function loadPm(fresh){
   if(!j.ok){ throw new Error(j.error || ('product-master returned '+r.status)); }
   PM.products = Array.isArray(j.products) ? j.products : [];
   PM.meta = { source: j.source || '', synced_at: j.synced_at || null, count: j.count ?? PM.products.length };
-  const groups = [...new Set(PM.products.map(p => p.group).filter(Boolean))].sort();
-  const sel = $('grpPm'); const cur = sel.value;
-  sel.innerHTML = '<option value="">All groups</option>' + groups.map(g => `<option value="${esc(g)}"${cur===g?' selected':''}>${esc(g)}</option>`).join('');
   PM_LOADED.v = true;
+  // PM tab UI was removed on 2026-10-15 — only populate the dropdown and render
+  // if its DOM elements still exist. The data load itself always runs because
+  // Raw Material Master depends on it.
+  const sel = $('grpPm');
+  if(sel){
+    const groups = [...new Set(PM.products.map(p => p.group).filter(Boolean))].sort();
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All groups</option>' + groups.map(g => `<option value="${esc(g)}"${cur===g?' selected':''}>${esc(g)}</option>`).join('');
+  }
   if(CURTAB === 'pm') updateHeaderStats();
   renderPm();
 }
 function renderPm(){
+  if(!$('tbodyPm')) return;  // PM tab removed — nothing to render
   const q = ($('qpm').value || '').trim().toLowerCase();
   const g = $('grpPm').value || '';
   const list = PM.products.filter(p =>
@@ -335,6 +342,7 @@ function renderPm(){
   $('tbodyPm').innerHTML = (rows.join('') || '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No products match.</td></tr>') + extra;
 }
 function exportCsvPm(){
+  if(!$('qpm')) return;  // PM tab removed
   const q = ($('qpm').value || '').trim().toLowerCase();
   const g = $('grpPm').value || '';
   const list = PM.products.filter(p =>
@@ -390,6 +398,7 @@ async function loadBom(fresh){
   renderBom();
 }
 function renderBom(){
+  if(!$('tbodyBom')) return;  // BOM tab removed 2026-10-15 — data still loaded for RM-usage + OR-recipes
   const q = ($('qbom').value || '').trim().toLowerCase();
   const sec = $('secBom').value || '';
   // match by BOM name/code or an input product
@@ -439,6 +448,7 @@ function renderBom(){
 }
 function toggleBom(code){ if(BOM_EXP.has(code)) BOM_EXP.delete(code); else BOM_EXP.add(code); renderBom(); }
 function exportCsvBom(){
+  if(!$('qbom')) return;  // BOM tab removed
   const q = ($('qbom').value || '').trim().toLowerCase();
   const sec = $('secBom').value || '';
   const matches = (b) => {
@@ -467,6 +477,7 @@ function exportCsvBom(){
 /* ======================= SYNC HELPERS ======================= */
 async function syncReport(report, btnId, statId, baselineAt, afterLoad){
   const btn = $(btnId), stat = $(statId);
+  if(!btn || !stat) return;  // caller's UI no longer exists (tab removed)
   if(btn.disabled) return;
   btn.disabled = true;
   const t0 = Date.now();
@@ -494,8 +505,8 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
     clearInterval(tick); btn.disabled = false;
   }
 }
-function syncPM(){ syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
-function syncBOM(){ syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
+function syncPM(){ if(!$('btnSyncPm')) return; syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
+function syncBOM(){ if(!$('btnSyncBom')) return; syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
 function syncOR(){ syncReport('bom','btnSyncOr','syncStatOr', BOM.meta.synced_at || '', async () => { await loadBom(true); await loadOr(false); }); }
 function syncRM(){ syncReport('pm','btnSyncRm','syncStatRm', PM.meta.synced_at || '', async () => { await loadPm(true); await loadRm(false); }); }
 
