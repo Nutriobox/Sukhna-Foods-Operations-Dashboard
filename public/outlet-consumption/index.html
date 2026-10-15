@@ -938,13 +938,15 @@ function downloadBlob(content, filename){
 async function loadSd(fresh){
   const stat = $('syncStatSd');
   if(fresh && stat) stat.textContent = 'loading…';
-  // Default date range: last 7 days IST
+  // Default date range: TODAY ONLY (IST). A wider default (e.g. last 7 days
+  // across 10 outlets ≈ 25 000 rows) takes 40+ s on the backend and exceeds
+  // Vercel's function timeout → the UI hung on "Loading..." forever. User
+  // widens the range manually when they need more.
   const toInput = $('dateToSd'), fromInput = $('dateFromSd');
   const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
   const todayStr = istNow.toISOString().slice(0, 10);
-  const weekAgoStr = new Date(istNow.getTime() - 7 * 86400 * 1000).toISOString().slice(0, 10);
   if(!toInput.value)   toInput.value = todayStr;
-  if(!fromInput.value) fromInput.value = weekAgoStr;
+  if(!fromInput.value) fromInput.value = todayStr;
 
   const params = new URLSearchParams();
   params.set('from', fromInput.value);
@@ -953,7 +955,7 @@ async function loadSd(fresh){
   const channel = $('channelSd').value;
   if(outlet)  params.set('outlet_id', outlet);
   if(channel) params.set('channel',   channel);
-  params.set('limit_rows', '5000');
+  params.set('limit_rows', '3000');
 
   const t0 = Date.now();
   try {

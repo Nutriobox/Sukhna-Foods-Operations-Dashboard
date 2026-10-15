@@ -36,6 +36,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;  // seconds — needed because 7-day windows can hit 25k+ rows
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,OPTIONS" };
 const PAGE_SIZE = 1_000;
@@ -90,13 +91,21 @@ async function sbGetPaged<T>(url: string, key: string, path: string, max: number
 }
 
 async function fetchItemsFor(url: string, key: string, orderIds: number[]): Promise<OrderItem[]> {
-  const out: OrderItem[] = [];
+  // Parallelize the batches so a 25k-order window doesn't block for 40+ s
+  // sequentially. CONCURRENCY picked conservatively — Supabase REST handles
+  // bursts fine but we're sharing a free-tier project.
   const BATCH = 400;
-  for (let i = 0; i < orderIds.length; i += BATCH) {
-    const batch = orderIds.slice(i, i + BATCH);
-    const rows = await sbGetPaged<OrderItem>(url, key,
-      `order_items?select=order_id,dish_id,quantity&order_id=in.(${batch.join(",")})`, 20_000);
-    out.push(...rows);
+  const CONCURRENCY = 6;
+  const batches: number[][] = [];
+  for (let i = 0; i < orderIds.length; i += BATCH) batches.push(orderIds.slice(i, i + BATCH));
+  const out: OrderItem[] = [];
+  for (let i = 0; i < batches.length; i += CONCURRENCY) {
+    const slice = batches.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(slice.map((b) =>
+      sbGetPaged<OrderItem>(url, key,
+        `order_items?select=order_id,dish_id,quantity&order_id=in.(${b.join(",")})`, 20_000)
+    ));
+    for (const rows of results) out.push(...rows);
   }
   return out;
 }
@@ -105,11 +114,12 @@ async function fetchDishes(url: string, key: string, dishIds: number[]): Promise
   const map = new Map<number, Dish>();
   if (!dishIds.length) return map;
   const BATCH = 400;
-  for (let i = 0; i < dishIds.length; i += BATCH) {
-    const batch = dishIds.slice(i, i + BATCH);
-    const rows = await sbGet<Dish>(url, key, `dishes?select=id,name,category&id=in.(${batch.join(",")})`);
-    for (const d of rows) map.set(d.id, d);
-  }
+  const batches: number[][] = [];
+  for (let i = 0; i < dishIds.length; i += BATCH) batches.push(dishIds.slice(i, i + BATCH));
+  const results = await Promise.all(batches.map((b) =>
+    sbGet<Dish>(url, key, `dishes?select=id,name,category&id=in.(${b.join(",")})`)
+  ));
+  for (const rows of results) for (const d of rows) map.set(d.id, d);
   return map;
 }
 
