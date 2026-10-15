@@ -2766,6 +2766,25 @@ function ProductMaster({ onClose }: { onClose: () => void }) {
 
   const selectedProducts = useMemo(() => CATALOG.filter((p) => sel.has(p.code || p.name)), [sel]);
 
+  // Real-time refresh: when a sync fires anywhere (same browser or another
+  // device), /public/js/sync-refresh.js dispatches an 'ops-sync-update' event
+  // on window with the list of changed reports. Pull a fresh inventory
+  // snapshot the moment someone else's "Sync inventory from PACT" lands.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { changed?: string[] } | undefined;
+      const changed = detail?.changed;
+      if (changed && changed.includes("inventory")) {
+        loadLatest();
+      }
+    };
+    window.addEventListener("ops-sync-update", handler);
+    return () => window.removeEventListener("ops-sync-update", handler);
+    // loadLatest only closes over stable module-level `supabase` + stable
+    // setState setters, so re-registration isn't needed between renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ---- editable working copy of the synced stock ----
   const ekey = (p: (typeof CATALOG)[number], bi: number) => codeOf(p) + "|" + bi;
   const getQty = (p: (typeof CATALOG)[number], bi: number, b: SoBatch) => { const e = edits[ekey(p, bi)]; return e ? e.qty : b.available; };

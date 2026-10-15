@@ -1,7 +1,6 @@
 /*  Ops Dashboard — cross-tool, cross-tab, cross-device sync notifier (REAL-TIME).
  *
- *  Every tool that displays PACT-backed data (Outlet Consumption, Outlet
- *  Dispatch, Costing Dashboard, Main Dashboard) includes TWO scripts:
+ *  Every tool that displays PACT-backed data includes TWO scripts:
  *
  *    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
  *    <script src="/js/sync-refresh.js"></script>
@@ -9,57 +8,58 @@
  *  …defines a page-level handler for refreshes:
  *
  *    window.onDataChanged = function(changedReports) {
- *      // changedReports is a subset of ['pm','bom','pf','si']
+ *      // changedReports is a subset of ['pm','bom','pf','si','inventory']
  *      // Re-fetch and re-render whichever your tool shows.
  *    };
  *
+ *  OR for React/Next.js tools, listens for a DOM event instead (works even
+ *  when multiple components want to react to the same change):
+ *
+ *    window.addEventListener('ops-sync-update', (e) => {
+ *      // e.detail.changed is a subset of ['pm','bom','pf','si','inventory']
+ *    });
+ *
  *  …and OPTIONALLY calls, right after its own ⚡ Sync button completes:
  *
- *    window.OpsSync.broadcast('pm', newSyncedAt);
+ *    window.OpsSync.broadcast('pm', newSyncedAt);        // or 'inventory', etc.
  *
  *  Behaviour (three layers, defence in depth):
  *   1. SUPABASE REALTIME (primary) — opens a WebSocket to Supabase and
- *      subscribes to INSERT events on public.costing_snapshots. The moment the
- *      PACT worker writes a new row, every open tool receives a push in
- *      roughly 200–500 ms, regardless of browser or device.
- *   2. BROADCASTCHANNEL (same-browser latency) — when any tool in this browser
- *      profile fires its own ⚡ Sync button or receives a Realtime push, it
- *      posts to a BroadcastChannel so sibling tabs refresh instantly (<50 ms)
- *      without each one having to react to Realtime independently.
- *   3. SAFETY POLL (last resort) — every 5 minutes the module checks
- *      /api/product-master and /api/costing/bom for a synced_at advance it
- *      somehow missed. Catches cases where the WebSocket silently dropped.
- *
- *  All three layers converge on the same window.onDataChanged() hook, so the
- *  tool code doesn't care which path a change arrived on.
- *
- *  Fail-silent: if supabase-js didn't load, Realtime is skipped and the safety
- *  poll + BroadcastChannel still work. If the browser is ancient (no
- *  BroadcastChannel), it's skipped too. If /api/sync-config returns an error,
- *  Realtime is skipped. The tool never breaks because of this module.
+ *      subscribes to INSERT events on public.costing_snapshots AND
+ *      public.inventory_snapshots. The moment any PACT worker writes a new
+ *      row, every open tool receives a push in ~200–500 ms, regardless of
+ *      browser or device.
+ *   2. BROADCASTCHANNEL (same-browser latency) — sibling tabs refresh
+ *      instantly (<50 ms) without each one having to react to Realtime.
+ *   3. SAFETY POLL (last resort) — every 5 min checks /api/product-master,
+ *      /api/costing/bom and /api/inventory for a synced_at advance we somehow
+ *      missed. Catches cases where the WebSocket silently dropped.
  */
 (function () {
   'use strict';
 
   var CHANNEL        = 'ops-dashboard-sync-v1';
-  var SAFETY_POLL_MS = 5 * 60 * 1000;   // 5 min safety net (down from the old 60 s)
-  var FIRST_POLL_MS  = 15 * 1000;        // first safety check 15 s after load
+  var SAFETY_POLL_MS = 5 * 60 * 1000;
+  var FIRST_POLL_MS  = 15 * 1000;
 
   // ─── 1. BroadcastChannel (same-browser instant) ──────────────────────────
   var bc = null;
   try { bc = new BroadcastChannel(CHANNEL); } catch (e) { /* older browsers */ }
 
-  // Last-known synced_at per report. First observation sets the baseline so
-  // we don't fire onDataChanged() for the page's own initial load.
-  var last = { pm: null, bom: null, pf: null, si: null };
-  var realtimeStatus = 'init';   // for debugging
+  var last = { pm: null, bom: null, pf: null, si: null, inventory: null };
+  var realtimeStatus = 'init';
 
   function fireChange(changed) {
     if (!changed || !changed.length) return;
+    // Legacy window.onDataChanged handler (static HTML tools)
     if (typeof window.onDataChanged === 'function') {
       try { window.onDataChanged(changed); }
       catch (e) { console.warn('[OpsSync] onDataChanged threw:', e); }
     }
+    // DOM event — any number of React components can listen without colliding
+    try {
+      window.dispatchEvent(new CustomEvent('ops-sync-update', { detail: { changed: changed.slice() } }));
+    } catch (e) { /* older browsers */ }
   }
 
   function broadcast(reportKey, newSyncedAt, via) {
@@ -75,7 +75,6 @@
     bc.onmessage = function (e) {
       var m = e && e.data;
       if (!m || m.type !== 'data-updated' || !Array.isArray(m.changed)) return;
-      // Trust the sender's timestamps so we don't re-fire for our own broadcast
       if (m.at) {
         for (var k in m.at) if (m.at[k]) last[k] = m.at[k];
       }
@@ -116,34 +115,51 @@
       return;
     }
 
-    var ch = client
-      .channel('ops_sync_costing_snapshots')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'costing_snapshots' },
-        function (payload) {
-          var row = payload && payload.new;
-          if (!row || !row.report || !row.synced_at) return;
-          var report = String(row.report).toLowerCase();
-          if (!(report in last)) return;
-          // Ignore stale rows (older than what we already know, which can
-          // happen if the publication replays on reconnect).
-          if (last[report] && row.synced_at <= last[report]) return;
-          last[report] = row.synced_at;
-          console.log('[OpsSync] Realtime INSERT received:', report, row.synced_at);
-          fireChange([report]);
-          broadcast(report, row.synced_at, 'realtime');
-        }
-      )
-      .subscribe(function (status) {
-        realtimeStatus = status;
-        if (status === 'SUBSCRIBED') console.log('[OpsSync] Realtime subscribed — listening for costing_snapshots INSERTs.');
-        else if (status === 'CHANNEL_ERROR') console.warn('[OpsSync] Realtime channel error — safety poll will cover.');
-        else if (status === 'TIMED_OUT')     console.warn('[OpsSync] Realtime timed out — reconnecting…');
-        else if (status === 'CLOSED')         console.warn('[OpsSync] Realtime channel closed.');
-      });
+    // One channel, both tables — one subscription event covers both pipelines
+    var ch = client.channel('ops_sync_all');
 
-    // Expose for debug
+    // Costing snapshots: pm, bom, pf, si
+    ch.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'costing_snapshots' },
+      function (payload) {
+        var row = payload && payload.new;
+        if (!row || !row.report || !row.synced_at) return;
+        var report = String(row.report).toLowerCase();
+        if (!(report in last)) return;
+        if (last[report] && row.synced_at <= last[report]) return;
+        last[report] = row.synced_at;
+        console.log('[OpsSync] Realtime INSERT received:', report, row.synced_at);
+        fireChange([report]);
+        broadcast(report, row.synced_at, 'realtime');
+      }
+    );
+
+    // Inventory snapshots: live stock levels per batch per warehouse
+    ch.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'inventory_snapshots' },
+      function (payload) {
+        var row = payload && payload.new;
+        if (!row || !row.synced_at) return;
+        // Only fire for successful inventory syncs (ignore failed ones)
+        if (row.status && String(row.status).toLowerCase() !== 'ok') return;
+        if (last.inventory && row.synced_at <= last.inventory) return;
+        last.inventory = row.synced_at;
+        console.log('[OpsSync] Realtime INSERT received: inventory', row.synced_at);
+        fireChange(['inventory']);
+        broadcast('inventory', row.synced_at, 'realtime');
+      }
+    );
+
+    ch.subscribe(function (status) {
+      realtimeStatus = status;
+      if (status === 'SUBSCRIBED') console.log('[OpsSync] Realtime subscribed — listening for costing_snapshots + inventory_snapshots INSERTs.');
+      else if (status === 'CHANNEL_ERROR') console.warn('[OpsSync] Realtime channel error — safety poll will cover.');
+      else if (status === 'TIMED_OUT')     console.warn('[OpsSync] Realtime timed out — reconnecting…');
+      else if (status === 'CLOSED')         console.warn('[OpsSync] Realtime channel closed.');
+    });
+
     window.OpsSync._client  = client;
     window.OpsSync._channel = ch;
   }
@@ -151,7 +167,11 @@
   // ─── 3. Safety poll (every 5 min — catches missed Realtime drops) ────────
   async function safetyPoll() {
     try {
-      var urls = { pm: '/api/product-master', bom: '/api/costing/bom' };
+      var urls = {
+        pm:        '/api/product-master',
+        bom:       '/api/costing/bom',
+        inventory: '/api/inventory',
+      };
       var keys = Object.keys(urls);
       var results = await Promise.all(keys.map(function (k) {
         return fetch(urls[k], { cache: 'no-store' })
@@ -163,7 +183,7 @@
         var k = keys[i], j = results[i];
         var at = j && j.synced_at;
         if (!at) continue;
-        if (last[k] === null) { last[k] = at; continue; }   // first known — baseline only
+        if (last[k] === null) { last[k] = at; continue; }
         if (at !== last[k]) {
           last[k] = at;
           changed.push(k);
@@ -177,7 +197,7 @@
     } catch (e) { /* fail silent */ }
   }
 
-  // ─── Public API (unchanged from v1 so no tool needs to update) ───────────
+  // ─── Public API ──────────────────────────────────────────────────────────
   window.OpsSync = {
     broadcast: function (reportKey, newSyncedAt) {
       broadcast(reportKey, newSyncedAt, 'self');
@@ -185,11 +205,10 @@
     _state: function () {
       return { last: Object.assign({}, last), realtime: realtimeStatus };
     },
-    _client:  null,  // populated after Realtime connects
+    _client:  null,
     _channel: null,
   };
 
-  // Kick off — Realtime first, then safety poll on a long interval.
   startRealtime();
   setTimeout(safetyPoll, FIRST_POLL_MS);
   setInterval(safetyPoll, SAFETY_POLL_MS);

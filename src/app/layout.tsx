@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "Sukhna Foods Operations Dashboard",
@@ -23,7 +24,21 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        {/*
+          Real-time sync notifier — subscribes to Supabase Realtime on
+          costing_snapshots + inventory_snapshots so the dashboard refreshes
+          within half a second when any PACT sync completes anywhere.
+          React components listen via:
+            window.addEventListener('ops-sync-update', (e) => { ... });
+        */}
+        <Script
+          src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"
+          strategy="afterInteractive"
+        />
+        <Script src="/js/sync-refresh.js" strategy="afterInteractive" />
+      </body>
     </html>
   );
 }
