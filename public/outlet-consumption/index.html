@@ -26,6 +26,47 @@
   .tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
   .tab{flex:0 0 auto;padding:11px 20px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:pointer;font-weight:600;color:var(--mut);text-align:center;font-size:14px}
   .tab.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+  .im-modes{display:flex;gap:6px}
+  .im-mode{font-weight:700;padding:9px 18px}
+  .im-mode.on{background:#4f46e5;color:#fff;border-color:#4f46e5;box-shadow:0 1px 3px rgba(79,70,229,0.3)}
+  .btn.warn{background:#fef3c7;border-color:#fcd34d;color:#92400e;font-weight:600}
+  .btn.warn:hover{background:#fde68a}
+  .im-cat{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--card);overflow:hidden}
+  .im-cat-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;font-weight:600;color:var(--ink);user-select:none;background:#f9fafb;transition:background .15s}
+  .im-cat-hdr:hover{background:#f3f4f6}
+  .im-cat.on .im-cat-hdr{background:#eef2ff;color:#3730a3}
+  .im-cat-chev{width:14px;display:inline-block;transition:transform .15s;color:#6b7280}
+  .im-cat.on .im-cat-chev{transform:rotate(90deg);color:#4f46e5}
+  .im-cat-count{margin-left:auto;font-size:12.5px;color:var(--mut);font-weight:500}
+  .im-cat.on .im-cat-count{color:#4f46e5}
+  .im-cat-body{display:none;padding:4px 10px 10px 32px;background:#fff}
+  .im-cat.on .im-cat-body{display:block}
+  .im-item{border:1px solid var(--line);border-radius:6px;margin:5px 0;overflow:hidden}
+  .im-item-hdr{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;user-select:none;font-size:13.5px;background:#fff;transition:background .15s}
+  .im-item-hdr:hover{background:#fafafa}
+  .im-item.on .im-item-hdr{background:#f0fdf4;color:#15803d;font-weight:600}
+  .im-item-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--mut);background:#f3f4f6;padding:2px 6px;border-radius:4px}
+  .im-item.on .im-item-code{background:#dcfce7;color:#15803d}
+  .im-item-ppcat{font-size:11.5px;color:var(--mut);margin-left:auto}
+  .im-item-chev{width:12px;color:var(--mut);transition:transform .15s}
+  .im-item.on .im-item-chev{transform:rotate(90deg);color:#16a34a}
+  .im-item-body{display:none;padding:8px 12px 10px;background:#fcfcfc;border-top:1px solid var(--line)}
+  .im-item.on .im-item-body{display:block}
+  .im-bomtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .im-bomtbl th{background:#f3f4f6;padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid var(--line);font-size:11.5px;text-transform:uppercase;letter-spacing:0.3px}
+  .im-bomtbl td{padding:6px 10px;border-bottom:1px solid #f3f4f6}
+  .im-bomtbl tr:last-child td{border-bottom:0}
+  .im-bomtbl .r{text-align:right;font-variant-numeric:tabular-nums}
+  .im-nomatch{color:#92400e;font-style:italic;font-size:12px}
+  .nmmodal{position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+  .nmbody{background:#fff;border-radius:12px;padding:20px 24px;max-width:900px;width:100%;max-height:calc(100vh - 80px);display:flex;flex-direction:column}
+  .nmhdr{display:flex;align-items:center;gap:12px}
+  .nm-list{overflow-y:auto;max-height:60vh}
+  .nm-row{display:flex;gap:10px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line);font-size:13px}
+  .nm-row:last-child{border-bottom:0}
+  .nm-row .nm-mode{font-size:11px;padding:2px 7px;border-radius:4px;background:#eef2ff;color:#4338ca;font-weight:600}
+  .nm-row .nm-cat{font-size:11.5px;color:var(--mut);margin-left:auto}
+  .nm-row .nm-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--mut)}
   .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}
   .search{flex:1 1 280px;max-width:460px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0;overflow:hidden}
@@ -78,6 +119,7 @@
   <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
   <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
   <div class="tab" data-t="or" onclick="selTab('or')">🍽️ Outlet Recipes &amp; BOM</div>
+  <div class="tab" data-t="im" onclick="selTab('im')">📋 Item Master</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -215,6 +257,44 @@
   </table></div></div>
  </div>
 
+ <!-- ============== Item Master tab (PACT BOM + PetPooja categories) ============== -->
+ <div id="tabIm" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap">
+   <div class="im-modes">
+    <button class="btn im-mode on" data-m="dine_in"  onclick="imSelMode('dine_in')">🍽️ Dine In</button>
+    <button class="btn im-mode"    data-m="delivery" onclick="imSelMode('delivery')">🚚 Delivery</button>
+   </div>
+   <input id="qim" class="search" placeholder="Search dish name or RM code…" oninput="renderIm()" style="min-width:260px">
+   <button class="btn" onclick="imExpandAll()">⇕ Expand all</button>
+   <button class="btn" onclick="imCollapseAll()">⇱ Collapse all</button>
+   <button class="btn warn" onclick="imShowNotMatching()" title="Items in PACT but not in PetPooja, or vice versa"><span id="imNmCount">⚠</span> Not Matching List</button>
+   <button class="btn prim" id="btnSyncIm" onclick="loadIm(true)" title="Re-fetch from PACT BOM + PetPooja">⚡ Refresh</button>
+   <span id="syncStatIm" class="mut" style="font-size:12.5px"></span>
+  </div>
+  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#eff6ff;border-color:#bfdbfe">
+   <div style="font-size:12.5px;color:#1e40af;line-height:1.45">
+    <strong>Categories come from PetPooja</strong> (menu groupings on the ordering app). Items under <em>Dine In</em> come from PACT&apos;s <code>DIN_BOM*</code> BOM codes; <em>Delivery</em> items from <code>BOM_O*</code>. Add-ons from <code>Dine_AddOn*</code> / <code>Del_AddOn*</code>. Each item&apos;s BOM table shows the raw materials, unit, usage, wastage and total quantity (same as PACT&apos;s Stage-Wise BOM With Wastage report).
+   </div>
+  </div>
+  <div id="imTree"><div class="mut" style="padding:20px;text-align:center">Loading…</div></div>
+
+  <!-- Not Matching modal -->
+  <div id="imNmModal" class="nmmodal" style="display:none" onclick="if(event.target===this)imHideNotMatching()">
+   <div class="nmbody">
+    <div class="nmhdr">
+     <h3 style="margin:0;flex:1">⚠ Not Matching List</h3>
+     <button class="btn" onclick="imHideNotMatching()">✕</button>
+    </div>
+    <div class="tabs" style="margin:12px 0 10px">
+     <div class="tab on" data-nm="pact" onclick="imNmTab('pact')">In PACT but not in PetPooja <span id="nmPactCount" class="pill" style="margin-left:6px">0</span></div>
+     <div class="tab" data-nm="pp" onclick="imNmTab('pp')">In PetPooja but not in PACT <span id="nmPpCount" class="pill" style="margin-left:6px">0</span></div>
+    </div>
+    <div id="nmPactList"></div>
+    <div id="nmPpList" style="display:none"></div>
+   </div>
+  </div>
+ </div>
+
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
   <span>Auto-refresh from PACT: hourly</span>
@@ -235,8 +315,14 @@ let BOM = { rows: [], boms: [], meta: {} };
 let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: list of {type, name, mode, bomCode, bomName, outCode, inputs:[]}
 let RM = { items: [], meta: {} };              // derived view: PM products filtered to Raw Material / Packing / Semi Process
 let SD = { rows: [], outlets: [], meta: {} };  // sales data from /api/outlet-invoices (PetPooja webhook via AIFI)
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false };
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
+
+// Item Master tab — PACT BOM joined with PetPooja categories
+const IM = { meta:{source:null, synced_at:null, count:0}, data:null };
+let IM_MODE = 'dine_in';                        // 'dine_in' | 'delivery'
+const IM_CAT_OPEN = new Set();                  // currently expanded category keys ("<mode>::<catName>")
+const IM_ITEM_OPEN = new Set();                 // currently expanded BOM codes (showing BOM table)
 
 /* Add-on heuristic: tag an outlet item "Add-on item" when the whole
    dish IS a side / beverage / sauce — not when a main dish merely
@@ -267,24 +353,30 @@ function selTab(t){
   $('tabOr').style.display = t === 'or' ? '' : 'none';
   $('tabRm').style.display = t === 'rm' ? '' : 'none';
   $('tabSd').style.display = t === 'sd' ? '' : 'none';
+  $('tabIm').style.display = t === 'im' ? '' : 'none';
   updateHeaderStats();
   if(t === 'or' && !OR_LOADED.v) loadOr(false);
   if(t === 'rm' && !RM_LOADED.v) loadRm(false);
   if(t === 'sd' && !SD_LOADED.v) loadSd(false);
+  if(t === 'im' && !IM_LOADED.v) loadIm(false);
 }
 
 function updateHeaderStats(){
   const m = (CURTAB === 'rm' ? RM
           : CURTAB === 'or'  ? OR
           : CURTAB === 'sd'  ? SD
+          : CURTAB === 'im'  ? IM
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
     ? (m.source || 'PetPooja webhook')
+    : CURTAB === 'im'
+    ? (m.source || 'PACT BOM + PetPooja')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd') ? 'live' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im') ? 'live' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'or'  ? ' outlet recipes'
              : CURTAB === 'sd'  ? ' sales rows'
+             : CURTAB === 'im'  ? ' menu items'
              : ' raw materials';
   $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
   $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
@@ -1057,6 +1149,242 @@ loadRm(false).catch(e => {
   toast('Load failed: ' + (e.message || e), 4000);
 });
 
+
+// ============== Item Master tab (PACT BOM × PetPooja categories) ==============
+async function loadIm(fresh){
+  const btn = $('btnSyncIm'); const stat = $('syncStatIm');
+  if(btn) btn.disabled = true;
+  if(stat) stat.textContent = ' …loading…';
+  try{
+    const r = await fetch('/api/outlet-item-master' + (fresh ? '?fresh=1' : ''), { cache: 'no-store' });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error || 'load failed');
+    IM.data = j;
+    IM.meta.source    = 'PACT BOM + PetPooja';
+    IM.meta.synced_at = j.synced_at;
+    IM.meta.count     = (j.counts.dine_in + j.counts.delivery + j.counts.dine_addons + j.counts.del_addons);
+    IM_LOADED.v = true;
+    if(stat) stat.textContent = ' · ' + IM.meta.count + ' items';
+    // Update "Not Matching" count badge
+    const nmTotal = (j.counts.unmatched_pact + j.counts.unmatched_petpooja);
+    const nmBadge = $('imNmCount');
+    if(nmBadge) nmBadge.textContent = nmTotal ? ('⚠ ' + nmTotal) : '✓';
+    updateHeaderStats();
+    renderIm();
+  }catch(e){
+    if(stat) stat.textContent = ' · failed: ' + (e.message || e);
+    $('imTree').innerHTML = '<div class="mut" style="padding:20px;text-align:center">Load failed: ' + esc(e.message || e) + '</div>';
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+function imSelMode(m){
+  IM_MODE = m;
+  document.querySelectorAll('.im-mode').forEach(x => x.classList.toggle('on', x.dataset.m === m));
+  // Clear expansions when switching modes so the view is clean
+  IM_CAT_OPEN.clear(); IM_ITEM_OPEN.clear();
+  renderIm();
+}
+
+function imCatKey(cat){ return IM_MODE + '::' + cat; }
+
+function imToggleCat(cat){
+  const k = imCatKey(cat);
+  if(IM_CAT_OPEN.has(k)) IM_CAT_OPEN.delete(k); else IM_CAT_OPEN.add(k);
+  renderIm();
+}
+function imToggleItem(code){
+  if(IM_ITEM_OPEN.has(code)) IM_ITEM_OPEN.delete(code); else IM_ITEM_OPEN.add(code);
+  renderIm();
+}
+function imExpandAll(){
+  if(!IM.data) return;
+  const sec = IM.data[IM_MODE] || { categories:{}, add_ons:[] };
+  for(const cat of Object.keys(sec.categories)) IM_CAT_OPEN.add(imCatKey(cat));
+  IM_CAT_OPEN.add(imCatKey('__addons__'));
+  for(const cat of Object.values(sec.categories))
+    for(const it of cat) IM_ITEM_OPEN.add(it.bom_code);
+  for(const it of sec.add_ons) IM_ITEM_OPEN.add(it.bom_code);
+  renderIm();
+}
+function imCollapseAll(){
+  IM_CAT_OPEN.clear();
+  IM_ITEM_OPEN.clear();
+  renderIm();
+}
+
+function imFmtQty(n){
+  if(n == null || n === '') return '—';
+  const x = +n;
+  if(!isFinite(x)) return esc(String(n));
+  if(x === 0) return '0';
+  if(Math.abs(x) < 0.01) return x.toFixed(4);
+  if(Math.abs(x) < 1)    return x.toFixed(3);
+  if(Math.abs(x) < 100)  return x.toFixed(2);
+  return x.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+
+function imRenderBomTable(bom){
+  if(!bom || !bom.length) return '<div class="im-nomatch">No input lines in this BOM.</div>';
+  let h = '<table class="im-bomtbl"><thead><tr><th>RM Name</th><th>UM</th><th class="r">Used Qty</th><th class="r">Wastage</th><th class="r">Total Qty</th></tr></thead><tbody>';
+  for(const line of bom){
+    h += '<tr>'
+      + '<td>' + esc(line.rm_name) + ' <span style="color:var(--mut);font-size:11px">' + esc(line.product_code || '') + '</span></td>'
+      + '<td>' + esc(line.unit || '') + '</td>'
+      + '<td class="r">' + imFmtQty(line.usage_qty) + '</td>'
+      + '<td class="r">' + (line.wastage_pct ? imFmtQty(line.wastage_pct) + '%' : '—') + '</td>'
+      + '<td class="r">' + imFmtQty(line.raw_qty) + '</td>'
+      + '</tr>';
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+function imRenderItem(it){
+  const open = IM_ITEM_OPEN.has(it.bom_code);
+  const nomatch = !it.petpooja_dish_id ? '<span class="im-nomatch">· no PetPooja match</span>' : '';
+  const ppcat = it.petpooja_category ? '<span class="im-item-ppcat">· PetPooja: ' + esc(it.petpooja_category) + '</span>' : '';
+  let h = '<div class="im-item' + (open ? ' on' : '') + '">'
+    + '<div class="im-item-hdr" onclick="imToggleItem(' + JSON.stringify(it.bom_code) + ')">'
+    + '<span class="im-item-chev">▶</span>'
+    + '<span>' + esc(it.name) + '</span>'
+    + '<span class="im-item-code">' + esc(it.bom_code) + '</span>'
+    + nomatch
+    + ppcat
+    + '</div>';
+  if(open){
+    h += '<div class="im-item-body">' + imRenderBomTable(it.bom) + '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function imMatchItem(it, q){
+  if(!q) return true;
+  if((it.name || '').toLowerCase().includes(q)) return true;
+  if((it.bom_code || '').toLowerCase().includes(q)) return true;
+  if((it.fg_code || '').toLowerCase().includes(q)) return true;
+  // search in BOM rm names + codes
+  for(const line of (it.bom || [])){
+    if((line.rm_name || '').toLowerCase().includes(q)) return true;
+    if((line.product_code || '').toLowerCase().includes(q)) return true;
+  }
+  return false;
+}
+
+function renderIm(){
+  const el = $('imTree');
+  if(!IM.data){ el.innerHTML = '<div class="mut" style="padding:20px;text-align:center">Loading…</div>'; return; }
+  const sec = IM.data[IM_MODE] || { categories:{}, add_ons:[] };
+  const q = (document.getElementById('qim') ? document.getElementById('qim').value : '').trim().toLowerCase();
+
+  // Categories (sorted alphabetically, with Add-Ons category — if any — demoted to the end alongside the add_ons bucket)
+  const catNames = Object.keys(sec.categories).sort((a, b) => {
+    const au = /add-?ons/i.test(a) ? 1 : 0, bu = /add-?ons/i.test(b) ? 1 : 0;
+    if(au !== bu) return au - bu;
+    const uu = /uncategorised/i.test(a) ? 1 : 0, uv = /uncategorised/i.test(b) ? 1 : 0;
+    if(uu !== uv) return uu - uv;
+    return a.localeCompare(b);
+  });
+
+  let h = '';
+  let shownCats = 0, shownItems = 0;
+  for(const cat of catNames){
+    const items = sec.categories[cat].filter(it => imMatchItem(it, q));
+    if(!items.length) continue;
+    shownCats++; shownItems += items.length;
+    const open = IM_CAT_OPEN.has(imCatKey(cat)) || !!q; // auto-open categories when searching
+    h += '<div class="im-cat' + (open ? ' on' : '') + '">'
+      + '<div class="im-cat-hdr" onclick="imToggleCat(' + JSON.stringify(cat) + ')">'
+      + '<span class="im-cat-chev">▶</span>'
+      + '<span>' + esc(cat) + '</span>'
+      + '<span class="im-cat-count">' + items.length + ' item' + (items.length === 1 ? '' : 's') + '</span>'
+      + '</div>';
+    if(open){
+      h += '<div class="im-cat-body">';
+      for(const it of items) h += imRenderItem(it);
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+
+  // Add-ons bucket (shown as a special category after everything else)
+  const addOns = (sec.add_ons || []).filter(it => imMatchItem(it, q));
+  if(addOns.length){
+    const addOnLabel = IM_MODE === 'dine_in' ? 'Dine-In Add-Ons' : 'Delivery Add-Ons';
+    const open = IM_CAT_OPEN.has(imCatKey('__addons__')) || !!q;
+    h += '<div class="im-cat' + (open ? ' on' : '') + '">'
+      + '<div class="im-cat-hdr" onclick="imToggleCat(' + JSON.stringify('__addons__') + ')">'
+      + '<span class="im-cat-chev">▶</span>'
+      + '<span>' + esc(addOnLabel) + '</span>'
+      + '<span class="im-cat-count">' + addOns.length + ' add-on' + (addOns.length === 1 ? '' : 's') + '</span>'
+      + '</div>';
+    if(open){
+      h += '<div class="im-cat-body">';
+      for(const it of addOns) h += imRenderItem(it);
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+
+  if(!shownCats && !addOns.length){
+    h = '<div class="mut" style="padding:20px;text-align:center">No items match this search.</div>';
+  }
+
+  el.innerHTML = h;
+}
+
+// ===== Not Matching modal =====
+function imShowNotMatching(){
+  if(!IM.data){ toast('Data still loading…', 1500); return; }
+  const nm = IM.data.not_matching || { pact_only:[], petpooja_only:[] };
+  const pc = $('nmPactCount'); if(pc) pc.textContent = nm.pact_only.length;
+  const pp = $('nmPpCount');   if(pp) pp.textContent = nm.petpooja_only.length;
+
+  let p1 = '';
+  if(!nm.pact_only.length){
+    p1 = '<div class="mut" style="padding:14px;text-align:center">✓ Nothing — every PACT item has a matching PetPooja dish.</div>';
+  } else {
+    p1 = '<div class="nm-list">';
+    for(const r of nm.pact_only){
+      p1 += '<div class="nm-row">'
+        + '<span class="nm-mode">' + esc(r.mode) + '</span>'
+        + '<span>' + esc(r.name) + '</span>'
+        + '<span class="nm-code">' + esc(r.bom_code) + '</span>'
+        + '</div>';
+    }
+    p1 += '</div>';
+  }
+
+  let p2 = '';
+  if(!nm.petpooja_only.length){
+    p2 = '<div class="mut" style="padding:14px;text-align:center">✓ Nothing — every ordered PetPooja dish has a matching PACT item.</div>';
+  } else {
+    p2 = '<div class="nm-list">';
+    for(const r of nm.petpooja_only){
+      p2 += '<div class="nm-row">'
+        + '<span class="nm-mode">' + esc(r.mode) + '</span>'
+        + '<span>' + esc(r.name) + '</span>'
+        + '<span class="nm-cat">' + esc(r.category || '—') + '</span>'
+        + '</div>';
+    }
+    p2 += '</div>';
+  }
+
+  $('nmPactList').innerHTML = p1;
+  $('nmPpList').innerHTML   = p2;
+  $('imNmModal').style.display = 'flex';
+  // Default to pact tab
+  imNmTab('pact');
+}
+function imHideNotMatching(){ $('imNmModal').style.display = 'none'; }
+function imNmTab(k){
+  document.querySelectorAll('#imNmModal .tab').forEach(x => x.classList.toggle('on', x.dataset.nm === k));
+  $('nmPactList').style.display = k === 'pact' ? '' : 'none';
+  $('nmPpList').style.display   = k === 'pp'   ? '' : 'none';
+}
+
 /* Cross-tab auto-refresh — when PM or BOM is synced from any tool (this one,
    Outlet Dispatch, Costing Dashboard, Main Dashboard) in any browser tab, the
    /js/sync-refresh.js module polls /api/product-master and /api/costing/bom
@@ -1064,7 +1392,7 @@ loadRm(false).catch(e => {
    sibling tabs, and calls this handler so each affected tab/tool refreshes
    itself without a manual reload. */
 window.onDataChanged = function(changed){
-  // changed is a subset of ['pm','bom','pf','si']
+  // changed is a subset of ['pm','bom','pf','si','inventory']
   if(changed.includes('pm')){
     // PM feeds Raw Material Master AND the Outlet Recipes (via dish names).
     // Refresh both silently; the user sees updated data on their next tab click.
@@ -1075,6 +1403,7 @@ window.onDataChanged = function(changed){
   if(changed.includes('bom')){
     if(typeof loadBom === 'function') loadBom(true).catch(() => {});
     if(OR_LOADED.v && typeof loadOr === 'function') loadOr(false).catch(() => {});
+    if(IM_LOADED.v && typeof loadIm === 'function') loadIm(true).catch(() => {});
     toast('BOM refreshed from another tab', 2200);
   }
 };
