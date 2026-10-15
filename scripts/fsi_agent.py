@@ -128,12 +128,20 @@ def find_post_button(desc):
                 if ctype(desc[j])=="Button": return desc[j],"prec#%d"%j
     return None,None
 
+def _is_visible(c):
+    try: return bool(c.is_visible())
+    except Exception: return False
+
 def edit_child(combo):
+    # Prefer a VISIBLE Edit child. A WPF ComboBox can expose a hidden template
+    # Edit before the real one; typing into the hidden one raises ElementNotVisible.
     try:
-        for c in combo.descendants():
-            if ctype(c)=="Edit": return c
-    except Exception: pass
-    return None
+        edits=[c for c in combo.descendants() if ctype(c)=="Edit"]
+    except Exception:
+        edits=[]
+    for c in edits:
+        if _is_visible(c): return c
+    return edits[0] if edits else None
 
 def read_edit(combo):
     e=edit_child(combo)
@@ -174,29 +182,54 @@ def _visible_items(win):
     return out
 
 def _fill_combo_filtered(win, combo, filter_text, pick_token, lines, tag):
-    e = edit_child(combo) or combo
-    try: e.click_input()
+    try: win.set_focus()
     except Exception: pass
-    time.sleep(0.35)
-    try: e.type_keys("^a{DEL}")
-    except Exception: pass
+    # Click the COMBO itself (not a possibly-hidden edit) to focus/open it.
+    try: combo.click_input()
+    except Exception:
+        try: combo.set_focus()
+        except Exception: pass
+    time.sleep(0.4)
+    e = edit_child(combo)
+    # Try to type a filter, but never let an invisible edit crash the run.
     if filter_text:
-        type_text(e, filter_text)
-        time.sleep(1.1)
+        tgt = e if (e is not None and _is_visible(e)) else combo
+        try:
+            try: tgt.type_keys("^a{DEL}", set_foreground=True)
+            except Exception: pass
+            tgt.type_keys(esc(filter_text), with_spaces=True, pause=0.01, set_foreground=True)
+            time.sleep(1.1)
+        except Exception as ex:
+            log(lines, f"  [{tag}] could not type filter ({ex.__class__.__name__}); opening list instead")
+            try: (e or combo).type_keys("{F4}")
+            except Exception: pass
+            time.sleep(0.6)
+    else:
+        try: (e or combo).type_keys("{F4}")
+        except Exception: pass
+        time.sleep(0.6)
+    tl=pick_token.lower().strip()
+    def _click_match():
+        for it,t in _visible_items(win):
+            low=(t or "").lower()
+            if low==tl or low.endswith(tl) or (tl and tl in low):
+                try: it.click_input(); return t
+                except Exception:
+                    try: it.select(); return t
+                    except Exception: pass
+        return ""
     items=_visible_items(win)
     log(lines, f"  [{tag}] {len(items)} visible rows: " + " | ".join(t for _,t in items[:25]))
-    tl=pick_token.lower().strip()
-    ok=False; picked=""
-    for want_exact in (True, False):
-        for it,t in items:
-            low=t.lower()
-            hit = (low==tl or low.endswith(tl)) if want_exact else (tl in low)
-            if hit:
-                try: it.click_input(); ok=True; picked=t; break
-                except Exception: pass
-        if ok: break
+    picked=_click_match(); ok=bool(picked)
+    # keyboard fallback: step down through the (virtualized) list, re-scanning.
+    steps=0
+    while not ok and steps<40:
+        try: (e or combo).type_keys("{DOWN}")
+        except Exception: break
+        time.sleep(0.12); steps+=1
+        picked=_click_match(); ok=bool(picked)
     time.sleep(0.4)
-    log(lines, f"  {tag} -> filter {filter_text!r} pick {pick_token!r} clicked={ok} item={picked!r} readback={read_edit(combo)!r}")
+    log(lines, f"  {tag} -> filter {filter_text!r} pick {pick_token!r} clicked={ok} steps={steps} item={picked!r} readback={read_edit(combo)!r}")
     return ok
 
 def set_customer(win, desc, value, lines):
@@ -233,25 +266,14 @@ def set_so_ref(win, desc, value, lines):
         log(lines, "  [MISS] SO reference field (none of SO_LABELS matched) -- run `map` and send fsi_map.txt")
         return False
     log(lines, f"  SO field found via label {used!r}")
-    e=edit_child(combo) or combo
-    try: e.click_input()
-    except Exception:
-        try: e.set_focus()
-        except Exception: pass
-    time.sleep(0.3)
-    try: e.type_keys("^a{DEL}", set_foreground=True)
-    except Exception: pass
-    time.sleep(0.15)
-    type_text(e, value)
-    time.sleep(0.4)
-    for seq, gap in (("^a", 0.15), ("^c", 0.20), ("{DEL}", 0.20), ("^v", 0.35), ("{ENTER}", 0.50)):
-        try: e.type_keys(seq, set_foreground=True)
-        except Exception: pass
-        time.sleep(gap)
-    rb=read_edit(combo)
-    ok = bool(rb) and (value.replace(" ","").lower() in (rb or "").replace(" ","").lower())
-    log(lines, f"  SO ref (copy/paste trick) -> {value!r} readback={rb!r} ok={ok}")
-    return True
+    # SO No is a combo whose list is populated once the Customer is chosen.
+    # Pick it the robust way: filter by full SO, then by the numeric tail.
+    tail=value.split("/")[-1]
+    for filt in (value, tail):
+        if _fill_combo_filtered(win, combo, filt, value, lines, "SO No"):
+            return True
+    log(lines, f"  SO No NOT selected for {value!r}")
+    return False
 
 def set_narration(win, desc, value, lines):
     ed,_ = edit_after_label(desc, NARRATION_LABEL, within=6, exact=True)
@@ -262,11 +284,16 @@ def set_narration(win, desc, value, lines):
                     if ctype(d2)=="Edit": ed=d2; break
                 break
     if ed is None: log(lines,"  [MISS] Narration"); return False
-    try: ed.set_focus()
-    except Exception: pass
+    try: ed.click_input()
+    except Exception:
+        try: ed.set_focus()
+        except Exception: pass
     try: ed.type_keys("^a{DEL}", set_foreground=True)
     except Exception: pass
-    type_text(ed, value)
+    try:
+        type_text(ed, value)
+    except Exception as ex:
+        log(lines, f"  [Narration] type skipped ({ex.__class__.__name__})"); return False
     log(lines, f"  Narration -> {value!r} readback={text(ed)!r}")
     return True
 
@@ -288,11 +315,16 @@ def type_barcodes(win, desc, barcodes, lines):
     for bc in barcodes:
         bc=bc.strip()
         if not bc: continue
-        try: scan.set_focus()
-        except Exception: pass
+        try: scan.click_input()
+        except Exception:
+            try: scan.set_focus()
+            except Exception: pass
         try: scan.type_keys("^a{DEL}", set_foreground=True)
         except Exception: pass
-        type_text(scan, bc)
+        try:
+            type_text(scan, bc)
+        except Exception as ex:
+            log(lines, f"  [Scan] item {n+1} type failed ({ex.__class__.__name__})"); continue
         try: scan.type_keys("{ENTER}", set_foreground=True)
         except Exception: pass
         n+=1

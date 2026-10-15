@@ -61,6 +61,9 @@ if (!SUPABASE_URL || !SUPABASE_KEY) { console.error('FATAL: SUPABASE_URL / SUPAB
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 
 let busy = false;
+// In DRY mode the job stays queued; remember which ones we've already filled this
+// run so we don't re-claim and re-fill the same order every few seconds.
+const dryDone = new Set();
 
 // The SO number can live in the `invoice` column OR only in payload.soNumber,
 // depending on which gun build created the job. Resolve it from both.
@@ -97,7 +100,7 @@ async function claimNextJob() {
     .order('created_at', { ascending: true })
     .limit(200);
   if (error) { log('poll error:', error.message); return null; }
-  const job = (data || []).filter(matchesScope)[0];
+  const job = (data || []).filter(matchesScope).filter((j) => !dryDone.has(j.id))[0];
   if (!job) return null;
 
   const upd = await sb.from('pact_jobs')
@@ -225,7 +228,8 @@ async function processJob(job) {
   const res = await runAgent(txtPath, !DRY_RUN);
 
   if (DRY_RUN) {
-    log('DRY RUN complete for', so, '— filled (not posted).');
+    dryDone.add(job.id);
+    log('DRY RUN complete for', so, '— filled (not posted). Will not re-fill this run.');
     await setStatus(job.id, {
       status: 'queued',
       error: `DRY RUN — filled, not posted. Review the PACT window / after_fsi_dispatch.png. Set FSI_DRY_RUN=false to post.`,
