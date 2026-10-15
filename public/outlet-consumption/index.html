@@ -1214,6 +1214,8 @@ function imCollapseAll(){
   renderIm();
 }
 
+function imArg(v){ return JSON.stringify(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
 function imFmtQty(n){
   if(n == null || n === '') return '—';
   const x = +n;
@@ -1246,7 +1248,7 @@ function imRenderItem(it){
   const nomatch = !it.petpooja_dish_id ? '<span class="im-nomatch">· no PetPooja match</span>' : '';
   const ppcat = it.petpooja_category ? '<span class="im-item-ppcat">· PetPooja: ' + esc(it.petpooja_category) + '</span>' : '';
   let h = '<div class="im-item' + (open ? ' on' : '') + '">'
-    + '<div class="im-item-hdr" onclick="imToggleItem(' + JSON.stringify(it.bom_code) + ')">'
+    + '<div class="im-item-hdr" onclick="imToggleItem(' + imArg(it.bom_code) + ')">'
     + '<span class="im-item-chev">▶</span>'
     + '<span>' + esc(it.name) + '</span>'
     + '<span class="im-item-code">' + esc(it.bom_code) + '</span>'
@@ -1296,7 +1298,7 @@ function renderIm(){
     shownCats++; shownItems += items.length;
     const open = IM_CAT_OPEN.has(imCatKey(cat)) || !!q; // auto-open categories when searching
     h += '<div class="im-cat' + (open ? ' on' : '') + '">'
-      + '<div class="im-cat-hdr" onclick="imToggleCat(' + JSON.stringify(cat) + ')">'
+      + '<div class="im-cat-hdr" onclick="imToggleCat(' + imArg(cat) + ')">'
       + '<span class="im-cat-chev">▶</span>'
       + '<span>' + esc(cat) + '</span>'
       + '<span class="im-cat-count">' + items.length + ' item' + (items.length === 1 ? '' : 's') + '</span>'
@@ -1315,7 +1317,7 @@ function renderIm(){
     const addOnLabel = IM_MODE === 'dine_in' ? 'Dine-In Add-Ons' : 'Delivery Add-Ons';
     const open = IM_CAT_OPEN.has(imCatKey('__addons__')) || !!q;
     h += '<div class="im-cat' + (open ? ' on' : '') + '">'
-      + '<div class="im-cat-hdr" onclick="imToggleCat(' + JSON.stringify('__addons__') + ')">'
+      + '<div class="im-cat-hdr" onclick="imToggleCat(' + imArg('__addons__') + ')">'
       + '<span class="im-cat-chev">▶</span>'
       + '<span>' + esc(addOnLabel) + '</span>'
       + '<span class="im-cat-count">' + addOns.length + ' add-on' + (addOns.length === 1 ? '' : 's') + '</span>'
