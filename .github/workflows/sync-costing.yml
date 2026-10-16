@@ -17,8 +17,8 @@ on:
   repository_dispatch:
     types: [sync-costing]
   schedule:
-    - cron: "15 */6 * * *"   # every 6h  -> Stock Inward + Process Flow freshness
-    - cron: "0 16 * * *"     # 21:30 IST -> Product Master + BOM (change slowly)
+    - cron: "20 * * * *"     # EVERY HOUR at :20 -> Product Master + BOM (per 2026-10-16 request)
+    - cron: "15 */6 * * *"   # every 6h at :15 -> Stock Inward + Process Flow
 
 concurrency:
   group: pact-costing-sync
@@ -49,7 +49,10 @@ jobs:
           REPORT="${{ github.event.inputs.report }}"
           [ -z "$REPORT" ] && REPORT="${{ github.event.client_payload.report }}"
           if [ -z "$REPORT" ]; then
-            if [ "${{ github.event.schedule }}" = "0 16 * * *" ]; then REPORT="pm,bom"; else REPORT="si,pf"; fi
+            # Hourly PM + BOM (2026-10-16: changed from once-a-day); 6-hour SI + PF
+            if [ "${{ github.event.schedule }}" = "20 * * * *" ]; then REPORT="pm,bom"
+            else REPORT="si,pf"
+            fi
           fi
           [ "$REPORT" = "all" ] && REPORT="pm,bom,pf,si"
           echo "reports=$REPORT" >> "$GITHUB_OUTPUT"
