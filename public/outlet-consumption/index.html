@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script src="/js/password-gate.js"></script>
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width, initial-scale=1">
  <title>Outlet Consumption · Product Master &amp; BOM</title>
@@ -1252,7 +1253,7 @@ function imFmtQty(n){
 
 function imRenderBomTable(bom){
   if(!bom || !bom.length) return '<div class="im-nomatch">No input lines in this BOM.</div>';
-  let h = '<table class="im-bomtbl"><thead><tr><th>RM Name</th><th>UM</th><th class="r">Used Qty</th><th class="r">Wastage</th><th class="r">Total Qty</th></tr></thead><tbody>';
+  let h = '<table class="im-bomtbl"><thead><tr><th>RM Name</th><th>UOM</th><th class="r">Used Qty</th><th class="r">Wastage</th><th class="r">Total Qty</th></tr></thead><tbody>';
   for(const line of bom){
     h += '<tr>'
       + '<td>' + esc(line.rm_name) + ' <span style="color:var(--mut);font-size:11px">' + esc(line.product_code || '') + '</span></td>'
