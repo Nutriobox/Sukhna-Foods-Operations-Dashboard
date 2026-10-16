@@ -1445,6 +1445,12 @@ async function liveSyncOne(k){
  if(!det||det.type!==k)return{ok:false,reason:'unrecognised data'};
  CARD[k]={name:'PACT live · '+fmtStamp(j.synced_at),ok:true,rows,det};
  await syncOne(k);
+ // After syncOne stamps D.syncInfo[k].at with the browser-processing time,
+ // overwrite it with the real PACT synced_at so the header chip never lies
+ // again about freshness (the browser-processing time was the whole reason
+ // Satvik thought a sync happened at 14:01 IST when the data was actually
+ // from 01:19 IST — see 2026-10-16 incident).
+ if(j.synced_at && D.syncInfo && D.syncInfo[k]){ D.syncInfo[k].at=j.synced_at; try{renderSyncStat();}catch(e){} }
  try{seen[k]=stamp;localStorage.setItem('live_seen',JSON.stringify(seen));}catch(e){}
  return{ok:true,rows:j.row_count,at:j.synced_at};
 }
