@@ -225,10 +225,10 @@
     <th>Category</th>
     <th>Used In</th>
     <th>Base Unit</th>
-    <th>Pack / Issue Unit</th>
-    <th class="r">Pack &rarr; Base</th>
-    <th>Case / Carton Unit</th>
-    <th class="r">Case &rarr; Base</th>
+    <th>Packing Unit</th>
+    <th title="L3 unit + how many L2 units it contains (via L3Conv ÷ L2Conv)">L3</th>
+    <th title="L2 unit + how many L1 base units it contains (via L2Conv ÷ L1Conv)">L2</th>
+    <th title="Base unit of measure">L1 UOM</th>
     <th>Warehouse</th>
     <th title="From the team's Ideal Inventory sheet (updated 2026-10-16)">Ideal Storage</th>
    </tr></thead>
@@ -734,6 +734,16 @@ function renderRm(){
         : x.group === 'Semi Process'
           ? '<span class="sb" style="background:#ede9fe;color:#5b21b6">Semi</span>'
           : `<span class="sb">${esc(x.group || '-')}</span>`;
+    // L3 cell: shows "<L3Unit> · <L3÷L2> <L2Unit>" — e.g. "Bag · 30 Kg"
+    const l3Cell = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
+      ? `<span class="code">${esc(x.caseUnit)}</span> <span class="mut">·</span> ${qty(x.caseScale / x.packScale)} ${esc(x.packUnit)}`
+      : (x.caseUnit ? `<span class="code">${esc(x.caseUnit)}</span>` : '<span class="mut">—</span>');
+    // L2 cell: shows "<L2Unit> · <L2÷L1> <L1Unit>" — e.g. "Kg · 1,000 Gms"
+    const l2Cell = (x.packUnit && x.baseUnit && x.packScale != null)
+      ? `<span class="code">${esc(x.packUnit)}</span> <span class="mut">·</span> ${qty(x.packScale)} ${esc(x.baseUnit)}`
+      : (x.packUnit ? `<span class="code">${esc(x.packUnit)}</span>` : '<span class="mut">—</span>');
+    const l1Cell = x.baseUnit ? `<span class="code">${esc(x.baseUnit)}</span>` : '<span class="mut">—</span>';
+
     return `<tr>
       <td class="mut">${i+1}</td>
       <td class="code">${esc(x.code)}</td>
@@ -742,9 +752,9 @@ function renderRm(){
       <td>${usedInBadge(x.code)}</td>
       <td>${esc(x.baseUnit) || '<span class="mut">—</span>'}</td>
       <td>${esc(x.packUnit) || '<span class="mut">—</span>'}</td>
-      <td class="r">${x.packScale != null ? qty(x.packScale) + ' ' + esc(x.baseUnit) : '<span class="mut">—</span>'}</td>
-      <td>${esc(x.caseUnit) || '<span class="mut">—</span>'}</td>
-      <td class="r">${x.caseScale != null ? qty(x.caseScale) + ' ' + esc(x.baseUnit) : '<span class="mut">—</span>'}</td>
+      <td class="r">${l3Cell}</td>
+      <td class="r">${l2Cell}</td>
+      <td>${l1Cell}</td>
       <td>${esc(x.warehouse) || '<span class="mut">—</span>'}</td>
       <td>${idealChip(x.idealStorage)}</td>
     </tr>`;
@@ -765,13 +775,17 @@ function exportCsvRm(){
     if(!RM_USAGE_READY) return 'unknown';
     return rmUsageOf(code);  // outlet | factory | both | unused
   };
-  const header = ['RM Code','Raw Material Name','Category','Used In','Base Unit','Pack / Issue Unit','Pack Scale (in base units)','Case / Carton Unit','Case Scale (in base units)','Warehouse','Ideal Storage'];
+  const header = ['RM Code','Raw Material Name','Category','Used In','Base Unit','Packing Unit','L3 (unit · units of L2)','L2 (unit · units of L1)','L1 UOM','Warehouse','Ideal Storage'];
   const lines = [header.map(esc2).join(',')];
   for(const x of RM.items){
     if(!filterSet.has(x.group)) continue;
     if(q && !x.code.toLowerCase().includes(q) && !x.name.toLowerCase().includes(q)) continue;
     if(useFilter && RM_USAGE_READY && rmUsageOf(x.code) !== useFilter) continue;
-    lines.push([x.code, x.name, x.group, usedInText(x.code), x.baseUnit, x.packUnit, x.packScale, x.caseUnit, x.caseScale, x.warehouse, x.idealStorage || ''].map(esc2).join(','));
+    const l3Str = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
+      ? `${x.caseUnit} · ${(x.caseScale / x.packScale)} ${x.packUnit}` : (x.caseUnit || '');
+    const l2Str = (x.packUnit && x.baseUnit && x.packScale != null)
+      ? `${x.packUnit} · ${x.packScale} ${x.baseUnit}` : (x.packUnit || '');
+    lines.push([x.code, x.name, x.group, usedInText(x.code), x.baseUnit, x.packUnit, l3Str, l2Str, x.baseUnit, x.warehouse, x.idealStorage || ''].map(esc2).join(','));
   }
   downloadBlob(lines.join('\n'), 'rm-master-'+((RM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
 }
