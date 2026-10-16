@@ -201,6 +201,9 @@
     <option value="both">Both (shared)</option>
     <option value="unused">Unused in any BOM</option>
    </select>
+   <select id="outletRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Outlet whose ideal inventory you want to see in the L3 / L2 / L1 UOM columns">
+    <option value="">All outlets (max)</option>
+   </select>
    <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter by the team's Ideal Inventory list (loaded from Ideal_Inventory_6_-_PACT_names.xlsx)">
     <option value="">All items</option>
     <option value="any">On ideal list only</option>
@@ -662,6 +665,13 @@ async function loadRm(fresh){
     };
   });
   RM.items = list;
+  RM.outlets = (PM && PM.outlets) || RM.outlets || [];
+  const outSel = document.getElementById('outletRm');
+  if(outSel && !outSel.dataset.filled && RM.outlets.length){
+    outSel.innerHTML = '<option value="">All outlets (max)</option>' +
+      RM.outlets.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+    outSel.dataset.filled = '1';
+  }
   // Count reflects the current filter so the header pill is useful.
   const filterSet = RM_GROUPS[$('catRm').value] || RM_GROUPS.rm;
   RM.meta = {

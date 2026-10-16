@@ -1,1017 +1,3560 @@
-[
-  {
-    "name": "Tomato Concasse (20 Pkt/Bunch)",
-    "norm": "tomato concasse",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Alfredo Sauce (20 Pkt/Bunch)",
-    "norm": "alfredo sauce",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Peri Peri Sauce (10 Pkt/Bunch)",
-    "norm": "peri peri sauce",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chilli Garlic Soy Sauce (10 Pkt/Bunch)",
-    "norm": "chilli garlic soy sauce",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Pesto Sauce (2 Pkt/Bunch)",
-    "norm": "pesto sauce",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Pizza Sauce (5 Pkt/Bunch)",
-    "norm": "pizza sauce",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Tandoori Sauce (8 Pkt/Bunch)",
-    "norm": "tandoori sauce",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Mushroom Ragout (500 Gms*2 Pkt )",
-    "norm": "mushroom ragout",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Pink Sauce (8 Pkt/Bunch)",
-    "norm": "pink sauce",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Thai Red Curry (4 Pkt/Bunch)",
-    "norm": "thai red curry",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Thai Green Curry (4 Pkt/Bunch)",
-    "norm": "thai green curry",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Palak Gravy (10 Pkt/Bunch)",
-    "norm": "palak gravy",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Pindi Chole (4 Pkt/Bunch)",
-    "norm": "pindi chole",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Makhani Gravy (10 Pkt/Bunch)",
-    "norm": "makhani gravy",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Dal Makhani (8 Pkt/Bunch)",
-    "norm": "dal makhani",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Malabari Gravy (8 Pkt/Bunch)",
-    "norm": "malabari gravy",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Whole Wheat Chicken Momos (32g/16 Pcs)",
-    "norm": "whole wheat chicken momos",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Whole Wheat Veg. Momos (32g/16 Pcs)",
-    "norm": "whole wheat veg momos",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Spinach Corn Kebab (40 Gms/480 Gms)",
-    "norm": "spinach corn kebab",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Paneer Tikka-12 Pcs (3*3 cm)",
-    "norm": "paneer tikka 12 pcs",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Paneer Peri-Peri-8 Pcs (6*1 cm)",
-    "norm": "paneer peri peri 8 pcs",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Falafel (25 Gms/24 Pcs)",
-    "norm": "falafel",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Quinoa Patty (150 Gms/3 Pcs)",
-    "norm": "quinoa patty",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chicken Nuggets (35 Gms/15 Pcs)",
-    "norm": "chicken nuggets",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chicken Breast (80 Gms/10 Pcs)",
-    "norm": "chicken breast",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chicken Patty (100 Gms/3 Pcs)",
-    "norm": "chicken patty",
-    "storage": "Frozen"
-  },
-  {
-    "name": "140g Basa Fish (10 Pkt/Bunch)",
-    "norm": "140g basa fish",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chicken Tikka (40 Gms/12 Pcs)",
-    "norm": "chicken tikka",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Tandoori Chicken Whole (4 Pcs)",
-    "norm": "tandoori chicken whole",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chicken Wings (8 Pcs)",
-    "norm": "chicken wings",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Fish Tikka (6 Pcs)",
-    "norm": "fish tikka",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Tandoori Chicken Breast (80 Gms/10 Pcs)",
-    "norm": "tandoori chicken breast",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Green Green Broccoli Soup (315 ML*4 Pkts)",
-    "norm": "green green broccoli soup",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Tomato Veggie Soup (315 ML*4 Pkts)",
-    "norm": "tomato veggie soup",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Clearly Clear Soup (315 ML*4 Pkts)",
-    "norm": "clearly clear soup",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Cream of Mushroom Soup (4 Pkt/Bunch)",
-    "norm": "cream of mushroom soup",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Brown Rice (10 Pkt/Bunch)",
-    "norm": "brown rice",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Hummus (1 Kg)",
-    "norm": "hummus",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Tomato Salsa (500 Gms*2 Pkt)",
-    "norm": "tomato salsa",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Mint Chutney (500 Gms*2 Pkt)",
-    "norm": "mint chutney",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Beans & Corn Mixture (4 Pkt/Bunch)",
-    "norm": "beans & corn mixture",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Stuffed Chicken Breast (8 Pcs/Container)",
-    "norm": "stuffed chicken breast",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Dark Callebaut Chocolate (300ML)",
-    "norm": "dark callebaut chocolate",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Hazelnut Coffee (300ML)",
-    "norm": "hazelnut coffee",
-    "storage": "Frozen"
-  },
-  {
-    "name": "That Brown Girl (300ML)",
-    "norm": "that brown girl",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Jamun Kala Khatta (300ML)",
-    "norm": "jamun kala khatta",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Farm Plucked Strawberry (300ML)",
-    "norm": "farm plucked strawberry",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Blueberry Chia (300ML)",
-    "norm": "blueberry chia",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Vanilla Avocado (300ML)",
-    "norm": "vanilla avocado",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chocolate Peanut Butter (300ML)",
-    "norm": "chocolate peanut butter",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Mixed Berry Blast (300ML)",
-    "norm": "mixed berry blast",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Orange Ice Tea (300ML)",
-    "norm": "orange ice tea",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Lemon Ice Tea (300ML)",
-    "norm": "lemon ice tea",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Classic Masala Lemonade (300ML)",
-    "norm": "classic masala lemonade",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Watermelon Chia (300ML)",
-    "norm": "watermelon chia",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Activated Charcoal Lemonade (300ML)",
-    "norm": "activated charcoal lemonade",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Delicious Veggie (300ML)",
-    "norm": "delicious veggie",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Red-Velvet Punch (300ML)",
-    "norm": "red velvet punch",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Pineapple Twist (300ML)",
-    "norm": "pineapple twist",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Hot Chocolate (260 Ml*5 Pkt)",
-    "norm": "hot chocolate",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Chia Pudding (240 Gms/4 Pkt/Bunch)",
-    "norm": "chia pudding",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Porridge Mixture (240 Gms/4 Bunch)",
-    "norm": "porridge mixture",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Tortilla 10\" (12 Pcs)",
-    "norm": "tortilla 10",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Pita Bread (6 Pcs)",
-    "norm": "pita bread",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Slider Buns (9 Pcs)",
-    "norm": "slider buns",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Brown Burger (4 Pcs)",
-    "norm": "brown burger",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Black Burger (4 Pcs)",
-    "norm": "black burger",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Laccha Paratha-Nutriobox ( 90 gms / 450 gms)",
-    "norm": "laccha paratha nutriobox",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Whole Wheat Panini Bread (2 Pcs)",
-    "norm": "whole wheat panini bread",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Sweet Corn (1Kg)",
-    "norm": "sweet corn",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Roasted Coconut Shavings (200 Gms)",
-    "norm": "roasted coconut shavings",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Edamame Seeds",
-    "norm": "edamame seeds",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Mozzarella Cheese",
-    "norm": "mozzarella cheese",
-    "storage": "Frozen"
-  },
-  {
-    "name": "Tomato Ketchup (500 Gms)",
-    "norm": "tomato ketchup",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Maple Syrup (500 Gms)",
-    "norm": "maple syrup",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Tandoori Yogurt Dip (500 Gms)",
-    "norm": "tandoori yogurt dip",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Peri Peri Yogurt Dip (500 Gms)",
-    "norm": "peri peri yogurt dip",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Pesto Vinaigrette (500 Gms)",
-    "norm": "pesto vinaigrette",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Chilli Lime Vinaigrette (500 Gms)",
-    "norm": "chilli lime vinaigrette",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Mustard Vinaigrette Dip (500 Gms)",
-    "norm": "mustard vinaigrette dip",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Pizza Base (150 Gms/4 Pcs)",
-    "norm": "pizza base",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Brownie (2 Pcs)",
-    "norm": "brownie",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Coolm Custard (500 Ml)",
-    "norm": "coolm custard",
-    "storage": "Chiller"
-  },
-  {
-    "name": "Anar (1 Kg)",
-    "norm": "anar",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Apple (1 Kg)",
-    "norm": "apple",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Avacado (3 Pcs)",
-    "norm": "avacado",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Banana (12 Pcs)",
-    "norm": "banana",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Basil (500 Gms)",
-    "norm": "basil",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Beans (2 Kg)",
-    "norm": "beans",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Beet Root (1 Kg)",
-    "norm": "beet root",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Black Grapes (250 Gms)",
-    "norm": "black grapes",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Broccoli (2 Kg)",
-    "norm": "broccoli",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Capsicum Green (2 Kg)",
-    "norm": "capsicum green",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Capsicum Red (2 Kg)",
-    "norm": "capsicum red",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Capsicum Yellow (2 Kg)",
-    "norm": "capsicum yellow",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Carrot (2 Kg)",
-    "norm": "carrot",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Cherry Tomato (500 Gms)",
-    "norm": "cherry tomato",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Cucumber (2 Kg)",
-    "norm": "cucumber",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Egg (1 Crate)",
-    "norm": "egg",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Garlic (500 gm)",
-    "norm": "garlic",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Ginger (500 Gms)",
-    "norm": "ginger",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Green Cabbage (2 Kg)",
-    "norm": "green cabbage",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Green Chilli (250 Gms)",
-    "norm": "green chilli",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Green Lettuce (1 Kg)",
-    "norm": "green lettuce",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Zucchini (2 Kg)",
-    "norm": "zucchini",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Iceberg Lettuce (1 Kg)",
-    "norm": "iceberg lettuce",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Kiwi (4 Pcs)",
-    "norm": "kiwi",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Lemon (1 Kg)",
-    "norm": "lemon",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Malta (3 Pcs)",
-    "norm": "malta",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Milk (1 Ltr Tetra)",
-    "norm": "milk",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Mint (2 Bunch)",
-    "norm": "mint",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Mushroom (1 Kg)",
-    "norm": "mushroom",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Onion (5 Kg)",
-    "norm": "onion",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Parsley (250 Gms)",
-    "norm": "parsley",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Red Cabbage (2 Kg)",
-    "norm": "red cabbage",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Red Chilli Fresh (200 Gms)",
-    "norm": "red chilli fresh",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Spring Onion (1 Kg Pack)",
-    "norm": "spring onion",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Sweet Potato (1 Kg)",
-    "norm": "sweet potato",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Tomato (2 Kg)",
-    "norm": "tomato",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Tofu (500 Gms)",
-    "norm": "tofu",
-    "storage": "Vegetable"
-  },
-  {
-    "name": "Black Beans",
-    "norm": "black beans",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Paprika Powder",
-    "norm": "paprika powder",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Chilli Flakes Sachets (150 Pcs)",
-    "norm": "chilli flakes sachets",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Oregano Spice Mix Sachet (150 Pcs)",
-    "norm": "oregano spice mix sachet",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Desi Ghee",
-    "norm": "desi ghee",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Rasins (250 Gms)",
-    "norm": "rasins",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Seeds Pumpkin",
-    "norm": "seeds pumpkin",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Walnut (250 Gms)",
-    "norm": "walnut",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Almond Slice (250 Gms)",
-    "norm": "almond slice",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "White Till (Sesame Seeds - 250 Gms)",
-    "norm": "white till",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Black Olive",
-    "norm": "black olive",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Quinoa",
-    "norm": "quinoa",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Kasaundi Mustard (700 Gms)",
-    "norm": "kasaundi mustard",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Pine Apple Slice",
-    "norm": "pine apple slice",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Refined Oil",
-    "norm": "refined oil",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "White Cheese Dressing",
-    "norm": "white cheese dressing",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Red Cherry",
-    "norm": "red cherry",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "White Vinegar",
-    "norm": "white vinegar",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Brown Sugar",
-    "norm": "brown sugar",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Blueberry Filling",
-    "norm": "blueberry filling",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Jalapenoes Slice",
-    "norm": "jalapenoes slice",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Soya Chips (1000 Gms)",
-    "norm": "soya chips",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Drinking Water (250ml/ 24 Bottles/Case)",
-    "norm": "drinking water",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Spagheti Pasta (12 Kg)",
-    "norm": "spagheti pasta",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Gluten Free Pasta",
-    "norm": "gluten free pasta",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Penne Pasta (10 Kg)",
-    "norm": "penne pasta",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Coke (300ml Can)",
-    "norm": "coke",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Can Diet Coke (300ml Can)",
-    "norm": "can diet coke",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "ThumsUp Can (300ml Can)",
-    "norm": "thumsup can",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Gherkins (350 Gms)",
-    "norm": "gherkins",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Protein Chocolate Powder",
-    "norm": "protein chocolate powder",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Protein Vanilla Powder",
-    "norm": "protein vanilla powder",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Plain Protein Powder",
-    "norm": "plain protein powder",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Coffee Beans (for Machine)",
-    "norm": "coffee beans",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Coffee Powder",
-    "norm": "coffee powder",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Tata Salt",
-    "norm": "tata salt",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Black Pepper (Whole)",
-    "norm": "black pepper",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Chilli Flakes (500 Gms)",
-    "norm": "chilli flakes",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Oregano (500 Gms)",
-    "norm": "oregano",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "Rostip Broth Powder Seasoning (800 Gms)",
-    "norm": "rostip broth powder seasoning",
-    "storage": "Dry Store"
-  },
-  {
-    "name": "50ml Dip Bowl (5000 Pair/Box)",
-    "norm": "50ml dip bowl",
-    "storage": "Packaging"
-  },
-  {
-    "name": "50ml Dip Lids (5000 Pair/Box)",
-    "norm": "50ml dip lids",
-    "storage": "Packaging"
-  },
-  {
-    "name": "100ml Dip Bowl (4000 Pair/Box)",
-    "norm": "100ml dip bowl",
-    "storage": "Packaging"
-  },
-  {
-    "name": "100ml Dip Lids (4000 Pair/Box)",
-    "norm": "100ml dip lids",
-    "storage": "Packaging"
-  },
-  {
-    "name": "750 ML Flat Bowl Nutriobox (50 Pcs/Pkt)",
-    "norm": "750 ml flat bowl nutriobox",
-    "storage": "Packaging"
-  },
-  {
-    "name": "250ML Flat Bowl (50 Pcs/Pkt)",
-    "norm": "250ml flat bowl",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Paper Plank : 750 ML Bowl Nutriobox (1000 Pcs/Bunch)",
-    "norm": "paper plank 750 ml bowl nutriobox",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Roti Bags (15 Pcs/Bunch)",
-    "norm": "roti bags",
-    "storage": "Packaging"
-  },
-  {
-    "name": "700ml Apptizer Box (50 Pcs/Bunch)",
-    "norm": "700ml apptizer box",
-    "storage": "Packaging"
-  },
-  {
-    "name": "To Go Sandwich Box (600 Pcs/Carton)",
-    "norm": "to go sandwich box",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Pizza Box (50 Pcs/Bunch)",
-    "norm": "pizza box",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Pizza Stool (100 Pcs)",
-    "norm": "pizza stool",
-    "storage": "Packaging"
-  },
-  {
-    "name": "350ml Salsa Jar with Lid (72 Pcs/Carton)",
-    "norm": "350ml salsa jar with lid",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Tray Mats (500 Pcs/Bunch)",
-    "norm": "tray mats",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Butter Paper (1000 Pcs/Bunch)",
-    "norm": "butter paper",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Carry Bag with Handel Nutriobox (500 Pcs/Carton)",
-    "norm": "carry bag with handel nutriobox",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Small Boat Trays (B&B) (50 Pcs/Bunch)",
-    "norm": "small boat trays",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Big Boat Trays (Appetizer Plates) (50 Pcs/Bunch)",
-    "norm": "big boat trays",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Nutriobox Carry Bag Discount Sticker (44 Nos/Sheet)",
-    "norm": "nutriobox carry bag discount sticker",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Soup Sticker (33 Pcs/Sheet)",
-    "norm": "soup sticker",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Desserts Sticker (33 Pcs/Sheet)",
-    "norm": "desserts sticker",
-    "storage": "Packaging"
-  },
-  {
-    "name": "7'' Spoon Cornstarch (100 Pcs/Pkt)",
-    "norm": "7 spoon cornstarch",
-    "storage": "Packaging"
-  },
-  {
-    "name": "7\" Cornstarch Fork (100 Pcs/Pkt)",
-    "norm": "7 cornstarch fork",
-    "storage": "Packaging"
-  },
-  {
-    "name": "6'' Cornstarch Knife (100 Pcs/Pkt)",
-    "norm": "6 cornstarch knife",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Paper Straws (50 Pcs/Pkt)",
-    "norm": "paper straws",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Cutlery Pouches (1000 Pcs/Bag)",
-    "norm": "cutlery pouches",
-    "storage": "Packaging"
-  },
-  {
-    "name": "300ml Plastic Bottle with Lid with Sticker (20pcs/ Set)",
-    "norm": "300ml plastic bottle with lid with sticker",
-    "storage": "Packaging"
-  },
-  {
-    "name": "L Fold Napkin",
-    "norm": "l fold napkin",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Billing Rolls",
-    "norm": "billing rolls",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Coffee Cup (25 Pcs/Pkt)",
-    "norm": "coffee cup",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Coffee Cup Cover (50 Pcs/Pkt)",
-    "norm": "coffee cup cover",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Cup Holder Box (50 Pcs/Bunch)",
-    "norm": "cup holder box",
-    "storage": "Packaging"
-  },
-  {
-    "name": "500ml Plain Flat Bowl (50 Pcs/Pkt)",
-    "norm": "500ml plain flat bowl",
-    "storage": "Packaging"
-  },
-  {
-    "name": "Seekh Jhadhu",
-    "norm": "seekh jhadhu",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "Big Wiper",
-    "norm": "big wiper",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "Dust Pan",
-    "norm": "dust pan",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "Floor Brush (Big)",
-    "norm": "floor brush",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "Sanitizer",
-    "norm": "sanitizer",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "White Envelope",
-    "norm": "white envelope",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "Day Book",
-    "norm": "day book",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "Stapler Pin Big (Kangaro-24/6-HP-45)",
-    "norm": "stapler pin big",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "CD Marker",
-    "norm": "cd marker",
-    "storage": "On-Demand"
-  },
-  {
-    "name": "Scissor",
-    "norm": "scissor",
-    "storage": "On-Demand"
-  }
-]
+{
+  "outlets": [
+    "SHIVALIK",
+    "KKD",
+    "DWARKA",
+    "ROHINI",
+    "JANAKPURI",
+    "ADVANT",
+    "RAJENDER NAGAR",
+    "GGN PH2",
+    "GGN SEC15",
+    "CLOUD KITCHEN"
+  ],
+  "items": [
+    {
+      "name": "Tomato Concasse (20 Pkt/Bunch)",
+      "norm": "tomato concasse",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 6.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Alfredo Sauce (20 Pkt/Bunch)",
+      "norm": "alfredo sauce",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 10.0,
+        "DWARKA": 10.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Peri Peri Sauce (10 Pkt/Bunch)",
+      "norm": "peri peri sauce",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Chilli Garlic Soy Sauce (10 Pkt/Bunch)",
+      "norm": "chilli garlic soy sauce",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 8.0,
+        "DWARKA": 8.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Pesto Sauce (2 Pkt/Bunch)",
+      "norm": "pesto sauce",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Pizza Sauce (5 Pkt/Bunch)",
+      "norm": "pizza sauce",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Tandoori Sauce (8 Pkt/Bunch)",
+      "norm": "tandoori sauce",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Mushroom Ragout (500 Gms*2 Pkt )",
+      "norm": "mushroom ragout",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Pink Sauce (8 Pkt/Bunch)",
+      "norm": "pink sauce",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Thai Red Curry (4 Pkt/Bunch)",
+      "norm": "thai red curry",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Thai Green Curry (4 Pkt/Bunch)",
+      "norm": "thai green curry",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Palak Gravy (10 Pkt/Bunch)",
+      "norm": "palak gravy",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Pindi Chole (4 Pkt/Bunch)",
+      "norm": "pindi chole",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Makhani Gravy (10 Pkt/Bunch)",
+      "norm": "makhani gravy",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Dal Makhani (8 Pkt/Bunch)",
+      "norm": "dal makhani",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Malabari Gravy (8 Pkt/Bunch)",
+      "norm": "malabari gravy",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Whole Wheat Chicken Momos (32g/16 Pcs)",
+      "norm": "whole wheat chicken momos",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 16.0,
+        "KKD": 18.0,
+        "DWARKA": 20.0,
+        "ROHINI": 24.0,
+        "JANAKPURI": 20.0,
+        "ADVANT": 14.0,
+        "RAJENDER NAGAR": 20.0,
+        "GGN PH2": 14.0,
+        "GGN SEC15": 12.0,
+        "CLOUD KITCHEN": 10.0
+      }
+    },
+    {
+      "name": "Whole Wheat Veg. Momos (32g/16 Pcs)",
+      "norm": "whole wheat veg momos",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 16.0,
+        "KKD": 18.0,
+        "DWARKA": 20.0,
+        "ROHINI": 26.0,
+        "JANAKPURI": 16.0,
+        "ADVANT": 16.0,
+        "RAJENDER NAGAR": 21.0,
+        "GGN PH2": 14.0,
+        "GGN SEC15": 12.0,
+        "CLOUD KITCHEN": 10.0
+      }
+    },
+    {
+      "name": "Spinach Corn Kebab (40 Gms/480 Gms)",
+      "norm": "spinach corn kebab",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 14.0,
+        "KKD": 18.0,
+        "DWARKA": 18.0,
+        "ROHINI": 24.0,
+        "JANAKPURI": 14.0,
+        "ADVANT": 14.0,
+        "RAJENDER NAGAR": 15.0,
+        "GGN PH2": 12.0,
+        "GGN SEC15": 10.0,
+        "CLOUD KITCHEN": 8.0
+      }
+    },
+    {
+      "name": "Paneer Tikka-12 Pcs (3*3 cm)",
+      "norm": "paneer tikka 12 pcs",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 12.0,
+        "KKD": 20.0,
+        "DWARKA": 18.0,
+        "ROHINI": 20.0,
+        "JANAKPURI": 12.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 12.0,
+        "GGN PH2": 12.0,
+        "GGN SEC15": 10.0,
+        "CLOUD KITCHEN": 8.0
+      }
+    },
+    {
+      "name": "Paneer Peri-Peri-8 Pcs (6*1 cm)",
+      "norm": "paneer peri peri 8 pcs",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 20.0,
+        "DWARKA": 18.0,
+        "ROHINI": 22.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 14.0,
+        "GGN PH2": 12.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Falafel (25 Gms/24 Pcs)",
+      "norm": "falafel",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 10.0,
+        "DWARKA": 12.0,
+        "ROHINI": 14.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Quinoa Patty (150 Gms/3 Pcs)",
+      "norm": "quinoa patty",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 16.0,
+        "KKD": 20.0,
+        "DWARKA": 20.0,
+        "ROHINI": 28.0,
+        "JANAKPURI": 14.0,
+        "ADVANT": 14.0,
+        "RAJENDER NAGAR": 17.0,
+        "GGN PH2": 14.0,
+        "GGN SEC15": 12.0,
+        "CLOUD KITCHEN": 8.0
+      }
+    },
+    {
+      "name": "Chicken Nuggets (35 Gms/15 Pcs)",
+      "norm": "chicken nuggets",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 10.0,
+        "DWARKA": 10.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Chicken Breast (80 Gms/10 Pcs)",
+      "norm": "chicken breast",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 16.0,
+        "KKD": 24.0,
+        "DWARKA": 24.0,
+        "ROHINI": 28.0,
+        "JANAKPURI": 16.0,
+        "ADVANT": 16.0,
+        "RAJENDER NAGAR": 16.0,
+        "GGN PH2": 14.0,
+        "GGN SEC15": 12.0,
+        "CLOUD KITCHEN": 10.0
+      }
+    },
+    {
+      "name": "Chicken Patty (100 Gms/3 Pcs)",
+      "norm": "chicken patty",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 14.0,
+        "DWARKA": 16.0,
+        "ROHINI": 16.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 12.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "140g Basa Fish (10 Pkt/Bunch)",
+      "norm": "140g basa fish",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Chicken Tikka (40 Gms/12 Pcs)",
+      "norm": "chicken tikka",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 12.0,
+        "DWARKA": 14.0,
+        "ROHINI": 16.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Tandoori Chicken Whole (4 Pcs)",
+      "norm": "tandoori chicken whole",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 12.0,
+        "DWARKA": 12.0,
+        "ROHINI": 20.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 10.0,
+        "GGN PH2": 10.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Chicken Wings (8 Pcs)",
+      "norm": "chicken wings",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 8.0,
+        "DWARKA": 10.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Fish Tikka (6 Pcs)",
+      "norm": "fish tikka",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 14.0,
+        "DWARKA": 14.0,
+        "ROHINI": 16.0,
+        "JANAKPURI": 12.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 10.0,
+        "GGN PH2": 10.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Tandoori Chicken Breast (80 Gms/10 Pcs)",
+      "norm": "tandoori chicken breast",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 12.0,
+        "DWARKA": 14.0,
+        "ROHINI": 16.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Green Green Broccoli Soup (315 ML*4 Pkts)",
+      "norm": "green green broccoli soup",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Tomato Veggie Soup (315 ML*4 Pkts)",
+      "norm": "tomato veggie soup",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Clearly Clear Soup (315 ML*4 Pkts)",
+      "norm": "clearly clear soup",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Cream of Mushroom Soup (4 Pkt/Bunch)",
+      "norm": "cream of mushroom soup",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Brown Rice (10 Pkt/Bunch)",
+      "norm": "brown rice",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 14.0,
+        "DWARKA": 14.0,
+        "ROHINI": 16.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Hummus (1 Kg)",
+      "norm": "hummus",
+      "storage": "Frozen",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 14.0,
+        "KKD": 16.0,
+        "DWARKA": 18.0,
+        "ROHINI": 18.0,
+        "JANAKPURI": 14.0,
+        "ADVANT": 14.0,
+        "RAJENDER NAGAR": 12.0,
+        "GGN PH2": 12.0,
+        "GGN SEC15": 10.0,
+        "CLOUD KITCHEN": 8.0
+      }
+    },
+    {
+      "name": "Tomato Salsa (500 Gms*2 Pkt)",
+      "norm": "tomato salsa",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Mint Chutney (500 Gms*2 Pkt)",
+      "norm": "mint chutney",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 10.0,
+        "DWARKA": 10.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Beans & Corn Mixture (4 Pkt/Bunch)",
+      "norm": "beans & corn mixture",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Stuffed Chicken Breast (8 Pcs/Container)",
+      "norm": "stuffed chicken breast",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 8.0,
+        "DWARKA": 8.0,
+        "ROHINI": 10.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Dark Callebaut Chocolate (300ML)",
+      "norm": "dark callebaut chocolate",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Hazelnut Coffee (300ML)",
+      "norm": "hazelnut coffee",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 14.0,
+        "KKD": 14.0,
+        "DWARKA": 14.0,
+        "ROHINI": 18.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 10.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "That Brown Girl (300ML)",
+      "norm": "that brown girl",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 8.0,
+        "DWARKA": 8.0,
+        "ROHINI": 14.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 12.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Jamun Kala Khatta (300ML)",
+      "norm": "jamun kala khatta",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Farm Plucked Strawberry (300ML)",
+      "norm": "farm plucked strawberry",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 20.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Blueberry Chia (300ML)",
+      "norm": "blueberry chia",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 10.0,
+        "DWARKA": 14.0,
+        "ROHINI": 16.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Vanilla Avocado (300ML)",
+      "norm": "vanilla avocado",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 8.0,
+        "DWARKA": 12.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Chocolate Peanut Butter (300ML)",
+      "norm": "chocolate peanut butter",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 4.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Mixed Berry Blast (300ML)",
+      "norm": "mixed berry blast",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 6.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Orange Ice Tea (300ML)",
+      "norm": "orange ice tea",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 10.0,
+        "DWARKA": 12.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Lemon Ice Tea (300ML)",
+      "norm": "lemon ice tea",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 10.0,
+        "DWARKA": 16.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Classic Masala Lemonade (300ML)",
+      "norm": "classic masala lemonade",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 6.0,
+        "DWARKA": 8.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Watermelon Chia (300ML)",
+      "norm": "watermelon chia",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 6.0,
+        "DWARKA": 8.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Activated Charcoal Lemonade (300ML)",
+      "norm": "activated charcoal lemonade",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Delicious Veggie (300ML)",
+      "norm": "delicious veggie",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Red-Velvet Punch (300ML)",
+      "norm": "red velvet punch",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 6.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Pineapple Twist (300ML)",
+      "norm": "pineapple twist",
+      "storage": "Frozen",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Hot Chocolate (260 Ml*5 Pkt)",
+      "norm": "hot chocolate",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Chia Pudding (240 Gms/4 Pkt/Bunch)",
+      "norm": "chia pudding",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Porridge Mixture (240 Gms/4 Bunch)",
+      "norm": "porridge mixture",
+      "storage": "Frozen",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Tortilla 10\" (12 Pcs)",
+      "norm": "tortilla 10",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Pita Bread (6 Pcs)",
+      "norm": "pita bread",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 10.0,
+        "DWARKA": 12.0,
+        "ROHINI": 14.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Slider Buns (9 Pcs)",
+      "norm": "slider buns",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 14.0,
+        "DWARKA": 14.0,
+        "ROHINI": 16.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 12.0,
+        "GGN PH2": 10.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Brown Burger (4 Pcs)",
+      "norm": "brown burger",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 8.0,
+        "DWARKA": 8.0,
+        "ROHINI": 10.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Black Burger (4 Pcs)",
+      "norm": "black burger",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 14.0,
+        "KKD": 18.0,
+        "DWARKA": 20.0,
+        "ROHINI": 26.0,
+        "JANAKPURI": 12.0,
+        "ADVANT": 12.0,
+        "RAJENDER NAGAR": 14.0,
+        "GGN PH2": 12.0,
+        "GGN SEC15": 12.0,
+        "CLOUD KITCHEN": 8.0
+      }
+    },
+    {
+      "name": "Laccha Paratha-Nutriobox ( 90 gms / 450 gms)",
+      "norm": "laccha paratha nutriobox",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 16.0,
+        "KKD": 20.0,
+        "DWARKA": 24.0,
+        "ROHINI": 28.0,
+        "JANAKPURI": 16.0,
+        "ADVANT": 16.0,
+        "RAJENDER NAGAR": 16.0,
+        "GGN PH2": 14.0,
+        "GGN SEC15": 14.0,
+        "CLOUD KITCHEN": 12.0
+      }
+    },
+    {
+      "name": "Whole Wheat Panini Bread (2 Pcs)",
+      "norm": "whole wheat panini bread",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 12.0,
+        "KKD": 22.0,
+        "DWARKA": 24.0,
+        "ROHINI": 32.0,
+        "JANAKPURI": 16.0,
+        "ADVANT": 12.0,
+        "RAJENDER NAGAR": 16.0,
+        "GGN PH2": 14.0,
+        "GGN SEC15": 14.0,
+        "CLOUD KITCHEN": 10.0
+      }
+    },
+    {
+      "name": "Sweet Corn (1Kg)",
+      "norm": "sweet corn",
+      "storage": "Frozen",
+      "uom": "Bag",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Roasted Coconut Shavings (200 Gms)",
+      "norm": "roasted coconut shavings",
+      "storage": "Frozen",
+      "uom": "Container",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Edamame Seeds",
+      "norm": "edamame seeds",
+      "storage": "Frozen",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Mozzarella Cheese",
+      "norm": "mozzarella cheese",
+      "storage": "Frozen",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Tomato Ketchup (500 Gms)",
+      "norm": "tomato ketchup",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Maple Syrup (500 Gms)",
+      "norm": "maple syrup",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Tandoori Yogurt Dip (500 Gms)",
+      "norm": "tandoori yogurt dip",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Peri Peri Yogurt Dip (500 Gms)",
+      "norm": "peri peri yogurt dip",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 10.0,
+        "DWARKA": 12.0,
+        "ROHINI": 14.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 10.0,
+        "GGN SEC15": 10.0,
+        "CLOUD KITCHEN": 8.0
+      }
+    },
+    {
+      "name": "Pesto Vinaigrette (500 Gms)",
+      "norm": "pesto vinaigrette",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Chilli Lime Vinaigrette (500 Gms)",
+      "norm": "chilli lime vinaigrette",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Mustard Vinaigrette Dip (500 Gms)",
+      "norm": "mustard vinaigrette dip",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 10.0,
+        "DWARKA": 10.0,
+        "ROHINI": 14.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 10.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Pizza Base (150 Gms/4 Pcs)",
+      "norm": "pizza base",
+      "storage": "Chiller",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 10.0,
+        "DWARKA": 12.0,
+        "ROHINI": 12.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 14.0,
+        "GGN PH2": 10.0,
+        "GGN SEC15": 8.0,
+        "CLOUD KITCHEN": 6.0
+      }
+    },
+    {
+      "name": "Brownie (2 Pcs)",
+      "norm": "brownie",
+      "storage": "Chiller",
+      "uom": "Box",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 6.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Coolm Custard (500 Ml)",
+      "norm": "coolm custard",
+      "storage": "Chiller",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Anar (1 Kg)",
+      "norm": "anar",
+      "storage": "Vegetable",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Apple (1 Kg)",
+      "norm": "apple",
+      "storage": "Vegetable",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Avacado (3 Pcs)",
+      "norm": "avacado",
+      "storage": "Vegetable",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 8.0,
+        "DWARKA": 8.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 5.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Banana (12 Pcs)",
+      "norm": "banana",
+      "storage": "Vegetable",
+      "uom": "kg",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Basil (500 Gms)",
+      "norm": "basil",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Beans (2 Kg)",
+      "norm": "beans",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Beet Root (1 Kg)",
+      "norm": "beet root",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Black Grapes (250 Gms)",
+      "norm": "black grapes",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Broccoli (2 Kg)",
+      "norm": "broccoli",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 3.0
+      }
+    },
+    {
+      "name": "Capsicum Green (2 Kg)",
+      "norm": "capsicum green",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 3.0
+      }
+    },
+    {
+      "name": "Capsicum Red (2 Kg)",
+      "norm": "capsicum red",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Capsicum Yellow (2 Kg)",
+      "norm": "capsicum yellow",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Carrot (2 Kg)",
+      "norm": "carrot",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 3.0
+      }
+    },
+    {
+      "name": "Cherry Tomato (500 Gms)",
+      "norm": "cherry tomato",
+      "storage": "Vegetable",
+      "uom": "Box",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 5.0,
+        "DWARKA": 5.0,
+        "ROHINI": 5.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 3.0
+      }
+    },
+    {
+      "name": "Cucumber (2 Kg)",
+      "norm": "cucumber",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 3.0
+      }
+    },
+    {
+      "name": "Egg (1 Crate)",
+      "norm": "egg",
+      "storage": "Vegetable",
+      "uom": "Crate",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Garlic (500 gm)",
+      "norm": "garlic",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Ginger (500 Gms)",
+      "norm": "ginger",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Green Cabbage (2 Kg)",
+      "norm": "green cabbage",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Green Chilli (250 Gms)",
+      "norm": "green chilli",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Green Lettuce (1 Kg)",
+      "norm": "green lettuce",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 5.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Zucchini (2 Kg)",
+      "norm": "zucchini",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Iceberg Lettuce (1 Kg)",
+      "norm": "iceberg lettuce",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 5.0,
+        "KKD": 8.0,
+        "DWARKA": 8.0,
+        "ROHINI": 10.0,
+        "JANAKPURI": 5.0,
+        "ADVANT": 5.0,
+        "RAJENDER NAGAR": 5.0,
+        "GGN PH2": 5.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 3.0
+      }
+    },
+    {
+      "name": "Kiwi (4 Pcs)",
+      "norm": "kiwi",
+      "storage": "Vegetable",
+      "uom": "Box",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Lemon (1 Kg)",
+      "norm": "lemon",
+      "storage": "Vegetable",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Malta (3 Pcs)",
+      "norm": "malta",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Milk (1 Ltr Tetra)",
+      "norm": "milk",
+      "storage": "Vegetable",
+      "uom": "Lts",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 1.0,
+        "DWARKA": 3.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Mint (2 Bunch)",
+      "norm": "mint",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Mushroom (1 Kg)",
+      "norm": "mushroom",
+      "storage": "Vegetable",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Onion (5 Kg)",
+      "norm": "onion",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Parsley (250 Gms)",
+      "norm": "parsley",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Red Cabbage (2 Kg)",
+      "norm": "red cabbage",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Red Chilli Fresh (200 Gms)",
+      "norm": "red chilli fresh",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Spring Onion (1 Kg Pack)",
+      "norm": "spring onion",
+      "storage": "Vegetable",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Sweet Potato (1 Kg)",
+      "norm": "sweet potato",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Tomato (2 Kg)",
+      "norm": "tomato",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Tofu (500 Gms)",
+      "norm": "tofu",
+      "storage": "Vegetable",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Black Beans",
+      "norm": "black beans",
+      "storage": "Dry Store",
+      "uom": "Bag",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Paprika Powder",
+      "norm": "paprika powder",
+      "storage": "Dry Store",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Chilli Flakes Sachets (150 Pcs)",
+      "norm": "chilli flakes sachets",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Oregano Spice Mix Sachet (150 Pcs)",
+      "norm": "oregano spice mix sachet",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Desi Ghee",
+      "norm": "desi ghee",
+      "storage": "Dry Store",
+      "uom": "Kg (890 Gms)",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Rasins (250 Gms)",
+      "norm": "rasins",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Seeds Pumpkin",
+      "norm": "seeds pumpkin",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Walnut (250 Gms)",
+      "norm": "walnut",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Almond Slice (250 Gms)",
+      "norm": "almond slice",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "White Till (Sesame Seeds - 250 Gms)",
+      "norm": "white till",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Black Olive",
+      "norm": "black olive",
+      "storage": "Dry Store",
+      "uom": "Tin",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Quinoa",
+      "norm": "quinoa",
+      "storage": "Dry Store",
+      "uom": "Bag",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Kasaundi Mustard (700 Gms)",
+      "norm": "kasaundi mustard",
+      "storage": "Dry Store",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Pine Apple Slice",
+      "norm": "pine apple slice",
+      "storage": "Dry Store",
+      "uom": "Tin",
+      "ideals": {
+        "SHIVALIK": 5.0,
+        "KKD": 7.0,
+        "DWARKA": 7.0,
+        "ROHINI": 7.0,
+        "JANAKPURI": 5.0,
+        "ADVANT": 5.0,
+        "RAJENDER NAGAR": 5.0,
+        "GGN PH2": 5.0,
+        "GGN SEC15": 4.0,
+        "CLOUD KITCHEN": 3.0
+      }
+    },
+    {
+      "name": "Refined Oil",
+      "norm": "refined oil",
+      "storage": "Dry Store",
+      "uom": "Tin",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "White Cheese Dressing",
+      "norm": "white cheese dressing",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Red Cherry",
+      "norm": "red cherry",
+      "storage": "Dry Store",
+      "uom": "Tin",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 5.0,
+        "DWARKA": 5.0,
+        "ROHINI": 5.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "White Vinegar",
+      "norm": "white vinegar",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Brown Sugar",
+      "norm": "brown sugar",
+      "storage": "Dry Store",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 0.0,
+        "DWARKA": 1.0,
+        "ROHINI": 0.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Blueberry Filling",
+      "norm": "blueberry filling",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Jalapenoes Slice",
+      "norm": "jalapenoes slice",
+      "storage": "Dry Store",
+      "uom": "Tin",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Soya Chips (1000 Gms)",
+      "norm": "soya chips",
+      "storage": "Dry Store",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 15.0,
+        "KKD": 20.0,
+        "DWARKA": 20.0,
+        "ROHINI": 20.0,
+        "JANAKPURI": 15.0,
+        "ADVANT": 15.0,
+        "RAJENDER NAGAR": 15.0,
+        "GGN PH2": 15.0,
+        "GGN SEC15": 12.0,
+        "CLOUD KITCHEN": 8.0
+      }
+    },
+    {
+      "name": "Drinking Water (250ml/ 24 Bottles/Case)",
+      "norm": "drinking water",
+      "storage": "Dry Store",
+      "uom": "Case",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Spagheti Pasta (12 Kg)",
+      "norm": "spagheti pasta",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Gluten Free Pasta",
+      "norm": "gluten free pasta",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Penne Pasta (10 Kg)",
+      "norm": "penne pasta",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Coke (300ml Can)",
+      "norm": "coke",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Can Diet Coke (300ml Can)",
+      "norm": "can diet coke",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "ThumsUp Can (300ml Can)",
+      "norm": "thumsup can",
+      "storage": "Dry Store",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Gherkins (350 Gms)",
+      "norm": "gherkins",
+      "storage": "Dry Store",
+      "uom": "Bottle",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 5.0,
+        "DWARKA": 5.0,
+        "ROHINI": 5.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Protein Chocolate Powder",
+      "norm": "protein chocolate powder",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Protein Vanilla Powder",
+      "norm": "protein vanilla powder",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Plain Protein Powder",
+      "norm": "plain protein powder",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Coffee Beans (for Machine)",
+      "norm": "coffee beans",
+      "storage": "Dry Store",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 0.0,
+        "DWARKA": 2.0,
+        "ROHINI": 0.0,
+        "JANAKPURI": 0.0,
+        "ADVANT": 0.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Coffee Powder",
+      "norm": "coffee powder",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 0.0,
+        "KKD": 0.0,
+        "DWARKA": 0.0,
+        "ROHINI": 0.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 0.0,
+        "GGN PH2": 0.0,
+        "GGN SEC15": 0.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Tata Salt",
+      "norm": "tata salt",
+      "storage": "Dry Store",
+      "uom": "Bag",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Black Pepper (Whole)",
+      "norm": "black pepper",
+      "storage": "Dry Store",
+      "uom": "Kg",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Chilli Flakes (500 Gms)",
+      "norm": "chilli flakes",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Oregano (500 Gms)",
+      "norm": "oregano",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Rostip Broth Powder Seasoning (800 Gms)",
+      "norm": "rostip broth powder seasoning",
+      "storage": "Dry Store",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "50ml Dip Bowl (5000 Pair/Box)",
+      "norm": "50ml dip bowl",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.5,
+        "KKD": 0.5,
+        "DWARKA": 0.5,
+        "ROHINI": 0.5,
+        "JANAKPURI": 0.5,
+        "ADVANT": 0.5,
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
+      }
+    },
+    {
+      "name": "50ml Dip Lids (5000 Pair/Box)",
+      "norm": "50ml dip lids",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.5,
+        "KKD": 0.5,
+        "DWARKA": 0.5,
+        "ROHINI": 0.5,
+        "JANAKPURI": 0.5,
+        "ADVANT": 0.5,
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
+      }
+    },
+    {
+      "name": "100ml Dip Bowl (4000 Pair/Box)",
+      "norm": "100ml dip bowl",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.5,
+        "KKD": 0.5,
+        "DWARKA": 0.5,
+        "ROHINI": 0.5,
+        "JANAKPURI": 0.5,
+        "ADVANT": 0.5,
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
+      }
+    },
+    {
+      "name": "100ml Dip Lids (4000 Pair/Box)",
+      "norm": "100ml dip lids",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.5,
+        "KKD": 0.5,
+        "DWARKA": 0.5,
+        "ROHINI": 0.5,
+        "JANAKPURI": 0.5,
+        "ADVANT": 0.5,
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
+      }
+    },
+    {
+      "name": "750 ML Flat Bowl Nutriobox (50 Pcs/Pkt)",
+      "norm": "750 ml flat bowl nutriobox",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 11.0,
+        "KKD": 13.0,
+        "DWARKA": 12.0,
+        "ROHINI": 18.0,
+        "JANAKPURI": 9.0,
+        "ADVANT": 9.0,
+        "RAJENDER NAGAR": 9.0,
+        "GGN PH2": 9.0,
+        "GGN SEC15": 7.0,
+        "CLOUD KITCHEN": 5.0
+      }
+    },
+    {
+      "name": "250ML Flat Bowl (50 Pcs/Pkt)",
+      "norm": "250ml flat bowl",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Paper Plank : 750 ML Bowl Nutriobox (1000 Pcs/Bunch)",
+      "norm": "paper plank 750 ml bowl nutriobox",
+      "storage": "Packaging",
+      "uom": "Bundle",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Roti Bags (15 Pcs/Bunch)",
+      "norm": "roti bags",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 5.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "700ml Apptizer Box (50 Pcs/Bunch)",
+      "norm": "700ml apptizer box",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 6.0,
+        "DWARKA": 6.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "To Go Sandwich Box (600 Pcs/Carton)",
+      "norm": "to go sandwich box",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 1.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Pizza Box (50 Pcs/Bunch)",
+      "norm": "pizza box",
+      "storage": "Packaging",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Pizza Stool (100 Pcs)",
+      "norm": "pizza stool",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "350ml Salsa Jar with Lid (72 Pcs/Carton)",
+      "norm": "350ml salsa jar with lid",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Tray Mats (500 Pcs/Bunch)",
+      "norm": "tray mats",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.5,
+        "KKD": 0.5,
+        "DWARKA": 0.5,
+        "ROHINI": 0.5,
+        "JANAKPURI": 0.5,
+        "ADVANT": 0.5,
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Butter Paper (1000 Pcs/Bunch)",
+      "norm": "butter paper",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 0.5,
+        "KKD": 0.5,
+        "DWARKA": 0.5,
+        "ROHINI": 0.5,
+        "JANAKPURI": 0.5,
+        "ADVANT": 0.5,
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
+      }
+    },
+    {
+      "name": "Carry Bag with Handel Nutriobox (500 Pcs/Carton)",
+      "norm": "carry bag with handel nutriobox",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 5.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Small Boat Trays (B&B) (50 Pcs/Bunch)",
+      "norm": "small boat trays",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 2.0,
+        "DWARKA": 2.0,
+        "ROHINI": 2.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Big Boat Trays (Appetizer Plates) (50 Pcs/Bunch)",
+      "norm": "big boat trays",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Nutriobox Carry Bag Discount Sticker (44 Nos/Sheet)",
+      "norm": "nutriobox carry bag discount sticker",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 5.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Soup Sticker (33 Pcs/Sheet)",
+      "norm": "soup sticker",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 3.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 1.0
+      }
+    },
+    {
+      "name": "Desserts Sticker (33 Pcs/Sheet)",
+      "norm": "desserts sticker",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "7'' Spoon Cornstarch (100 Pcs/Pkt)",
+      "norm": "7 spoon cornstarch",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 10.0,
+        "KKD": 13.0,
+        "DWARKA": 13.0,
+        "ROHINI": 13.0,
+        "JANAKPURI": 10.0,
+        "ADVANT": 10.0,
+        "RAJENDER NAGAR": 10.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 7.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "7\" Cornstarch Fork (100 Pcs/Pkt)",
+      "norm": "7 cornstarch fork",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 6.0,
+        "KKD": 8.0,
+        "DWARKA": 8.0,
+        "ROHINI": 8.0,
+        "JANAKPURI": 6.0,
+        "ADVANT": 6.0,
+        "RAJENDER NAGAR": 6.0,
+        "GGN PH2": 6.0,
+        "GGN SEC15": 5.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "6'' Cornstarch Knife (100 Pcs/Pkt)",
+      "norm": "6 cornstarch knife",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 3.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 3.0,
+        "ADVANT": 3.0,
+        "RAJENDER NAGAR": 3.0,
+        "GGN PH2": 3.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Paper Straws (50 Pcs/Pkt)",
+      "norm": "paper straws",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 4.0,
+        "DWARKA": 4.0,
+        "ROHINI": 6.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 2.0,
+        "RAJENDER NAGAR": 2.0,
+        "GGN PH2": 2.0,
+        "GGN SEC15": 2.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "Cutlery Pouches (1000 Pcs/Bag)",
+      "norm": "cutlery pouches",
+      "storage": "Packaging",
+      "uom": "Bag",
+      "ideals": {
+        "SHIVALIK": 2.0,
+        "KKD": 3.0,
+        "DWARKA": 3.0,
+        "ROHINI": 4.0,
+        "JANAKPURI": 2.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.5
+      }
+    },
+    {
+      "name": "300ml Plastic Bottle with Lid with Sticker (20pcs/ Set)",
+      "norm": "300ml plastic bottle with lid with sticker",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 1.0,
+        "KKD": 1.0,
+        "DWARKA": 1.0,
+        "ROHINI": 1.0,
+        "JANAKPURI": 1.0,
+        "ADVANT": 1.0,
+        "RAJENDER NAGAR": 1.0,
+        "GGN PH2": 1.0,
+        "GGN SEC15": 1.0,
+        "CLOUD KITCHEN": 0.5
+      }
+    },
+    {
+      "name": "L Fold Napkin",
+      "norm": "l fold napkin",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.5,
+        "KKD": 0.5,
+        "DWARKA": 0.5,
+        "ROHINI": 0.5,
+        "JANAKPURI": 0.5,
+        "ADVANT": 0.5,
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.0
+      }
+    },
+    {
+      "name": "Billing Rolls",
+      "norm": "billing rolls",
+      "storage": "Packaging",
+      "uom": "Pcs",
+      "ideals": {
+        "SHIVALIK": 20.0,
+        "KKD": 28.0,
+        "DWARKA": 28.0,
+        "ROHINI": 32.0,
+        "JANAKPURI": 20.0,
+        "ADVANT": 20.0,
+        "RAJENDER NAGAR": 20.0,
+        "GGN PH2": 20.0,
+        "GGN SEC15": 16.0,
+        "CLOUD KITCHEN": 10.0
+      }
+    },
+    {
+      "name": "Coffee Cup (25 Pcs/Pkt)",
+      "norm": "coffee cup",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.25,
+        "KKD": 0.25,
+        "DWARKA": 0.25,
+        "ROHINI": 0.25,
+        "JANAKPURI": 0.25,
+        "ADVANT": 0.25,
+        "RAJENDER NAGAR": 0.25,
+        "GGN PH2": 0.25,
+        "GGN SEC15": 0.25,
+        "CLOUD KITCHEN": 0.25
+      }
+    },
+    {
+      "name": "Coffee Cup Cover (50 Pcs/Pkt)",
+      "norm": "coffee cup cover",
+      "storage": "Packaging",
+      "uom": "Carton",
+      "ideals": {
+        "SHIVALIK": 0.25,
+        "KKD": 0.25,
+        "DWARKA": 0.25,
+        "ROHINI": 0.25,
+        "JANAKPURI": 0.25,
+        "ADVANT": 0.25,
+        "RAJENDER NAGAR": 0.25,
+        "GGN PH2": 0.25,
+        "GGN SEC15": 0.25,
+        "CLOUD KITCHEN": 0.25
+      }
+    },
+    {
+      "name": "Cup Holder Box (50 Pcs/Bunch)",
+      "norm": "cup holder box",
+      "storage": "Packaging",
+      "uom": "Bunch",
+      "ideals": {
+        "SHIVALIK": 4.0,
+        "KKD": 5.0,
+        "DWARKA": 5.0,
+        "ROHINI": 5.0,
+        "JANAKPURI": 4.0,
+        "ADVANT": 4.0,
+        "RAJENDER NAGAR": 4.0,
+        "GGN PH2": 4.0,
+        "GGN SEC15": 3.0,
+        "CLOUD KITCHEN": 2.0
+      }
+    },
+    {
+      "name": "500ml Plain Flat Bowl (50 Pcs/Pkt)",
+      "norm": "500ml plain flat bowl",
+      "storage": "Packaging",
+      "uom": "Pkt",
+      "ideals": {
+        "SHIVALIK": 8.0,
+        "KKD": 12.0,
+        "DWARKA": 12.0,
+        "ROHINI": 15.0,
+        "JANAKPURI": 8.0,
+        "ADVANT": 8.0,
+        "RAJENDER NAGAR": 8.0,
+        "GGN PH2": 8.0,
+        "GGN SEC15": 6.0,
+        "CLOUD KITCHEN": 4.0
+      }
+    },
+    {
+      "name": "Seekh Jhadhu",
+      "norm": "seekh jhadhu",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    },
+    {
+      "name": "Big Wiper",
+      "norm": "big wiper",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    },
+    {
+      "name": "Dust Pan",
+      "norm": "dust pan",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    },
+    {
+      "name": "Floor Brush (Big)",
+      "norm": "floor brush",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    },
+    {
+      "name": "Sanitizer",
+      "norm": "sanitizer",
+      "storage": "On-Demand",
+      "uom": "Can",
+      "ideals": {}
+    },
+    {
+      "name": "White Envelope",
+      "norm": "white envelope",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    },
+    {
+      "name": "Day Book",
+      "norm": "day book",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    },
+    {
+      "name": "Stapler Pin Big (Kangaro-24/6-HP-45)",
+      "norm": "stapler pin big",
+      "storage": "On-Demand",
+      "uom": "Box",
+      "ideals": {}
+    },
+    {
+      "name": "CD Marker",
+      "norm": "cd marker",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    },
+    {
+      "name": "Scissor",
+      "norm": "scissor",
+      "storage": "On-Demand",
+      "uom": "Pcs",
+      "ideals": {}
+    }
+  ]
+}

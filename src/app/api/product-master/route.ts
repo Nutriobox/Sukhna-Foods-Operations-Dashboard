@@ -50,6 +50,8 @@ type Product = {
   scanBatches: boolean | null;
   group: string;
   idealStorage: string | null;   // Frozen | Chiller | Vegetable | Dry Store | Packaging | On-Demand | null
+  idealUom: string | null;       // UOM the Excel ideal quantities are expressed in (e.g. "Bag", "Kg", "Pkt")
+  idealQty: Record<string, number> | null;   // per-outlet ideal inventory, e.g. { SHIVALIK: 2, KKD: 3, ... }
   raw?: Record<string, unknown>;
 };
 
@@ -60,21 +62,30 @@ for (const p of STATIC) if (p && p.code) STATIC_BY_CODE.set(String(p.code).trim(
 // Outlet Ideal Inventory lookup — built once at module load, used to tag each
 // product with its storage category (Frozen/Chiller/Vegetable/Dry Store/
 // Packaging/On-Demand) when it appears on the team's "ideal items" sheet.
-type IdealItem = { name: string; norm: string; storage: string };
-// Primary strict map: exact PACT name match (case-insensitive, trimmed only).
-// This is the ONLY authoritative match — avoids false positives like PACT
-// product "Coke" being tagged because the ideal list has "Coke (300ml Can)".
+type IdealItem = {
+  name: string;
+  norm: string;
+  storage: string;
+  uom: string | null;
+  ideals: Record<string, number>;
+};
+type IdealFile = { outlets: string[]; items: IdealItem[] };
+const IDEAL_FILE = idealItems as IdealFile;
+const IDEAL_OUTLETS = IDEAL_FILE.outlets || [];
 const IDEAL_BY_EXACT = new Map<string, IdealItem>();
-for (const it of (idealItems as IdealItem[])) {
+for (const it of IDEAL_FILE.items || []) {
   if (!it || !it.name) continue;
   const k = it.name.toLowerCase().trim();
   if (!IDEAL_BY_EXACT.has(k)) IDEAL_BY_EXACT.set(k, it);
 }
 function idealStorageFor(name: string): string | null {
   if (!name) return null;
-  const k = name.toLowerCase().trim();
-  const hit = IDEAL_BY_EXACT.get(k);
+  const hit = IDEAL_BY_EXACT.get(name.toLowerCase().trim());
   return hit ? hit.storage : null;
+}
+function idealEntryFor(name: string): IdealItem | null {
+  if (!name) return null;
+  return IDEAL_BY_EXACT.get(name.toLowerCase().trim()) || null;
 }
 
 function staticProducts(): Product[] {
@@ -93,6 +104,8 @@ function staticProducts(): Product[] {
       scanBatches: p.scanBatches ?? null,
       group: (p.group || "").trim(),
       idealStorage: idealStorageFor(p.name || ""),
+      idealUom: (idealEntryFor(p.name || "")?.uom) ?? null,
+      idealQty: (idealEntryFor(p.name || "")?.ideals) ?? null,
     };
   });
 }
@@ -210,6 +223,8 @@ export async function GET(req: Request) {
         scanBatches,
         group: str(row[iGrp]) || (stat?.group || ""),
         idealStorage: idealStorageFor(name),
+        idealUom: idealEntryFor(name)?.uom ?? null,
+        idealQty: idealEntryFor(name)?.ideals ?? null,
       };
       if (includeRaw) {
         const raw: Record<string, unknown> = {};
@@ -237,6 +252,7 @@ function respond(products: Product[], synced_at: string | null, source: string, 
     source,                 // 'pact-live' or 'static-fallback'
     cached_for_ms: TTL_MS,
     warning,
+    outlets: IDEAL_OUTLETS,
     products: includeRaw ? products : products.map(({ raw, ...rest }) => rest),
   }, { headers: CORS });
 }
