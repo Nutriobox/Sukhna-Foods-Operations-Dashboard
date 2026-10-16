@@ -49,8 +49,11 @@
         +            'box-shadow:0 20px 60px rgba(0,0,0,.4);width:360px;max-width:92vw">'
         +   '<div style="font-size:22px;font-weight:700;color:#0f172a;margin-bottom:4px">🔒 Sukhna Ops Dashboard</div>'
         +   '<div style="font-size:13px;color:#64748b;margin-bottom:20px">Enter password to continue</div>'
-        +   '<form id="__ops_pw_form__" autocomplete="off">'
+        +   '<form id="__ops_pw_form__" autocomplete="off" spellcheck="false">'
+        +     '<input type="text" name="username" autocomplete="username" style="display:none"/>'
         +     '<input id="__ops_pw_input__" type="password" placeholder="Password" autofocus '
+        +       'autocomplete="new-password" data-lpignore="true" data-form-type="other" '
+        +       'name="sukhna_ops_pw_' + Math.random().toString(36).slice(2) + '" '
         +       'style="width:100%;padding:11px 14px;font-size:15px;border:1px solid #cbd5e1;'
         +              'border-radius:8px;outline:none;box-sizing:border-box;letter-spacing:2px"/>'
         +     '<div id="__ops_pw_err__" style="color:#dc2626;font-size:12.5px;margin-top:8px;'
@@ -67,6 +70,11 @@
       var inp = document.getElementById('__ops_pw_input__');
       var err = document.getElementById('__ops_pw_err__');
       var frm = document.getElementById('__ops_pw_form__');
+      // Browsers (especially Chrome) sometimes autofill AFTER our markup is
+      // inserted. Clear the value a few times on the next ticks to defeat it.
+      setTimeout(function(){ inp.value=''; inp.focus(); }, 50);
+      setTimeout(function(){ inp.value=''; inp.focus(); }, 200);
+      setTimeout(function(){ inp.value=''; inp.focus(); }, 500);
       frm.addEventListener('submit', function (e) {
         e.preventDefault();
         if (inp.value === PASSWORD) {
