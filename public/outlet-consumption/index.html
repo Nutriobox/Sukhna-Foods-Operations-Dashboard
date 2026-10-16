@@ -209,9 +209,8 @@
    <select id="outletRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Outlet whose ideal inventory you want to see in the L3 / L2 / L1 UOM columns">
     <option value="">All outlets (max)</option>
    </select>
-   <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter by the team's Ideal Inventory list (loaded from Ideal_Inventory_6_-_PACT_names.xlsx)">
-    <option value="">All items</option>
-    <option value="any">On ideal list only</option>
+   <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Scope the table to the team's Ideal Inventory list (default), or widen to all PACT raw materials.">
+    <option value="any" selected>On ideal list only (default)</option>
     <option value="Frozen">Ideal: Frozen</option>
     <option value="Chiller">Ideal: Chiller</option>
     <option value="Vegetable">Ideal: Vegetable</option>
@@ -219,6 +218,7 @@
     <option value="Packaging">Ideal: Packaging</option>
     <option value="On-Demand">Ideal: On-Demand</option>
     <option value="none">NOT on ideal list</option>
+    <option value="">All PACT raw materials</option>
    </select>
    <button class="btn" onclick="exportCsvRm()">⬇ Export CSV</button>
    <button class="btn prim" id="btnSyncRm" onclick="syncRM()" title="Pulls the latest Product Master from PACT (same source as the Product Master tab).">⚡ Sync Raw Materials</button>
