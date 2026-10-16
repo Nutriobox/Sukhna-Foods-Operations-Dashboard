@@ -61,19 +61,19 @@ for (const p of STATIC) if (p && p.code) STATIC_BY_CODE.set(String(p.code).trim(
 // product with its storage category (Frozen/Chiller/Vegetable/Dry Store/
 // Packaging/On-Demand) when it appears on the team's "ideal items" sheet.
 type IdealItem = { name: string; norm: string; storage: string };
-const IDEAL_BY_NORM = new Map<string, IdealItem>();
-for (const it of (idealItems as IdealItem[])) if (it && it.norm) IDEAL_BY_NORM.set(it.norm, it);
-function normProductName(s: string): string {
-  if (!s) return "";
-  let x = s.toLowerCase().trim();
-  x = x.replace(/\s*\([^)]*\)\s*/g, " ");
-  x = x.replace(/[^a-z0-9&\s]+/g, " ");
-  x = x.replace(/\s+/g, " ").trim();
-  return x;
+// Primary strict map: exact PACT name match (case-insensitive, trimmed only).
+// This is the ONLY authoritative match — avoids false positives like PACT
+// product "Coke" being tagged because the ideal list has "Coke (300ml Can)".
+const IDEAL_BY_EXACT = new Map<string, IdealItem>();
+for (const it of (idealItems as IdealItem[])) {
+  if (!it || !it.name) continue;
+  const k = it.name.toLowerCase().trim();
+  if (!IDEAL_BY_EXACT.has(k)) IDEAL_BY_EXACT.set(k, it);
 }
 function idealStorageFor(name: string): string | null {
   if (!name) return null;
-  const hit = IDEAL_BY_NORM.get(normProductName(name));
+  const k = name.toLowerCase().trim();
+  const hit = IDEAL_BY_EXACT.get(k);
   return hit ? hit.storage : null;
 }
 
