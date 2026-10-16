@@ -117,9 +117,8 @@
 
  <div class="tabs">
   <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
-  <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
-  <div class="tab" data-t="or" onclick="selTab('or')">🍽️ Outlet Recipes &amp; BOM</div>
   <div class="tab" data-t="im" onclick="selTab('im')">📋 Item Master</div>
+  <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -183,38 +182,6 @@
     <th>Created Date</th>
    </tr></thead>
    <tbody id="tbodySd"><tr><td colspan="25" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
-  </table></div></div>
- </div>
-
- <!-- ============== Outlet Recipes &amp; BOM tab ============== -->
- <div id="tabOr" style="display:none">
-  <div class="toolbar">
-   <input id="qor" class="search" placeholder="Search outlet recipe name, product code, or an RM input…" oninput="renderOr()">
-   <select id="typeOr" onchange="renderOr()" class="btn" style="padding-right:28px" title="Filter by outlet item type">
-    <option value="">All types</option>
-    <option value="Dining item">Dining item</option>
-    <option value="Add-on item">Add-on item</option>
-   </select>
-   <select id="modeOr" onchange="renderOr()" class="btn" style="padding-right:28px" title="Filter by mode of serving">
-    <option value="">All modes</option>
-    <option value="Dining">Dining</option>
-    <option value="Delivery">Delivery</option>
-   </select>
-   <button class="btn" onclick="exportCsvOr()">⬇ Export CSV</button>
-   <button class="btn prim" id="btnSyncOr" onclick="syncOR()" title="Refreshes the outlet recipe view by syncing the BOM report from PACT. Runs in ~45s.">⚡ Sync Outlet Recipes</button>
-   <span id="syncStatOr" class="mut" style="font-size:12.5px"></span>
-   <span class="mut" style="font-size:12.5px;margin-left:auto">Click a row to expand its BOM</span>
-  </div>
-  <div class="card"><div class="scroll"><table id="tblOr">
-   <thead><tr>
-    <th class="r">#</th>
-    <th>Type of Outlet Item</th>
-    <th>Outlet Recipe Name</th>
-    <th>Mode of Serving</th>
-    <th>BOM Code</th>
-    <th class="r">BOM Details (inputs)</th>
-   </tr></thead>
-   <tbody id="tbodyOr"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -350,20 +317,17 @@ function selTab(t){
   // PM / BOM tabs were removed in 2026-10-15 — only the panes still live in the DOM
   // for a brief transition were cleaned out, but we keep the loaders because RM-Master
   // and Outlet-Recipes still depend on them.
-  $('tabOr').style.display = t === 'or' ? '' : 'none';
   $('tabRm').style.display = t === 'rm' ? '' : 'none';
-  $('tabSd').style.display = t === 'sd' ? '' : 'none';
   $('tabIm').style.display = t === 'im' ? '' : 'none';
+  $('tabSd').style.display = t === 'sd' ? '' : 'none';
   updateHeaderStats();
-  if(t === 'or' && !OR_LOADED.v) loadOr(false);
   if(t === 'rm' && !RM_LOADED.v) loadRm(false);
-  if(t === 'sd' && !SD_LOADED.v) loadSd(false);
   if(t === 'im' && !IM_LOADED.v) loadIm(false);
+  if(t === 'sd' && !SD_LOADED.v) loadSd(false);
 }
 
 function updateHeaderStats(){
   const m = (CURTAB === 'rm' ? RM
-          : CURTAB === 'or'  ? OR
           : CURTAB === 'sd'  ? SD
           : CURTAB === 'im'  ? IM
           : RM).meta;
@@ -374,8 +338,7 @@ function updateHeaderStats(){
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
   $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im') ? 'live' : m.source ? 'warn' : 'live');
-  const unit = CURTAB === 'or'  ? ' outlet recipes'
-             : CURTAB === 'sd'  ? ' sales rows'
+  const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
              : ' raw materials';
   $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
@@ -599,7 +562,8 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
 }
 function syncPM(){ if(!$('btnSyncPm')) return; syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
 function syncBOM(){ if(!$('btnSyncBom')) return; syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
-function syncOR(){ syncReport('bom','btnSyncOr','syncStatOr', BOM.meta.synced_at || '', async () => { await loadBom(true); await loadOr(false); }); }
+function syncOR(){ /* panel removed 2026-10-16 */ }
+function syncOR_noop(/* removed */){ syncReport('bom','btnSyncOr','syncStatOr', BOM.meta.synced_at || '', async () => { await loadBom(true); await loadOr(false); }); }
 function syncRM(){ syncReport('pm','btnSyncRm','syncStatRm', PM.meta.synced_at || '', async () => { await loadPm(true); await loadRm(false); }); }
 
 /* ======================= RAW MATERIAL MASTER =======================
@@ -828,6 +792,10 @@ function classifyOutletType(name){
 }
 
 async function loadOr(fresh){
+  // Outlet Recipes & BOM tab was removed on 2026-10-16; keep the loader as a
+  // no-op shell so onDataChanged('bom') calls don't throw. Item Master reads
+  // its own /api/outlet-item-master endpoint directly from the BOM snapshot.
+  if(!document.getElementById('tbodyOr')) return;
   // The outlet-recipe view needs BOM (always) and PM (optional, for a
   // human product name when the BOM output row doesn't carry one).
   if(!BOM_LOADED.v || fresh) await loadBom(fresh);
@@ -894,6 +862,7 @@ async function loadOr(fresh){
 }
 
 function renderOr(){
+  if(!document.getElementById('tbodyOr')) return;
   const q    = ($('qor').value || '').trim().toLowerCase();
   const type = $('typeOr').value || '';
   const mode = $('modeOr').value || '';
@@ -1404,7 +1373,6 @@ window.onDataChanged = function(changed){
   }
   if(changed.includes('bom')){
     if(typeof loadBom === 'function') loadBom(true).catch(() => {});
-    if(OR_LOADED.v && typeof loadOr === 'function') loadOr(false).catch(() => {});
     if(IM_LOADED.v && typeof loadIm === 'function') loadIm(true).catch(() => {});
     toast('BOM refreshed from another tab', 2200);
   }
