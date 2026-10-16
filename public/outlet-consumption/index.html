@@ -201,6 +201,17 @@
     <option value="both">Both (shared)</option>
     <option value="unused">Unused in any BOM</option>
    </select>
+   <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter by the team's Ideal Inventory list (loaded from Ideal_Inventory_6_-_PACT_names.xlsx)">
+    <option value="">All items</option>
+    <option value="any">On ideal list only</option>
+    <option value="Frozen">Ideal: Frozen</option>
+    <option value="Chiller">Ideal: Chiller</option>
+    <option value="Vegetable">Ideal: Vegetable</option>
+    <option value="Dry Store">Ideal: Dry Store</option>
+    <option value="Packaging">Ideal: Packaging</option>
+    <option value="On-Demand">Ideal: On-Demand</option>
+    <option value="none">NOT on ideal list</option>
+   </select>
    <button class="btn" onclick="exportCsvRm()">⬇ Export CSV</button>
    <button class="btn prim" id="btnSyncRm" onclick="syncRM()" title="Pulls the latest Product Master from PACT (same source as the Product Master tab).">⚡ Sync Raw Materials</button>
    <span id="syncStatRm" class="mut" style="font-size:12.5px"></span>
@@ -219,8 +230,9 @@
     <th>Case / Carton Unit</th>
     <th class="r">Case &rarr; Base</th>
     <th>Warehouse</th>
+    <th title="From the team's Ideal Inventory sheet (updated 2026-10-16)">Ideal Storage</th>
    </tr></thead>
-   <tbody id="tbodyRm"><tr><td colspan="11" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodyRm"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -646,6 +658,7 @@ async function loadRm(fresh){
       caseScale: typeof L3.s === 'number' ? L3.s : null,
       warehouse: p.idealWarehouse || '',
       printLevel: p.printLevel || '',
+      idealStorage: p.idealStorage || null,
     };
   });
   RM.items = list;
@@ -673,6 +686,7 @@ function renderRm(){
   const q = ($('qrm').value || '').trim().toLowerCase();
   const filterSet = RM_GROUPS[$('catRm').value] || RM_GROUPS.rm;
   const useFilter = $('useRm') ? ($('useRm').value || '') : '';
+  const idealFilter = $('idealRm') ? ($('idealRm').value || '') : '';
   const list = RM.items.filter(x => {
     if(!filterSet.has(x.group)) return false;
     if(q && !x.code.toLowerCase().includes(q) && !x.name.toLowerCase().includes(q)) return false;
@@ -683,11 +697,26 @@ function renderRm(){
       if(!RM_USAGE_READY) return true;
       if(rmUsageOf(x.code) !== useFilter) return false;
     }
+    if(idealFilter === 'any'  && !x.idealStorage) return false;
+    if(idealFilter === 'none' && x.idealStorage)  return false;
+    if(idealFilter && idealFilter !== 'any' && idealFilter !== 'none' && x.idealStorage !== idealFilter) return false;
     return true;
   });
   RM.meta.count = list.length;
   if(CURTAB === 'rm') updateHeaderStats();
 
+  const idealChip = (st) => {
+    if(!st) return '<span class="mut">—</span>';
+    const colors = {
+      'Frozen':    'background:#dbeafe;color:#1e40af',
+      'Chiller':   'background:#cffafe;color:#155e75',
+      'Vegetable': 'background:#dcfce7;color:#166534',
+      'Dry Store': 'background:#fef3c7;color:#92400e',
+      'Packaging': 'background:#fce7f3;color:#9d174d',
+      'On-Demand': 'background:#e5e7eb;color:#374151',
+    };
+    return `<span class="sb" style="${colors[st] || 'background:#f3f4f6;color:#374151'}">${esc(st)}</span>`;
+  };
   const usedInBadge = (code) => {
     if(!RM_USAGE_READY) return '<span class="mut" title="Loading BOM to classify…">…</span>';
     const u = rmUsageOf(code);
@@ -717,13 +746,14 @@ function renderRm(){
       <td>${esc(x.caseUnit) || '<span class="mut">—</span>'}</td>
       <td class="r">${x.caseScale != null ? qty(x.caseScale) + ' ' + esc(x.baseUnit) : '<span class="mut">—</span>'}</td>
       <td>${esc(x.warehouse) || '<span class="mut">—</span>'}</td>
+      <td>${idealChip(x.idealStorage)}</td>
     </tr>`;
   }).join('');
   const extra = list.length > 3000
-    ? `<tr><td colspan="11" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
+    ? `<tr><td colspan="12" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
     : '';
   $('tbodyRm').innerHTML = (rows
-    || '<tr><td colspan="11" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>') + extra;
+    || '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>') + extra;
 }
 
 function exportCsvRm(){
@@ -735,13 +765,13 @@ function exportCsvRm(){
     if(!RM_USAGE_READY) return 'unknown';
     return rmUsageOf(code);  // outlet | factory | both | unused
   };
-  const header = ['RM Code','Raw Material Name','Category','Used In','Base Unit','Pack / Issue Unit','Pack Scale (in base units)','Case / Carton Unit','Case Scale (in base units)','Warehouse'];
+  const header = ['RM Code','Raw Material Name','Category','Used In','Base Unit','Pack / Issue Unit','Pack Scale (in base units)','Case / Carton Unit','Case Scale (in base units)','Warehouse','Ideal Storage'];
   const lines = [header.map(esc2).join(',')];
   for(const x of RM.items){
     if(!filterSet.has(x.group)) continue;
     if(q && !x.code.toLowerCase().includes(q) && !x.name.toLowerCase().includes(q)) continue;
     if(useFilter && RM_USAGE_READY && rmUsageOf(x.code) !== useFilter) continue;
-    lines.push([x.code, x.name, x.group, usedInText(x.code), x.baseUnit, x.packUnit, x.packScale, x.caseUnit, x.caseScale, x.warehouse].map(esc2).join(','));
+    lines.push([x.code, x.name, x.group, usedInText(x.code), x.baseUnit, x.packUnit, x.packScale, x.caseUnit, x.caseScale, x.warehouse, x.idealStorage || ''].map(esc2).join(','));
   }
   downloadBlob(lines.join('\n'), 'rm-master-'+((RM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
 }
@@ -1114,7 +1144,7 @@ function exportCsvSd(){
 // under the hood, so PM is primed for its tab too. BOM / Outlet
 // Recipes lazy-load when their tabs open.
 loadRm(false).catch(e => {
-  $('tbodyRm').innerHTML = `<tr><td colspan="11" style="padding:18px;color:#b91c1c">Failed to load Raw Material Master: ${esc(e.message || e)}</td></tr>`;
+  $('tbodyRm').innerHTML = `<tr><td colspan="12" style="padding:18px;color:#b91c1c">Failed to load Raw Material Master: ${esc(e.message || e)}</td></tr>`;
   toast('Load failed: ' + (e.message || e), 4000);
 });
 

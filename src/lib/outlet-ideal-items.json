@@ -1,0 +1,1017 @@
+[
+  {
+    "name": "Tomato Concasse (20 Pkt/Bunch)",
+    "norm": "tomato concasse",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Alfredo Sauce (20 Pkt/Bunch)",
+    "norm": "alfredo sauce",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Peri Peri Sauce (10 Pkt/Bunch)",
+    "norm": "peri peri sauce",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chilli Garlic Soy Sauce (10 Pkt/Bunch)",
+    "norm": "chilli garlic soy sauce",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Pesto Sauce (2 Pkt/Bunch)",
+    "norm": "pesto sauce",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Pizza Sauce (5 Pkt/Bunch)",
+    "norm": "pizza sauce",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Tandoori Sauce (8 Pkt/Bunch)",
+    "norm": "tandoori sauce",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Mushroom Ragout (500 Gms*2 Pkt )",
+    "norm": "mushroom ragout",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Pink Sauce (8 Pkt/Bunch)",
+    "norm": "pink sauce",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Thai Red Curry (4 Pkt/Bunch)",
+    "norm": "thai red curry",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Thai Green Curry (4 Pkt/Bunch)",
+    "norm": "thai green curry",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Palak Gravy (10 Pkt/Bunch)",
+    "norm": "palak gravy",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Pindi Chole (4 Pkt/Bunch)",
+    "norm": "pindi chole",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Makhani Gravy (10 Pkt/Bunch)",
+    "norm": "makhani gravy",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Dal Makhani (8 Pkt/Bunch)",
+    "norm": "dal makhani",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Malabari Gravy (8 Pkt/Bunch)",
+    "norm": "malabari gravy",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Whole Wheat Chicken Momos (32g/16 Pcs)",
+    "norm": "whole wheat chicken momos",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Whole Wheat Veg. Momos (32g/16 Pcs)",
+    "norm": "whole wheat veg momos",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Spinach Corn Kebab (40 Gms/480 Gms)",
+    "norm": "spinach corn kebab",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Paneer Tikka-12 Pcs (3*3 cm)",
+    "norm": "paneer tikka 12 pcs",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Paneer Peri-Peri-8 Pcs (6*1 cm)",
+    "norm": "paneer peri peri 8 pcs",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Falafel (25 Gms/24 Pcs)",
+    "norm": "falafel",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Quinoa Patty (150 Gms/3 Pcs)",
+    "norm": "quinoa patty",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chicken Nuggets (35 Gms/15 Pcs)",
+    "norm": "chicken nuggets",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chicken Breast (80 Gms/10 Pcs)",
+    "norm": "chicken breast",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chicken Patty (100 Gms/3 Pcs)",
+    "norm": "chicken patty",
+    "storage": "Frozen"
+  },
+  {
+    "name": "140g Basa Fish (10 Pkt/Bunch)",
+    "norm": "140g basa fish",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chicken Tikka (40 Gms/12 Pcs)",
+    "norm": "chicken tikka",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Tandoori Chicken Whole (4 Pcs)",
+    "norm": "tandoori chicken whole",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chicken Wings (8 Pcs)",
+    "norm": "chicken wings",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Fish Tikka (6 Pcs)",
+    "norm": "fish tikka",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Tandoori Chicken Breast (80 Gms/10 Pcs)",
+    "norm": "tandoori chicken breast",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Green Green Broccoli Soup (315 ML*4 Pkts)",
+    "norm": "green green broccoli soup",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Tomato Veggie Soup (315 ML*4 Pkts)",
+    "norm": "tomato veggie soup",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Clearly Clear Soup (315 ML*4 Pkts)",
+    "norm": "clearly clear soup",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Cream of Mushroom Soup (4 Pkt/Bunch)",
+    "norm": "cream of mushroom soup",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Brown Rice (10 Pkt/Bunch)",
+    "norm": "brown rice",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Hummus (1 Kg)",
+    "norm": "hummus",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Tomato Salsa (500 Gms*2 Pkt)",
+    "norm": "tomato salsa",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Mint Chutney (500 Gms*2 Pkt)",
+    "norm": "mint chutney",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Beans & Corn Mixture (4 Pkt/Bunch)",
+    "norm": "beans & corn mixture",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Stuffed Chicken Breast (8 Pcs/Container)",
+    "norm": "stuffed chicken breast",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Dark Callebaut Chocolate (300ML)",
+    "norm": "dark callebaut chocolate",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Hazelnut Coffee (300ML)",
+    "norm": "hazelnut coffee",
+    "storage": "Frozen"
+  },
+  {
+    "name": "That Brown Girl (300ML)",
+    "norm": "that brown girl",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Jamun Kala Khatta (300ML)",
+    "norm": "jamun kala khatta",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Farm Plucked Strawberry (300ML)",
+    "norm": "farm plucked strawberry",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Blueberry Chia (300ML)",
+    "norm": "blueberry chia",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Vanilla Avocado (300ML)",
+    "norm": "vanilla avocado",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chocolate Peanut Butter (300ML)",
+    "norm": "chocolate peanut butter",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Mixed Berry Blast (300ML)",
+    "norm": "mixed berry blast",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Orange Ice Tea (300ML)",
+    "norm": "orange ice tea",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Lemon Ice Tea (300ML)",
+    "norm": "lemon ice tea",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Classic Masala Lemonade (300ML)",
+    "norm": "classic masala lemonade",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Watermelon Chia (300ML)",
+    "norm": "watermelon chia",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Activated Charcoal Lemonade (300ML)",
+    "norm": "activated charcoal lemonade",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Delicious Veggie (300ML)",
+    "norm": "delicious veggie",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Red-Velvet Punch (300ML)",
+    "norm": "red velvet punch",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Pineapple Twist (300ML)",
+    "norm": "pineapple twist",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Hot Chocolate (260 Ml*5 Pkt)",
+    "norm": "hot chocolate",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Chia Pudding (240 Gms/4 Pkt/Bunch)",
+    "norm": "chia pudding",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Porridge Mixture (240 Gms/4 Bunch)",
+    "norm": "porridge mixture",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Tortilla 10\" (12 Pcs)",
+    "norm": "tortilla 10",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Pita Bread (6 Pcs)",
+    "norm": "pita bread",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Slider Buns (9 Pcs)",
+    "norm": "slider buns",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Brown Burger (4 Pcs)",
+    "norm": "brown burger",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Black Burger (4 Pcs)",
+    "norm": "black burger",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Laccha Paratha-Nutriobox ( 90 gms / 450 gms)",
+    "norm": "laccha paratha nutriobox",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Whole Wheat Panini Bread (2 Pcs)",
+    "norm": "whole wheat panini bread",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Sweet Corn (1Kg)",
+    "norm": "sweet corn",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Roasted Coconut Shavings (200 Gms)",
+    "norm": "roasted coconut shavings",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Edamame Seeds",
+    "norm": "edamame seeds",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Mozzarella Cheese",
+    "norm": "mozzarella cheese",
+    "storage": "Frozen"
+  },
+  {
+    "name": "Tomato Ketchup (500 Gms)",
+    "norm": "tomato ketchup",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Maple Syrup (500 Gms)",
+    "norm": "maple syrup",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Tandoori Yogurt Dip (500 Gms)",
+    "norm": "tandoori yogurt dip",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Peri Peri Yogurt Dip (500 Gms)",
+    "norm": "peri peri yogurt dip",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Pesto Vinaigrette (500 Gms)",
+    "norm": "pesto vinaigrette",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Chilli Lime Vinaigrette (500 Gms)",
+    "norm": "chilli lime vinaigrette",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Mustard Vinaigrette Dip (500 Gms)",
+    "norm": "mustard vinaigrette dip",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Pizza Base (150 Gms/4 Pcs)",
+    "norm": "pizza base",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Brownie (2 Pcs)",
+    "norm": "brownie",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Coolm Custard (500 Ml)",
+    "norm": "coolm custard",
+    "storage": "Chiller"
+  },
+  {
+    "name": "Anar (1 Kg)",
+    "norm": "anar",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Apple (1 Kg)",
+    "norm": "apple",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Avacado (3 Pcs)",
+    "norm": "avacado",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Banana (12 Pcs)",
+    "norm": "banana",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Basil (500 Gms)",
+    "norm": "basil",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Beans (2 Kg)",
+    "norm": "beans",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Beet Root (1 Kg)",
+    "norm": "beet root",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Black Grapes (250 Gms)",
+    "norm": "black grapes",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Broccoli (2 Kg)",
+    "norm": "broccoli",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Capsicum Green (2 Kg)",
+    "norm": "capsicum green",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Capsicum Red (2 Kg)",
+    "norm": "capsicum red",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Capsicum Yellow (2 Kg)",
+    "norm": "capsicum yellow",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Carrot (2 Kg)",
+    "norm": "carrot",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Cherry Tomato (500 Gms)",
+    "norm": "cherry tomato",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Cucumber (2 Kg)",
+    "norm": "cucumber",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Egg (1 Crate)",
+    "norm": "egg",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Garlic (500 gm)",
+    "norm": "garlic",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Ginger (500 Gms)",
+    "norm": "ginger",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Green Cabbage (2 Kg)",
+    "norm": "green cabbage",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Green Chilli (250 Gms)",
+    "norm": "green chilli",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Green Lettuce (1 Kg)",
+    "norm": "green lettuce",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Zucchini (2 Kg)",
+    "norm": "zucchini",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Iceberg Lettuce (1 Kg)",
+    "norm": "iceberg lettuce",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Kiwi (4 Pcs)",
+    "norm": "kiwi",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Lemon (1 Kg)",
+    "norm": "lemon",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Malta (3 Pcs)",
+    "norm": "malta",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Milk (1 Ltr Tetra)",
+    "norm": "milk",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Mint (2 Bunch)",
+    "norm": "mint",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Mushroom (1 Kg)",
+    "norm": "mushroom",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Onion (5 Kg)",
+    "norm": "onion",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Parsley (250 Gms)",
+    "norm": "parsley",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Red Cabbage (2 Kg)",
+    "norm": "red cabbage",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Red Chilli Fresh (200 Gms)",
+    "norm": "red chilli fresh",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Spring Onion (1 Kg Pack)",
+    "norm": "spring onion",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Sweet Potato (1 Kg)",
+    "norm": "sweet potato",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Tomato (2 Kg)",
+    "norm": "tomato",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Tofu (500 Gms)",
+    "norm": "tofu",
+    "storage": "Vegetable"
+  },
+  {
+    "name": "Black Beans",
+    "norm": "black beans",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Paprika Powder",
+    "norm": "paprika powder",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Chilli Flakes Sachets (150 Pcs)",
+    "norm": "chilli flakes sachets",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Oregano Spice Mix Sachet (150 Pcs)",
+    "norm": "oregano spice mix sachet",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Desi Ghee",
+    "norm": "desi ghee",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Rasins (250 Gms)",
+    "norm": "rasins",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Seeds Pumpkin",
+    "norm": "seeds pumpkin",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Walnut (250 Gms)",
+    "norm": "walnut",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Almond Slice (250 Gms)",
+    "norm": "almond slice",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "White Till (Sesame Seeds - 250 Gms)",
+    "norm": "white till",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Black Olive",
+    "norm": "black olive",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Quinoa",
+    "norm": "quinoa",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Kasaundi Mustard (700 Gms)",
+    "norm": "kasaundi mustard",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Pine Apple Slice",
+    "norm": "pine apple slice",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Refined Oil",
+    "norm": "refined oil",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "White Cheese Dressing",
+    "norm": "white cheese dressing",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Red Cherry",
+    "norm": "red cherry",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "White Vinegar",
+    "norm": "white vinegar",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Brown Sugar",
+    "norm": "brown sugar",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Blueberry Filling",
+    "norm": "blueberry filling",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Jalapenoes Slice",
+    "norm": "jalapenoes slice",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Soya Chips (1000 Gms)",
+    "norm": "soya chips",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Drinking Water (250ml/ 24 Bottles/Case)",
+    "norm": "drinking water",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Spagheti Pasta (12 Kg)",
+    "norm": "spagheti pasta",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Gluten Free Pasta",
+    "norm": "gluten free pasta",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Penne Pasta (10 Kg)",
+    "norm": "penne pasta",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Coke (300ml Can)",
+    "norm": "coke",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Can Diet Coke (300ml Can)",
+    "norm": "can diet coke",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "ThumsUp Can (300ml Can)",
+    "norm": "thumsup can",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Gherkins (350 Gms)",
+    "norm": "gherkins",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Protein Chocolate Powder",
+    "norm": "protein chocolate powder",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Protein Vanilla Powder",
+    "norm": "protein vanilla powder",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Plain Protein Powder",
+    "norm": "plain protein powder",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Coffee Beans (for Machine)",
+    "norm": "coffee beans",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Coffee Powder",
+    "norm": "coffee powder",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Tata Salt",
+    "norm": "tata salt",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Black Pepper (Whole)",
+    "norm": "black pepper",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Chilli Flakes (500 Gms)",
+    "norm": "chilli flakes",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Oregano (500 Gms)",
+    "norm": "oregano",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "Rostip Broth Powder Seasoning (800 Gms)",
+    "norm": "rostip broth powder seasoning",
+    "storage": "Dry Store"
+  },
+  {
+    "name": "50ml Dip Bowl (5000 Pair/Box)",
+    "norm": "50ml dip bowl",
+    "storage": "Packaging"
+  },
+  {
+    "name": "50ml Dip Lids (5000 Pair/Box)",
+    "norm": "50ml dip lids",
+    "storage": "Packaging"
+  },
+  {
+    "name": "100ml Dip Bowl (4000 Pair/Box)",
+    "norm": "100ml dip bowl",
+    "storage": "Packaging"
+  },
+  {
+    "name": "100ml Dip Lids (4000 Pair/Box)",
+    "norm": "100ml dip lids",
+    "storage": "Packaging"
+  },
+  {
+    "name": "750 ML Flat Bowl Nutriobox (50 Pcs/Pkt)",
+    "norm": "750 ml flat bowl nutriobox",
+    "storage": "Packaging"
+  },
+  {
+    "name": "250ML Flat Bowl (50 Pcs/Pkt)",
+    "norm": "250ml flat bowl",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Paper Plank : 750 ML Bowl Nutriobox (1000 Pcs/Bunch)",
+    "norm": "paper plank 750 ml bowl nutriobox",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Roti Bags (15 Pcs/Bunch)",
+    "norm": "roti bags",
+    "storage": "Packaging"
+  },
+  {
+    "name": "700ml Apptizer Box (50 Pcs/Bunch)",
+    "norm": "700ml apptizer box",
+    "storage": "Packaging"
+  },
+  {
+    "name": "To Go Sandwich Box (600 Pcs/Carton)",
+    "norm": "to go sandwich box",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Pizza Box (50 Pcs/Bunch)",
+    "norm": "pizza box",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Pizza Stool (100 Pcs)",
+    "norm": "pizza stool",
+    "storage": "Packaging"
+  },
+  {
+    "name": "350ml Salsa Jar with Lid (72 Pcs/Carton)",
+    "norm": "350ml salsa jar with lid",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Tray Mats (500 Pcs/Bunch)",
+    "norm": "tray mats",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Butter Paper (1000 Pcs/Bunch)",
+    "norm": "butter paper",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Carry Bag with Handel Nutriobox (500 Pcs/Carton)",
+    "norm": "carry bag with handel nutriobox",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Small Boat Trays (B&B) (50 Pcs/Bunch)",
+    "norm": "small boat trays",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Big Boat Trays (Appetizer Plates) (50 Pcs/Bunch)",
+    "norm": "big boat trays",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Nutriobox Carry Bag Discount Sticker (44 Nos/Sheet)",
+    "norm": "nutriobox carry bag discount sticker",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Soup Sticker (33 Pcs/Sheet)",
+    "norm": "soup sticker",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Desserts Sticker (33 Pcs/Sheet)",
+    "norm": "desserts sticker",
+    "storage": "Packaging"
+  },
+  {
+    "name": "7'' Spoon Cornstarch (100 Pcs/Pkt)",
+    "norm": "7 spoon cornstarch",
+    "storage": "Packaging"
+  },
+  {
+    "name": "7\" Cornstarch Fork (100 Pcs/Pkt)",
+    "norm": "7 cornstarch fork",
+    "storage": "Packaging"
+  },
+  {
+    "name": "6'' Cornstarch Knife (100 Pcs/Pkt)",
+    "norm": "6 cornstarch knife",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Paper Straws (50 Pcs/Pkt)",
+    "norm": "paper straws",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Cutlery Pouches (1000 Pcs/Bag)",
+    "norm": "cutlery pouches",
+    "storage": "Packaging"
+  },
+  {
+    "name": "300ml Plastic Bottle with Lid with Sticker (20pcs/ Set)",
+    "norm": "300ml plastic bottle with lid with sticker",
+    "storage": "Packaging"
+  },
+  {
+    "name": "L Fold Napkin",
+    "norm": "l fold napkin",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Billing Rolls",
+    "norm": "billing rolls",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Coffee Cup (25 Pcs/Pkt)",
+    "norm": "coffee cup",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Coffee Cup Cover (50 Pcs/Pkt)",
+    "norm": "coffee cup cover",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Cup Holder Box (50 Pcs/Bunch)",
+    "norm": "cup holder box",
+    "storage": "Packaging"
+  },
+  {
+    "name": "500ml Plain Flat Bowl (50 Pcs/Pkt)",
+    "norm": "500ml plain flat bowl",
+    "storage": "Packaging"
+  },
+  {
+    "name": "Seekh Jhadhu",
+    "norm": "seekh jhadhu",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "Big Wiper",
+    "norm": "big wiper",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "Dust Pan",
+    "norm": "dust pan",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "Floor Brush (Big)",
+    "norm": "floor brush",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "Sanitizer",
+    "norm": "sanitizer",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "White Envelope",
+    "norm": "white envelope",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "Day Book",
+    "norm": "day book",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "Stapler Pin Big (Kangaro-24/6-HP-45)",
+    "norm": "stapler pin big",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "CD Marker",
+    "norm": "cd marker",
+    "storage": "On-Demand"
+  },
+  {
+    "name": "Scissor",
+    "norm": "scissor",
+    "storage": "On-Demand"
+  }
+]

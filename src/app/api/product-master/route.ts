@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import catalog from "@/lib/pact-catalog.json";
+import idealItems from "@/lib/outlet-ideal-items.json";
 
 /**
  * Unified Product Master — single source of truth for every tool
@@ -48,12 +49,33 @@ type Product = {
   idealWarehouse: string;
   scanBatches: boolean | null;
   group: string;
+  idealStorage: string | null;   // Frozen | Chiller | Vegetable | Dry Store | Packaging | On-Demand | null
   raw?: Record<string, unknown>;
 };
 
 const STATIC = catalog as StaticEntry[];
 const STATIC_BY_CODE = new Map<string, StaticEntry>();
 for (const p of STATIC) if (p && p.code) STATIC_BY_CODE.set(String(p.code).trim().toUpperCase(), p);
+
+// Outlet Ideal Inventory lookup — built once at module load, used to tag each
+// product with its storage category (Frozen/Chiller/Vegetable/Dry Store/
+// Packaging/On-Demand) when it appears on the team's "ideal items" sheet.
+type IdealItem = { name: string; norm: string; storage: string };
+const IDEAL_BY_NORM = new Map<string, IdealItem>();
+for (const it of (idealItems as IdealItem[])) if (it && it.norm) IDEAL_BY_NORM.set(it.norm, it);
+function normProductName(s: string): string {
+  if (!s) return "";
+  let x = s.toLowerCase().trim();
+  x = x.replace(/\s*\([^)]*\)\s*/g, " ");
+  x = x.replace(/[^a-z0-9&\s]+/g, " ");
+  x = x.replace(/\s+/g, " ").trim();
+  return x;
+}
+function idealStorageFor(name: string): string | null {
+  if (!name) return null;
+  const hit = IDEAL_BY_NORM.get(normProductName(name));
+  return hit ? hit.storage : null;
+}
 
 function staticProducts(): Product[] {
   return STATIC.map((p) => {
@@ -70,6 +92,7 @@ function staticProducts(): Product[] {
       idealWarehouse: (p.idealWarehouse || "").trim(),
       scanBatches: p.scanBatches ?? null,
       group: (p.group || "").trim(),
+      idealStorage: idealStorageFor(p.name || ""),
     };
   });
 }
@@ -175,9 +198,10 @@ export async function GET(req: Request) {
       const idealWarehouse = (stat?.idealWarehouse || "").trim();
       const scanBatches = stat?.scanBatches ?? null;
 
+      const name = str(row[iName]) || stat?.name || "";
       const out: Product = {
         code,
-        name: str(row[iName]) || stat?.name || "",
+        name,
         printLevel: printLevel || null,
         unit: lv.u || null,
         scale: typeof lv.s === "number" ? lv.s : null,
@@ -185,6 +209,7 @@ export async function GET(req: Request) {
         idealWarehouse,
         scanBatches,
         group: str(row[iGrp]) || (stat?.group || ""),
+        idealStorage: idealStorageFor(name),
       };
       if (includeRaw) {
         const raw: Record<string, unknown> = {};
