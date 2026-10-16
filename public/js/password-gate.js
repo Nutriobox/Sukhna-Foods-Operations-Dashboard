@@ -27,13 +27,11 @@
     try { document.documentElement.style.visibility = ''; } catch (e) {}
   }
 
-  function alreadyUnlocked() {
-    try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
-  }
-
-  function setUnlocked() {
-    try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
-  }
+  // Satvik 2026-10-16: ask on every page load — no persistence.
+  // If the gate ever needs to remember within a tab session, swap to
+  // sessionStorage; across sessions, swap to localStorage.
+  function alreadyUnlocked() { return false; }
+  function setUnlocked() { /* intentionally no-op */ }
 
   function showGate() {
     // Build overlay once body exists
