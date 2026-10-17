@@ -166,6 +166,7 @@ export async function GET(req: Request) {
   const from = u.searchParams.get("from") || istDaysAgo(7);
   const outletFilter = u.searchParams.get("outlet_id");
   const channelFilter = u.searchParams.get("channel");
+  const orderTypeFilter = u.searchParams.get("order_type");
   const search = (u.searchParams.get("search") || "").trim().toLowerCase();
   const limit = Math.min(Number(u.searchParams.get("limit_rows") || DEFAULT_LIMIT), MAX_LIMIT);
 
@@ -184,6 +185,7 @@ export async function GET(req: Request) {
     ];
     if (outletFilter) orderFilters.push(`restaurant_id=eq.${encodeURIComponent(outletFilter)}`);
     if (channelFilter) orderFilters.push(`channel=ilike.${encodeURIComponent(channelFilter)}`);
+    if (orderTypeFilter) orderFilters.push(`order_type=ilike.${encodeURIComponent(orderTypeFilter)}`);
 
     // Pull orders — cap at a generous multiple of limit_rows so we don't miss recent
     // orders when a line-item filter is applied. Each order averages ~2 line items.
@@ -193,7 +195,7 @@ export async function GET(req: Request) {
     if (!orders.length) {
       return NextResponse.json({
         ok: true, from, to,
-        filters: { outlet_id: outletFilter, channel: channelFilter, search, limit_rows: limit },
+        filters: { outlet_id: outletFilter, channel: channelFilter, order_type: orderTypeFilter, search, limit_rows: limit },
         outlets: restaurants, rows: [], totals: { rows: 0, orders: 0, unique_products: 0 },
         warnings: ["No orders in this window."],
       }, { headers: CORS });
@@ -307,7 +309,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true, from, to,
-      filters: { outlet_id: outletFilter, channel: channelFilter, search, limit_rows: limit },
+      filters: { outlet_id: outletFilter, channel: channelFilter, order_type: orderTypeFilter, search, limit_rows: limit },
       outlets: restaurants,
       rows: clipped,
       totals: {

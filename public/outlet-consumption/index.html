@@ -142,12 +142,17 @@
    <select id="outletSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Outlet filter">
     <option value="">All outlets</option>
    </select>
-   <select id="channelSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Channel filter">
+   <select id="channelSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Channel (where the order came from — matches PetPooja 'area')">
     <option value="">All channels</option>
     <option value="POS">POS (Dine-In)</option>
     <option value="Swiggy">Swiggy</option>
     <option value="Zomato">Zomato</option>
+   </select>
+   <select id="orderTypeSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Order type (Dine In / Delivery / Pick Up — PetPooja 'order_type')">
+    <option value="">All order types</option>
+    <option value="Dine In">Dine In</option>
     <option value="Delivery">Delivery</option>
+    <option value="Pick Up">Pick Up</option>
    </select>
    <input id="qSd" class="search" placeholder="Search product name or invoice no…" oninput="renderSd()" style="min-width:220px">
    <button class="btn" onclick="exportCsvSd()">⬇ Export CSV</button>
@@ -1105,8 +1110,10 @@ async function loadSd(fresh){
   params.set('to',   toInput.value);
   const outlet = $('outletSd').value;
   const channel = $('channelSd').value;
-  if(outlet)  params.set('outlet_id', outlet);
-  if(channel) params.set('channel',   channel);
+  const orderType = $('orderTypeSd') ? $('orderTypeSd').value : '';
+  if(outlet)    params.set('outlet_id',  outlet);
+  if(channel)   params.set('channel',    channel);
+  if(orderType) params.set('order_type', orderType);
   params.set('limit_rows', '3000');
 
   const t0 = Date.now();
