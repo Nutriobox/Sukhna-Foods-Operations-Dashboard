@@ -52,8 +52,16 @@ type Order = {
   customer: string | null; channel: string | null; order_type: string | null;
   placed_at: string | null; status: string | null; kot: string | null;
   ext_id: string | null; notes: string | null;
+  // Billing fields — populated from PetPooja webhook payload (added 2026-10-17)
+  invoice_no: string | null; payment_type: string | null; customer_phone: string | null; biller: string | null;
+  order_total: number | null; core_total: number | null; tax_total: number | null; discount_total: number | null;
+  round_off: number | null; service_charge: number | null; delivery_charges: number | null; packaging_charge: number | null;
 };
-type OrderItem = { order_id: number; dish_id: number; quantity: number | null };
+type OrderItem = {
+  order_id: number; dish_id: number; quantity: number | null;
+  unit_price: number | null; item_total: number | null; item_tax: number | null; item_discount: number | null;
+  item_code: string | null; sap_code: string | null;
+};
 type Dish = { id: number; name: string; category: string | null };
 type Restaurant = { id: number; name: string; pp_rest_id: string | null };
 
@@ -103,7 +111,7 @@ async function fetchItemsFor(url: string, key: string, orderIds: number[]): Prom
     const slice = batches.slice(i, i + CONCURRENCY);
     const results = await Promise.all(slice.map((b) =>
       sbGetPaged<OrderItem>(url, key,
-        `order_items?select=order_id,dish_id,quantity&order_id=in.(${b.join(",")})`, 20_000)
+        `order_items?select=order_id,dish_id,quantity,unit_price,item_total,item_tax,item_discount,item_code,sap_code&order_id=in.(${b.join(",")})`, 20_000)
     ));
     for (const rows of results) out.push(...rows);
   }
@@ -163,7 +171,7 @@ export async function GET(req: Request) {
     const fromTs = `${from} 00:00:00`;
     const toTs   = `${to} 23:59:59`;
     const orderFilters = [
-      "select=id,code,restaurant_id,table_no,customer,channel,order_type,placed_at,status,kot,ext_id,notes",
+      "select=id,code,restaurant_id,table_no,customer,channel,order_type,placed_at,status,kot,ext_id,notes,invoice_no,payment_type,customer_phone,order_total,core_total,tax_total,discount_total,round_off,service_charge,delivery_charges,packaging_charge,biller",
       `placed_at=gte.${encodeURIComponent(fromTs)}`,
       `placed_at=lte.${encodeURIComponent(toTs)}`,
       `order=placed_at.desc`,
@@ -191,16 +199,22 @@ export async function GET(req: Request) {
     const dishMap = await fetchDishes(url, key, dishIds);
     const orderById = new Map(orders.map((o) => [o.id, o]));
 
-    // Build row-level view (one row per order_item), sorted by created-date desc
+    // Build row-level view (one row per order_item) using the real billing fields
+    // from the PetPooja webhook payload (backfilled into orders + order_items on
+    // 2026-10-17 from petpooja_events.raw). Field names match what the dashboard's
+    // Sales Data renderer looks for.
     type Row = {
-      doc_prefix: string; doc_no: string | null; doc_date: string; product_name: string;
-      qty: number; units: null; unit_mrp_price: null; value: null;
-      disc_per: null; disc_amt: null; gst_hsn: null; product_type: null;
-      tax: null; sgst_pct: null; sgst_amt: null; cgst_pct: null; cgst_amt: null;
-      igst_pct: null; igst_amt: null; roff: null; remarks: string | null;
-      created_date: string | null;
+      invoice_no: string | null; doc_prefix: string; doc_no: string | null;
+      doc_date: string; product_name: string; qty: number;
+      unit_mrp: number | null; item_total: number | null;
+      discount: number | null; tax: number | null; round_off: number | null;
+      order_total: number | null; pre_tax_amount: number | null;
+      delivery_charge: number | null; container_charge: number | null; service_charge: number | null;
+      item_code: string | null; sap_code: string | null;
       outlet_id: number; outlet_name: string; channel: string | null; order_type: string | null;
+      payment_type: string | null; customer_name: string | null; customer_phone: string | null;
       pp_order_code: string | null; dish_id: number; category: string | null;
+      remarks: string | null; created_date: string | null; biller: string | null;
     };
     const rows: Row[] = [];
     for (const it of items) {
@@ -210,33 +224,40 @@ export async function GET(req: Request) {
       const rest = restByCode.get(o.restaurant_id);
       const prefix = outletCode(rest, o.restaurant_id);
       const dateOnly = (o.placed_at || "").slice(0, 10);
-      // Doc Date in dd/mm/yyyy (PetPooja billing style)
-      const dmy = dateOnly.length === 10 ? `${dateOnly.slice(8,10)}/${dateOnly.slice(5,7)}/${dateOnly.slice(0,4)}` : dateOnly;
-      // Doc No: proxy with PetPooja order code (the real NB01/60955 billing number isn't in the webhook)
+      // Prefer the real PetPooja invoice_no when present (backfilled); fall back to the PP order code otherwise.
+      const invoice = o.invoice_no || (o.code ? o.code.replace(/^PP-\d*-?/, "") : null);
       rows.push({
+        invoice_no: invoice,
         doc_prefix: `${prefix}/`,
-        doc_no: o.code ? `I-${prefix}/${o.code.replace(/^PP-/, "")}` : null,
-        doc_date: dmy,
+        doc_no: invoice,
+        doc_date: dateOnly,
         product_name: d.name,
         qty: Number(it.quantity) || 0,
-        units: null,
-        unit_mrp_price: null,
-        value: null,
-        disc_per: null,
-        disc_amt: null,
-        gst_hsn: null,
-        product_type: null,
-        tax: null, sgst_pct: null, sgst_amt: null, cgst_pct: null, cgst_amt: null,
-        igst_pct: null, igst_amt: null, roff: null,
-        remarks: o.notes,
-        created_date: o.placed_at,
+        unit_mrp:        it.unit_price    != null ? Number(it.unit_price)    : null,
+        item_total:      it.item_total    != null ? Number(it.item_total)    : null,
+        discount:        o.discount_total != null ? Number(o.discount_total) : null,
+        tax:             o.tax_total      != null ? Number(o.tax_total)      : null,
+        round_off:       o.round_off      != null ? Number(o.round_off)      : null,
+        order_total:     o.order_total    != null ? Number(o.order_total)    : null,
+        pre_tax_amount:  o.core_total     != null ? Number(o.core_total)     : null,
+        delivery_charge: o.delivery_charges != null ? Number(o.delivery_charges) : null,
+        container_charge: o.packaging_charge != null ? Number(o.packaging_charge) : null,
+        service_charge:  o.service_charge != null ? Number(o.service_charge) : null,
+        item_code: it.item_code,
+        sap_code:  it.sap_code,
         outlet_id: o.restaurant_id,
         outlet_name: rest?.name || `restaurant ${o.restaurant_id}`,
         channel: o.channel,
         order_type: o.order_type,
+        payment_type: o.payment_type,
+        customer_name: o.customer,
+        customer_phone: o.customer_phone,
         pp_order_code: o.code,
         dish_id: d.id,
         category: d.category,
+        remarks: o.notes,
+        created_date: o.placed_at,
+        biller: o.biller,
       });
     }
     // Already in order-desc because orders were fetched in placed_at desc; keep natural order.
@@ -255,7 +276,7 @@ export async function GET(req: Request) {
         limit_hit: rows.length > limit,
       },
       warnings: [
-        "Price, Value, Discount, GST / HSN / Tax columns are null — they live in PetPooja's billing module (Global Sales API) which is not in the webhook feed. The UI shows these as '— needs PetPooja Billing API' until that feed is wired up.",
+        "Billing columns are populated from the PetPooja webhook payload (added 2026-10-17). Historical data backfilled from petpooja_events.raw.",
       ],
     }, { headers: CORS });
   } catch (e) {
