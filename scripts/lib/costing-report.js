@@ -34,7 +34,12 @@ const norm = (s) => String(s).toLowerCase().replace(/[\s_/().-]+/g, '');
 // How to open each report in PACT's "List of Reports" (search term + the exact
 // report name to double-click). Names match the dashboard's report titles.
 const NAV = {
-  si:  { search: 'stock inward',  report: 'List Of Stock Inward Reports' },
+  // Report names as they appear in PACT's BI → List of Reports grid. The scraper
+  // double-clicks the exact row with this name, so these MUST match PACT's current
+  // labels letter-for-letter. SI was wrong (verified 2026-10-17 via screenshot: the
+  // actual stock-inward report is "Stock Inward Lab Report", not "List Of Stock
+  // Inward Reports"). If PACT renames one, update it here.
+  si:  { search: 'stock inward',  report: 'Stock Inward Lab Report' },
   pm:  { search: 'product master', report: 'Product Master Report' },
   bom: { search: 'stage wise bom', report: 'Stage Wise BOM With Wastage Summary' },
   pf:  { search: 'process flow',  report: 'Process Flow Report' },
@@ -206,8 +211,42 @@ async function runCostingReport({ report, headers, colmap }) {
     } catch (e) { log('[ui] search skipped: ' + String(e.message).slice(0, 60)); }
     await page.waitForTimeout(1800);
 
-    try { await page.getByText(nav.report).first().dblclick({ timeout: 8000 }); log('[ui] dblclicked "' + nav.report + '"'); }
-    catch (e) { log('[ui] dblclick skipped: ' + String(e.message).slice(0, 60)); }
+    // Open the report. The grid is sometimes virtualized / below the fold, and
+    // getByText loosely can resolve to a hidden duplicate (menu tooltip, etc.),
+    // so prefer an EXACT-text locator, scroll it into view, then dblclick.
+    // Fallbacks: the enclosing row's dblclick, and a single-click + Enter.
+    let opened = false;
+    try {
+      const exactText = page.getByText(nav.report, { exact: true }).first();
+      await exactText.scrollIntoViewIfNeeded({ timeout: 6000 }).catch(() => {});
+      await exactText.dblclick({ timeout: 10000 });
+      opened = true;
+      log('[ui] dblclicked exact "' + nav.report + '"');
+    } catch (e) { log('[ui] exact dblclick failed: ' + String(e.message).slice(0, 80)); }
+
+    if (!opened) {
+      // Fallback: target the <tr> / grid row that contains the exact text — the
+      // row is often the real dblclick handler, with the inner cell no-op'ing.
+      try {
+        const row = page.locator('tr, [role="row"]').filter({ hasText: nav.report }).first();
+        await row.scrollIntoViewIfNeeded({ timeout: 4000 }).catch(() => {});
+        await row.dblclick({ timeout: 8000 });
+        opened = true;
+        log('[ui] dblclicked row with "' + nav.report + '"');
+      } catch (e) { log('[ui] row dblclick failed: ' + String(e.message).slice(0, 80)); }
+    }
+
+    if (!opened) {
+      // Last-resort: single-click to focus the row, then press Enter — PACT's
+      // grid supports keyboard activation on the focused row.
+      try {
+        const exactText = page.getByText(nav.report, { exact: true }).first();
+        await exactText.click({ timeout: 5000 });
+        await page.keyboard.press('Enter');
+        opened = true;
+        log('[ui] opened "' + nav.report + '" via click + Enter');
+      } catch (e) { log('[ui] click+Enter also failed: ' + String(e.message).slice(0, 80)); }
+    }
     await page.waitForTimeout(3000);
 
     // Date-driven reports (Stock Inward, Process Flow) need a rolling window.
