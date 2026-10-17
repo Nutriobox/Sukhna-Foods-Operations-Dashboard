@@ -127,6 +127,7 @@
   <div class="tab" data-t="im" onclick="selTab('im')">📋 Item Master</div>
   <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
+  <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -353,6 +354,79 @@
   </div>
  </div>
 
+ <!-- ============== Opening Inventory tab (two-step: outlet+time → count sheet) ============== -->
+ <div id="tabOi" style="display:none">
+
+  <!-- Step 1 — outlet + date-time form -->
+  <div id="oiFormView">
+   <div class="card" style="max-width:560px;margin:40px auto 20px;padding:28px 32px">
+    <h2 style="margin:0 0 6px;font-size:18px">Start an opening-inventory count</h2>
+    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick the outlet and when the count is being taken. The next screen loads the Ideal Inventory list (RM code, name, category, packing UOM) with a blank Qty column — your team fills Qty manually at each count.</p>
+
+    <label style="display:block;margin-bottom:14px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Outlet</span>
+     <select id="oiFormOutlet" class="btn" style="width:100%;padding:10px 14px;padding-right:28px">
+      <option value="">— Choose outlet —</option>
+      <option value="Rajender Nagar">Rajender Nagar</option>
+      <option value="GGN PH2">GGN PH2</option>
+      <option value="GGN Sec15">GGN Sec15</option>
+      <option value="Cloud Kitchen">Cloud Kitchen</option>
+     </select>
+    </label>
+
+    <label style="display:block;margin-bottom:22px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Date &amp; time of count</span>
+     <input id="oiFormDt" type="datetime-local" class="btn" style="width:100%;padding:10px 14px">
+    </label>
+
+    <div style="display:flex;gap:10px;align-items:center">
+     <button class="btn prim" onclick="oiSubmitForm()" style="padding:10px 22px">Submit</button>
+     <span id="oiFormErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
+    </div>
+   </div>
+  </div>
+
+  <!-- Step 2 — count sheet with per-row Qty input -->
+  <div id="oiCountView" style="display:none">
+   <div class="toolbar" style="flex-wrap:wrap">
+    <button class="btn" onclick="oiBackToForm()" title="Return to the outlet / date-time picker (any entered Qty values are kept in-page until you reload)">← Back</button>
+    <span id="oiHeader" style="font-weight:600;font-size:14px"></span>
+    <input id="qOi" class="search" placeholder="Search RM code or name…" oninput="oiRenderCount()" style="min-width:220px">
+    <select id="catOi" onchange="oiRenderCount()" class="btn" style="padding-right:28px" title="Filter rows by storage category.">
+     <option value="" selected>All categories</option>
+     <option value="Frozen">Frozen</option>
+     <option value="Chiller">Chiller</option>
+     <option value="Vegetable">Vegetable</option>
+     <option value="Dry Store">Dry Store</option>
+     <option value="Packaging">Packaging</option>
+    </select>
+    <span id="oiFilledChip" class="pill" title="Rows whose Qty has been filled in / total rows in the sheet">0 / 0 filled</span>
+    <button class="btn" onclick="oiExportCsv()" title="Download the count sheet as CSV (RM code, name, category, UOM, qty)">⬇ Export CSV</button>
+    <button class="btn prim" onclick="oiSave()" title="Save this count (will post to the opening-inventory API once wired)">💾 Save Count</button>
+    <span id="oiSaveStat" class="mut" style="font-size:12.5px"></span>
+    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Ideal Inventory list (API not yet wired)</span>
+   </div>
+
+   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fef3c7;border-color:#fcd34d">
+    <div style="font-size:12.5px;color:#92400e;line-height:1.45">
+     <b>Structure preview.</b> Rows below are mock. RM Code / Name / Category / Packing UOM will auto-fill from the Ideal Inventory API (same source Raw Material Master uses). <b>Qty is always manual</b> — your team types it at each count. Save Count will post the entered rows once the backend lands.
+    </div>
+   </div>
+
+   <div class="card"><div class="scroll"><table id="tblOi">
+    <thead><tr>
+     <th>#</th>
+     <th>RM Code</th>
+     <th>Product Name</th>
+     <th>Category</th>
+     <th title="Packing UOM from the Ideal Inventory sheet">Packaging Unit</th>
+     <th class="r" style="min-width:140px">Quantity</th>
+    </tr></thead>
+    <tbody id="tbodyOi"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   </table></div></div>
+  </div>
+ </div>
+
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
   <span>Auto-refresh from PACT: hourly</span>
@@ -374,7 +448,8 @@ let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: li
 let RM = { items: [], meta: {} };              // derived view: PM products filtered to Raw Material / Packing / Semi Process
 let SD = { rows: [], outlets: [], meta: {} };  // sales data from /api/outlet-invoices (PetPooja webhook via AIFI)
 let PU = { rows: [], details: {}, meta: {} };  // GRN list + per-GRN detail (keyed by docNo). Mock for now; PACT sync TBD.
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false };
+let OI = { items: [], qty: {}, outlet: '', dtIso: '', meta: {} };  // Opening-inventory session: ideal items + Qty per RM code (keyed in-memory)
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
 // Item Master tab — PACT BOM joined with PetPooja categories
@@ -413,11 +488,13 @@ function selTab(t){
   $('tabIm').style.display = t === 'im' ? '' : 'none';
   $('tabSd').style.display = t === 'sd' ? '' : 'none';
   $('tabPu').style.display = t === 'pu' ? '' : 'none';
+  $('tabOi').style.display = t === 'oi' ? '' : 'none';
   updateHeaderStats();
   if(t === 'rm' && !RM_LOADED.v) loadRm(false);
   if(t === 'im' && !IM_LOADED.v) loadIm(false);
   if(t === 'sd' && !SD_LOADED.v) loadSd(false);
   if(t === 'pu' && !PU_LOADED.v) loadPu(false);
+  if(t === 'oi') oiOnTabEnter();
 }
 
 function updateHeaderStats(){
@@ -425,6 +502,7 @@ function updateHeaderStats(){
           : CURTAB === 'sd'  ? SD
           : CURTAB === 'im'  ? IM
           : CURTAB === 'pu'  ? PU
+          : CURTAB === 'oi'  ? OI
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
     ? (m.source || 'PetPooja webhook')
@@ -432,12 +510,15 @@ function updateHeaderStats(){
     ? (m.source || 'PACT BOM + PetPooja')
     : CURTAB === 'pu'
     ? (m.source || 'PACT GRN (not yet wired)')
+    : CURTAB === 'oi'
+    ? (m.source || 'Ideal Inventory list (not yet wired)')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im') ? 'live' : CURTAB === 'pu' ? 'warn' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im') ? 'live' : (CURTAB === 'pu' || CURTAB === 'oi') ? 'warn' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
              : CURTAB === 'pu'  ? ' GRNs'
+             : CURTAB === 'oi'  ? ' items'
              : ' raw materials';
   $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
   $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
@@ -1583,6 +1664,175 @@ function exportCsvPu(){
   }
   const today = (new Date()).toISOString().slice(0,10);
   downloadBlob(lines.join('\n'), 'grn-list-'+today+'.csv');
+}
+
+/* ======================== OPENING INVENTORY (OI) — STRUCTURE ONLY ========================
+   Two-screen flow:
+     1. oiFormView  — pick outlet + date-time, hit Submit.
+     2. oiCountView — table of ideal RMs with a manual Qty input per row; Save Count persists.
+   Mock items below stand in for the Ideal Inventory API. When wiring is done:
+     • oiLoadItems() should fetch '/api/outlet-ideal-items?outlet=<name>'
+       (or /api/product-master filtered to ideal) and return [{rm_code, name, category, packing_uom}, ...]
+     • oiSave() should POST { outlet, dt_iso, items: [{rm_code, qty, uom}, ...] } to '/api/opening-inventory'
+   The row shape (rm_code, name, category, packing_uom) and the save payload are intentionally
+   frozen so the backend can target this exact shape. */
+
+const OI_MOCK_ITEMS = [
+  { rm_code: 'RM-FZ-0012', name: 'Chicken Boneless 1 Kg',        category: 'Frozen',     packing_uom: 'Pkt' },
+  { rm_code: 'RM-FZ-0025', name: 'Mutton Keema 500 g',           category: 'Frozen',     packing_uom: 'Pkt' },
+  { rm_code: 'RM-FZ-0088', name: 'Prawns Peeled 500 g',          category: 'Frozen',     packing_uom: 'Pkt' },
+  { rm_code: 'RM-CH-0101', name: 'Full Cream Milk 500ml',        category: 'Chiller',    packing_uom: 'Pkt' },
+  { rm_code: 'RM-CH-0205', name: 'Paneer 1 Kg',                  category: 'Chiller',    packing_uom: 'Pkt' },
+  { rm_code: 'RM-CH-0132', name: 'Fresh Cream 1 L',              category: 'Chiller',    packing_uom: 'Pkt' },
+  { rm_code: 'RM-CH-0210', name: 'Curd 1 Kg',                    category: 'Chiller',    packing_uom: 'Pkt' },
+  { rm_code: 'RM-VG-0021', name: 'Tomato (Hybrid)',              category: 'Vegetable',  packing_uom: 'Kg'  },
+  { rm_code: 'RM-VG-0004', name: 'Onion (Nashik)',               category: 'Vegetable',  packing_uom: 'Kg'  },
+  { rm_code: 'RM-VG-0007', name: 'Carrot',                       category: 'Vegetable',  packing_uom: 'Kg'  },
+  { rm_code: 'RM-VG-0014', name: 'Capsicum (Green)',             category: 'Vegetable',  packing_uom: 'Kg'  },
+  { rm_code: 'RM-VG-0045', name: 'Lemon',                        category: 'Vegetable',  packing_uom: 'Kg'  },
+  { rm_code: 'RM-VG-0053', name: 'Coriander Leaves',             category: 'Vegetable',  packing_uom: 'Bunch' },
+  { rm_code: 'RM-DS-0001', name: 'Basmati Rice 25 Kg',           category: 'Dry Store',  packing_uom: 'Bag' },
+  { rm_code: 'RM-DS-0017', name: 'Refined Oil 15 L',             category: 'Dry Store',  packing_uom: 'Tin' },
+  { rm_code: 'RM-DS-0043', name: 'Chickpea Flour 10 Kg',         category: 'Dry Store',  packing_uom: 'Bag' },
+  { rm_code: 'RM-DS-0082', name: 'Jeera (Cumin)',                category: 'Dry Store',  packing_uom: 'Kg'  },
+  { rm_code: 'RM-DS-0085', name: 'Haldi (Turmeric)',             category: 'Dry Store',  packing_uom: 'Kg'  },
+  { rm_code: 'RM-PK-0019', name: 'Container 500ml (Round)',      category: 'Packaging',  packing_uom: 'Pkt' },
+  { rm_code: 'RM-PK-0033', name: 'Cutlery Set (Spoon+Fork+Napkin)', category: 'Packaging', packing_uom: 'Pkt' },
+];
+
+// Called from selTab('oi') — resets the view to the form on first entry, keeps whatever
+// state the user had after. Pre-fills datetime with "now" so the common case is one click.
+function oiOnTabEnter(){
+  // If a count is in progress, keep showing it; otherwise show the form.
+  if(!OI.outlet){
+    $('oiFormView').style.display = '';
+    $('oiCountView').style.display = 'none';
+    // Pre-fill datetime with the current local time (truncated to minute).
+    const dt = new Date();
+    dt.setSeconds(0, 0);
+    // yyyy-MM-ddTHH:mm — what <input type=datetime-local> expects
+    const pad = (n) => String(n).padStart(2, '0');
+    const local = dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+    if(!$('oiFormDt').value) $('oiFormDt').value = local;
+    $('oiFormErr').textContent = '';
+  }
+  if(CURTAB === 'oi') updateHeaderStats();
+}
+
+function oiSubmitForm(){
+  const outlet = $('oiFormOutlet').value;
+  const dt = $('oiFormDt').value;
+  const err = $('oiFormErr');
+  if(!outlet){ err.textContent = 'Pick an outlet.'; return; }
+  if(!dt){ err.textContent = 'Pick date & time.'; return; }
+  err.textContent = '';
+  OI.outlet = outlet;
+  OI.dtIso = dt;        // 'YYYY-MM-DDTHH:mm' from datetime-local; the backend can parse as IST
+  // When wired: replace with  const r = await fetch('/api/outlet-ideal-items?outlet='+encodeURIComponent(outlet)); OI.items = (await r.json()).items;
+  OI.items = OI_MOCK_ITEMS.slice();
+  OI.qty = {};          // fresh blank Qty for this count
+  OI.meta = { source: 'mock data', synced_at: new Date().toISOString(), count: OI.items.length };
+  OI_LOADED.v = true;
+  $('oiFormView').style.display = 'none';
+  $('oiCountView').style.display = '';
+  // Header line: "Rajender Nagar  ·  Sat 18 Oct 2026, 09:30 AM"
+  $('oiHeader').textContent = outlet + '  ·  ' + fmtTime(dt);
+  updateHeaderStats();
+  oiRenderCount();
+}
+
+function oiBackToForm(){
+  // Keep OI.outlet / qty so the user can bounce back without losing work (they can
+  // overwrite outlet via Submit if they want a different sheet).
+  $('oiCountView').style.display = 'none';
+  $('oiFormView').style.display = '';
+  $('oiFormErr').textContent = '';
+  // Re-select the current outlet in the dropdown so it's obvious what will reload.
+  if(OI.outlet) $('oiFormOutlet').value = OI.outlet;
+  if(OI.dtIso) $('oiFormDt').value = OI.dtIso;
+}
+
+function oiRenderCount(){
+  if(!OI_LOADED.v){ return; }
+  const q = ($('qOi').value || '').trim().toLowerCase();
+  const catF = $('catOi').value || '';
+  const rows = OI.items.filter(it => {
+    if(catF && it.category !== catF) return false;
+    if(q){
+      const hay = (it.rm_code + ' ' + it.name).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const tb = $('tbodyOi');
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No items match these filters.</td></tr>';
+  } else {
+    tb.innerHTML = rows.map((it, i) => {
+      const q = OI.qty[it.rm_code];
+      const qVal = q == null ? '' : String(q);
+      // onchange stashes the entered qty on OI.qty keyed by RM code. Numeric only;
+      // negative Qty rejected (set empty). Save Count reads OI.qty when posting.
+      return '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td style="font-family:monospace;font-size:12.5px">' + esc(it.rm_code) + '</td>' +
+        '<td>' + esc(it.name) + '</td>' +
+        '<td>' + esc(it.category) + '</td>' +
+        '<td>' + esc(it.packing_uom) + '</td>' +
+        '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(qVal) + '" ' +
+          'onchange="oiSetQty(\'' + esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\', this.value)" ' +
+          'style="width:120px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px"' +
+          (q != null ? ' data-filled="1"' : '') + '></td>' +
+      '</tr>';
+    }).join('');
+  }
+  // Filled chip: how many of the full item list have a non-empty qty
+  const filled = Object.values(OI.qty).filter(v => v != null && v !== '').length;
+  $('oiFilledChip').textContent = filled + ' / ' + OI.items.length + ' filled';
+}
+
+function oiSetQty(rmCode, val){
+  const s = String(val == null ? '' : val).trim();
+  if(s === ''){ delete OI.qty[rmCode]; }
+  else {
+    const n = Number(s);
+    if(!isFinite(n) || n < 0){ delete OI.qty[rmCode]; }
+    else { OI.qty[rmCode] = n; }
+  }
+  // Update the filled chip without re-rendering the whole table (focus stays in input)
+  const filled = Object.values(OI.qty).filter(v => v != null && v !== '').length;
+  $('oiFilledChip').textContent = filled + ' / ' + OI.items.length + ' filled';
+}
+
+function oiExportCsv(){
+  if(!OI.items.length){ toast('No items in the count sheet.'); return; }
+  const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['RM Code,Product Name,Category,Packaging Unit,Qty,Outlet,Count Date-Time'];
+  for(const it of OI.items){
+    const q = OI.qty[it.rm_code];
+    lines.push([it.rm_code, it.name, it.category, it.packing_uom, (q == null ? '' : q), OI.outlet, OI.dtIso].map(esc2).join(','));
+  }
+  const stamp = (OI.dtIso || new Date().toISOString()).replace(/[^\d]/g, '').slice(0, 12);
+  downloadBlob(lines.join('\n'), 'opening-inventory-'+(OI.outlet||'count').replace(/[^A-Za-z0-9]+/g,'-')+'-'+stamp+'.csv');
+}
+
+async function oiSave(){
+  const stat = $('oiSaveStat');
+  const filled = Object.entries(OI.qty).filter(([_, v]) => v != null && v !== '');
+  if(!filled.length){ stat.textContent = 'Nothing to save — fill at least one Qty.'; stat.style.color = '#b91c1c'; return; }
+  stat.style.color = '';
+  stat.textContent = 'Saving…';
+  // When wired, replace this block with:
+  //   const r = await fetch('/api/opening-inventory', { method:'POST', headers:{'Content-Type':'application/json'},
+  //     body: JSON.stringify({ outlet: OI.outlet, dt_iso: OI.dtIso, items: filled.map(([code, qty]) => {
+  //       const it = OI.items.find(x => x.rm_code === code) || {};
+  //       return { rm_code: code, qty, uom: it.packing_uom };
+  //     })}) });
+  //   const j = await r.json(); if(!j.ok) throw new Error(j.error || 'save failed');
+  await new Promise(r => setTimeout(r, 300));
+  stat.textContent = '✓ Saved ' + filled.length + ' line' + (filled.length===1?'':'s') + ' (mock — API not yet wired).';
+  toast('Opening inventory saved (mock). ' + filled.length + ' lines captured.');
+  setTimeout(() => { stat.textContent = ''; }, 4000);
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
