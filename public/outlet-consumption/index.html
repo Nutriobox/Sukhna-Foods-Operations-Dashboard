@@ -1157,11 +1157,21 @@ function exportCsvSd(){
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
-// under the hood, so PM is primed for its tab too. BOM / Outlet
-// Recipes lazy-load when their tabs open.
+// under the hood, so PM is primed for its tab too. Then prefetch the
+// other two tabs in parallel in the background so that clicking Item
+// Master or Sales Data renders instantly instead of showing "Loading…"
+// for 3-5 seconds each time.
 loadRm(false).catch(e => {
   $('tbodyRm').innerHTML = `<tr><td colspan="11" style="padding:18px;color:#b91c1c">Failed to load Raw Material Master: ${esc(e.message || e)}</td></tr>`;
   toast('Load failed: ' + (e.message || e), 4000);
+}).finally(() => {
+  // Fire-and-forget warm-up for the other two tabs. If they fail the user
+  // will see the real error when they click into the tab; this is purely
+  // a latency optimisation.
+  setTimeout(() => {
+    if(typeof loadIm === 'function' && !IM_LOADED.v) loadIm(false).catch(() => {});
+    if(typeof loadSd === 'function' && !SD_LOADED.v) loadSd(false).catch(() => {});
+  }, 50);
 });
 
 
