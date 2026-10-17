@@ -126,6 +126,7 @@
   <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
   <div class="tab" data-t="im" onclick="selTab('im')">📋 Item Master</div>
   <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
+  <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -284,6 +285,74 @@
   </div>
  </div>
 
+ <!-- ============== Purchase tab (GRN list — structure only, data wiring TBD) ============== -->
+ <div id="tabPu" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap">
+   <input id="dateFromPu" type="date" onchange="renderPu()" class="btn" style="padding:7px 10px" title="From date (IST)">
+   <input id="dateToPu" type="date" onchange="renderPu()" class="btn" style="padding:7px 10px" title="To date (IST, inclusive)">
+   <select id="outletPu" onchange="renderPu()" class="btn" style="padding-right:28px" title="Filter by outlet">
+    <option value="">All outlets</option>
+    <option value="Rajender Nagar">Rajender Nagar</option>
+    <option value="GGN PH2">GGN PH2</option>
+    <option value="GGN Sec15">GGN Sec15</option>
+    <option value="Cloud Kitchen">Cloud Kitchen</option>
+   </select>
+   <select id="catPu" onchange="renderPu()" class="btn" style="padding-right:28px" title="Storage category of the GRN items">
+    <option value="">All categories</option>
+    <option value="Frozen">Frozen</option>
+    <option value="Chiller">Chiller</option>
+    <option value="Vegetable">Vegetable</option>
+    <option value="Dry Store">Dry Store</option>
+    <option value="Packaging">Packaging</option>
+   </select>
+   <input id="qPu" class="search" placeholder="Search doc number or outlet…" oninput="renderPu()" style="min-width:220px">
+   <button class="btn" onclick="exportCsvPu()">⬇ Export CSV</button>
+   <button class="btn prim" id="btnSyncPu" onclick="loadPu(true)" title="Pull the latest GRNs from PACT (not yet wired — placeholder data for now)">⚡ Sync GRNs</button>
+   <span id="syncStatPu" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PACT GRN report (not yet wired)</span>
+  </div>
+
+  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fef3c7;border-color:#fcd34d">
+   <div style="font-size:12.5px;color:#92400e;line-height:1.45">
+    <b>Structure preview.</b> This is the layout for the Purchase (GRN) tab — data below is mock. The PACT GRN sync and the per-GRN detail payload will be wired in next; the table columns, filters, and the click-to-expand GRN detail drawer are frozen so the backend can target this shape.
+   </div>
+  </div>
+
+  <div class="card"><div class="scroll"><table id="tblPu">
+   <thead><tr>
+    <th>Date &amp; Time</th>
+    <th>Doc Number</th>
+    <th>Outlet Name</th>
+    <th>Category</th>
+   </tr></thead>
+   <tbody id="tbodyPu"><tr><td colspan="4" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  </table></div></div>
+
+  <!-- GRN detail modal (opens on Doc Number click) -->
+  <div id="puGrnModal" class="nmmodal" style="display:none" onclick="if(event.target===this)closeGrnDetail()">
+   <div class="nmbody" style="max-width:980px">
+    <div class="nmhdr">
+     <h3 style="margin:0;flex:1">📦 GRN <span id="puGrnDocNo" style="font-weight:600;color:#1e40af"></span></h3>
+     <button class="btn" onclick="closeGrnDetail()">✕</button>
+    </div>
+    <div id="puGrnMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
+    <div class="card" style="margin:0"><div class="scroll"><table id="tblPuGrn">
+     <thead><tr>
+      <th>#</th>
+      <th>Item Name</th>
+      <th>RM Code</th>
+      <th>UOM</th>
+      <th class="r">Qty</th>
+      <th class="r">Rate</th>
+      <th class="r">Amount</th>
+     </tr></thead>
+     <tbody id="tbodyPuGrn"><tr><td colspan="7" class="mut" style="padding:16px;text-align:center">No data</td></tr></tbody>
+    </table></div></div>
+    <div id="puGrnTotals" class="mut" style="margin-top:12px;font-size:13px;text-align:right"></div>
+   </div>
+  </div>
+ </div>
+
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
   <span>Auto-refresh from PACT: hourly</span>
@@ -304,7 +373,8 @@ let BOM = { rows: [], boms: [], meta: {} };
 let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: list of {type, name, mode, bomCode, bomName, outCode, inputs:[]}
 let RM = { items: [], meta: {} };              // derived view: PM products filtered to Raw Material / Packing / Semi Process
 let SD = { rows: [], outlets: [], meta: {} };  // sales data from /api/outlet-invoices (PetPooja webhook via AIFI)
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false };
+let PU = { rows: [], details: {}, meta: {} };  // GRN list + per-GRN detail (keyed by docNo). Mock for now; PACT sync TBD.
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
 // Item Master tab — PACT BOM joined with PetPooja categories
@@ -342,26 +412,32 @@ function selTab(t){
   $('tabRm').style.display = t === 'rm' ? '' : 'none';
   $('tabIm').style.display = t === 'im' ? '' : 'none';
   $('tabSd').style.display = t === 'sd' ? '' : 'none';
+  $('tabPu').style.display = t === 'pu' ? '' : 'none';
   updateHeaderStats();
   if(t === 'rm' && !RM_LOADED.v) loadRm(false);
   if(t === 'im' && !IM_LOADED.v) loadIm(false);
   if(t === 'sd' && !SD_LOADED.v) loadSd(false);
+  if(t === 'pu' && !PU_LOADED.v) loadPu(false);
 }
 
 function updateHeaderStats(){
   const m = (CURTAB === 'rm' ? RM
           : CURTAB === 'sd'  ? SD
           : CURTAB === 'im'  ? IM
+          : CURTAB === 'pu'  ? PU
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
     ? (m.source || 'PetPooja webhook')
     : CURTAB === 'im'
     ? (m.source || 'PACT BOM + PetPooja')
+    : CURTAB === 'pu'
+    ? (m.source || 'PACT GRN (not yet wired)')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im') ? 'live' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im') ? 'live' : CURTAB === 'pu' ? 'warn' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
+             : CURTAB === 'pu'  ? ' GRNs'
              : ' raw materials';
   $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
   $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
@@ -1337,6 +1413,178 @@ function exportCsvSd(){
   downloadBlob(lines.join('\n'), 'order-summary-item-report-'+today+'.csv');
 }
 
+/* ======================== PURCHASE (GRN) — STRUCTURE ONLY ========================
+   Front-end skeleton for the Purchase tab. The real PACT GRN sync + per-GRN detail
+   payload are not wired yet — loadPu() seeds mock rows so the layout, filters,
+   search, CSV export, and the click-to-expand GRN detail modal are all exercised.
+   When the backend arrives:
+     • loadPu() swaps the mock seed for `fetch('/api/outlet-grns?...')`
+     • openGrnDetail(docNo) calls `/api/outlet-grns/<docNo>` instead of PU.details
+     • PU.meta.source / synced_at come from the API response
+   The 4-col row shape (date_time, doc_no, outlet, category) and the detail-line
+   shape ({item_name, rm_code, uom, qty, rate, amount, taxable, gst, total}) are
+   intentionally frozen so the backend can target this exact shape. */
+
+const PU_MOCK = {
+  rows: [
+    { date_time: '2026-10-17T09:14:00+05:30', doc_no: 'GRN-26-27/0421', outlet: 'Rajender Nagar', category: 'Vegetable' },
+    { date_time: '2026-10-17T08:55:00+05:30', doc_no: 'GRN-26-27/0420', outlet: 'GGN PH2',        category: 'Chiller' },
+    { date_time: '2026-10-16T19:02:00+05:30', doc_no: 'GRN-26-27/0419', outlet: 'GGN Sec15',      category: 'Frozen' },
+    { date_time: '2026-10-16T14:30:00+05:30', doc_no: 'GRN-26-27/0418', outlet: 'Cloud Kitchen',  category: 'Dry Store' },
+    { date_time: '2026-10-16T11:12:00+05:30', doc_no: 'GRN-26-27/0417', outlet: 'Rajender Nagar', category: 'Packaging' },
+    { date_time: '2026-10-15T18:40:00+05:30', doc_no: 'GRN-26-27/0416', outlet: 'GGN PH2',        category: 'Vegetable' },
+    { date_time: '2026-10-15T10:05:00+05:30', doc_no: 'GRN-26-27/0415', outlet: 'GGN Sec15',      category: 'Dry Store' },
+    { date_time: '2026-10-14T16:48:00+05:30', doc_no: 'GRN-26-27/0414', outlet: 'Cloud Kitchen',  category: 'Chiller' },
+  ],
+  details: {
+    'GRN-26-27/0421': {
+      vendor: 'Krishna Vegetables (Azadpur Mandi)', invoice_no: 'KV/2026/1823', invoice_date: '2026-10-17', notes: 'Morning drop at RN; qty verified against indent #IN-0914.',
+      lines: [
+        { item_name: 'Tomato (Hybrid)',   rm_code: 'RM-VG-0021', uom: 'Kg',  qty: 25,   rate: 48,   amount: 1200 },
+        { item_name: 'Onion (Nashik)',    rm_code: 'RM-VG-0004', uom: 'Kg',  qty: 40,   rate: 32,   amount: 1280 },
+        { item_name: 'Coriander Leaves',  rm_code: 'RM-VG-0053', uom: 'Kg',  qty:  3.5, rate: 60,   amount:  210 },
+        { item_name: 'Green Chilli',      rm_code: 'RM-VG-0030', uom: 'Kg',  qty:  2,   rate: 70,   amount:  140 },
+        { item_name: 'Lemon',             rm_code: 'RM-VG-0045', uom: 'Kg',  qty:  5,   rate: 90,   amount:  450 },
+      ],
+    },
+    'GRN-26-27/0420': {
+      vendor: 'Mother Dairy', invoice_no: 'MD/26/9801', invoice_date: '2026-10-17', notes: 'Chiller delivery — temperature log attached.',
+      lines: [
+        { item_name: 'Full Cream Milk 500ml', rm_code: 'RM-CH-0101', uom: 'Pkt', qty: 48, rate: 32,  amount: 1536 },
+        { item_name: 'Paneer 1 Kg',           rm_code: 'RM-CH-0205', uom: 'Pkt', qty:  6, rate: 420, amount: 2520 },
+        { item_name: 'Fresh Cream 1 L',       rm_code: 'RM-CH-0132', uom: 'Pkt', qty:  4, rate: 230, amount:  920 },
+      ],
+    },
+    'GRN-26-27/0419': {
+      vendor: 'Allana Frozen Foods', invoice_no: 'ALN-2026-5612', invoice_date: '2026-10-16', notes: 'Frozen case — chain unbroken.',
+      lines: [
+        { item_name: 'Chicken Boneless 1 Kg', rm_code: 'RM-FZ-0012', uom: 'Pkt', qty: 20, rate: 310, amount: 6200 },
+        { item_name: 'Mutton Keema 500 g',    rm_code: 'RM-FZ-0025', uom: 'Pkt', qty: 10, rate: 440, amount: 4400 },
+      ],
+    },
+    'GRN-26-27/0418': { vendor: 'Metro Cash & Carry', invoice_no: 'MET/26/4418', invoice_date: '2026-10-16', notes: 'Dry store monthly fill.', lines: [
+      { item_name: 'Basmati Rice 25 Kg', rm_code: 'RM-DS-0001', uom: 'Bag', qty: 4, rate: 2100, amount: 8400 },
+      { item_name: 'Chickpea Flour 10 Kg', rm_code: 'RM-DS-0043', uom: 'Bag', qty: 3, rate: 950, amount: 2850 },
+      { item_name: 'Refined Oil 15 L', rm_code: 'RM-DS-0017', uom: 'Tin', qty: 6, rate: 1870, amount: 11220 },
+    ]},
+    'GRN-26-27/0417': { vendor: 'Shree Packaging', invoice_no: 'SP/26/770', invoice_date: '2026-10-16', notes: 'Weekly packaging run.', lines: [
+      { item_name: 'Container 500ml (Round)', rm_code: 'RM-PK-0019', uom: 'Pkt', qty: 15, rate: 240, amount: 3600 },
+      { item_name: 'Cutlery Set (Spoon+Fork+Napkin)', rm_code: 'RM-PK-0033', uom: 'Pkt', qty: 20, rate: 180, amount: 3600 },
+    ]},
+    'GRN-26-27/0416': { vendor: 'Krishna Vegetables (Azadpur Mandi)', invoice_no: 'KV/2026/1811', invoice_date: '2026-10-15', notes: '', lines: [
+      { item_name: 'Capsicum (Green)', rm_code: 'RM-VG-0014', uom: 'Kg', qty: 10, rate: 55, amount: 550 },
+      { item_name: 'Carrot', rm_code: 'RM-VG-0007', uom: 'Kg', qty: 12, rate: 42, amount: 504 },
+    ]},
+    'GRN-26-27/0415': { vendor: 'Metro Cash & Carry', invoice_no: 'MET/26/4402', invoice_date: '2026-10-15', notes: '', lines: [
+      { item_name: 'Jeera (Cumin)', rm_code: 'RM-DS-0082', uom: 'Kg', qty: 2, rate: 620, amount: 1240 },
+      { item_name: 'Haldi (Turmeric)', rm_code: 'RM-DS-0085', uom: 'Kg', qty: 2, rate: 320, amount: 640 },
+    ]},
+    'GRN-26-27/0414': { vendor: 'Mother Dairy', invoice_no: 'MD/26/9780', invoice_date: '2026-10-14', notes: '', lines: [
+      { item_name: 'Curd 1 Kg', rm_code: 'RM-CH-0210', uom: 'Pkt', qty: 8, rate: 90, amount: 720 },
+    ]},
+  },
+};
+
+async function loadPu(fresh){
+  // STRUCTURE ONLY — currently seeds mock data. When the GRN sync lands, swap for:
+  //   const r = await fetch('/api/outlet-grns' + (fresh ? '?fresh=1' : ''), {cache:'no-store'});
+  //   const j = await r.json(); if(!j.ok) throw new Error(j.error || ('status '+r.status));
+  //   PU.rows = j.rows || []; PU.details = j.details || {};
+  //   PU.meta = { source: j.source, synced_at: j.synced_at, count: j.count ?? PU.rows.length };
+  $('syncStatPu').textContent = fresh ? 'Reloading…' : 'Loading…';
+  await new Promise(r => setTimeout(r, 150)); // tiny delay so it feels real
+  PU.rows = PU_MOCK.rows.slice();
+  PU.details = Object.assign({}, PU_MOCK.details);
+  PU.meta = { source: 'mock data', synced_at: new Date().toISOString(), count: PU.rows.length };
+  PU_LOADED.v = true;
+  $('syncStatPu').textContent = fresh ? 'Reloaded.' : '';
+  setTimeout(() => { $('syncStatPu').textContent = ''; }, 2500);
+  renderPu();
+  if(CURTAB === 'pu') updateHeaderStats();
+}
+
+function renderPu(){
+  if(!PU_LOADED.v){ return; }
+  const q = ($('qPu').value || '').trim().toLowerCase();
+  const outletF = $('outletPu').value || '';
+  const catF = $('catPu').value || '';
+  const dFrom = $('dateFromPu').value || '';   // 'YYYY-MM-DD'
+  const dTo   = $('dateToPu').value || '';
+  const dateOf = (iso) => (iso || '').slice(0, 10);
+  const rows = PU.rows.filter(r => {
+    if(outletF && r.outlet !== outletF) return false;
+    if(catF && r.category !== catF) return false;
+    const d = dateOf(r.date_time);
+    if(dFrom && d < dFrom) return false;
+    if(dTo && d > dTo) return false;
+    if(q){
+      const hay = (r.doc_no + ' ' + r.outlet + ' ' + r.category).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const tb = $('tbodyPu');
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="4" class="mut" style="padding:20px;text-align:center">No GRNs match these filters.</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map(r => (
+    '<tr>' +
+      '<td>' + esc(fmtTime(r.date_time)) + '</td>' +
+      '<td><a href="#" onclick="openGrnDetail(\'' + esc(r.doc_no).replace(/'/g, "\\'") + '\');return false" style="color:#1e40af;font-weight:600;text-decoration:none">' + esc(r.doc_no) + '</a></td>' +
+      '<td>' + esc(r.outlet) + '</td>' +
+      '<td>' + esc(r.category) + '</td>' +
+    '</tr>'
+  )).join('');
+}
+
+function openGrnDetail(docNo){
+  const d = PU.details[docNo];
+  $('puGrnDocNo').textContent = docNo;
+  if(!d){
+    $('puGrnMeta').innerHTML = '<span style="color:#991b1b">No detail payload for this GRN (mock data has only a subset — the real sync will cover all).</span>';
+    $('tbodyPuGrn').innerHTML = '<tr><td colspan="7" class="mut" style="padding:16px;text-align:center">No line items available.</td></tr>';
+    $('puGrnTotals').innerHTML = '';
+  } else {
+    const headParts = [];
+    if(d.vendor)       headParts.push('<b>Vendor:</b> ' + esc(d.vendor));
+    if(d.invoice_no)   headParts.push('<b>Invoice:</b> ' + esc(d.invoice_no));
+    if(d.invoice_date) headParts.push('<b>Invoice date:</b> ' + esc(d.invoice_date));
+    if(d.notes)        headParts.push('<b>Notes:</b> ' + esc(d.notes));
+    $('puGrnMeta').innerHTML = headParts.join(' &nbsp;·&nbsp; ');
+    const lines = d.lines || [];
+    $('tbodyPuGrn').innerHTML = lines.length
+      ? lines.map((ln, i) => (
+          '<tr>' +
+            '<td>' + (i + 1) + '</td>' +
+            '<td>' + esc(ln.item_name) + '</td>' +
+            '<td>' + esc(ln.rm_code || '') + '</td>' +
+            '<td>' + esc(ln.uom || '') + '</td>' +
+            '<td class="r">' + qty(ln.qty) + '</td>' +
+            '<td class="r">' + (ln.rate != null ? Number(ln.rate).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '') + '</td>' +
+            '<td class="r">' + (ln.amount != null ? Number(ln.amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '') + '</td>' +
+          '</tr>'
+        )).join('')
+      : '<tr><td colspan="7" class="mut" style="padding:16px;text-align:center">No line items.</td></tr>';
+    const total = lines.reduce((s, ln) => s + Number(ln.amount || 0), 0);
+    $('puGrnTotals').innerHTML = '<b>Total:</b> ₹' + total.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  $('puGrnModal').style.display = 'flex';
+}
+
+function closeGrnDetail(){ $('puGrnModal').style.display = 'none'; }
+
+function exportCsvPu(){
+  if(!PU.rows.length){ toast('No GRNs to export yet.'); return; }
+  const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['Date & Time,Doc Number,Outlet,Category'];
+  for(const r of PU.rows){
+    lines.push([fmtTime(r.date_time), r.doc_no, r.outlet, r.category].map(esc2).join(','));
+  }
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), 'grn-list-'+today+'.csv');
+}
+
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
 // under the hood, so PM is primed for its tab too. Then prefetch the
 // other two tabs in parallel in the background so that clicking Item
@@ -1352,6 +1600,7 @@ loadRm(false).catch(e => {
   setTimeout(() => {
     if(typeof loadIm === 'function' && !IM_LOADED.v) loadIm(false).catch(() => {});
     if(typeof loadSd === 'function' && !SD_LOADED.v) loadSd(false).catch(() => {});
+    if(typeof loadPu === 'function' && !PU_LOADED.v) loadPu(false).catch(() => {});
   }, 50);
 });
 
