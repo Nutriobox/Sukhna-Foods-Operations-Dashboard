@@ -1,1 +1,12 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/sync-costing?report=pm,bom",
+      "schedule": "20 * * * *"
+    },
+    {
+      "path": "/api/sync-costing?report=pf,si",
+      "schedule": "15 */6 * * *"
+    }
+  ]
+}

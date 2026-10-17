@@ -72,7 +72,12 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const secret = process.env.CRON_SECRET;
   if (secret) {
-    const given = url.searchParams.get("secret") || req.headers.get("x-cron-secret") || "";
+    // Accept the secret via query param, custom header, OR Vercel's native
+    // "Authorization: Bearer <CRON_SECRET>" header. Vercel Cron sends the
+    // bearer automatically when CRON_SECRET env var is defined, which is how
+    // the hourly schedule in vercel.json authenticates.
+    const auth = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const given = url.searchParams.get("secret") || req.headers.get("x-cron-secret") || auth || "";
     if (given !== secret) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401, headers: CORS });
   }
   const reports = pickReports(url);
