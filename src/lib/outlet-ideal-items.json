@@ -1,15 +1,15 @@
 {
   "outlets": [
-    "ADVANT",
-    "CLOUDKITCHEN",
-    "DWARKA",
-    "GGNPH2",
-    "GGNSEC15",
-    "JANAKPURI",
+    "SHIVALIK",
     "KKD",
-    "RAJENDERNAGAR",
+    "DWARKA",
     "ROHINI",
-    "SHIVALIK"
+    "JANAKPURI",
+    "ADVANT",
+    "RAJENDER NAGAR",
+    "GGN PH2",
+    "GGN SEC15",
+    "CLOUD KITCHEN"
   ],
   "items": [
     {
@@ -24,10 +24,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -42,10 +42,10 @@
         "ROHINI": 12,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -60,10 +60,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -78,10 +78,10 @@
         "ROHINI": 8,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -96,10 +96,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -114,10 +114,10 @@
         "ROHINI": 8,
         "JANAKPURI": 6,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -132,10 +132,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -150,10 +150,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -168,10 +168,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -186,10 +186,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -204,10 +204,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -222,10 +222,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -240,10 +240,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -258,10 +258,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -276,10 +276,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -294,10 +294,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -312,10 +312,10 @@
         "ROHINI": 24,
         "JANAKPURI": 20,
         "ADVANT": 14,
-        "RAJENDERNAGAR": 20,
-        "GGNPH2": 14,
-        "GGNSEC15": 12,
-        "CLOUDKITCHEN": 10
+        "RAJENDER NAGAR": 20,
+        "GGN PH2": 14,
+        "GGN SEC15": 12,
+        "CLOUD KITCHEN": 10
       }
     },
     {
@@ -330,10 +330,10 @@
         "ROHINI": 26,
         "JANAKPURI": 16,
         "ADVANT": 16,
-        "RAJENDERNAGAR": 21,
-        "GGNPH2": 14,
-        "GGNSEC15": 12,
-        "CLOUDKITCHEN": 10
+        "RAJENDER NAGAR": 21,
+        "GGN PH2": 14,
+        "GGN SEC15": 12,
+        "CLOUD KITCHEN": 10
       }
     },
     {
@@ -348,10 +348,10 @@
         "ROHINI": 24,
         "JANAKPURI": 14,
         "ADVANT": 14,
-        "RAJENDERNAGAR": 15,
-        "GGNPH2": 12,
-        "GGNSEC15": 10,
-        "CLOUDKITCHEN": 8
+        "RAJENDER NAGAR": 15,
+        "GGN PH2": 12,
+        "GGN SEC15": 10,
+        "CLOUD KITCHEN": 8
       }
     },
     {
@@ -366,10 +366,10 @@
         "ROHINI": 20,
         "JANAKPURI": 12,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 12,
-        "GGNPH2": 12,
-        "GGNSEC15": 10,
-        "CLOUDKITCHEN": 8
+        "RAJENDER NAGAR": 12,
+        "GGN PH2": 12,
+        "GGN SEC15": 10,
+        "CLOUD KITCHEN": 8
       }
     },
     {
@@ -384,10 +384,10 @@
         "ROHINI": 22,
         "JANAKPURI": 10,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 14,
-        "GGNPH2": 12,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 14,
+        "GGN PH2": 12,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -402,10 +402,10 @@
         "ROHINI": 14,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -420,10 +420,10 @@
         "ROHINI": 28,
         "JANAKPURI": 14,
         "ADVANT": 14,
-        "RAJENDERNAGAR": 17,
-        "GGNPH2": 14,
-        "GGNSEC15": 12,
-        "CLOUDKITCHEN": 8
+        "RAJENDER NAGAR": 17,
+        "GGN PH2": 14,
+        "GGN SEC15": 12,
+        "CLOUD KITCHEN": 8
       }
     },
     {
@@ -438,10 +438,10 @@
         "ROHINI": 12,
         "JANAKPURI": 10,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 8,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 8,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -456,10 +456,10 @@
         "ROHINI": 28,
         "JANAKPURI": 16,
         "ADVANT": 16,
-        "RAJENDERNAGAR": 16,
-        "GGNPH2": 14,
-        "GGNSEC15": 12,
-        "CLOUDKITCHEN": 10
+        "RAJENDER NAGAR": 16,
+        "GGN PH2": 14,
+        "GGN SEC15": 12,
+        "CLOUD KITCHEN": 10
       }
     },
     {
@@ -474,10 +474,10 @@
         "ROHINI": 16,
         "JANAKPURI": 10,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 12,
-        "GGNPH2": 8,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 12,
+        "GGN PH2": 8,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -492,10 +492,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -510,10 +510,10 @@
         "ROHINI": 16,
         "JANAKPURI": 10,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 8,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 8,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -528,10 +528,10 @@
         "ROHINI": 20,
         "JANAKPURI": 10,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 10,
-        "GGNPH2": 10,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 10,
+        "GGN PH2": 10,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -546,10 +546,10 @@
         "ROHINI": 12,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -564,10 +564,10 @@
         "ROHINI": 16,
         "JANAKPURI": 12,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 10,
-        "GGNPH2": 10,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 10,
+        "GGN PH2": 10,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -582,10 +582,10 @@
         "ROHINI": 16,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 8,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 8,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -600,10 +600,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -618,10 +618,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -636,10 +636,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -654,10 +654,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -672,10 +672,10 @@
         "ROHINI": 16,
         "JANAKPURI": 10,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 8,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 8,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -690,10 +690,10 @@
         "ROHINI": 18,
         "JANAKPURI": 14,
         "ADVANT": 14,
-        "RAJENDERNAGAR": 12,
-        "GGNPH2": 12,
-        "GGNSEC15": 10,
-        "CLOUDKITCHEN": 8
+        "RAJENDER NAGAR": 12,
+        "GGN PH2": 12,
+        "GGN SEC15": 10,
+        "CLOUD KITCHEN": 8
       }
     },
     {
@@ -708,10 +708,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -726,10 +726,10 @@
         "ROHINI": 12,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -744,10 +744,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -762,10 +762,10 @@
         "ROHINI": 10,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -780,10 +780,10 @@
         "ROHINI": 8,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -798,10 +798,10 @@
         "ROHINI": 18,
         "JANAKPURI": 10,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 10,
-        "GGNPH2": 8,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 10,
+        "GGN PH2": 8,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -816,10 +816,10 @@
         "ROHINI": 14,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 12,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 12,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -834,10 +834,10 @@
         "ROHINI": 8,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -852,10 +852,10 @@
         "ROHINI": 20,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -870,10 +870,10 @@
         "ROHINI": 16,
         "JANAKPURI": 8,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -888,10 +888,10 @@
         "ROHINI": 12,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -906,10 +906,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -924,10 +924,10 @@
         "ROHINI": 4,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -942,10 +942,10 @@
         "ROHINI": 12,
         "JANAKPURI": 10,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -960,10 +960,10 @@
         "ROHINI": 12,
         "JANAKPURI": 10,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -978,10 +978,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -996,10 +996,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1014,10 +1014,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1032,10 +1032,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1050,10 +1050,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1068,10 +1068,10 @@
         "ROHINI": 6,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1086,10 +1086,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1104,10 +1104,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1122,10 +1122,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1140,10 +1140,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1158,10 +1158,10 @@
         "ROHINI": 14,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 8,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 8,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -1176,10 +1176,10 @@
         "ROHINI": 16,
         "JANAKPURI": 10,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 12,
-        "GGNPH2": 10,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 12,
+        "GGN PH2": 10,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -1194,10 +1194,10 @@
         "ROHINI": 10,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1212,10 +1212,10 @@
         "ROHINI": 26,
         "JANAKPURI": 12,
         "ADVANT": 12,
-        "RAJENDERNAGAR": 14,
-        "GGNPH2": 12,
-        "GGNSEC15": 12,
-        "CLOUDKITCHEN": 8
+        "RAJENDER NAGAR": 14,
+        "GGN PH2": 12,
+        "GGN SEC15": 12,
+        "CLOUD KITCHEN": 8
       }
     },
     {
@@ -1230,10 +1230,10 @@
         "ROHINI": 28,
         "JANAKPURI": 16,
         "ADVANT": 16,
-        "RAJENDERNAGAR": 16,
-        "GGNPH2": 14,
-        "GGNSEC15": 14,
-        "CLOUDKITCHEN": 12
+        "RAJENDER NAGAR": 16,
+        "GGN PH2": 14,
+        "GGN SEC15": 14,
+        "CLOUD KITCHEN": 12
       }
     },
     {
@@ -1248,10 +1248,10 @@
         "ROHINI": 32,
         "JANAKPURI": 16,
         "ADVANT": 12,
-        "RAJENDERNAGAR": 16,
-        "GGNPH2": 14,
-        "GGNSEC15": 14,
-        "CLOUDKITCHEN": 10
+        "RAJENDER NAGAR": 16,
+        "GGN PH2": 14,
+        "GGN SEC15": 14,
+        "CLOUD KITCHEN": 10
       }
     },
     {
@@ -1266,10 +1266,10 @@
         "ROHINI": 4,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1284,10 +1284,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1302,10 +1302,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1320,10 +1320,10 @@
         "ROHINI": 8,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1338,10 +1338,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1356,10 +1356,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1374,10 +1374,10 @@
         "ROHINI": 8,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 8,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 8,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -1392,10 +1392,10 @@
         "ROHINI": 14,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 10,
-        "GGNSEC15": 10,
-        "CLOUDKITCHEN": 8
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 10,
+        "GGN SEC15": 10,
+        "CLOUD KITCHEN": 8
       }
     },
     {
@@ -1410,10 +1410,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 4,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 4,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1428,10 +1428,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1446,10 +1446,10 @@
         "ROHINI": 14,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 10,
-        "GGNPH2": 8,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 10,
+        "GGN PH2": 8,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -1464,10 +1464,10 @@
         "ROHINI": 12,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 14,
-        "GGNPH2": 10,
-        "GGNSEC15": 8,
-        "CLOUDKITCHEN": 6
+        "RAJENDER NAGAR": 14,
+        "GGN PH2": 10,
+        "GGN SEC15": 8,
+        "CLOUD KITCHEN": 6
       }
     },
     {
@@ -1482,10 +1482,10 @@
         "ROHINI": 4,
         "JANAKPURI": 4,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1500,10 +1500,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1518,10 +1518,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1536,10 +1536,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1554,10 +1554,10 @@
         "ROHINI": 8,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 5,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 5,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1572,10 +1572,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1590,10 +1590,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1608,10 +1608,10 @@
         "ROHINI": 3,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1626,10 +1626,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1644,10 +1644,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1662,10 +1662,10 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 3
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 3
       }
     },
     {
@@ -1680,10 +1680,10 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 3
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 3
       }
     },
     {
@@ -1698,10 +1698,10 @@
         "ROHINI": 3,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1716,10 +1716,10 @@
         "ROHINI": 3,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1734,10 +1734,10 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 3
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 3
       }
     },
     {
@@ -1752,10 +1752,10 @@
         "ROHINI": 5,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 3
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 3
       }
     },
     {
@@ -1770,10 +1770,10 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 3
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 3
       }
     },
     {
@@ -1788,10 +1788,10 @@
         "ROHINI": 6,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1806,10 +1806,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1824,10 +1824,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1842,10 +1842,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1860,10 +1860,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1878,10 +1878,10 @@
         "ROHINI": 5,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -1896,10 +1896,10 @@
         "ROHINI": 8,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 4
       }
     },
     {
@@ -1914,10 +1914,10 @@
         "ROHINI": 10,
         "JANAKPURI": 5,
         "ADVANT": 5,
-        "RAJENDERNAGAR": 5,
-        "GGNPH2": 5,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 3
+        "RAJENDER NAGAR": 5,
+        "GGN PH2": 5,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 3
       }
     },
     {
@@ -1932,10 +1932,10 @@
         "ROHINI": 3,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1950,10 +1950,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1968,10 +1968,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -1986,10 +1986,10 @@
         "ROHINI": 1,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2004,10 +2004,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2022,10 +2022,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2040,10 +2040,10 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2058,10 +2058,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2076,10 +2076,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2094,10 +2094,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2112,10 +2112,10 @@
         "ROHINI": 3,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2130,10 +2130,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2148,10 +2148,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2166,10 +2166,10 @@
         "ROHINI": 3,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2184,10 +2184,10 @@
         "ROHINI": 3,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2202,10 +2202,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2220,10 +2220,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2238,10 +2238,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2256,10 +2256,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2274,10 +2274,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2292,10 +2292,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2310,10 +2310,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2328,10 +2328,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2346,10 +2346,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2364,10 +2364,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2382,10 +2382,10 @@
         "ROHINI": 3,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2400,10 +2400,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2418,10 +2418,10 @@
         "ROHINI": 7,
         "JANAKPURI": 5,
         "ADVANT": 5,
-        "RAJENDERNAGAR": 5,
-        "GGNPH2": 5,
-        "GGNSEC15": 4,
-        "CLOUDKITCHEN": 3
+        "RAJENDER NAGAR": 5,
+        "GGN PH2": 5,
+        "GGN SEC15": 4,
+        "CLOUD KITCHEN": 3
       }
     },
     {
@@ -2436,10 +2436,10 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2454,10 +2454,10 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2472,10 +2472,10 @@
         "ROHINI": 5,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2490,10 +2490,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2506,9 +2506,9 @@
         "DWARKA": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1
       }
     },
     {
@@ -2523,10 +2523,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2541,10 +2541,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2559,10 +2559,10 @@
         "ROHINI": 20,
         "JANAKPURI": 15,
         "ADVANT": 15,
-        "RAJENDERNAGAR": 15,
-        "GGNPH2": 15,
-        "GGNSEC15": 12,
-        "CLOUDKITCHEN": 8
+        "RAJENDER NAGAR": 15,
+        "GGN PH2": 15,
+        "GGN SEC15": 12,
+        "CLOUD KITCHEN": 8
       }
     },
     {
@@ -2577,9 +2577,9 @@
         "ROHINI": 2,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2
       }
     },
     {
@@ -2594,10 +2594,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2612,10 +2612,10 @@
         "ROHINI": 3,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2630,10 +2630,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2648,9 +2648,9 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1
       }
     },
     {
@@ -2665,9 +2665,9 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1
       }
     },
     {
@@ -2682,9 +2682,9 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1
       }
     },
     {
@@ -2699,10 +2699,10 @@
         "ROHINI": 5,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -2717,10 +2717,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2735,10 +2735,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2753,10 +2753,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2767,9 +2767,9 @@
       "ideals": {
         "SHIVALIK": 2,
         "DWARKA": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 1
       }
     },
     {
@@ -2794,10 +2794,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2812,10 +2812,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2830,10 +2830,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2848,10 +2848,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2866,10 +2866,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -2884,10 +2884,10 @@
         "ROHINI": 0.5,
         "JANAKPURI": 0.5,
         "ADVANT": 0.5,
-        "RAJENDERNAGAR": 0.5,
-        "GGNPH2": 0.5,
-        "GGNSEC15": 0.5,
-        "CLOUDKITCHEN": 0.5
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
       }
     },
     {
@@ -2902,10 +2902,10 @@
         "ROHINI": 0.5,
         "JANAKPURI": 0.5,
         "ADVANT": 0.5,
-        "RAJENDERNAGAR": 0.5,
-        "GGNPH2": 0.5,
-        "GGNSEC15": 0.5,
-        "CLOUDKITCHEN": 0.5
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
       }
     },
     {
@@ -2920,10 +2920,10 @@
         "ROHINI": 0.5,
         "JANAKPURI": 0.5,
         "ADVANT": 0.5,
-        "RAJENDERNAGAR": 0.5,
-        "GGNPH2": 0.5,
-        "GGNSEC15": 0.5,
-        "CLOUDKITCHEN": 0.5
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
       }
     },
     {
@@ -2938,10 +2938,10 @@
         "ROHINI": 0.5,
         "JANAKPURI": 0.5,
         "ADVANT": 0.5,
-        "RAJENDERNAGAR": 0.5,
-        "GGNPH2": 0.5,
-        "GGNSEC15": 0.5,
-        "CLOUDKITCHEN": 0.5
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
       }
     },
     {
@@ -2956,10 +2956,10 @@
         "ROHINI": 18,
         "JANAKPURI": 9,
         "ADVANT": 9,
-        "RAJENDERNAGAR": 9,
-        "GGNPH2": 9,
-        "GGNSEC15": 7,
-        "CLOUDKITCHEN": 5
+        "RAJENDER NAGAR": 9,
+        "GGN PH2": 9,
+        "GGN SEC15": 7,
+        "CLOUD KITCHEN": 5
       }
     },
     {
@@ -2974,9 +2974,9 @@
         "ROHINI": 3,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 2
       }
     },
     {
@@ -2991,10 +2991,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -3009,10 +3009,10 @@
         "ROHINI": 5,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -3027,10 +3027,10 @@
         "ROHINI": 8,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -3045,10 +3045,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -3063,10 +3063,10 @@
         "ROHINI": 3,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -3081,10 +3081,10 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -3099,10 +3099,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -3117,9 +3117,9 @@
         "ROHINI": 0.5,
         "JANAKPURI": 0.5,
         "ADVANT": 0.5,
-        "RAJENDERNAGAR": 0.5,
-        "GGNPH2": 0.5,
-        "GGNSEC15": 0.5
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5
       }
     },
     {
@@ -3134,10 +3134,10 @@
         "ROHINI": 0.5,
         "JANAKPURI": 0.5,
         "ADVANT": 0.5,
-        "RAJENDERNAGAR": 0.5,
-        "GGNPH2": 0.5,
-        "GGNSEC15": 0.5,
-        "CLOUDKITCHEN": 0.5
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5,
+        "CLOUD KITCHEN": 0.5
       }
     },
     {
@@ -3152,10 +3152,10 @@
         "ROHINI": 6,
         "JANAKPURI": 3,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -3170,9 +3170,9 @@
         "ROHINI": 2,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1
       }
     },
     {
@@ -3187,9 +3187,9 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1
       }
     },
     {
@@ -3204,9 +3204,9 @@
         "ROHINI": 5,
         "JANAKPURI": 3,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2
       }
     },
     {
@@ -3221,10 +3221,10 @@
         "ROHINI": 3,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 1
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 1
       }
     },
     {
@@ -3239,10 +3239,10 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -3257,9 +3257,9 @@
         "ROHINI": 13,
         "JANAKPURI": 10,
         "ADVANT": 10,
-        "RAJENDERNAGAR": 10,
-        "GGNPH2": 8,
-        "GGNSEC15": 7
+        "RAJENDER NAGAR": 10,
+        "GGN PH2": 8,
+        "GGN SEC15": 7
       }
     },
     {
@@ -3274,9 +3274,9 @@
         "ROHINI": 8,
         "JANAKPURI": 6,
         "ADVANT": 6,
-        "RAJENDERNAGAR": 6,
-        "GGNPH2": 6,
-        "GGNSEC15": 5
+        "RAJENDER NAGAR": 6,
+        "GGN PH2": 6,
+        "GGN SEC15": 5
       }
     },
     {
@@ -3291,9 +3291,9 @@
         "ROHINI": 4,
         "JANAKPURI": 3,
         "ADVANT": 3,
-        "RAJENDERNAGAR": 3,
-        "GGNPH2": 3,
-        "GGNSEC15": 3
+        "RAJENDER NAGAR": 3,
+        "GGN PH2": 3,
+        "GGN SEC15": 3
       }
     },
     {
@@ -3308,10 +3308,10 @@
         "ROHINI": 6,
         "JANAKPURI": 2,
         "ADVANT": 2,
-        "RAJENDERNAGAR": 2,
-        "GGNPH2": 2,
-        "GGNSEC15": 2,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 2,
+        "GGN PH2": 2,
+        "GGN SEC15": 2,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -3326,10 +3326,10 @@
         "ROHINI": 4,
         "JANAKPURI": 2,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 0.5
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 0.5
       }
     },
     {
@@ -3344,10 +3344,10 @@
         "ROHINI": 1,
         "JANAKPURI": 1,
         "ADVANT": 1,
-        "RAJENDERNAGAR": 1,
-        "GGNPH2": 1,
-        "GGNSEC15": 1,
-        "CLOUDKITCHEN": 0.5
+        "RAJENDER NAGAR": 1,
+        "GGN PH2": 1,
+        "GGN SEC15": 1,
+        "CLOUD KITCHEN": 0.5
       }
     },
     {
@@ -3362,9 +3362,9 @@
         "ROHINI": 0.5,
         "JANAKPURI": 0.5,
         "ADVANT": 0.5,
-        "RAJENDERNAGAR": 0.5,
-        "GGNPH2": 0.5,
-        "GGNSEC15": 0.5
+        "RAJENDER NAGAR": 0.5,
+        "GGN PH2": 0.5,
+        "GGN SEC15": 0.5
       }
     },
     {
@@ -3379,10 +3379,10 @@
         "ROHINI": 32,
         "JANAKPURI": 20,
         "ADVANT": 20,
-        "RAJENDERNAGAR": 20,
-        "GGNPH2": 20,
-        "GGNSEC15": 16,
-        "CLOUDKITCHEN": 10
+        "RAJENDER NAGAR": 20,
+        "GGN PH2": 20,
+        "GGN SEC15": 16,
+        "CLOUD KITCHEN": 10
       }
     },
     {
@@ -3397,10 +3397,10 @@
         "ROHINI": 0.25,
         "JANAKPURI": 0.25,
         "ADVANT": 0.25,
-        "RAJENDERNAGAR": 0.25,
-        "GGNPH2": 0.25,
-        "GGNSEC15": 0.25,
-        "CLOUDKITCHEN": 0.25
+        "RAJENDER NAGAR": 0.25,
+        "GGN PH2": 0.25,
+        "GGN SEC15": 0.25,
+        "CLOUD KITCHEN": 0.25
       }
     },
     {
@@ -3415,10 +3415,10 @@
         "ROHINI": 0.25,
         "JANAKPURI": 0.25,
         "ADVANT": 0.25,
-        "RAJENDERNAGAR": 0.25,
-        "GGNPH2": 0.25,
-        "GGNSEC15": 0.25,
-        "CLOUDKITCHEN": 0.25
+        "RAJENDER NAGAR": 0.25,
+        "GGN PH2": 0.25,
+        "GGN SEC15": 0.25,
+        "CLOUD KITCHEN": 0.25
       }
     },
     {
@@ -3433,10 +3433,10 @@
         "ROHINI": 5,
         "JANAKPURI": 4,
         "ADVANT": 4,
-        "RAJENDERNAGAR": 4,
-        "GGNPH2": 4,
-        "GGNSEC15": 3,
-        "CLOUDKITCHEN": 2
+        "RAJENDER NAGAR": 4,
+        "GGN PH2": 4,
+        "GGN SEC15": 3,
+        "CLOUD KITCHEN": 2
       }
     },
     {
@@ -3451,83 +3451,16 @@
         "ROHINI": 15,
         "JANAKPURI": 8,
         "ADVANT": 8,
-        "RAJENDERNAGAR": 8,
-        "GGNPH2": 8,
-        "GGNSEC15": 6,
-        "CLOUDKITCHEN": 4
+        "RAJENDER NAGAR": 8,
+        "GGN PH2": 8,
+        "GGN SEC15": 6,
+        "CLOUD KITCHEN": 4
       }
-    },
-    {
-      "name": "Seekh Jhadhu",
-      "norm": "seekh jhadhu",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
-    },
-    {
-      "name": "Big Wiper",
-      "norm": "big wiper",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
-    },
-    {
-      "name": "Dust Pan",
-      "norm": "dust pan",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
-    },
-    {
-      "name": "Floor Brush (Big)",
-      "norm": "floor brush (big)",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
-    },
-    {
-      "name": "Sanitizer",
-      "norm": "sanitizer",
-      "storage": "On-Demand",
-      "uom": "Can",
-      "ideals": {}
-    },
-    {
-      "name": "White Envelope",
-      "norm": "white envelope",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
-    },
-    {
-      "name": "Day Book",
-      "norm": "day book",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
-    },
-    {
-      "name": "Stapler Pin Big (Kangaro-24/6-HP-45)",
-      "norm": "stapler pin big (kangaro-24/6-hp-45)",
-      "storage": "On-Demand",
-      "uom": "Box",
-      "ideals": {}
-    },
-    {
-      "name": "CD Marker",
-      "norm": "cd marker",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
-    },
-    {
-      "name": "Scissor",
-      "norm": "scissor",
-      "storage": "On-Demand",
-      "uom": "Pcs",
-      "ideals": {}
     }
   ],
   "source_file": "Ideal_Inventory_6_-_PACT_names_UPDATED.xlsx (2026-10-17)",
-  "generated_at": "2026-10-17"
+  "generated_at": "2026-10-17",
+  "excluded_sheets": [
+    "On-Demand Kitchenware (no per-outlet quantities)"
+  ]
 }

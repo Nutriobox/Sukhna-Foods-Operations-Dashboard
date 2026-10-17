@@ -196,16 +196,15 @@
  <div id="tabRm">
   <div class="toolbar">
    <input id="qrm" class="search" placeholder="Search raw material name or code…" oninput="renderRm()">
-   <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter the Ideal Inventory list by outlet storage category, or show only items missing from PACT Product Master.">
+   <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter the Ideal Inventory list by outlet storage category.">
     <option value="" selected>All categories</option>
     <option value="Frozen">Frozen</option>
     <option value="Chiller">Chiller</option>
     <option value="Vegetable">Vegetable</option>
     <option value="Dry Store">Dry Store</option>
     <option value="Packaging">Packaging</option>
-    <option value="On-Demand">On-Demand</option>
-    <option value="__ghost__">⚠ Not in PACT (errors)</option>
    </select>
+   <button id="btnErrorsRm" class="btn" onclick="toggleErrorsRm()" title="Show only Excel items that have no matching PACT product so your team can create them.">⚠ Errors only: <span id="errorsRmState">off</span></button>
    <button class="btn" onclick="exportCsvRm()">⬇ Export CSV</button>
    <button class="btn prim" id="btnSyncRm" onclick="syncRM()" title="Pulls the latest Product Master from PACT (same source as the Product Master tab).">⚡ Sync Raw Materials</button>
    <span id="syncStatRm" class="mut" style="font-size:12.5px"></span>
@@ -676,18 +675,27 @@ async function loadRm(fresh){
   }
 }
 
+let SHOW_ERRORS_ONLY = false;
+function toggleErrorsRm(){
+  SHOW_ERRORS_ONLY = !SHOW_ERRORS_ONLY;
+  const btn = document.getElementById('btnErrorsRm');
+  const st  = document.getElementById('errorsRmState');
+  if(st)  st.textContent = SHOW_ERRORS_ONLY ? 'on' : 'off';
+  if(btn) btn.style.background = SHOW_ERRORS_ONLY ? '#fee2e2' : '';
+  if(btn) btn.style.color      = SHOW_ERRORS_ONLY ? '#991b1b' : '';
+  if(btn) btn.style.borderColor= SHOW_ERRORS_ONLY ? '#fca5a5' : '';
+  renderRm();
+}
 function renderRm(){
   const q = ($('qrm').value || '').trim().toLowerCase();
   const idealFilter = $('idealRm') ? ($('idealRm').value || '') : '';
-  // HARD SCOPE: the Raw Material Master view only ever shows items that
-  // are on the team's Ideal Inventory list (per Ideal_Inventory_6_-_PACT_names.xlsx).
-  // Ghost rows (isGhost = true) come from Excel items that have no PACT match
-  // yet — they are included so the ops team sees what still needs to be
-  // created in PACT. The "__ghost__" filter option isolates just those.
+  // HARD SCOPE: the Raw Material Master only ever shows Ideal Inventory
+  // items. The Category dropdown narrows by outlet storage class; the
+  // ⚠ Errors toggle isolates Excel items that have no PACT match.
   const list = RM.items.filter(x => {
-    if(!x.idealStorage) return false;                               // ideal-list only
-    if(idealFilter === '__ghost__') { if(!x.isGhost) return false; }
-    else if(idealFilter && x.idealStorage !== idealFilter) return false;
+    if(!x.idealStorage) return false;
+    if(SHOW_ERRORS_ONLY && !x.isGhost) return false;
+    if(idealFilter && x.idealStorage !== idealFilter) return false;
     if(q){
       const nm = (x.name || '').toLowerCase();
       const cd = (x.code || '').toLowerCase();
@@ -706,7 +714,6 @@ function renderRm(){
       'Vegetable': 'background:#dcfce7;color:#166534',
       'Dry Store': 'background:#fef3c7;color:#92400e',
       'Packaging': 'background:#fce7f3;color:#9d174d',
-      'On-Demand': 'background:#e5e7eb;color:#374151',
     };
     return `<span class="sb" style="${colors[st] || 'background:#f3f4f6;color:#374151'}">${esc(st)}</span>`;
   };
@@ -715,10 +722,7 @@ function renderRm(){
 
   const rows = list.slice(0, 3000).map((x, i) => {
     const groupBadge = idealChip(x.idealStorage);
-
     if(x.isGhost){
-      // Ghost row: show the Excel-supplied unit as L1 so there is something
-      // meaningful in the UOM column; everything PACT-specific is blank.
       const l1 = x.idealUom ? `<span class="code">${esc(x.idealUom)}</span>` : '<span class="mut">—</span>';
       return `<tr style="background:#fef2f2">
         <td class="mut">${i+1}</td>
@@ -732,13 +736,6 @@ function renderRm(){
         <td>${l1}</td>
       </tr>`;
     }
-
-    // Standard row: split unit vs. conversion into separate columns.
-    //   L3 = case unit itself (e.g. "Bag")
-    //   L3 Conv = how many L2 fit in one L3 (e.g. "30 Kg")
-    //   L2 = pack unit (e.g. "Kg")
-    //   L2 Conv = how many L1 fit in one L2 (e.g. "1,000 Gms")
-    //   L1 UOM = base unit (e.g. "Gms")
     const l3Unit = x.caseUnit ? `<span class="code">${esc(x.caseUnit)}</span>` : '<span class="mut">—</span>';
     const l3Conv = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
       ? `${qty(x.caseScale / x.packScale)} <span class="code">${esc(x.packUnit)}</span>`
@@ -748,7 +745,6 @@ function renderRm(){
       ? `${qty(x.packScale)} <span class="code">${esc(x.baseUnit)}</span>`
       : '<span class="mut">—</span>';
     const l1Cell = x.baseUnit ? `<span class="code">${esc(x.baseUnit)}</span>` : '<span class="mut">—</span>';
-
     return `<tr>
       <td class="mut">${i+1}</td>
       <td class="code">${esc(x.code)}</td>
@@ -776,8 +772,8 @@ function exportCsvRm(){
   const lines = [header.map(esc2).join(',')];
   for(const x of RM.items){
     if(!x.idealStorage) continue;
-    if(idealFilter === '__ghost__' && !x.isGhost) continue;
-    else if(idealFilter && idealFilter !== '__ghost__' && x.idealStorage !== idealFilter) continue;
+    if(SHOW_ERRORS_ONLY && !x.isGhost) continue;
+    if(idealFilter && x.idealStorage !== idealFilter) continue;
     if(q){
       const nm = (x.name || '').toLowerCase();
       const cd = (x.code || '').toLowerCase();
