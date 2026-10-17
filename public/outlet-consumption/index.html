@@ -204,12 +204,14 @@
     <option value="Dry Store">Dry Store</option>
     <option value="Packaging">Packaging</option>
    </select>
-   <button id="btnErrorsRm" class="btn" onclick="toggleErrorsRm()" title="Show only Excel items that have no matching PACT product so your team can create them.">⚠ Errors only: <span id="errorsRmState">off</span></button>
+   <button id="btnErrorsRm" class="btn" onclick="toggleErrorsRm()" title="Show only Excel items that have no matching PACT product so your team can create them." style="border-color:#fca5a5;color:#991b1b;background:#fff5f5">⚠ Errors only: <span id="errorsRmState">off</span> <span id="errorsRmCount" style="margin-left:4px;background:#fecaca;color:#7f1d1d;padding:1px 7px;border-radius:999px;font-size:11.5px;font-weight:700"></span></button>
    <button class="btn" onclick="exportCsvRm()">⬇ Export CSV</button>
    <button class="btn prim" id="btnSyncRm" onclick="syncRM()" title="Pulls the latest Product Master from PACT (same source as the Product Master tab).">⚡ Sync Raw Materials</button>
    <span id="syncStatRm" class="mut" style="font-size:12.5px"></span>
    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PACT Product Master + BOM</span>
   </div>
+  <!-- Banner surfaces Excel items that have no PACT match. Hidden by renderRm when count is 0. -->
+  <div id="ghostBanner" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:11px 14px;margin-bottom:10px;color:#991b1b;font-size:13.5px;line-height:1.4"></div>
   <div class="card"><div class="scroll"><table id="tblRm">
    <thead><tr>
     <th>#</th>
@@ -705,6 +707,24 @@ function renderRm(){
   });
   RM.meta.count = list.length;
   if(CURTAB === 'rm') updateHeaderStats();
+
+  // Count how many Excel items have no PACT match (regardless of current filters)
+  const ghostCount = RM.items.filter(x => x.idealStorage && x.isGhost).length;
+  const banner = document.getElementById('ghostBanner');
+  const countChip = document.getElementById('errorsRmCount');
+  if(countChip) countChip.textContent = ghostCount > 0 ? String(ghostCount) : '';
+  if(banner){
+    if(ghostCount > 0){
+      banner.style.display = '';
+      banner.innerHTML = `<strong>⚠ ${ghostCount} ${ghostCount === 1 ? 'item is' : 'items are'} in your Ideal Inventory Excel but NOT in PACT Product Master.</strong>
+        ${SHOW_ERRORS_ONLY
+          ? ` You're viewing only these items. <a href="#" onclick="toggleErrorsRm();return false;" style="color:#7f1d1d;font-weight:600">Show all items</a> to go back.`
+          : ` <a href="#" onclick="toggleErrorsRm();return false;" style="color:#7f1d1d;font-weight:600">Show only these ${ghostCount} item${ghostCount === 1 ? '' : 's'}</a> so your team can create them in PACT.`}`;
+    } else {
+      banner.style.display = 'none';
+      banner.innerHTML = '';
+    }
+  }
 
   const idealChip = (st) => {
     if(!st) return '<span class="mut">—</span>';
