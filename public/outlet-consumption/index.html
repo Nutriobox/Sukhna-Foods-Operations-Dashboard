@@ -196,7 +196,7 @@
  <div id="tabRm">
   <div class="toolbar">
    <input id="qrm" class="search" placeholder="Search raw material name or code…" oninput="renderRm()">
-   <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter the Ideal Inventory list by outlet storage category.">
+   <select id="idealRm" onchange="renderRm()" class="btn" style="padding-right:28px" title="Filter the Ideal Inventory list by outlet storage category, or show only items missing from PACT Product Master.">
     <option value="" selected>All categories</option>
     <option value="Frozen">Frozen</option>
     <option value="Chiller">Chiller</option>
@@ -204,6 +204,7 @@
     <option value="Dry Store">Dry Store</option>
     <option value="Packaging">Packaging</option>
     <option value="On-Demand">On-Demand</option>
+    <option value="__ghost__">⚠ Not in PACT (errors)</option>
    </select>
    <button class="btn" onclick="exportCsvRm()">⬇ Export CSV</button>
    <button class="btn prim" id="btnSyncRm" onclick="syncRM()" title="Pulls the latest Product Master from PACT (same source as the Product Master tab).">⚡ Sync Raw Materials</button>
@@ -216,11 +217,13 @@
     <th>RM Code</th>
     <th>Raw Material Name</th>
     <th>Category</th>
-    <th title="L3 — case / outermost unit, with how many L2 it contains">L3</th>
-    <th title="L2 — pack unit, with how many L1 base units it contains">L2</th>
-    <th title="L1 — base unit of measure">L1 UOM</th>
+    <th title="L3 — case / outermost unit (e.g. Bag)">L3</th>
+    <th title="How many L2 units are in one L3">L3 Conversion</th>
+    <th title="L2 — pack unit (e.g. Kg)">L2</th>
+    <th title="How many L1 base units are in one L2">L2 Conversion</th>
+    <th title="L1 — base unit of measure (e.g. Gms)">L1 UOM</th>
    </tr></thead>
-   <tbody id="tbodyRm"><tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodyRm"><tr><td colspan="9" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -647,6 +650,9 @@ async function loadRm(fresh){
       warehouse: p.idealWarehouse || '',
       printLevel: p.printLevel || '',
       idealStorage: p.idealStorage || null,
+      idealUom:     p.idealUom || '',
+      idealQty:     p.idealQty || null,
+      isGhost:      !!p.isGhost,
     };
   });
   RM.items = list;
@@ -675,12 +681,18 @@ function renderRm(){
   const idealFilter = $('idealRm') ? ($('idealRm').value || '') : '';
   // HARD SCOPE: the Raw Material Master view only ever shows items that
   // are on the team's Ideal Inventory list (per Ideal_Inventory_6_-_PACT_names.xlsx).
-  // The one visible dropdown further narrows that list by outlet storage
-  // category (Frozen / Chiller / Vegetable / Dry Store / Packaging / On-Demand).
+  // Ghost rows (isGhost = true) come from Excel items that have no PACT match
+  // yet — they are included so the ops team sees what still needs to be
+  // created in PACT. The "__ghost__" filter option isolates just those.
   const list = RM.items.filter(x => {
     if(!x.idealStorage) return false;                               // ideal-list only
-    if(idealFilter && x.idealStorage !== idealFilter) return false;
-    if(q && !x.code.toLowerCase().includes(q) && !x.name.toLowerCase().includes(q)) return false;
+    if(idealFilter === '__ghost__') { if(!x.isGhost) return false; }
+    else if(idealFilter && x.idealStorage !== idealFilter) return false;
+    if(q){
+      const nm = (x.name || '').toLowerCase();
+      const cd = (x.code || '').toLowerCase();
+      if(!cd.includes(q) && !nm.includes(q)) return false;
+    }
     return true;
   });
   RM.meta.count = list.length;
@@ -698,17 +710,43 @@ function renderRm(){
     };
     return `<span class="sb" style="${colors[st] || 'background:#f3f4f6;color:#374151'}">${esc(st)}</span>`;
   };
+  const ghostCodeChip = () =>
+    `<span class="sb" style="background:#fee2e2;color:#991b1b" title="This Excel ideal-inventory item is not yet in PACT Product Master. Create it in PACT so costing and dispatch can see it.">⚠ Not in PACT</span>`;
 
   const rows = list.slice(0, 3000).map((x, i) => {
     const groupBadge = idealChip(x.idealStorage);
-    // L3 cell: "<L3Unit> · <L3÷L2> <L2Unit>" — e.g. "Bag · 30 Kg"
-    const l3Cell = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
-      ? `<span class="code">${esc(x.caseUnit)}</span> <span class="mut">·</span> ${qty(x.caseScale / x.packScale)} ${esc(x.packUnit)}`
-      : (x.caseUnit ? `<span class="code">${esc(x.caseUnit)}</span>` : '<span class="mut">—</span>');
-    // L2 cell: "<L2Unit> · <L2÷L1> <L1Unit>" — e.g. "Kg · 1,000 Gms"
-    const l2Cell = (x.packUnit && x.baseUnit && x.packScale != null)
-      ? `<span class="code">${esc(x.packUnit)}</span> <span class="mut">·</span> ${qty(x.packScale)} ${esc(x.baseUnit)}`
-      : (x.packUnit ? `<span class="code">${esc(x.packUnit)}</span>` : '<span class="mut">—</span>');
+
+    if(x.isGhost){
+      // Ghost row: show the Excel-supplied unit as L1 so there is something
+      // meaningful in the UOM column; everything PACT-specific is blank.
+      const l1 = x.idealUom ? `<span class="code">${esc(x.idealUom)}</span>` : '<span class="mut">—</span>';
+      return `<tr style="background:#fef2f2">
+        <td class="mut">${i+1}</td>
+        <td>${ghostCodeChip()}</td>
+        <td><span style="color:#991b1b">${esc(x.name)}</span></td>
+        <td>${groupBadge}</td>
+        <td><span class="mut">—</span></td>
+        <td><span class="mut">—</span></td>
+        <td><span class="mut">—</span></td>
+        <td><span class="mut">—</span></td>
+        <td>${l1}</td>
+      </tr>`;
+    }
+
+    // Standard row: split unit vs. conversion into separate columns.
+    //   L3 = case unit itself (e.g. "Bag")
+    //   L3 Conv = how many L2 fit in one L3 (e.g. "30 Kg")
+    //   L2 = pack unit (e.g. "Kg")
+    //   L2 Conv = how many L1 fit in one L2 (e.g. "1,000 Gms")
+    //   L1 UOM = base unit (e.g. "Gms")
+    const l3Unit = x.caseUnit ? `<span class="code">${esc(x.caseUnit)}</span>` : '<span class="mut">—</span>';
+    const l3Conv = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
+      ? `${qty(x.caseScale / x.packScale)} <span class="code">${esc(x.packUnit)}</span>`
+      : '<span class="mut">—</span>';
+    const l2Unit = x.packUnit ? `<span class="code">${esc(x.packUnit)}</span>` : '<span class="mut">—</span>';
+    const l2Conv = (x.packUnit && x.baseUnit && x.packScale != null)
+      ? `${qty(x.packScale)} <span class="code">${esc(x.baseUnit)}</span>`
+      : '<span class="mut">—</span>';
     const l1Cell = x.baseUnit ? `<span class="code">${esc(x.baseUnit)}</span>` : '<span class="mut">—</span>';
 
     return `<tr>
@@ -716,34 +754,44 @@ function renderRm(){
       <td class="code">${esc(x.code)}</td>
       <td>${esc(x.name)}</td>
       <td>${groupBadge}</td>
-      <td>${l3Cell}</td>
-      <td>${l2Cell}</td>
+      <td>${l3Unit}</td>
+      <td>${l3Conv}</td>
+      <td>${l2Unit}</td>
+      <td>${l2Conv}</td>
       <td>${l1Cell}</td>
     </tr>`;
   }).join('');
   const extra = list.length > 3000
-    ? `<tr><td colspan="7" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
+    ? `<tr><td colspan="9" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
     : '';
   $('tbodyRm').innerHTML = (rows
-    || '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">No raw materials match this filter.</td></tr>') + extra;
+    || '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center">No raw materials match this filter.</td></tr>') + extra;
 }
 
 function exportCsvRm(){
   const q = ($('qrm').value || '').trim().toLowerCase();
   const idealFilter = $('idealRm') ? ($('idealRm').value || '') : '';
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const header = ['RM Code','Raw Material Name','Category','L3 (unit · units of L2)','L2 (unit · units of L1)','L1 UOM'];
+  const header = ['RM Code','Raw Material Name','Category','L3','L3 Conversion','L2','L2 Conversion','L1 UOM','Status'];
   const lines = [header.map(esc2).join(',')];
   for(const x of RM.items){
-    // Mirror the on-screen filter: ideal list only, optional category narrow, optional search.
     if(!x.idealStorage) continue;
-    if(idealFilter && x.idealStorage !== idealFilter) continue;
-    if(q && !x.code.toLowerCase().includes(q) && !x.name.toLowerCase().includes(q)) continue;
-    const l3Str = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
-      ? `${x.caseUnit} · ${(x.caseScale / x.packScale)} ${x.packUnit}` : (x.caseUnit || '');
-    const l2Str = (x.packUnit && x.baseUnit && x.packScale != null)
-      ? `${x.packUnit} · ${x.packScale} ${x.baseUnit}` : (x.packUnit || '');
-    lines.push([x.code, x.name, x.idealStorage, l3Str, l2Str, x.baseUnit].map(esc2).join(','));
+    if(idealFilter === '__ghost__' && !x.isGhost) continue;
+    else if(idealFilter && idealFilter !== '__ghost__' && x.idealStorage !== idealFilter) continue;
+    if(q){
+      const nm = (x.name || '').toLowerCase();
+      const cd = (x.code || '').toLowerCase();
+      if(!cd.includes(q) && !nm.includes(q)) continue;
+    }
+    const l3u = x.caseUnit || '';
+    const l3c = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
+      ? `${(x.caseScale / x.packScale)} ${x.packUnit}` : '';
+    const l2u = x.packUnit || '';
+    const l2c = (x.packUnit && x.baseUnit && x.packScale != null)
+      ? `${x.packScale} ${x.baseUnit}` : '';
+    const l1  = x.baseUnit || x.idealUom || '';
+    const status = x.isGhost ? 'NOT IN PACT' : 'OK';
+    lines.push([x.code || '', x.name, x.idealStorage, l3u, l3c, l2u, l2c, l1, status].map(esc2).join(','));
   }
   downloadBlob(lines.join('\n'), 'rm-master-'+((RM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
 }

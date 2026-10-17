@@ -52,6 +52,7 @@ type Product = {
   idealStorage: string | null;   // Frozen | Chiller | Vegetable | Dry Store | Packaging | On-Demand | null
   idealUom: string | null;       // UOM the Excel ideal quantities are expressed in (e.g. "Bag", "Kg", "Pkt")
   idealQty: Record<string, number> | null;   // per-outlet ideal inventory, e.g. { SHIVALIK: 2, KKD: 3, ... }
+  isGhost?: boolean;             // true when this row came ONLY from the Ideal Inventory sheet (no matching PACT product)
   raw?: Record<string, unknown>;
 };
 
@@ -88,8 +89,36 @@ function idealEntryFor(name: string): IdealItem | null {
   return IDEAL_BY_EXACT.get(name.toLowerCase().trim()) || null;
 }
 
+// Return "ghost" Product rows for every Ideal Inventory item that has NO
+// matching PACT product (case-insensitive exact name match). These are
+// surfaced in the Raw Material Master so the ops team can see which items
+// on the physical ideal-stock list still need to be created in PACT.
+function ghostIdealProducts(matchedNames: Set<string>): Product[] {
+  const ghosts: Product[] = [];
+  for (const it of IDEAL_FILE.items || []) {
+    if (!it || !it.name) continue;
+    if (matchedNames.has(it.name.toLowerCase().trim())) continue;
+    ghosts.push({
+      code: "",
+      name: it.name,
+      printLevel: null,
+      unit: null,
+      scale: null,
+      levels: {},
+      idealWarehouse: "",
+      scanBatches: null,
+      group: "",
+      idealStorage: it.storage || null,
+      idealUom: it.uom || null,
+      idealQty: it.ideals || null,
+      isGhost: true,
+    });
+  }
+  return ghosts;
+}
+
 function staticProducts(): Product[] {
-  return STATIC.map((p) => {
+  const base: Product[] = STATIC.map((p) => {
     const levels = (p.levels || {}) as Record<string, Level>;
     const pl = p.printLevel || "";
     const lv: Level = (pl && levels[pl]) || {};
@@ -108,6 +137,9 @@ function staticProducts(): Product[] {
       idealQty: (idealEntryFor(p.name || "")?.ideals) ?? null,
     };
   });
+  // Append ghost entries for ideal items not present in PACT catalog
+  const matched = new Set(base.filter((p) => p.idealStorage).map((p) => p.name.toLowerCase().trim()));
+  return base.concat(ghostIdealProducts(matched));
 }
 
 // in-memory cache (per Node process)
@@ -234,8 +266,11 @@ export async function GET(req: Request) {
       products.push(out);
     }
 
-    CACHE = { at: Date.now(), body: products, synced_at: snap?.synced_at ?? null, source: "pact-live" };
-    return respond(products, snap?.synced_at ?? null, "pact-live", includeRaw);
+    // Append ghost entries for ideal items not present in PACT catalog
+    const matchedLive = new Set(products.filter((p) => p.idealStorage).map((p) => p.name.toLowerCase().trim()));
+    const withGhosts = products.concat(ghostIdealProducts(matchedLive));
+    CACHE = { at: Date.now(), body: withGhosts, synced_at: snap?.synced_at ?? null, source: "pact-live" };
+    return respond(withGhosts, snap?.synced_at ?? null, "pact-live", includeRaw);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const body = staticProducts();
