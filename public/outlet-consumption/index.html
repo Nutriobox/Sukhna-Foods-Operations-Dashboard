@@ -218,13 +218,14 @@
     <th>RM Code</th>
     <th>Raw Material Name</th>
     <th>Category</th>
+    <th title="Packing UOM from the Ideal Inventory sheet (how the team orders the item, e.g. Carton, Pkt, Bunch)">Packing UOM</th>
     <th title="L3 — case / outermost unit (e.g. Bag)">L3</th>
     <th title="How many L2 units are in one L3">L3 Conversion</th>
     <th title="L2 — pack unit (e.g. Kg)">L2</th>
     <th title="How many L1 base units are in one L2">L2 Conversion</th>
     <th title="L1 — base unit of measure (e.g. Gms)">L1 UOM</th>
    </tr></thead>
-   <tbody id="tbodyRm"><tr><td colspan="9" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodyRm"><tr><td colspan="10" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -694,6 +695,9 @@ function renderRm(){
   // HARD SCOPE: the Raw Material Master only ever shows Ideal Inventory
   // items. The Category dropdown narrows by outlet storage class; the
   // ⚠ Errors toggle isolates Excel items that have no PACT match.
+  // Stable sort order so categories cluster together instead of interleaving.
+  // Matches the dropdown order.
+  const CAT_ORDER = { 'Frozen':1, 'Chiller':2, 'Vegetable':3, 'Dry Store':4, 'Packaging':5 };
   const list = RM.items.filter(x => {
     if(!x.idealStorage) return false;
     if(SHOW_ERRORS_ONLY && !x.isGhost) return false;
@@ -704,6 +708,11 @@ function renderRm(){
       if(!cd.includes(q) && !nm.includes(q)) return false;
     }
     return true;
+  }).sort((a, b) => {
+    const ca = CAT_ORDER[a.idealStorage] || 99;
+    const cb = CAT_ORDER[b.idealStorage] || 99;
+    if(ca !== cb) return ca - cb;
+    return (a.name || '').localeCompare(b.name || '');
   });
   RM.meta.count = list.length;
   if(CURTAB === 'rm') updateHeaderStats();
@@ -744,11 +753,13 @@ function renderRm(){
     const groupBadge = idealChip(x.idealStorage);
     if(x.isGhost){
       const l1 = x.idealUom ? `<span class="code">${esc(x.idealUom)}</span>` : '<span class="mut">—</span>';
+      const packUomGhost = x.idealUom ? `<span class="code">${esc(x.idealUom)}</span>` : '<span class="mut">—</span>';
       return `<tr style="background:#fef2f2">
         <td class="mut">${i+1}</td>
         <td>${ghostCodeChip()}</td>
         <td><span style="color:#991b1b">${esc(x.name)}</span></td>
         <td>${groupBadge}</td>
+        <td>${packUomGhost}</td>
         <td><span class="mut">—</span></td>
         <td><span class="mut">—</span></td>
         <td><span class="mut">—</span></td>
@@ -765,11 +776,13 @@ function renderRm(){
       ? `${qty(x.packScale)} <span class="code">${esc(x.baseUnit)}</span>`
       : '<span class="mut">—</span>';
     const l1Cell = x.baseUnit ? `<span class="code">${esc(x.baseUnit)}</span>` : '<span class="mut">—</span>';
+    const packUomCell = x.idealUom ? `<span class="code">${esc(x.idealUom)}</span>` : '<span class="mut">—</span>';
     return `<tr>
       <td class="mut">${i+1}</td>
       <td class="code">${esc(x.code)}</td>
       <td>${esc(x.name)}</td>
       <td>${groupBadge}</td>
+      <td>${packUomCell}</td>
       <td>${l3Unit}</td>
       <td>${l3Conv}</td>
       <td>${l2Unit}</td>
@@ -778,17 +791,17 @@ function renderRm(){
     </tr>`;
   }).join('');
   const extra = list.length > 3000
-    ? `<tr><td colspan="9" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
+    ? `<tr><td colspan="10" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
     : '';
   $('tbodyRm').innerHTML = (rows
-    || '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center">No raw materials match this filter.</td></tr>') + extra;
+    || '<tr><td colspan="10" class="mut" style="padding:20px;text-align:center">No raw materials match this filter.</td></tr>') + extra;
 }
 
 function exportCsvRm(){
   const q = ($('qrm').value || '').trim().toLowerCase();
   const idealFilter = $('idealRm') ? ($('idealRm').value || '') : '';
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const header = ['RM Code','Raw Material Name','Category','L3','L3 Conversion','L2','L2 Conversion','L1 UOM','Status'];
+  const header = ['RM Code','Raw Material Name','Category','Packing UOM','L3','L3 Conversion','L2','L2 Conversion','L1 UOM','Status'];
   const lines = [header.map(esc2).join(',')];
   for(const x of RM.items){
     if(!x.idealStorage) continue;
@@ -807,7 +820,7 @@ function exportCsvRm(){
       ? `${x.packScale} ${x.baseUnit}` : '';
     const l1  = x.baseUnit || x.idealUom || '';
     const status = x.isGhost ? 'NOT IN PACT' : 'OK';
-    lines.push([x.code || '', x.name, x.idealStorage, l3u, l3c, l2u, l2c, l1, status].map(esc2).join(','));
+    lines.push([x.code || '', x.name, x.idealStorage, x.idealUom || '', l3u, l3c, l2u, l2c, l1, status].map(esc2).join(','));
   }
   downloadBlob(lines.join('\n'), 'rm-master-'+((RM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
 }
