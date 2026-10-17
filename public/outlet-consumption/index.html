@@ -149,46 +149,42 @@
     <option value="Zomato">Zomato</option>
     <option value="Delivery">Delivery</option>
    </select>
-   <input id="qSd" class="search" placeholder="Search product name…" oninput="renderSd()" style="min-width:220px">
+   <input id="qSd" class="search" placeholder="Search product name or invoice no…" oninput="renderSd()" style="min-width:220px">
    <button class="btn" onclick="exportCsvSd()">⬇ Export CSV</button>
-   <button class="btn prim" id="btnSyncSd" onclick="loadSd(true)" title="Re-fetch from AI Food Inspector Supabase (PetPooja webhook sink)">⚡ Refresh</button>
+   <input id="pttUpload" type="file" accept=".csv" style="display:none" onchange="uploadPetPoojaCsv(event)">
+   <button class="btn prim" onclick="document.getElementById('pttUpload').click()" title="Upload PetPooja Order Summary Item Report CSV. Fills in Unit MRP / Item Total / Discount / Tax / Round Off / Order Total from the billing module.">⬆ Upload PetPooja Report</button>
+   <button class="btn" id="btnSyncSd" onclick="loadSd(true)" title="Re-fetch from AI Food Inspector Supabase (PetPooja webhook sink)">⚡ Reload Webhook</button>
    <span id="syncStatSd" class="mut" style="font-size:12.5px"></span>
   </div>
   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fffbeb;border-color:#fcd34d">
    <div style="font-size:12.5px;color:#92400e;line-height:1.45">
-    <b>Source:</b> PetPooja webhook feed (via AI Food Inspector Supabase) &mdash; captures date, outlet, product name, qty, channel in real time since 29 Jun 2026.
-    <br/><b>Billing-only columns</b> (Unit MRP Price, Value, Discounts, GST / HSN / SGST / CGST / IGST / Tax) sit in PetPooja's billing module and come through the <i>Global Sales API</i>, which is pending from PetPooja. Those columns show <code>—</code> until that feed lands; the layout is ready to receive them.
+    <b>Two data sources:</b>
+    <ol style="margin:4px 0 0 18px;padding:0">
+     <li><b>Live webhook feed</b> (default, auto-loads on page open) &mdash; real-time KOT signal from PetPooja. Carries invoice number, outlet, product, qty, channel. <b>No billing columns</b> &mdash; those travel through a different PetPooja feed.</li>
+     <li><b>Uploaded PetPooja CSV</b> &mdash; use <b>⬆ Upload PetPooja Report</b> above to drop in the "Order Summary Item Report" exported from PetPooja. Fills in Unit MRP, Item Total, Discount, Tax, Round Off, Order Total and every per-order field, keyed on the <b>Invoice No</b>.</li>
+    </ol>
    </div>
   </div>
   <div class="card"><div class="scroll"><table id="tblSd">
    <thead><tr>
-    <th>Doc Prefix</th>
-    <th>Doc No</th>
-    <th>Doc Date</th>
+    <th title="Common invoice number from PetPooja billing (also the key for matching back to the uploaded CSV)">Invoice No</th>
+    <th>Date</th>
     <th>Outlet</th>
     <th>Channel</th>
+    <th>Order Type</th>
+    <th>Payment</th>
     <th>Product Name</th>
     <th>Category</th>
     <th class="r">Qty</th>
-    <th>Units</th>
-    <th class="r">Unit MRP</th>
-    <th class="r">Value</th>
-    <th class="r">Disc %</th>
-    <th class="r">Disc Amt</th>
-    <th>GST HSN</th>
-    <th>Product Type</th>
-    <th class="r">Tax</th>
-    <th class="r">SGST</th>
-    <th class="r">SGST Amt</th>
-    <th class="r">CGST</th>
-    <th class="r">CGST Amt</th>
-    <th class="r">IGST</th>
-    <th class="r">IGST Amt</th>
-    <th class="r">Roff</th>
-    <th>Remarks</th>
-    <th>Created Date</th>
+    <th class="r" title="item_price from the CSV">Unit MRP</th>
+    <th class="r" title="item_total from the CSV">Item Total</th>
+    <th class="r" title="Order-level discount (same value repeats on every item of the same invoice)">Discount</th>
+    <th class="r" title="Order-level total tax (same value repeats on every item of the same invoice)">Tax</th>
+    <th class="r">Round Off</th>
+    <th class="r" title="Final billed amount for the whole order">Order Total</th>
+    <th>Customer</th>
    </tr></thead>
-   <tbody id="tbodySd"><tr><td colspan="25" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodySd"><tr><td colspan="16" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -1124,65 +1120,161 @@ async function loadSd(fresh){
     if(stat) stat.textContent = '✓ ' + SD.rows.length.toLocaleString('en-IN') + ' rows · ' + Math.round((Date.now()-t0)/100)/10 + 's';
   } catch(e){
     if(stat) stat.textContent = '✗ ' + (e.message || e);
-    $('tbodySd').innerHTML = `<tr><td colspan="25" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales Data: ${esc(e.message || e)}</td></tr>`;
+    $('tbodySd').innerHTML = `<tr><td colspan="16" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales Data: ${esc(e.message || e)}</td></tr>`;
   }
 }
 
 function renderSd(){
   const q = ($('qSd').value || '').trim().toLowerCase();
-  const list = SD.rows.filter(r => !q || String(r.product_name || '').toLowerCase().includes(q));
+  const list = SD.rows.filter(r => {
+    if(!q) return true;
+    const nm = String(r.product_name || '').toLowerCase();
+    const inv = String(r.invoice_no || r.doc_no || '').toLowerCase();
+    return nm.includes(q) || inv.includes(q);
+  });
   const dash = '<span class="mut">—</span>';
-  const rows = list.slice(0, 3000).map(r => `
+  const money = (v) => (v == null || v === '' || isNaN(Number(v))) ? dash
+                     : '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const rows = list.slice(0, 5000).map(r => `
     <tr>
-      <td class="code">${esc(r.doc_prefix || '')}</td>
-      <td class="code">${esc(r.doc_no || dash)}</td>
+      <td class="code" style="font-weight:600">${esc(r.invoice_no || r.doc_no || '') || dash}</td>
       <td>${esc(r.doc_date || '')}</td>
       <td>${esc(r.outlet_name || '')}</td>
       <td>${r.channel ? `<span class="sb">${esc(r.channel)}</span>` : dash}</td>
+      <td>${esc(r.order_type || '') || dash}</td>
+      <td>${esc(r.payment_type || '') || dash}</td>
       <td>${esc(r.product_name || '')}</td>
       <td>${r.category ? `<span class="mut">${esc(r.category)}</span>` : dash}</td>
       <td class="r">${qty(r.qty)}</td>
-      <td>${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td>${dash}</td>
-      <td>${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td class="r">${dash}</td>
-      <td>${esc(r.remarks || '') || dash}</td>
-      <td class="mut" style="font-size:11.5px">${esc(r.created_date || '')}</td>
+      <td class="r">${money(r.unit_mrp)}</td>
+      <td class="r">${money(r.item_total)}</td>
+      <td class="r">${money(r.discount)}</td>
+      <td class="r">${money(r.tax)}</td>
+      <td class="r">${money(r.round_off)}</td>
+      <td class="r" style="font-weight:600">${money(r.order_total)}</td>
+      <td>${esc(r.customer_name || '') || dash}</td>
     </tr>`).join('');
-  const extra = list.length > 3000
-    ? `<tr><td colspan="25" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more rows — narrow the search or shorten the date range</td></tr>`
+  const extra = list.length > 5000
+    ? `<tr><td colspan="16" class="mut" style="padding:14px;text-align:center">… ${list.length-5000} more — refine the search to see them</td></tr>`
     : '';
-  const limitWarning = SD.meta.limit_hit
-    ? `<tr><td colspan="25" style="padding:14px;text-align:center;background:#fef3c7;color:#92400e;font-size:12.5px">⚠ Row cap of ${(SD.meta.rows_total||'?').toLocaleString('en-IN')} hit — narrow date range or add an outlet filter for the full window</td></tr>`
-    : '';
-  $('tbodySd').innerHTML = limitWarning + (rows ||
-    '<tr><td colspan="25" class="mut" style="padding:20px;text-align:center">No sales in this window.</td></tr>') + extra;
+  $('tbodySd').innerHTML = (rows
+    || '<tr><td colspan="16" class="mut" style="padding:20px;text-align:center">No sales rows — try changing the date range or uploading a PetPooja report.</td></tr>') + extra;
+}
+
+// ── PetPooja CSV upload (Order Summary Item Report) ──────────────────────────
+// Minimal RFC-4180 CSV parser that handles quoted fields with embedded commas
+// and newlines. Returns an array of row objects keyed by the header row.
+function parsePetPoojaCsv(text){
+  const rows = [[]]; let cur = ''; let inQ = false; let i = 0;
+  while(i < text.length){
+    const c = text[i];
+    if(inQ){
+      if(c === '"' && text[i+1] === '"') { cur += '"'; i += 2; continue; }
+      if(c === '"') { inQ = false; i++; continue; }
+      cur += c; i++;
+    } else {
+      if(c === ',') { rows[rows.length-1].push(cur); cur = ''; i++; continue; }
+      if(c === '\n'){ rows[rows.length-1].push(cur); cur = ''; rows.push([]); i++; continue; }
+      if(c === '\r'){ i++; continue; }
+      if(c === '"' && cur === '') { inQ = true; i++; continue; }
+      cur += c; i++;
+    }
+  }
+  rows[rows.length-1].push(cur);
+  if(rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') rows.pop();
+  if(rows.length < 2) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1).map(vals => {
+    const o = {};
+    for(let k = 0; k < headers.length; k++) o[headers[k]] = (vals[k] == null ? '' : vals[k]);
+    return o;
+  });
+}
+
+async function uploadPetPoojaCsv(ev){
+  const file = ev.target.files && ev.target.files[0];
+  if(!file) return;
+  const stat = $('syncStatSd');
+  if(stat) stat.textContent = ' …parsing CSV…';
+  try {
+    const text = await file.text();
+    const raw = parsePetPoojaCsv(text);
+    if(!raw.length) throw new Error('CSV has no rows');
+    // Validate shape: must have the signature PetPooja columns
+    const required = ['invoice_no', 'restaurant_name', 'date', 'item_name', 'item_quantity', 'item_price', 'item_total'];
+    const missing = required.filter(k => !(k in raw[0]));
+    if(missing.length) throw new Error('Missing expected columns: ' + missing.join(', ') + ' — is this the right PetPooja report?');
+    // Transform CSV rows to internal SD row shape
+    SD.rows = raw.map(r => ({
+      invoice_no:   (r.invoice_no || '').trim(),
+      doc_date:     (r.date || '').slice(0, 10),
+      doc_time:     (r.date || '').slice(11, 19),
+      outlet_name:  (r.restaurant_name || '').trim(),
+      channel:      (r.area || '').trim(),
+      order_type:   (r.order_type || '').trim(),
+      payment_type: (r.payment_type || '').trim(),
+      product_name: (r.item_name || '').trim(),
+      category:     (r.category_name || '').trim(),
+      qty:          Number(r.item_quantity) || 0,
+      unit_mrp:     Number(r.item_price) || 0,
+      item_total:   Number(r.item_total) || 0,
+      discount:     Number(r.discount) || 0,
+      tax:          Number(r.total_tax) || 0,
+      round_off:    Number(r.round_off) || 0,
+      order_total:  Number(r.total) || 0,
+      customer_name: (r.customer_name || '').trim(),
+      customer_phone: (r.customer_phone || '').trim(),
+      pre_tax_amount: Number(r.my_amount) || 0,
+      delivery_charge: Number(r.delivery_charge) || 0,
+      container_charge: Number(r.container_charge) || 0,
+      service_charge: Number(r.service_charge) || 0,
+      status:       (r.status || '').trim(),
+      virtual_brand: (r.virtual_brand_name || '').trim(),
+      remarks:      (r.order_cancel_reason || '').trim(),
+      _source:      'csv',
+    }));
+    // Rebuild outlet dropdown from the CSV outlets
+    const outletsSeen = [...new Set(SD.rows.map(r => r.outlet_name).filter(Boolean))].sort();
+    const sel = $('outletSd');
+    sel.innerHTML = '<option value="">All outlets (' + outletsSeen.length + ')</option>' +
+      outletsSeen.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+    // Date range reflects what the CSV contains
+    const dates = [...new Set(SD.rows.map(r => r.doc_date).filter(Boolean))].sort();
+    const fromI = $('dateFromSd'), toI = $('dateToSd');
+    if(dates.length){ fromI.value = dates[0]; toI.value = dates[dates.length - 1]; }
+    const invoices = new Set(SD.rows.map(r => r.invoice_no).filter(Boolean));
+    SD.meta = {
+      source: 'PetPooja CSV upload (' + file.name + ')',
+      synced_at: new Date().toISOString(),
+      count: SD.rows.length,
+      invoices_count: invoices.size,
+    };
+    SD_LOADED.v = true;
+    if(CURTAB === 'sd') updateHeaderStats();
+    renderSd();
+    // Status: tell user what landed
+    if(stat) stat.textContent = '✓ ' + SD.rows.length.toLocaleString('en-IN') + ' items · ' +
+      invoices.size.toLocaleString('en-IN') + ' invoices · ' +
+      outletsSeen.length + ' outlet' + (outletsSeen.length === 1 ? '' : 's') + ' · ' +
+      (dates.length ? dates[0] + (dates.length > 1 ? ' → ' + dates[dates.length-1] : '') : '');
+    // Reset the file input so uploading the same file again still fires change
+    ev.target.value = '';
+  } catch(e){
+    if(stat) stat.textContent = '✗ ' + (e.message || e);
+    toast('CSV upload failed: ' + (e.message || e), 5000);
+  }
 }
 
 function exportCsvSd(){
-  const q = ($('qSd').value || '').trim().toLowerCase();
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  // Column order matches the PetPooja POS Sale Invoice Report Excel exactly
-  const header = ['Doc Prefix','Doc No','Doc Date','Outlet','Channel','Product Name','Category','Qty','Units','Unit MRP Price','Value','DiscPer','DiscAmt','GST HSN/SAC Code','Product Type','Tax','SGST','SGSTAmount','CGST','CGSTAmount','IGST','IGSTAmount','Roff','Remarks','CreatedDate'];
+  const header = ['Invoice No','Date','Outlet','Channel','Order Type','Payment','Product Name','Category','Qty','Unit MRP','Item Total','Discount','Tax','Round Off','Order Total','Customer'];
   const lines = [header.map(esc2).join(',')];
   for(const r of SD.rows){
-    if(q && !String(r.product_name||'').toLowerCase().includes(q)) continue;
     lines.push([
-      r.doc_prefix, r.doc_no, r.doc_date, r.outlet_name, r.channel, r.product_name, r.category,
-      r.qty, r.units, r.unit_mrp_price, r.value, r.disc_per, r.disc_amt,
-      r.gst_hsn, r.product_type, r.tax, r.sgst_pct, r.sgst_amt, r.cgst_pct, r.cgst_amt,
-      r.igst_pct, r.igst_amt, r.roff, r.remarks, r.created_date,
+      r.invoice_no || r.doc_no || '', r.doc_date || '', r.outlet_name || '', r.channel || '',
+      r.order_type || '', r.payment_type || '', r.product_name || '', r.category || '',
+      r.qty, r.unit_mrp, r.item_total, r.discount, r.tax, r.round_off, r.order_total,
+      r.customer_name || ''
     ].map(esc2).join(','));
   }
   const today = (new Date()).toISOString().slice(0,10);
