@@ -129,13 +129,21 @@ export async function GET() {
     };
   } catch (e) { errors["restaurants"] = e instanceof Error ? e.message : String(e); }
 
-  // petpooja_events / pact_events — just activity timestamps so we know the webhooks are still firing
+  // petpooja_events / pact_events — count + activity timestamps + a few sample
+  // ROWS WITH PAYLOAD so we can see whether PetPooja's "Global Sales API"
+  // webhook is already pushing billing data that AIFI isn't processing yet.
   for (const t of ["petpooja_events", "pact_events"]) {
     try {
       const c = await count(t, url, key);
-      const latest = await sb(`${t}?select=id,received_at&order=received_at.desc&limit=1`, url, key);
-      const row = (Array.isArray(latest.body) ? (latest.body as Row[])[0] : null) ?? null;
-      out[t] = { count: c.count, latest: row };
+      // Try several common column names for the raw body — different schemas use different names.
+      const latest = await sb(`${t}?select=*&order=received_at.desc&limit=5`, url, key);
+      const rows = (Array.isArray(latest.body) ? latest.body : []) as Row[];
+      out[t] = {
+        count: c.count,
+        columns: rows[0] ? Object.keys(rows[0]) : [],
+        latest: rows[0] ?? null,
+        samples: rows,
+      };
     } catch (e) { errors[t] = e instanceof Error ? e.message : String(e); }
   }
 
