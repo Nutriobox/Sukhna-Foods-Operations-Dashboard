@@ -10,11 +10,26 @@ async function login(page) {
     throw new Error('PACT_USER / PACT_PASSWORD not set. Copy .env.example to .env and fill them in.');
   }
 
-  await page.goto(url, { waitUntil: 'load' });
+  // PACT's login page is sometimes slow (>30s). The caller's setDefaultTimeout
+  // (20s) is too tight; use an explicit per-call timeout with 'domcontentloaded'
+  // (avoids waiting for every deferred resource) and retry twice on timeout.
+  let gotoErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+      gotoErr = null;
+      break;
+    } catch (e) {
+      gotoErr = e;
+      console.log(`[login] page.goto attempt ${attempt}/3 failed: ${String(e.message).slice(0, 120)}`);
+      if (attempt < 3) await page.waitForTimeout(5000);
+    }
+  }
+  if (gotoErr) throw gotoErr;
 
   const userBox = page.getByRole('textbox', { name: 'Enter User Name' });
   const passBox = page.getByRole('textbox', { name: 'Password' });
-  await userBox.waitFor({ state: 'visible', timeout: 20000 });
+  await userBox.waitFor({ state: 'visible', timeout: 45000 });
 
   // Force English so field labels / routing are deterministic regardless of the
   // saved default language.

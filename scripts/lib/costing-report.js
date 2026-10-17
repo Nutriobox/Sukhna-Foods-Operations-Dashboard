@@ -73,8 +73,21 @@ async function setDateRange(page, fromStr, toStr) {
 }
 
 // A ReportDataSet table is "real report data" only if its first row has more than
-// one column and isn't PACT's tiny StaticReportType init payload.
+// one column, isn't PACT's tiny StaticReportType init payload, AND has at least
+// MIN_REAL_ROWS rows. Without the row-count check, PACT's intermediate init table
+// (column defs with 1-2 all-null rows) matches and the sync records a bogus
+// "status: ok, row_count: 2" with no actual data (observed in BOM/SI 2026-10-17).
+const MIN_REAL_ROWS = 10;
 function isRealReport(rows) {
+  if (!Array.isArray(rows) || rows.length < MIN_REAL_ROWS) return false;
+  const cols = Object.keys(rows[0] || {});
+  if (cols.length <= 1) return false;
+  if (cols.some((c) => /StaticReportType/i.test(c)) && cols.length <= 2) return false;
+  return true;
+}
+// Fallback for the end-of-wait path: accept a smaller table if nothing bigger
+// ever arrived. Still rejects StaticReportType stubs and single-column shells.
+function isUsableReport(rows) {
   if (!Array.isArray(rows) || !rows.length) return false;
   const cols = Object.keys(rows[0] || {});
   if (cols.length <= 1) return false;
@@ -135,15 +148,26 @@ async function runCostingReport({ report, headers, colmap }) {
   const browser = await chromium.launch({ headless: true, args: ['--window-size=1680,1050'] });
   const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 }, acceptDownloads: true });
   const page = await context.newPage();
-  page.setDefaultTimeout(20000);
+  page.setDefaultTimeout(60000); // PACT can be slow; 20s was too tight (observed timeouts 2026-10-17)
 
-  // Intercept every ReportDataSet response; keep the real table with most rows.
-  let best = null, seen = 0;
+  // Intercept every ReportDataSet response. Keep two candidates:
+  //   `best`     — the largest table that passes isRealReport (>=10 rows).
+  //   `fallback` — the largest table that is at least usable (>1 col, not stub)
+  //                — used only if nothing bigger ever arrives.
+  let best = null, fallback = null, seen = 0;
   const consider = (body) => {
     if (!body || body.length < 120) return;
     let json; try { json = JSON.parse(body); } catch { return; }
     const tables = (json && json.Tables) || [];
-    for (const t of tables) if (isRealReport(t) && (!best || t.length > best.length)) { best = t; log('[capture] table -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols'); }
+    for (const t of tables) {
+      if (isRealReport(t) && (!best || t.length > best.length)) {
+        best = t;
+        log('[capture] REAL table -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols');
+      } else if (isUsableReport(t) && (!fallback || t.length > fallback.length)) {
+        fallback = t;
+        log('[capture] fallback stub -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols');
+      }
+    }
   };
   await page.route(/\/api\/Report\/ReportDataSet/i, async (route) => {
     if (route.request().method() !== 'POST') return route.continue().catch(() => {});
@@ -220,11 +244,11 @@ async function runCostingReport({ report, headers, colmap }) {
     // intermediate table can arrive first. Wait until the captured size has been
     // stable for SETTLE_MS (and at least MIN_WAIT_MS total) so we always take the
     // complete report, never an early partial. The capture handler already keeps
-    // the largest table seen, so we just wait for it to stop growing.
+    // the largest REAL table seen, so we just wait for it to stop growing.
     {
-      const deadline = Date.now() + 120000; // hard cap ~2 min (< the worker's 5-min job timeout)
-      const SETTLE_MS = 8000;                // accept once the row count hasn't grown for 8s
-      const MIN_WAIT_MS = 15000;             // always give the full report time to stream in
+      const deadline = Date.now() + 180000; // hard cap ~3 min (< the worker's 5-min job timeout)
+      const SETTLE_MS = 12000;               // accept once the row count hasn't grown for 12s
+      const MIN_WAIT_MS = 30000;             // always give the full report time to stream in
       const t0 = Date.now();
       let lastLen = -1, lastGrow = Date.now();
       while (Date.now() < deadline) {
@@ -234,8 +258,12 @@ async function runCostingReport({ report, headers, colmap }) {
         if (best && (Date.now() - lastGrow >= SETTLE_MS) && (Date.now() - t0 >= MIN_WAIT_MS)) break;
       }
       if (best) log('[capture] settled at ' + best.length + ' rows');
+      else if (fallback) log('[capture] no real table captured; fallback has ' + fallback.length + ' rows (will fail — not real data)');
     }
-    if (!best || !best.length) throw new Error('No real ReportDataSet data captured for "' + report + '" (ReportDataSet responses seen=' + seen + '). The report UI may need a different trigger or a date range.');
+    if (!best || !best.length) {
+      const fbInfo = fallback ? ' Fallback stub table had ' + fallback.length + ' rows, keys: ' + Object.keys(fallback[0]).slice(0, 10).join(',') + '.' : '';
+      throw new Error('No real ReportDataSet data captured for "' + report + '" (ReportDataSet responses seen=' + seen + ', min rows required=' + MIN_REAL_ROWS + ').' + fbInfo + ' Likely: PACT returned only an init stub — the OK/Refresh click never triggered the real report, or the double-click opened the wrong page.');
+    }
 
     const src = best;
     log('[report] captured ' + src.length + ' rows, keys: ' + Object.keys(src[0]).slice(0, 10).join(','));
@@ -251,7 +279,10 @@ async function runCostingReport({ report, headers, colmap }) {
     }));
     const rowCount = aoa.length - 1;
     log(`Captured ${rowCount} rows for ${report} (${headers.length} columns).`);
-    await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: rowCount, source: 'pact-browserdrive', status: 'ok', error: dateDiag, data: aoa });
+    // Save a short diagnostic trail on success too, so we can tell apart a healthy
+    // run from one that squeaked past the row-count floor without having to re-run.
+    const okDiag = ('rows=' + rowCount + ' | seen=' + seen + (dateDiag ? ' | ' + dateDiag.slice(0, 500) : '') + '\n--- log ---\n' + logTail(30)).slice(0, 3000);
+    await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: rowCount, source: 'pact-browserdrive', status: 'ok', error: okDiag, data: aoa });
     log('SYNC DONE.');
   } catch (e) {
     await fail(String(e && e.message ? e.message : e));
