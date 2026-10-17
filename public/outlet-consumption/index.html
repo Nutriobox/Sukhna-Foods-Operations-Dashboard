@@ -293,10 +293,16 @@
    <input id="dateToPu" type="date" onchange="renderPu()" class="btn" style="padding:7px 10px" title="To date (IST, inclusive)">
    <select id="outletPu" onchange="renderPu()" class="btn" style="padding-right:28px" title="Filter by outlet">
     <option value="">All outlets</option>
-    <option value="Rajender Nagar">Rajender Nagar</option>
-    <option value="GGN PH2">GGN PH2</option>
-    <option value="GGN Sec15">GGN Sec15</option>
-    <option value="Cloud Kitchen">Cloud Kitchen</option>
+    <option value="Rajinder Nagar">Rajinder Nagar</option>
+    <option value="DLF Phase 2">DLF Phase 2</option>
+    <option value="Sector 63 Noida">Sector 63 Noida</option>
+    <option value="Dwarka">Dwarka</option>
+    <option value="Janakpuri">Janakpuri</option>
+    <option value="Karkardooma">Karkardooma</option>
+    <option value="Noida">Noida</option>
+    <option value="Prashant Vihar">Prashant Vihar</option>
+    <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+    <option value="Shivalik">Shivalik</option>
    </select>
    <select id="catPu" onchange="renderPu()" class="btn" style="padding-right:28px" title="Storage category of the GRN items">
     <option value="">All categories</option>
@@ -367,10 +373,16 @@
      <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Outlet</span>
      <select id="oiFormOutlet" class="btn" style="width:100%;padding:10px 14px;padding-right:28px">
       <option value="">— Choose outlet —</option>
-      <option value="Rajender Nagar">Rajender Nagar</option>
-      <option value="GGN PH2">GGN PH2</option>
-      <option value="GGN Sec15">GGN Sec15</option>
-      <option value="Cloud Kitchen">Cloud Kitchen</option>
+      <option value="Rajinder Nagar">Rajinder Nagar</option>
+      <option value="DLF Phase 2">DLF Phase 2</option>
+      <option value="Sector 63 Noida">Sector 63 Noida</option>
+      <option value="Dwarka">Dwarka</option>
+      <option value="Janakpuri">Janakpuri</option>
+      <option value="Karkardooma">Karkardooma</option>
+      <option value="Noida">Noida</option>
+      <option value="Prashant Vihar">Prashant Vihar</option>
+      <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+      <option value="Shivalik">Shivalik</option>
      </select>
     </label>
 
@@ -1508,14 +1520,16 @@ function exportCsvSd(){
 
 const PU_MOCK = {
   rows: [
-    { date_time: '2026-10-17T09:14:00+05:30', doc_no: 'GRN-26-27/0421', outlet: 'Rajender Nagar', category: 'Vegetable' },
-    { date_time: '2026-10-17T08:55:00+05:30', doc_no: 'GRN-26-27/0420', outlet: 'GGN PH2',        category: 'Chiller' },
-    { date_time: '2026-10-16T19:02:00+05:30', doc_no: 'GRN-26-27/0419', outlet: 'GGN Sec15',      category: 'Frozen' },
-    { date_time: '2026-10-16T14:30:00+05:30', doc_no: 'GRN-26-27/0418', outlet: 'Cloud Kitchen',  category: 'Dry Store' },
-    { date_time: '2026-10-16T11:12:00+05:30', doc_no: 'GRN-26-27/0417', outlet: 'Rajender Nagar', category: 'Packaging' },
-    { date_time: '2026-10-15T18:40:00+05:30', doc_no: 'GRN-26-27/0416', outlet: 'GGN PH2',        category: 'Vegetable' },
-    { date_time: '2026-10-15T10:05:00+05:30', doc_no: 'GRN-26-27/0415', outlet: 'GGN Sec15',      category: 'Dry Store' },
-    { date_time: '2026-10-14T16:48:00+05:30', doc_no: 'GRN-26-27/0414', outlet: 'Cloud Kitchen',  category: 'Chiller' },
+    { date_time: '2026-10-17T09:14:00+05:30', doc_no: 'GRN-26-27/0421', outlet: 'Rajinder Nagar',      category: 'Vegetable' },
+    { date_time: '2026-10-17T08:55:00+05:30', doc_no: 'GRN-26-27/0420', outlet: 'DLF Phase 2',         category: 'Chiller' },
+    { date_time: '2026-10-16T19:02:00+05:30', doc_no: 'GRN-26-27/0419', outlet: 'Sector 15 Gurugram', category: 'Frozen' },
+    { date_time: '2026-10-16T14:30:00+05:30', doc_no: 'GRN-26-27/0418', outlet: 'Noida',               category: 'Dry Store' },
+    { date_time: '2026-10-16T11:12:00+05:30', doc_no: 'GRN-26-27/0417', outlet: 'Shivalik',            category: 'Packaging' },
+    { date_time: '2026-10-15T18:40:00+05:30', doc_no: 'GRN-26-27/0416', outlet: 'Prashant Vihar',      category: 'Vegetable' },
+    { date_time: '2026-10-15T10:05:00+05:30', doc_no: 'GRN-26-27/0415', outlet: 'Dwarka',              category: 'Dry Store' },
+    { date_time: '2026-10-14T16:48:00+05:30', doc_no: 'GRN-26-27/0414', outlet: 'Karkardooma',         category: 'Chiller' },
+    { date_time: '2026-10-14T09:20:00+05:30', doc_no: 'GRN-26-27/0413', outlet: 'Janakpuri',           category: 'Vegetable' },
+    { date_time: '2026-10-13T15:05:00+05:30', doc_no: 'GRN-26-27/0412', outlet: 'Sector 63 Noida',    category: 'Frozen' },
   ],
   details: {
     'GRN-26-27/0421': {
@@ -1735,7 +1749,7 @@ function oiSubmitForm(){
   OI_LOADED.v = true;
   $('oiFormView').style.display = 'none';
   $('oiCountView').style.display = '';
-  // Header line: "Rajender Nagar  ·  Sat 18 Oct 2026, 09:30 AM"
+  // Header line: "Rajinder Nagar  ·  Sat 18 Oct 2026, 09:30 AM"
   $('oiHeader').textContent = outlet + '  ·  ' + fmtTime(dt);
   updateHeaderStats();
   oiRenderCount();
