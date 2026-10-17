@@ -52,15 +52,21 @@ type Order = {
   customer: string | null; channel: string | null; order_type: string | null;
   placed_at: string | null; status: string | null; kot: string | null;
   ext_id: string | null; notes: string | null;
-  // Billing fields — populated from PetPooja webhook payload (added 2026-10-17)
-  invoice_no: string | null; payment_type: string | null; customer_phone: string | null; biller: string | null;
+  // Billing fields — populated from PetPooja webhook payload
+  invoice_no: string | null; payment_type: string | null; customer_phone: string | null; customer_address: string | null; biller: string | null;
   order_total: number | null; core_total: number | null; tax_total: number | null; discount_total: number | null;
   round_off: number | null; service_charge: number | null; delivery_charges: number | null; packaging_charge: number | null;
+  // Extended Order Summary Item Report fields
+  pp_status: string | null; sub_order_type: string | null; group_name: string | null;
+  assignee: string | null; no_of_persons: number | null;
+  additional_charge: number | null; deduction_charge: number | null; waived_off: number | null;
+  order_cancel_reason: string | null; transaction_id: string | null;
 };
 type OrderItem = {
   order_id: number; dish_id: number; quantity: number | null;
   unit_price: number | null; item_total: number | null; item_tax: number | null; item_discount: number | null;
   item_code: string | null; sap_code: string | null;
+  pp_category_name: string | null; specialnotes: string | null;
 };
 type Dish = { id: number; name: string; category: string | null };
 type Restaurant = { id: number; name: string; pp_rest_id: string | null };
@@ -111,7 +117,7 @@ async function fetchItemsFor(url: string, key: string, orderIds: number[]): Prom
     const slice = batches.slice(i, i + CONCURRENCY);
     const results = await Promise.all(slice.map((b) =>
       sbGetPaged<OrderItem>(url, key,
-        `order_items?select=order_id,dish_id,quantity,unit_price,item_total,item_tax,item_discount,item_code,sap_code&order_id=in.(${b.join(",")})`, 20_000)
+        `order_items?select=order_id,dish_id,quantity,unit_price,item_total,item_tax,item_discount,item_code,sap_code,pp_category_name,specialnotes&order_id=in.(${b.join(",")})`, 20_000)
     ));
     for (const rows of results) out.push(...rows);
   }
@@ -171,7 +177,7 @@ export async function GET(req: Request) {
     const fromTs = `${from} 00:00:00`;
     const toTs   = `${to} 23:59:59`;
     const orderFilters = [
-      "select=id,code,restaurant_id,table_no,customer,channel,order_type,placed_at,status,kot,ext_id,notes,invoice_no,payment_type,customer_phone,order_total,core_total,tax_total,discount_total,round_off,service_charge,delivery_charges,packaging_charge,biller",
+      "select=id,code,restaurant_id,table_no,customer,channel,order_type,placed_at,status,kot,ext_id,notes,invoice_no,payment_type,customer_phone,customer_address,order_total,core_total,tax_total,discount_total,round_off,service_charge,delivery_charges,packaging_charge,biller,pp_status,sub_order_type,group_name,assignee,no_of_persons,additional_charge,deduction_charge,waived_off,order_cancel_reason,transaction_id",
       `placed_at=gte.${encodeURIComponent(fromTs)}`,
       `placed_at=lte.${encodeURIComponent(toTs)}`,
       `order=placed_at.desc`,
@@ -203,18 +209,47 @@ export async function GET(req: Request) {
     // from the PetPooja webhook payload (backfilled into orders + order_items on
     // 2026-10-17 from petpooja_events.raw). Field names match what the dashboard's
     // Sales Data renderer looks for.
+    // Row shape mirrors PetPooja's "Order Summary Item Report" CSV column-for-column
+    // (plus a few join-side fields like outlet_id for filtering). The dashboard
+    // renders these in the same order the CSV uses so Satvik's team sees the
+    // familiar layout.
     type Row = {
-      invoice_no: string | null; doc_prefix: string; doc_no: string | null;
-      doc_date: string; product_name: string; qty: number;
-      unit_mrp: number | null; item_total: number | null;
-      discount: number | null; tax: number | null; round_off: number | null;
-      order_total: number | null; pre_tax_amount: number | null;
-      delivery_charge: number | null; container_charge: number | null; service_charge: number | null;
-      item_code: string | null; sap_code: string | null;
-      outlet_id: number; outlet_name: string; channel: string | null; order_type: string | null;
-      payment_type: string | null; customer_name: string | null; customer_phone: string | null;
-      pp_order_code: string | null; dish_id: number; category: string | null;
-      remarks: string | null; created_date: string | null; biller: string | null;
+      // 32 CSV columns in CSV order
+      restaurant_name: string;
+      invoice_no: string | null;
+      date: string | null;
+      payment_type: string | null;
+      order_type: string | null;
+      status: string | null;
+      area: string | null;
+      virtual_brand_name: string | null;
+      brand_grouping: string | null;
+      assign_to: string | null;
+      customer_phone: string | null;
+      customer_name: string | null;
+      customer_address: string | null;
+      persons: number | null;
+      order_cancel_reason: string | null;
+      my_amount: number | null;
+      total_tax: number | null;
+      discount: number | null;
+      delivery_charge: number | null;
+      container_charge: number | null;
+      service_charge: number | null;
+      additional_charge: number | null;
+      deduction_charge: number | null;
+      waived_off: number | null;
+      round_off: number | null;
+      total: number | null;
+      item_name: string;
+      category_name: string | null;
+      sap_code: string | null;
+      item_price: number | null;
+      item_quantity: number | null;
+      item_total: number | null;
+      // Join-side fields the dashboard uses but aren't CSV columns
+      outlet_id: number; dish_id: number; biller: string | null;
+      pp_order_code: string | null; transaction_id: string | null;
     };
     const rows: Row[] = [];
     for (const it of items) {
@@ -227,37 +262,44 @@ export async function GET(req: Request) {
       // Prefer the real PetPooja invoice_no when present (backfilled); fall back to the PP order code otherwise.
       const invoice = o.invoice_no || (o.code ? o.code.replace(/^PP-\d*-?/, "") : null);
       rows.push({
-        invoice_no: invoice,
-        doc_prefix: `${prefix}/`,
-        doc_no: invoice,
-        doc_date: dateOnly,
-        product_name: d.name,
-        qty: Number(it.quantity) || 0,
-        unit_mrp:        it.unit_price    != null ? Number(it.unit_price)    : null,
-        item_total:      it.item_total    != null ? Number(it.item_total)    : null,
-        discount:        o.discount_total != null ? Number(o.discount_total) : null,
-        tax:             o.tax_total      != null ? Number(o.tax_total)      : null,
-        round_off:       o.round_off      != null ? Number(o.round_off)      : null,
-        order_total:     o.order_total    != null ? Number(o.order_total)    : null,
-        pre_tax_amount:  o.core_total     != null ? Number(o.core_total)     : null,
-        delivery_charge: o.delivery_charges != null ? Number(o.delivery_charges) : null,
-        container_charge: o.packaging_charge != null ? Number(o.packaging_charge) : null,
-        service_charge:  o.service_charge != null ? Number(o.service_charge) : null,
-        item_code: it.item_code,
-        sap_code:  it.sap_code,
-        outlet_id: o.restaurant_id,
-        outlet_name: rest?.name || `restaurant ${o.restaurant_id}`,
-        channel: o.channel,
-        order_type: o.order_type,
-        payment_type: o.payment_type,
-        customer_name: o.customer,
-        customer_phone: o.customer_phone,
+        restaurant_name:     rest?.name || `restaurant ${o.restaurant_id}`,
+        invoice_no:          invoice,
+        date:                o.placed_at,
+        payment_type:        o.payment_type,
+        order_type:          o.order_type,
+        status:              o.pp_status,
+        area:                o.channel,
+        virtual_brand_name:  o.sub_order_type,
+        brand_grouping:      o.group_name,
+        assign_to:           o.assignee,
+        customer_phone:      o.customer_phone,
+        customer_name:       o.customer,
+        customer_address:    o.customer_address,
+        persons:             o.no_of_persons,
+        order_cancel_reason: o.order_cancel_reason,
+        my_amount:           o.core_total       != null ? Number(o.core_total)        : null,
+        total_tax:           o.tax_total        != null ? Number(o.tax_total)         : null,
+        discount:            o.discount_total   != null ? Number(o.discount_total)    : null,
+        delivery_charge:     o.delivery_charges != null ? Number(o.delivery_charges)  : null,
+        container_charge:    o.packaging_charge != null ? Number(o.packaging_charge)  : null,
+        service_charge:      o.service_charge   != null ? Number(o.service_charge)    : null,
+        additional_charge:   o.additional_charge!= null ? Number(o.additional_charge) : null,
+        deduction_charge:    o.deduction_charge != null ? Number(o.deduction_charge)  : null,
+        waived_off:          o.waived_off       != null ? Number(o.waived_off)        : null,
+        round_off:           o.round_off        != null ? Number(o.round_off)         : null,
+        total:               o.order_total      != null ? Number(o.order_total)       : null,
+        item_name:           d.name,
+        category_name:       it.pp_category_name || d.category,
+        sap_code:            it.sap_code,
+        item_price:          it.unit_price      != null ? Number(it.unit_price)       : null,
+        item_quantity:       Number(it.quantity) || 0,
+        item_total:          it.item_total      != null ? Number(it.item_total)       : null,
+        // Join-side (not in CSV):
+        outlet_id:     o.restaurant_id,
+        dish_id:       d.id,
+        biller:        o.biller,
         pp_order_code: o.code,
-        dish_id: d.id,
-        category: d.category,
-        remarks: o.notes,
-        created_date: o.placed_at,
-        biller: o.biller,
+        transaction_id: o.transaction_id,
       });
     }
     // Already in order-desc because orders were fetched in placed_at desc; keep natural order.

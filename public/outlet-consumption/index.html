@@ -167,24 +167,40 @@
   </div>
   <div class="card"><div class="scroll"><table id="tblSd">
    <thead><tr>
-    <th title="Common invoice number from PetPooja billing (also the key for matching back to the uploaded CSV)">Invoice No</th>
-    <th>Date</th>
     <th>Outlet</th>
-    <th>Channel</th>
-    <th>Order Type</th>
+    <th title="Common invoice number from PetPooja billing — the join key to anything downstream">Invoice No</th>
+    <th>Date</th>
     <th>Payment</th>
-    <th>Product Name</th>
-    <th>Category</th>
-    <th class="r">Qty</th>
-    <th class="r" title="item_price from the CSV">Unit MRP</th>
-    <th class="r" title="item_total from the CSV">Item Total</th>
-    <th class="r" title="Order-level discount (same value repeats on every item of the same invoice)">Discount</th>
-    <th class="r" title="Order-level total tax (same value repeats on every item of the same invoice)">Tax</th>
-    <th class="r">Round Off</th>
-    <th class="r" title="Final billed amount for the whole order">Order Total</th>
+    <th>Order Type</th>
+    <th title="PetPooja billing status: Success, Cancelled, etc.">Status</th>
+    <th title="PetPooja 'area' column: Swiggy / Zomato / AC / Parcel">Area</th>
+    <th title="PetPooja 'virtual_brand_name' / sub_order_type (e.g. 'Swiggy_Nutriobox (Dwarka)')">Virtual Brand</th>
+    <th title="PetPooja 'brand_grouping' / GroupName">Brand Group</th>
+    <th title="PetPooja 'assign_to' / assignee — the operator who billed it">Assigned To</th>
+    <th>Phone</th>
     <th>Customer</th>
+    <th>Address</th>
+    <th class="r">Persons</th>
+    <th>Cancel Reason</th>
+    <th class="r" title="PetPooja 'my_amount' — pre-tax order total">My Amount</th>
+    <th class="r" title="PetPooja 'total_tax' — aggregate order-level tax">Tax</th>
+    <th class="r" title="Order-level discount (same on every item of the invoice)">Discount</th>
+    <th class="r">Delivery Chg</th>
+    <th class="r" title="PetPooja 'container_charge' / packaging_charge">Container Chg</th>
+    <th class="r">Service Chg</th>
+    <th class="r">Add'l Chg</th>
+    <th class="r">Deduction</th>
+    <th class="r">Waived Off</th>
+    <th class="r">Round Off</th>
+    <th class="r" title="Final billed amount for the whole order">Total</th>
+    <th>Item</th>
+    <th>Category</th>
+    <th>SAP Code</th>
+    <th class="r" title="PetPooja 'item_price'">Unit MRP</th>
+    <th class="r">Qty</th>
+    <th class="r" title="PetPooja 'item_total'">Item Total</th>
    </tr></thead>
-   <tbody id="tbodySd"><tr><td colspan="16" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodySd"><tr><td colspan="32" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -1120,7 +1136,7 @@ async function loadSd(fresh){
     if(stat) stat.textContent = '✓ ' + SD.rows.length.toLocaleString('en-IN') + ' rows · ' + Math.round((Date.now()-t0)/100)/10 + 's';
   } catch(e){
     if(stat) stat.textContent = '✗ ' + (e.message || e);
-    $('tbodySd').innerHTML = `<tr><td colspan="16" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales Data: ${esc(e.message || e)}</td></tr>`;
+    $('tbodySd').innerHTML = `<tr><td colspan="32" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales Data: ${esc(e.message || e)}</td></tr>`;
   }
 }
 
@@ -1128,37 +1144,55 @@ function renderSd(){
   const q = ($('qSd').value || '').trim().toLowerCase();
   const list = SD.rows.filter(r => {
     if(!q) return true;
-    const nm = String(r.product_name || '').toLowerCase();
+    const nm = String(r.item_name || r.product_name || '').toLowerCase();
     const inv = String(r.invoice_no || r.doc_no || '').toLowerCase();
     return nm.includes(q) || inv.includes(q);
   });
   const dash = '<span class="mut">—</span>';
   const money = (v) => (v == null || v === '' || isNaN(Number(v))) ? dash
                      : '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const txt = (v) => (v == null || v === '') ? dash : esc(String(v));
+  const num = (v) => (v == null || v === '' || isNaN(Number(v))) ? dash : qty(v);
   const rows = list.slice(0, 5000).map(r => `
     <tr>
-      <td class="code" style="font-weight:600">${esc(r.invoice_no || r.doc_no || '') || dash}</td>
-      <td>${esc(r.doc_date || '')}</td>
-      <td>${esc(r.outlet_name || '')}</td>
-      <td>${r.channel ? `<span class="sb">${esc(r.channel)}</span>` : dash}</td>
-      <td>${esc(r.order_type || '') || dash}</td>
-      <td>${esc(r.payment_type || '') || dash}</td>
-      <td>${esc(r.product_name || '')}</td>
-      <td>${r.category ? `<span class="mut">${esc(r.category)}</span>` : dash}</td>
-      <td class="r">${qty(r.qty)}</td>
-      <td class="r">${money(r.unit_mrp)}</td>
-      <td class="r">${money(r.item_total)}</td>
+      <td>${txt(r.restaurant_name || r.outlet_name)}</td>
+      <td class="code" style="font-weight:600">${txt(r.invoice_no || r.doc_no)}</td>
+      <td>${txt(r.date || r.doc_date)}</td>
+      <td>${txt(r.payment_type)}</td>
+      <td>${txt(r.order_type)}</td>
+      <td>${r.status ? `<span class="sb" style="background:#dcfce7;color:#166534">${esc(r.status)}</span>` : dash}</td>
+      <td>${r.area || r.channel ? `<span class="sb">${esc(r.area || r.channel)}</span>` : dash}</td>
+      <td>${txt(r.virtual_brand_name)}</td>
+      <td>${txt(r.brand_grouping)}</td>
+      <td>${txt(r.assign_to)}</td>
+      <td>${txt(r.customer_phone)}</td>
+      <td>${txt(r.customer_name)}</td>
+      <td>${txt(r.customer_address)}</td>
+      <td class="r">${num(r.persons)}</td>
+      <td>${txt(r.order_cancel_reason)}</td>
+      <td class="r">${money(r.my_amount)}</td>
+      <td class="r">${money(r.total_tax ?? r.tax)}</td>
       <td class="r">${money(r.discount)}</td>
-      <td class="r">${money(r.tax)}</td>
+      <td class="r">${money(r.delivery_charge)}</td>
+      <td class="r">${money(r.container_charge)}</td>
+      <td class="r">${money(r.service_charge)}</td>
+      <td class="r">${money(r.additional_charge)}</td>
+      <td class="r">${money(r.deduction_charge)}</td>
+      <td class="r">${money(r.waived_off)}</td>
       <td class="r">${money(r.round_off)}</td>
-      <td class="r" style="font-weight:600">${money(r.order_total)}</td>
-      <td>${esc(r.customer_name || '') || dash}</td>
+      <td class="r" style="font-weight:600">${money(r.total ?? r.order_total)}</td>
+      <td>${txt(r.item_name || r.product_name)}</td>
+      <td>${r.category_name || r.category ? `<span class="mut">${esc(r.category_name || r.category)}</span>` : dash}</td>
+      <td class="code">${txt(r.sap_code)}</td>
+      <td class="r">${money(r.item_price ?? r.unit_mrp)}</td>
+      <td class="r">${num(r.item_quantity ?? r.qty)}</td>
+      <td class="r">${money(r.item_total)}</td>
     </tr>`).join('');
   const extra = list.length > 5000
-    ? `<tr><td colspan="16" class="mut" style="padding:14px;text-align:center">… ${list.length-5000} more — refine the search to see them</td></tr>`
+    ? `<tr><td colspan="32" class="mut" style="padding:14px;text-align:center">… ${list.length-5000} more — refine the search to see them</td></tr>`
     : '';
   $('tbodySd').innerHTML = (rows
-    || '<tr><td colspan="16" class="mut" style="padding:20px;text-align:center">No sales rows — try changing the date range or uploading a PetPooja report.</td></tr>') + extra;
+    || '<tr><td colspan="32" class="mut" style="padding:20px;text-align:center">No sales rows — try changing the date range or uploading a PetPooja report.</td></tr>') + extra;
 }
 
 // ── PetPooja CSV upload (Order Summary Item Report) ──────────────────────────
@@ -1206,32 +1240,40 @@ async function uploadPetPoojaCsv(ev){
     if(missing.length) throw new Error('Missing expected columns: ' + missing.join(', ') + ' — is this the right PetPooja report?');
     // Transform CSV rows to internal SD row shape
     SD.rows = raw.map(r => ({
-      invoice_no:   (r.invoice_no || '').trim(),
-      doc_date:     (r.date || '').slice(0, 10),
-      doc_time:     (r.date || '').slice(11, 19),
-      outlet_name:  (r.restaurant_name || '').trim(),
-      channel:      (r.area || '').trim(),
-      order_type:   (r.order_type || '').trim(),
-      payment_type: (r.payment_type || '').trim(),
-      product_name: (r.item_name || '').trim(),
-      category:     (r.category_name || '').trim(),
-      qty:          Number(r.item_quantity) || 0,
-      unit_mrp:     Number(r.item_price) || 0,
-      item_total:   Number(r.item_total) || 0,
-      discount:     Number(r.discount) || 0,
-      tax:          Number(r.total_tax) || 0,
-      round_off:    Number(r.round_off) || 0,
-      order_total:  Number(r.total) || 0,
-      customer_name: (r.customer_name || '').trim(),
-      customer_phone: (r.customer_phone || '').trim(),
-      pre_tax_amount: Number(r.my_amount) || 0,
-      delivery_charge: Number(r.delivery_charge) || 0,
+      // Column names match /api/outlet-invoices response so render + CSV share one shape
+      restaurant_name:  (r.restaurant_name || '').trim(),
+      invoice_no:       (r.invoice_no || '').trim(),
+      date:             (r.date || '').trim(),
+      payment_type:     (r.payment_type || '').trim(),
+      order_type:       (r.order_type || '').trim(),
+      status:           (r.status || '').trim(),
+      area:             (r.area || '').trim(),
+      virtual_brand_name: (r.virtual_brand_name || '').trim(),
+      brand_grouping:   (r.brand_grouping || '').trim(),
+      assign_to:        (r.assign_to || '').trim(),
+      customer_phone:   (r.customer_phone || '').trim(),
+      customer_name:    (r.customer_name || '').trim(),
+      customer_address: (r.customer_address || '').trim(),
+      persons:          Number(r.persons) || null,
+      order_cancel_reason: (r.order_cancel_reason || '').trim(),
+      my_amount:        Number(r.my_amount) || 0,
+      total_tax:        Number(r.total_tax) || 0,
+      discount:         Number(r.discount) || 0,
+      delivery_charge:  Number(r.delivery_charge) || 0,
       container_charge: Number(r.container_charge) || 0,
-      service_charge: Number(r.service_charge) || 0,
-      status:       (r.status || '').trim(),
-      virtual_brand: (r.virtual_brand_name || '').trim(),
-      remarks:      (r.order_cancel_reason || '').trim(),
-      _source:      'csv',
+      service_charge:   Number(r.service_charge) || 0,
+      additional_charge: Number(r.additional_charge) || 0,
+      deduction_charge: Number(r.deduction_charge) || 0,
+      waived_off:       Number(r.waived_off) || 0,
+      round_off:        Number(r.round_off) || 0,
+      total:            Number(r.total) || 0,
+      item_name:        (r.item_name || '').trim(),
+      category_name:    (r.category_name || '').trim(),
+      sap_code:         (r.sap_code || '').trim(),
+      item_price:       Number(r.item_price) || 0,
+      item_quantity:    Number(r.item_quantity) || 0,
+      item_total:       Number(r.item_total) || 0,
+      _source:          'csv',
     }));
     // Rebuild outlet dropdown from the CSV outlets
     const outletsSeen = [...new Set(SD.rows.map(r => r.outlet_name).filter(Boolean))].sort();
@@ -1267,18 +1309,25 @@ async function uploadPetPoojaCsv(ev){
 
 function exportCsvSd(){
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const header = ['Invoice No','Date','Outlet','Channel','Order Type','Payment','Product Name','Category','Qty','Unit MRP','Item Total','Discount','Tax','Round Off','Order Total','Customer'];
+  const header = ['restaurant_name','invoice_no','date','payment_type','order_type','status','area','virtual_brand_name','brand_grouping','assign_to','customer_phone','customer_name','customer_address','persons','order_cancel_reason','my_amount','total_tax','discount','delivery_charge','container_charge','service_charge','additional_charge','deduction_charge','waived_off','round_off','total','item_name','category_name','sap_code','item_price','item_quantity','item_total'];
   const lines = [header.map(esc2).join(',')];
   for(const r of SD.rows){
     lines.push([
-      r.invoice_no || r.doc_no || '', r.doc_date || '', r.outlet_name || '', r.channel || '',
-      r.order_type || '', r.payment_type || '', r.product_name || '', r.category || '',
-      r.qty, r.unit_mrp, r.item_total, r.discount, r.tax, r.round_off, r.order_total,
-      r.customer_name || ''
+      r.restaurant_name || r.outlet_name || '', r.invoice_no || r.doc_no || '', r.date || r.doc_date || '',
+      r.payment_type || '', r.order_type || '', r.status || '', r.area || r.channel || '',
+      r.virtual_brand_name || '', r.brand_grouping || '', r.assign_to || '',
+      r.customer_phone || '', r.customer_name || '', r.customer_address || '',
+      r.persons ?? '', r.order_cancel_reason || '',
+      r.my_amount ?? '', r.total_tax ?? r.tax ?? '', r.discount ?? '',
+      r.delivery_charge ?? '', r.container_charge ?? '', r.service_charge ?? '',
+      r.additional_charge ?? '', r.deduction_charge ?? '', r.waived_off ?? '',
+      r.round_off ?? '', r.total ?? r.order_total ?? '',
+      r.item_name || r.product_name || '', r.category_name || r.category || '', r.sap_code || '',
+      r.item_price ?? r.unit_mrp ?? '', r.item_quantity ?? r.qty ?? '', r.item_total ?? ''
     ].map(esc2).join(','));
   }
   const today = (new Date()).toISOString().slice(0,10);
-  downloadBlob(lines.join('\n'), 'sales-data-'+today+'.csv');
+  downloadBlob(lines.join('\n'), 'order-summary-item-report-'+today+'.csv');
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
