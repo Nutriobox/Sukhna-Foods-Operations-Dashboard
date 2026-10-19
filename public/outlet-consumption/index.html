@@ -1992,6 +1992,12 @@ function oiBuildItemsFromRm(){
       name:        x.name || '',
       category:    x.idealStorage || '',
       packing_uom: x.idealUom || '',
+      // Carry the three level UOMs so OI's Loose Denomination column can
+      // render the unit NAME (Pkt, Bunch, Pcs, Gms, ML, …) for each marked
+      // level instead of the raw L1/L2/L3 code.
+      l3_unit:     x.caseUnit || '',
+      l2_unit:     x.packUnit || '',
+      l1_unit:     x.baseUnit || x.idealUom || '',
     }))
     .sort((a, b) => {
       const ca = OI_CAT_ORDER[a.category] || 99;
@@ -2089,12 +2095,20 @@ function oiRenderCount(){
       const qL = OI.qtyLoose[it.rm_code];
       const qVal  = q  == null ? '' : String(q);
       const qLVal = qL == null ? '' : String(qL);
-      // Loose Denomination column: show one green L chip per marked level
-      // (L3 / L2 / L1), left-to-right. If none marked, a muted dash.
+      // Loose Denomination column: show one green chip per marked level
+      // (L3 / L2 / L1), left-to-right, each labelled with the UOM name for
+      // that level on this item — e.g. "Pkt" for L2 of 140g Basa Fish,
+      // "Bunch" for L3, "Gms" for L1. If none marked, a muted dash. Falls
+      // back to the raw level code only when the UOM lookup is empty, which
+      // shouldn't happen for Ideal Inventory items but keeps us honest.
       const levels = ldLevelsFor(it.rm_code);
       const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
+      const levelUomMap = { L3: it.l3_unit, L2: it.l2_unit, L1: it.l1_unit };
       const looseCell = levels.length
-        ? levels.map(lv => `<span class="sb" style="background:#dcfce7;color:#065f46;margin:0 2px;font-weight:700">${lv}</span>`).join('')
+        ? levels.map(lv => {
+            const uom = levelUomMap[lv] || lv;
+            return `<span class="sb" style="background:#dcfce7;color:#065f46;margin:0 2px;font-weight:700" title="${lv} denomination">${esc(uom)}</span>`;
+          }).join('')
         : '<span class="mut">—</span>';
       // Second Qty is only meaningful when a loose level is marked, but we keep
       // it enabled so the user is never blocked. We just mute it visually when
@@ -2114,7 +2128,7 @@ function oiRenderCount(){
         '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(qLVal) + '" ' +
           'onchange="oiSetQtyLoose(\'' + codeEsc + '\', this.value)" ' +
           'style="' + looseInputStyle + '"' +
-          (qL != null ? ' data-filled="1"' : '') + ' title="' + (levels.length ? 'Loose count in the ' + levels[levels.length-1] + ' unit' : 'No loose level marked for this item') + '"></td>' +
+          (qL != null ? ' data-filled="1"' : '') + ' title="' + (levels.length ? 'Loose count in ' + (levelUomMap[levels[levels.length-1]] || levels[levels.length-1]) : 'No loose level marked for this item') + '"></td>' +
       '</tr>';
     }).join('');
   }
@@ -2253,7 +2267,15 @@ function rmLooseModeSubmit(){
     if(Object.keys(kept).length) LD.denom[code] = kept;
   }
   ldSave();
-  rmLooseModeExit();
+  // Stay in Loose Denomination mode after saving (Satvik's call on
+  // 2026-10-19): the green marks stay on screen so you can see what was
+  // just committed. Re-seed the draft from the newly saved state so any
+  // further clicks diff from a clean baseline. Click ✕ Cancel to exit.
+  LD.draft = {};
+  for(const [code, levels] of Object.entries(LD.denom)){
+    LD.draft[code] = Object.assign({}, levels);
+  }
+  renderRm();
   const n = Object.keys(LD.denom).length;
   toast('Saved. ' + n + ' item' + (n===1?'':'s') + ' now carry loose-denomination marks.');
   // If OI's count sheet is open elsewhere in the DOM, re-render so its Loose
