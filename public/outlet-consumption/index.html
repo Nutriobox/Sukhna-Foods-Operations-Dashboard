@@ -416,12 +416,12 @@
     <button class="btn" onclick="oiExportCsv()" title="Download the count sheet as CSV (RM code, name, category, UOM, qty)">⬇ Export CSV</button>
     <button class="btn prim" onclick="oiSave()" title="Save this count (will post to the opening-inventory API once wired)">💾 Save Count</button>
     <span id="oiSaveStat" class="mut" style="font-size:12.5px"></span>
-    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Ideal Inventory list (API not yet wired)</span>
+    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Raw Material Master (Ideal Inventory list)</span>
    </div>
 
-   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fef3c7;border-color:#fcd34d">
-    <div style="font-size:12.5px;color:#92400e;line-height:1.45">
-     <b>Structure preview.</b> Rows below are mock. RM Code / Name / Category / Packing UOM will auto-fill from the Ideal Inventory API (same source Raw Material Master uses). <b>Qty is always manual</b> — your team types it at each count. Save Count will post the entered rows once the backend lands.
+   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#eff6ff;border-color:#bfdbfe">
+    <div style="font-size:12.5px;color:#1e40af;line-height:1.45">
+     RM Code / Name / Category / Packing UOM come from <b>Raw Material Master</b> (the Ideal Inventory list — same ~197 items in the same category order). <b>Qty is manual</b> — your team types it at each count. <b>Save Count</b> currently records locally; it will POST to the opening-inventory API once the backend is wired.
     </div>
    </div>
 
@@ -523,10 +523,10 @@ function updateHeaderStats(){
     : CURTAB === 'pu'
     ? (m.source || 'PACT GRN (not yet wired)')
     : CURTAB === 'oi'
-    ? (m.source || 'Ideal Inventory list (not yet wired)')
+    ? (m.source || 'Raw Material Master (Ideal Inventory)')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im') ? 'live' : (CURTAB === 'pu' || CURTAB === 'oi') ? 'warn' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi') ? 'live' : CURTAB === 'pu' ? 'warn' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
              : CURTAB === 'pu'  ? ' GRNs'
@@ -1700,39 +1700,46 @@ function exportCsvPu(){
   downloadBlob(lines.join('\n'), 'grn-list-'+today+'.csv');
 }
 
-/* ======================== OPENING INVENTORY (OI) — STRUCTURE ONLY ========================
+/* ======================== OPENING INVENTORY (OI) ========================
    Two-screen flow:
      1. oiFormView  — pick outlet + date-time, hit Submit.
      2. oiCountView — table of ideal RMs with a manual Qty input per row; Save Count persists.
-   Mock items below stand in for the Ideal Inventory API. When wiring is done:
-     • oiLoadItems() should fetch '/api/outlet-ideal-items?outlet=<name>'
-       (or /api/product-master filtered to ideal) and return [{rm_code, name, category, packing_uom}, ...]
-     • oiSave() should POST { outlet, dt_iso, items: [{rm_code, qty, uom}, ...] } to '/api/opening-inventory'
-   The row shape (rm_code, name, category, packing_uom) and the save payload are intentionally
-   frozen so the backend can target this exact shape. */
 
-const OI_MOCK_ITEMS = [
-  { rm_code: 'RM-FZ-0012', name: 'Chicken Boneless 1 Kg',        category: 'Frozen',     packing_uom: 'Pkt' },
-  { rm_code: 'RM-FZ-0025', name: 'Mutton Keema 500 g',           category: 'Frozen',     packing_uom: 'Pkt' },
-  { rm_code: 'RM-FZ-0088', name: 'Prawns Peeled 500 g',          category: 'Frozen',     packing_uom: 'Pkt' },
-  { rm_code: 'RM-CH-0101', name: 'Full Cream Milk 500ml',        category: 'Chiller',    packing_uom: 'Pkt' },
-  { rm_code: 'RM-CH-0205', name: 'Paneer 1 Kg',                  category: 'Chiller',    packing_uom: 'Pkt' },
-  { rm_code: 'RM-CH-0132', name: 'Fresh Cream 1 L',              category: 'Chiller',    packing_uom: 'Pkt' },
-  { rm_code: 'RM-CH-0210', name: 'Curd 1 Kg',                    category: 'Chiller',    packing_uom: 'Pkt' },
-  { rm_code: 'RM-VG-0021', name: 'Tomato (Hybrid)',              category: 'Vegetable',  packing_uom: 'Kg'  },
-  { rm_code: 'RM-VG-0004', name: 'Onion (Nashik)',               category: 'Vegetable',  packing_uom: 'Kg'  },
-  { rm_code: 'RM-VG-0007', name: 'Carrot',                       category: 'Vegetable',  packing_uom: 'Kg'  },
-  { rm_code: 'RM-VG-0014', name: 'Capsicum (Green)',             category: 'Vegetable',  packing_uom: 'Kg'  },
-  { rm_code: 'RM-VG-0045', name: 'Lemon',                        category: 'Vegetable',  packing_uom: 'Kg'  },
-  { rm_code: 'RM-VG-0053', name: 'Coriander Leaves',             category: 'Vegetable',  packing_uom: 'Bunch' },
-  { rm_code: 'RM-DS-0001', name: 'Basmati Rice 25 Kg',           category: 'Dry Store',  packing_uom: 'Bag' },
-  { rm_code: 'RM-DS-0017', name: 'Refined Oil 15 L',             category: 'Dry Store',  packing_uom: 'Tin' },
-  { rm_code: 'RM-DS-0043', name: 'Chickpea Flour 10 Kg',         category: 'Dry Store',  packing_uom: 'Bag' },
-  { rm_code: 'RM-DS-0082', name: 'Jeera (Cumin)',                category: 'Dry Store',  packing_uom: 'Kg'  },
-  { rm_code: 'RM-DS-0085', name: 'Haldi (Turmeric)',             category: 'Dry Store',  packing_uom: 'Kg'  },
-  { rm_code: 'RM-PK-0019', name: 'Container 500ml (Round)',      category: 'Packaging',  packing_uom: 'Pkt' },
-  { rm_code: 'RM-PK-0033', name: 'Cutlery Set (Spoon+Fork+Napkin)', category: 'Packaging', packing_uom: 'Pkt' },
-];
+   Items come from the SAME source Raw Material Master uses — RM.items,
+   filtered to Ideal Inventory rows (idealStorage set) and sorted by the
+   same category order as RM Master (Frozen → Chiller → Vegetable →
+   Dry Store → Packaging), then alphabetically by name within each.
+   Satvik asked for exact parity so the count sheet reads the same way
+   as the master. Ghost rows (Excel items not yet in PACT) are excluded
+   from the count — your team can't count what has no RM code.
+
+   TODO when backend lands: oiSave() should POST
+     { outlet, dt_iso, items: [{rm_code, qty, uom}, ...] } to '/api/opening-inventory'
+   The row shape (rm_code, name, category, packing_uom) and save payload
+   are intentionally frozen so the backend can target this exact shape. */
+
+// Same category order as renderRm() in RM Master — keep in sync.
+const OI_CAT_ORDER = { 'Frozen':1, 'Chiller':2, 'Vegetable':3, 'Dry Store':4, 'Packaging':5 };
+
+// Build OI's row list from RM.items. Returns [{rm_code, name, category, packing_uom}, ...]
+// sorted the same way RM Master sorts its table.
+function oiBuildItemsFromRm(){
+  if(!RM_LOADED.v || !Array.isArray(RM.items)) return [];
+  return RM.items
+    .filter(x => x.idealStorage && !x.isGhost)   // Ideal Inventory only, PACT-matched
+    .map(x => ({
+      rm_code:     x.code || '',
+      name:        x.name || '',
+      category:    x.idealStorage || '',
+      packing_uom: x.idealUom || '',
+    }))
+    .sort((a, b) => {
+      const ca = OI_CAT_ORDER[a.category] || 99;
+      const cb = OI_CAT_ORDER[b.category] || 99;
+      if(ca !== cb) return ca - cb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+}
 
 // Called from selTab('oi') — resets the view to the form on first entry, keeps whatever
 // state the user had after. Pre-fills datetime with "now" so the common case is one click.
@@ -1753,7 +1760,7 @@ function oiOnTabEnter(){
   if(CURTAB === 'oi') updateHeaderStats();
 }
 
-function oiSubmitForm(){
+async function oiSubmitForm(){
   const outlet = $('oiFormOutlet').value;
   const dt = $('oiFormDt').value;
   const err = $('oiFormErr');
@@ -1762,10 +1769,24 @@ function oiSubmitForm(){
   err.textContent = '';
   OI.outlet = outlet;
   OI.dtIso = dt;        // 'YYYY-MM-DDTHH:mm' from datetime-local; the backend can parse as IST
-  // When wired: replace with  const r = await fetch('/api/outlet-ideal-items?outlet='+encodeURIComponent(outlet)); OI.items = (await r.json()).items;
-  OI.items = OI_MOCK_ITEMS.slice();
+  // Items come from Raw Material Master's data (filtered to the Ideal Inventory
+  // list, same shape and category order as RM Master's table). Wait for RM to
+  // finish loading if the user got here before it did.
+  if(!RM_LOADED.v){
+    err.textContent = 'Loading raw material list…';
+    try { await loadRm(false); } catch(e) {
+      err.textContent = 'Could not load raw material list: ' + (e.message || e);
+      return;
+    }
+    err.textContent = '';
+  }
+  OI.items = oiBuildItemsFromRm();
+  if(!OI.items.length){
+    err.textContent = 'Raw material list is empty — try again in a moment.';
+    return;
+  }
   OI.qty = {};          // fresh blank Qty for this count
-  OI.meta = { source: 'mock data', synced_at: new Date().toISOString(), count: OI.items.length };
+  OI.meta = { source: RM.meta.source || 'PACT Product Master', synced_at: RM.meta.synced_at || null, count: OI.items.length };
   OI_LOADED.v = true;
   $('oiFormView').style.display = 'none';
   $('oiCountView').style.display = '';
