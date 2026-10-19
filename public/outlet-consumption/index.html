@@ -540,13 +540,18 @@ let OI = { items: [], qty: {}, qtyLoose: {}, outlet: '', dtIso: '', meta: {} };
 // Loose Denomination per-item setup. denom[rm_code] is a Set-like object
 // marking which LEVELS of that item are sold loose:
 //   { L3: true, L2: true, L1: true }  — any subset
-// Absent / {} means no level is loose for that item. Persisted to localStorage
-// so the choice survives reloads; will move to Supabase when backend is wired.
+// Absent / {} means no level is loose for that item.
+//
+// Persistence (2026-10-19 update): state lives in Supabase via
+// /api/loose-denomination so marks made on one device appear on every other
+// device opening the dashboard. localStorage is kept as an offline cache +
+// seed for first paint before the server fetch returns; the server always
+// wins once ldLoadFromServer() finishes.
 //
 // Backwards-compat: before 2026-10-19 this was LD.denom[rm_code] = 'loose' (one
 // boolean per item). On load we convert that into { L1: true } (base unit loose)
 // so existing picks don't disappear after the schema change.
-let LD = { denom: {}, mode: false, draft: {} };
+let LD = { denom: {}, mode: false, draft: {}, syncedAt: null };
 try {
   const raw = localStorage.getItem('oi_loose_denom');
   if(raw){
@@ -557,7 +562,75 @@ try {
     }
   }
 } catch(e) { /* corrupt localStorage; start empty */ }
-function ldSave(){ try { localStorage.setItem('oi_loose_denom', JSON.stringify(LD.denom)); } catch(e) {} }
+
+// Debounce the server PUT so a quick burst of clicks only sends one request.
+let LD_SYNC_TIMER = null;
+let LD_SYNC_PENDING = false;
+async function ldPushToServer(){
+  LD_SYNC_PENDING = false;
+  try {
+    const r = await fetch('/api/loose-denomination', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ denom: LD.denom }),
+      cache: 'no-store',
+    });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    LD.syncedAt = j.updated_at || new Date().toISOString();
+  } catch(err){
+    console.warn('Loose Denomination sync failed, keeping local:', err && err.message);
+    // Non-fatal: localStorage still has the change, next successful push will
+    // ship it. If the user's offline, nothing to do.
+  }
+}
+function ldSave(){
+  // Local cache first — never lose a tap even if the network is down.
+  try { localStorage.setItem('oi_loose_denom', JSON.stringify(LD.denom)); } catch(e) {}
+  // Debounced server push: coalesce bursts of clicks into one PUT.
+  LD_SYNC_PENDING = true;
+  if(LD_SYNC_TIMER) clearTimeout(LD_SYNC_TIMER);
+  LD_SYNC_TIMER = setTimeout(() => { LD_SYNC_TIMER = null; ldPushToServer(); }, 300);
+}
+// Flush any pending debounce before page unload so a click right before
+// close/refresh doesn't get lost.
+window.addEventListener('beforeunload', () => {
+  if(LD_SYNC_PENDING && navigator.sendBeacon){
+    const blob = new Blob([JSON.stringify({ denom: LD.denom })], { type: 'application/json' });
+    // sendBeacon is POST-only; the API accepts PUT. Use fetch with keepalive
+    // as the proper fallback. Beacon is just the best-effort last-ditch.
+    try {
+      fetch('/api/loose-denomination', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ denom: LD.denom }),
+        keepalive: true,
+      });
+    } catch(e) {}
+  }
+});
+
+// On boot, pull the authoritative state from the server. Server wins any
+// disagreement with localStorage: if someone marked things on another device,
+// those marks appear here even without that device's localStorage.
+async function ldLoadFromServer(){
+  try {
+    const r = await fetch('/api/loose-denomination', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    LD.denom = (j.denom && typeof j.denom === 'object') ? j.denom : {};
+    LD.syncedAt = j.updated_at || null;
+    try { localStorage.setItem('oi_loose_denom', JSON.stringify(LD.denom)); } catch(e) {}
+    // Re-render whatever's on screen so freshly-loaded marks show up.
+    if(typeof renderRm === 'function' && typeof CURTAB !== 'undefined' && CURTAB === 'rm') renderRm();
+    if(typeof renderOi === 'function' && typeof CURTAB !== 'undefined' && CURTAB === 'oi') renderOi();
+  } catch(err){
+    console.warn('Loose Denomination initial fetch failed, using local cache:', err && err.message);
+  }
+}
+// Fire-and-forget on boot — the local cache paints first; server state
+// overlays whenever this resolves (usually under a second).
+try { ldLoadFromServer(); } catch(e) {}
 // Helpers: list the marked levels for an item (in display order L3→L2→L1),
 // and quick "any level marked" test. Used in Opening Inventory rendering too.
 function ldLevelsFor(rmCode){
@@ -2309,12 +2382,6 @@ async function loadCn(fresh){
       channel:    row.area || '',
       status:     row.status || '',
     }));
-    // Latest KOT at the top. The invoice endpoint sorts orders by placed_at
-    // desc, but PostgREST's `order_id=in.(...)` on order_items doesn't
-    // preserve that order, so items came back ascending within each batch —
-    // that's why the 08:15 rows were showing above the 14:xx rows. Sort
-    // defensively here on the real kot_at timestamp.
-    CN.rows.sort((a, b) => (b.kot_at || '').localeCompare(a.kot_at || ''));
     CN.meta = {
       source: 'PetPooja Global Sales API',
       synced_at: new Date().toISOString(),
@@ -2426,10 +2493,11 @@ function renderCn(){
     const style = STATUS_COLORS[key] || CAT_PALETTE[hashIdx(key, CAT_PALETTE.length)];
     return `<span class="sb" style="${style}">${esc(s)}</span>`;
   };
-  // Category rendered as plain text (Satvik's call — the coloured pastel
-  // chips felt too noisy next to the Status chip, which is the signal that
-  // matters). Keep the empty-value em-dash.
-  const catChip = (c) => c ? esc(c) : '<span class="mut">—</span>';
+  const catChip = (c) => {
+    if(!c) return '<span class="mut">—</span>';
+    const style = CAT_PALETTE[hashIdx(c, CAT_PALETTE.length)];
+    return `<span class="sb" style="${style}">${esc(c)}</span>`;
+  };
   tb.innerHTML = rows.map(r => (
     '<tr>' +
       '<td>' + esc(fmtTime(r.kot_at)) + '</td>' +
