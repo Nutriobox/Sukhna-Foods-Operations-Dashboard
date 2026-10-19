@@ -17,8 +17,8 @@ import { NextResponse } from "next/server";
  * the Global Sales API feed, the fields slot in with no shape change.
  *
  *   GET /api/outlet-invoices
- *     ?from=YYYY-MM-DD      default: 7 days ago (IST)
- *     ?to=YYYY-MM-DD        default: today (IST, inclusive)
+ *     ?from=YYYY-MM-DD[THH:mm[:ss]]  default: 7 days ago (IST). Date-only -> 00:00:00 of that day.
+ *     ?to=YYYY-MM-DD[THH:mm[:ss]]    default: today (IST). Date-only -> 23:59:59 of that day.
  *     ?outlet_id=<n>        restaurants.id (optional)
  *     ?channel=<...>        case-insensitive ilike match (optional)
  *     ?search=<text>        dish-name substring match (optional)
@@ -174,9 +174,24 @@ export async function GET(req: Request) {
     const restaurants = await sbGet<Restaurant>(url, key, "restaurants?select=id,name,pp_rest_id&order=id.asc");
     const restByCode = new Map(restaurants.map((r) => [r.id, r]));
 
-    // Date range on placed_at (text column, YYYY-MM-DD HH:MM:SS, lexicographic sort works)
-    const fromTs = `${from} 00:00:00`;
-    const toTs   = `${to} 23:59:59`;
+    // Date range on placed_at (text column, YYYY-MM-DD HH:MM:SS, lexicographic sort works).
+    // Dashboard sends either 'YYYY-MM-DD' (date-only) OR 'YYYY-MM-DDTHH:mm[:ss]' (datetime-local)
+    // — the dashboard swapped date inputs for datetime-local on 2026-10-19 so the user
+    // can filter by time of day, not just date. Normalise either shape to Postgres text
+    // timestamp: date-only gets padded to 00:00:00 (from) / 23:59:59 (to) as before.
+    const normTs = (s: string, boundary: "from" | "to"): string => {
+      const raw = String(s || "").trim();
+      // Already has time (has 'T' or a space between date and digits)
+      if (/T\d/.test(raw) || /\s\d/.test(raw)) {
+        // Replace T with space and pad seconds if missing: '2026-10-19T14:30' -> '2026-10-19 14:30:00'
+        const spaced = raw.replace("T", " ");
+        return /:\d{2}:\d{2}$/.test(spaced) ? spaced : spaced + ":00";
+      }
+      // Plain date -> start/end of day
+      return boundary === "from" ? `${raw} 00:00:00` : `${raw} 23:59:59`;
+    };
+    const fromTs = normTs(from, "from");
+    const toTs   = normTs(to, "to");
     const orderFilters = [
       "select=id,code,restaurant_id,table_no,customer,channel,order_type,placed_at,status,kot,ext_id,notes,invoice_no,payment_type,customer_phone,customer_address,order_total,core_total,tax_total,discount_total,round_off,service_charge,delivery_charges,packaging_charge,biller,pp_status,sub_order_type,group_name,assignee,no_of_persons,additional_charge,deduction_charge,waived_off,order_cancel_reason,transaction_id",
       `placed_at=gte.${encodeURIComponent(fromTs)}`,

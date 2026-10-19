@@ -140,8 +140,8 @@
  <!-- ============== Sales Data tab (PetPooja webhook feed) ============== -->
  <div id="tabSd" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap">
-   <input id="dateFromSd" type="date" onchange="loadSd(true)" class="btn" style="padding:7px 10px" title="From date (IST)">
-   <input id="dateToSd" type="date" onchange="loadSd(true)" class="btn" style="padding:7px 10px" title="To date (IST, inclusive)">
+   <input id="dateFromSd" type="datetime-local" onchange="loadSd(true)" class="btn" style="padding:7px 10px" title="From date & time (IST). Leave the time at 00:00 for 'from the start of this day'.">
+   <input id="dateToSd" type="datetime-local" onchange="loadSd(true)" class="btn" style="padding:7px 10px" title="To date & time (IST, inclusive). Leave the time at 23:59 for 'through the end of this day'.">
    <select id="outletSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Outlet filter">
     <option value="">All outlets</option>
    </select>
@@ -290,8 +290,8 @@
  <!-- ============== Purchase tab (GRN list — structure only, data wiring TBD) ============== -->
  <div id="tabPu" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap">
-   <input id="dateFromPu" type="date" onchange="renderPu()" class="btn" style="padding:7px 10px" title="From date (IST)">
-   <input id="dateToPu" type="date" onchange="renderPu()" class="btn" style="padding:7px 10px" title="To date (IST, inclusive)">
+   <input id="dateFromPu" type="datetime-local" onchange="renderPu()" class="btn" style="padding:7px 10px" title="From date & time (IST). Leave the time at 00:00 for 'from the start of this day'.">
+   <input id="dateToPu" type="datetime-local" onchange="renderPu()" class="btn" style="padding:7px 10px" title="To date & time (IST, inclusive). Leave the time at 23:59 for 'through the end of this day'.">
    <select id="outletPu" onchange="renderPu()" class="btn" style="padding-right:28px" title="Filter by outlet">
     <option value="">All outlets</option>
     <option value="Rajinder Nagar">Rajinder Nagar</option>
@@ -1357,13 +1357,16 @@ async function loadSd(fresh){
   // Vercel's function timeout → the UI hung on "Loading..." forever. User
   // widens the range manually when they need more.
   const toInput = $('dateToSd'), fromInput = $('dateFromSd');
+  // Default range: start-of-today → end-of-today in IST. The inputs are
+  // datetime-local, so values are 'YYYY-MM-DDTHH:mm'. 00:00 → 23:59 gives
+  // today's full day. User can narrow or widen by changing either input.
   const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
-  const todayStr = istNow.toISOString().slice(0, 10);
-  if(!toInput.value)   toInput.value = todayStr;
-  if(!fromInput.value) fromInput.value = todayStr;
+  const today = istNow.toISOString().slice(0, 10);
+  if(!fromInput.value) fromInput.value = today + 'T00:00';
+  if(!toInput.value)   toInput.value   = today + 'T23:59';
 
   const params = new URLSearchParams();
-  params.set('from', fromInput.value);
+  params.set('from', fromInput.value);  // 'YYYY-MM-DDTHH:mm' — API accepts datetime or plain date
   params.set('to',   toInput.value);
   const outlet = $('outletSd').value;
   const channel = $('channelSd').value;
@@ -1547,7 +1550,12 @@ async function uploadPetPoojaCsv(ev){
     // Date range reflects what the CSV contains
     const dates = [...new Set(SD.rows.map(r => r.doc_date).filter(Boolean))].sort();
     const fromI = $('dateFromSd'), toI = $('dateToSd');
-    if(dates.length){ fromI.value = dates[0]; toI.value = dates[dates.length - 1]; }
+    // Inputs are datetime-local — append the time range so the filter covers
+    // the CSV's full span (start-of-first-day → end-of-last-day).
+    if(dates.length){
+      fromI.value = (dates[0] || '').slice(0,10) + 'T00:00';
+      toI.value   = (dates[dates.length - 1] || '').slice(0,10) + 'T23:59';
+    }
     const invoices = new Set(SD.rows.map(r => r.invoice_no).filter(Boolean));
     SD.meta = {
       source: 'PetPooja CSV upload (' + file.name + ')',
@@ -1691,15 +1699,19 @@ function renderPu(){
   const q = ($('qPu').value || '').trim().toLowerCase();
   const outletF = $('outletPu').value || '';
   const catF = $('catPu').value || '';
-  const dFrom = $('dateFromPu').value || '';   // 'YYYY-MM-DD'
+  const dFrom = $('dateFromPu').value || '';   // 'YYYY-MM-DDTHH:mm' (datetime-local) or empty
   const dTo   = $('dateToPu').value || '';
-  const dateOf = (iso) => (iso || '').slice(0, 10);
+  // GRN date_time is an ISO string with a TZ offset ('2026-10-17T09:14:00+05:30').
+  // Inputs are datetime-local, interpreted as IST wall-clock (no TZ in the value).
+  // Compare as Date objects — Date.parse handles both shapes.
+  const fromMs = dFrom ? Date.parse(dFrom + '+05:30') : null;
+  const toMs   = dTo   ? Date.parse(dTo   + '+05:30') : null;
   const rows = PU.rows.filter(r => {
     if(outletF && r.outlet !== outletF) return false;
     if(catF && r.category !== catF) return false;
-    const d = dateOf(r.date_time);
-    if(dFrom && d < dFrom) return false;
-    if(dTo && d > dTo) return false;
+    const rMs = Date.parse(r.date_time || '');
+    if(fromMs != null && isFinite(fromMs) && isFinite(rMs) && rMs < fromMs) return false;
+    if(toMs   != null && isFinite(toMs)   && isFinite(rMs) && rMs > toMs)   return false;
     if(q){
       const hay = (r.doc_no + ' ' + r.outlet + ' ' + r.category).toLowerCase();
       if(!hay.includes(q)) return false;
