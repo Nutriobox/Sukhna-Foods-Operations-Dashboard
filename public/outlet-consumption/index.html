@@ -720,18 +720,35 @@ function exportCsvBom(){
   downloadBlob(lines.join('\n'), 'bom-'+((BOM.meta.synced_at||new Date().toISOString()).slice(0,10))+'.csv');
 }
 
-/* ======================= SYNC HELPERS ======================= */
+/* ======================= SYNC HELPERS =======================
+   Click → POST /api/sync-costing (queues a job in pact_jobs) → poll the
+   corresponding /api/costing/<report> every 4s until synced_at changes
+   past our baseline, then re-load the dashboard with the fresh snapshot.
+   The worker is single-threaded and the queue often has other jobs ahead
+   (hourly Vercel Cron fires PM+BOM every hour on the dot), so this must
+   wait long enough to cover realistic queue backlogs — not just the time
+   a single job takes to run. 10 min covers 4-5 jobs ahead comfortably.
+   On the deadline, do NOT blame EC2 — the job is still in queue and will
+   complete, we just stopped watching. */
 async function syncReport(report, btnId, statId, baselineAt, afterLoad){
   const btn = $(btnId), stat = $(statId);
   if(!btn || !stat) return;  // caller's UI no longer exists (tab removed)
   if(btn.disabled) return;
   btn.disabled = true;
   const t0 = Date.now();
-  const tick = setInterval(() => { stat.textContent = 'syncing… ' + Math.round((Date.now()-t0)/1000) + 's'; }, 400);
+  // Tick status: for the first minute "syncing…", after that call it out
+  // as queued so the user knows the worker is busy with other jobs — the
+  // backlog is normal when Vercel Cron just fired, nothing is wrong.
+  const tick = setInterval(() => {
+    const s = Math.round((Date.now()-t0)/1000);
+    stat.textContent = s < 60
+      ? ('syncing… ' + s + 's')
+      : ('waiting for worker (behind other jobs)… ' + s + 's');
+  }, 400);
   try{
     const q = await fetch('/api/sync-costing?report='+report, {method:'POST'}).then(r => r.json()).catch(e => ({ok:false,error:String(e)}));
     if(!q.ok) throw new Error(q.error || 'queue failed');
-    const deadline = Date.now() + 180000;
+    const deadline = Date.now() + 600000;  // 10 min (was 3 min; too tight when queue has backlog)
     while(Date.now() < deadline){
       await new Promise(r => setTimeout(r, 4000));
       const j = await fetch('/api/costing/'+report, {cache:'no-store'}).then(r => r.json()).catch(()=>null);
@@ -743,7 +760,10 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
         return;
       }
     }
-    throw new Error('timed out waiting for PACT (3 min). Check the EC2 worker.');
+    // The job IS still queued and will run — the dashboard just stopped
+    // watching. Do NOT scream about EC2 being broken. Tell the user truthfully.
+    stat.textContent = '⏱ still queued · reload the page in a few minutes';
+    toast('Sync still queued in the background. Reload the page in a few minutes to see the fresh data.', 6000);
   }catch(e){
     stat.textContent = '✗ ' + (e.message || e);
     toast('Sync failed: ' + (e.message || e), 5000);
