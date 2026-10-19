@@ -129,6 +129,7 @@
   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
   <div class="tab" data-t="ld" onclick="selTab('ld')">📏 Loose Denomination</div>
+  <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Consumption</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -484,6 +485,69 @@
   </table></div></div>
  </div>
 
+ <!-- ============== Consumption tab (real-time PetPooja KOT feed — structure only) ============== -->
+ <div id="tabCn" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap">
+   <input id="dateFromCn" type="datetime-local" onchange="renderCn()" class="btn" style="padding:7px 10px" title="From date & time (IST)">
+   <input id="dateToCn" type="datetime-local" onchange="renderCn()" class="btn" style="padding:7px 10px" title="To date & time (IST, inclusive)">
+   <select id="outletCn" onchange="renderCn()" class="btn" style="padding-right:28px" title="Filter by outlet">
+    <option value="">All outlets</option>
+    <option value="Rajinder Nagar">Rajinder Nagar</option>
+    <option value="DLF Phase 2">DLF Phase 2</option>
+    <option value="Sector 63 Noida">Sector 63 Noida</option>
+    <option value="Dwarka">Dwarka</option>
+    <option value="Janakpuri">Janakpuri</option>
+    <option value="Karkardooma">Karkardooma</option>
+    <option value="Noida">Noida</option>
+    <option value="Prashant Vihar">Prashant Vihar</option>
+    <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+    <option value="Shivalik">Shivalik</option>
+   </select>
+   <select id="orderTypeCn" onchange="renderCn()" class="btn" style="padding-right:28px" title="Order type">
+    <option value="">All order types</option>
+    <option value="Dine In">Dine In</option>
+    <option value="Delivery">Delivery</option>
+    <option value="Pick Up">Pick Up</option>
+   </select>
+   <select id="statusCn" onchange="renderCn()" class="btn" style="padding-right:28px" title="KOT status">
+    <option value="">All statuses</option>
+    <option value="Placed">Placed</option>
+    <option value="Preparing">Preparing</option>
+    <option value="Served">Served</option>
+    <option value="Cancelled">Cancelled</option>
+   </select>
+   <input id="qCn" class="search" placeholder="Search item name or KOT no…" oninput="renderCn()" style="min-width:220px">
+   <button class="btn" onclick="exportCsvCn()">⬇ Export CSV</button>
+   <label class="btn" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Auto-refresh every 30s — pulls newest KOTs from PetPooja">
+    <input id="autoRefreshCn" type="checkbox" onchange="cnToggleAutoRefresh()" checked> Auto-refresh
+   </label>
+   <button class="btn prim" id="btnSyncCn" onclick="loadCn(true)" title="Fetch latest KOTs from PetPooja">⚡ Refresh now</button>
+   <span id="syncStatCn" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja webhook (not yet wired)</span>
+  </div>
+
+  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fef3c7;border-color:#fcd34d">
+   <div style="font-size:12.5px;color:#92400e;line-height:1.45">
+    <b>Structure preview.</b> Rows below are mock. The real feed streams per-item events the moment a KOT is punched into PetPooja — same AIFI webhook that feeds Sales Data, but surfaced here with the KOT-level timestamp (not billing time) so your team sees consumption as it happens. Columns and row shape are frozen so the backend can target this exact shape when wired.
+   </div>
+  </div>
+
+  <div class="card"><div class="scroll"><table id="tblCn">
+   <thead><tr>
+    <th>Date &amp; Time</th>
+    <th>KOT / Order No</th>
+    <th>Outlet</th>
+    <th>Item Name</th>
+    <th>Category</th>
+    <th class="r">Qty</th>
+    <th>Order Type</th>
+    <th>Channel</th>
+    <th>Status</th>
+   </tr></thead>
+   <tbody id="tbodyCn"><tr><td colspan="9" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  </table></div></div>
+ </div>
+
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
   <span>Auto-refresh from PACT: hourly</span>
@@ -513,7 +577,11 @@ let OI = { items: [], qty: {}, outlet: '', dtIso: '', meta: {} };  // Opening-in
 let LD = { denom: {} };
 try { const raw = localStorage.getItem('oi_loose_denom'); if(raw) LD.denom = JSON.parse(raw) || {}; } catch(e) { /* corrupt localStorage; start empty */ }
 function ldSave(){ try { localStorage.setItem('oi_loose_denom', JSON.stringify(LD.denom)); } catch(e) {} }
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, LD_LOADED = { v:false };
+// Consumption (CN): per-item KOT events from PetPooja — real-time stream of
+// what's being made/sold at each outlet. Shape frozen so backend can target it.
+let CN = { rows: [], meta: {} };
+let CN_AUTOREFRESH_TIMER = null;
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, LD_LOADED = { v:false }, CN_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
 // Item Master tab — PACT BOM joined with PetPooja categories
@@ -554,6 +622,7 @@ function selTab(t){
   $('tabPu').style.display = t === 'pu' ? '' : 'none';
   $('tabOi').style.display = t === 'oi' ? '' : 'none';
   $('tabLd').style.display = t === 'ld' ? '' : 'none';
+  $('tabCn').style.display = t === 'cn' ? '' : 'none';
   updateHeaderStats();
   if(t === 'rm' && !RM_LOADED.v) loadRm(false);
   if(t === 'im' && !IM_LOADED.v) loadIm(false);
@@ -561,6 +630,7 @@ function selTab(t){
   if(t === 'pu' && !PU_LOADED.v) loadPu(false);
   if(t === 'oi') oiOnTabEnter();
   if(t === 'ld') ldOnTabEnter();
+  if(t === 'cn' && !CN_LOADED.v) loadCn(false);
 }
 
 function updateHeaderStats(){
@@ -572,6 +642,7 @@ function updateHeaderStats(){
           : CURTAB === 'pu'  ? PU
           : CURTAB === 'oi'  ? OI
           : CURTAB === 'ld'  ? RM
+          : CURTAB === 'cn'  ? CN
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
     ? (m.source || 'PetPooja webhook')
@@ -583,14 +654,17 @@ function updateHeaderStats(){
     ? (m.source || 'Raw Material Master (Ideal Inventory)')
     : CURTAB === 'ld'
     ? (m.source || 'Raw Material Master (Ideal Inventory)')
+    : CURTAB === 'cn'
+    ? (m.source || 'PetPooja webhook (not yet wired)')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi' || CURTAB === 'ld') ? 'live' : CURTAB === 'pu' ? 'warn' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi' || CURTAB === 'ld') ? 'live' : (CURTAB === 'pu' || CURTAB === 'cn') ? 'warn' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
              : CURTAB === 'pu'  ? ' GRNs'
              : CURTAB === 'oi'  ? ' items'
              : CURTAB === 'ld'  ? ' raw materials'
+             : CURTAB === 'cn'  ? ' KOT events'
              : ' raw materials';
   // On the Loose Denomination tab, show how many are marked loose in parentheses too.
   let cnt = (m.count ?? 0).toLocaleString('en-IN');
@@ -2141,6 +2215,162 @@ function ldExportCsv(){
   }
   const today = (new Date()).toISOString().slice(0,10);
   downloadBlob(lines.join('\n'), 'loose-denomination-setup-'+today+'.csv');
+}
+
+/* ======================== CONSUMPTION (CN) — STRUCTURE ONLY ========================
+   Real-time per-item KOT feed from PetPooja. Each row = one item on one KOT
+   at the moment the KOT was punched (not when billed; that's the Sales Data
+   tab). Auto-refresh polls every 30s when the tab is open and the checkbox
+   is on — swap in a Supabase Realtime subscription when the backend lands
+   for sub-second latency.
+
+   Shape frozen for the backend:
+     { kot_at, kot_no, outlet, item_name, category, qty, order_type,
+       channel, status }
+   kot_at is an ISO timestamp with TZ offset. category is the storage class
+   (Frozen / Chiller / Vegetable / Dry Store / Packaging) looked up from the
+   RM master by item name — the backend should return it joined so this tab
+   doesn't need to run its own lookup.
+
+   TODO when wiring: loadCn() swaps the mock seed for
+     const r = await fetch('/api/outlet-consumption-feed?from=...&to=...')
+   or a Supabase realtime channel subscription on the orders/order_items
+   tables in the AIFI project. */
+
+const CN_MOCK_ROWS = [
+  { kot_at: '2026-10-19T13:52:14+05:30', kot_no: 'KOT-7731', outlet: 'Rajinder Nagar',    item_name: 'Grilled Chicken Bowl',      category: 'Chiller',    qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Preparing' },
+  { kot_at: '2026-10-19T13:51:48+05:30', kot_no: 'KOT-7730', outlet: 'DLF Phase 2',       item_name: 'Falafel Hummus Salad',      category: 'Vegetable',  qty: 2, order_type: 'Delivery', channel: 'Swiggy', status: 'Placed' },
+  { kot_at: '2026-10-19T13:51:48+05:30', kot_no: 'KOT-7730', outlet: 'DLF Phase 2',       item_name: 'Blueberry Chia (300ml)',    category: 'Chiller',    qty: 2, order_type: 'Delivery', channel: 'Swiggy', status: 'Placed' },
+  { kot_at: '2026-10-19T13:49:02+05:30', kot_no: 'KOT-7729', outlet: 'Sector 15 Gurugram', item_name: 'Chicken Keema Biryani',    category: 'Frozen',     qty: 1, order_type: 'Delivery', channel: 'Zomato', status: 'Served' },
+  { kot_at: '2026-10-19T13:47:30+05:30', kot_no: 'KOT-7728', outlet: 'Noida',             item_name: 'Protein Pasta (Alfredo)',   category: 'Dry Store',  qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
+  { kot_at: '2026-10-19T13:46:11+05:30', kot_no: 'KOT-7727', outlet: 'Dwarka',            item_name: 'Grilled Paneer Wrap',       category: 'Chiller',    qty: 1, order_type: 'Pick Up',  channel: 'POS',    status: 'Preparing' },
+  { kot_at: '2026-10-19T13:44:55+05:30', kot_no: 'KOT-7726', outlet: 'Shivalik',          item_name: 'Avocado Breakfast Burrito', category: 'Vegetable',  qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
+  { kot_at: '2026-10-19T13:43:20+05:30', kot_no: 'KOT-7725', outlet: 'Prashant Vihar',    item_name: 'American Grilled Chicken',  category: 'Frozen',     qty: 2, order_type: 'Delivery', channel: 'Zomato', status: 'Served' },
+  { kot_at: '2026-10-19T13:41:57+05:30', kot_no: 'KOT-7724', outlet: 'Janakpuri',         item_name: 'Cold Brew Coffee',          category: 'Chiller',    qty: 2, order_type: 'Pick Up',  channel: 'POS',    status: 'Served' },
+  { kot_at: '2026-10-19T13:40:12+05:30', kot_no: 'KOT-7723', outlet: 'Karkardooma',       item_name: 'Keto Mutton Platter',       category: 'Frozen',     qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
+  { kot_at: '2026-10-19T13:38:44+05:30', kot_no: 'KOT-7722', outlet: 'Sector 63 Noida',   item_name: 'Container 500ml (Round)',   category: 'Packaging',  qty: 3, order_type: 'Delivery', channel: 'Swiggy', status: 'Served' },
+  { kot_at: '2026-10-19T13:37:28+05:30', kot_no: 'KOT-7721', outlet: 'Rajinder Nagar',    item_name: 'Quinoa Power Salad',        category: 'Vegetable',  qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
+  { kot_at: '2026-10-19T13:36:03+05:30', kot_no: 'KOT-7720', outlet: 'DLF Phase 2',       item_name: 'Fish Tikka Bowl',           category: 'Frozen',     qty: 1, order_type: 'Delivery', channel: 'Swiggy', status: 'Cancelled' },
+  { kot_at: '2026-10-19T13:34:50+05:30', kot_no: 'KOT-7719', outlet: 'Shivalik',          item_name: 'Masala Buttermilk',         category: 'Chiller',    qty: 2, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
+  { kot_at: '2026-10-19T13:33:12+05:30', kot_no: 'KOT-7718', outlet: 'Noida',             item_name: 'Hand-Baked Multigrain Loaf', category: 'Dry Store', qty: 1, order_type: 'Pick Up',  channel: 'POS',    status: 'Served' },
+];
+
+async function loadCn(fresh){
+  // STRUCTURE ONLY — mock seed. When wired, replace with:
+  //   const params = new URLSearchParams();
+  //   if($('dateFromCn').value) params.set('from', $('dateFromCn').value);
+  //   if($('dateToCn').value)   params.set('to',   $('dateToCn').value);
+  //   const r = await fetch('/api/outlet-consumption-feed?' + params);
+  //   const j = await r.json(); if(!j.ok) throw new Error(j.error || ...);
+  //   CN.rows = j.rows || [];
+  const stat = $('syncStatCn');
+  if(stat) stat.textContent = fresh ? 'Refreshing…' : 'Loading…';
+  await new Promise(r => setTimeout(r, 120));
+  CN.rows = CN_MOCK_ROWS.slice();
+  CN.meta = { source: 'mock data', synced_at: new Date().toISOString(), count: CN.rows.length };
+  CN_LOADED.v = true;
+  // Default datetime range: last 1h → now (IST), so the view feels like "latest activity".
+  const toInput = $('dateToCn'), fromInput = $('dateFromCn');
+  if(!toInput.value || !fromInput.value){
+    const pad = (n) => String(n).padStart(2, '0');
+    const toIst = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const now = new Date();
+    const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    if(!fromInput.value) fromInput.value = toIst(hourAgo);
+    if(!toInput.value)   toInput.value   = toIst(now);
+  }
+  if(stat){ stat.textContent = fresh ? 'Refreshed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
+  renderCn();
+  if(CURTAB === 'cn') updateHeaderStats();
+}
+
+function renderCn(){
+  if(!CN_LOADED.v) return;
+  const q = ($('qCn').value || '').trim().toLowerCase();
+  const outletF = $('outletCn').value || '';
+  const typeF = $('orderTypeCn').value || '';
+  const statusF = $('statusCn').value || '';
+  const dFrom = $('dateFromCn').value || '';
+  const dTo   = $('dateToCn').value || '';
+  // KOT timestamps carry a TZ offset; datetime-local inputs are IST wall-clock
+  // (no offset) — append +05:30 so Date.parse interprets them as IST.
+  const fromMs = dFrom ? Date.parse(dFrom + '+05:30') : null;
+  const toMs   = dTo   ? Date.parse(dTo   + '+05:30') : null;
+  const rows = CN.rows.filter(r => {
+    if(outletF && r.outlet !== outletF) return false;
+    if(typeF   && r.order_type !== typeF)   return false;
+    if(statusF && r.status !== statusF)     return false;
+    const rMs = Date.parse(r.kot_at || '');
+    if(fromMs != null && isFinite(fromMs) && isFinite(rMs) && rMs < fromMs) return false;
+    if(toMs   != null && isFinite(toMs)   && isFinite(rMs) && rMs > toMs)   return false;
+    if(q){
+      const hay = (r.item_name + ' ' + r.kot_no + ' ' + r.outlet).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const tb = $('tbodyCn');
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center">No consumption events match these filters.</td></tr>';
+    return;
+  }
+  const statusChip = (s) => {
+    const colors = {
+      'Placed':    'background:#dbeafe;color:#1e40af',
+      'Preparing': 'background:#fef3c7;color:#92400e',
+      'Served':    'background:#dcfce7;color:#166534',
+      'Cancelled': 'background:#fee2e2;color:#991b1b',
+    };
+    return `<span class="sb" style="${colors[s] || 'background:#f3f4f6;color:#374151'}">${esc(s)}</span>`;
+  };
+  const catChip = (c) => {
+    const colors = {
+      'Frozen':    'background:#dbeafe;color:#1e40af',
+      'Chiller':   'background:#cffafe;color:#155e75',
+      'Vegetable': 'background:#dcfce7;color:#166534',
+      'Dry Store': 'background:#fef3c7;color:#92400e',
+      'Packaging': 'background:#fce7f3;color:#9d174d',
+    };
+    return c ? `<span class="sb" style="${colors[c] || 'background:#f3f4f6;color:#374151'}">${esc(c)}</span>` : '<span class="mut">—</span>';
+  };
+  tb.innerHTML = rows.map(r => (
+    '<tr>' +
+      '<td>' + esc(fmtTime(r.kot_at)) + '</td>' +
+      '<td style="font-family:monospace;font-size:12.5px">' + esc(r.kot_no) + '</td>' +
+      '<td>' + esc(r.outlet) + '</td>' +
+      '<td>' + esc(r.item_name) + '</td>' +
+      '<td>' + catChip(r.category) + '</td>' +
+      '<td class="r">' + qty(r.qty) + '</td>' +
+      '<td>' + esc(r.order_type) + '</td>' +
+      '<td>' + esc(r.channel) + '</td>' +
+      '<td>' + statusChip(r.status) + '</td>' +
+    '</tr>'
+  )).join('');
+}
+
+function cnToggleAutoRefresh(){
+  const on = $('autoRefreshCn') && $('autoRefreshCn').checked;
+  if(CN_AUTOREFRESH_TIMER){ clearInterval(CN_AUTOREFRESH_TIMER); CN_AUTOREFRESH_TIMER = null; }
+  if(on){
+    // 30-second refresh is reasonable for mock. When wired to Supabase
+    // Realtime, this timer can be replaced with a channel subscription.
+    CN_AUTOREFRESH_TIMER = setInterval(() => {
+      if(CURTAB === 'cn' && !document.hidden) loadCn(true).catch(() => {});
+    }, 30000);
+  }
+}
+// Kick off auto-refresh on page load so the moment the user opens the tab it's live.
+try { cnToggleAutoRefresh(); } catch(e) {}
+
+function exportCsvCn(){
+  if(!CN.rows.length){ toast('No consumption events to export yet.'); return; }
+  const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['Date & Time,KOT / Order No,Outlet,Item Name,Category,Qty,Order Type,Channel,Status'];
+  for(const r of CN.rows){
+    lines.push([fmtTime(r.kot_at), r.kot_no, r.outlet, r.item_name, r.category, r.qty, r.order_type, r.channel, r.status].map(esc2).join(','));
+  }
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), 'consumption-feed-'+today+'.csv');
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
