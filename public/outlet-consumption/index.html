@@ -493,13 +493,7 @@
    </label>
    <button class="btn prim" id="btnSyncCn" onclick="loadCn(true)" title="Fetch latest KOTs from PetPooja">⚡ Refresh now</button>
    <span id="syncStatCn" class="mut" style="font-size:12.5px"></span>
-   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja webhook (not yet wired)</span>
-  </div>
-
-  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fef3c7;border-color:#fcd34d">
-   <div style="font-size:12.5px;color:#92400e;line-height:1.45">
-    <b>Structure preview.</b> Rows below are mock. The real feed streams per-item events the moment a KOT is punched into PetPooja — same AIFI webhook that feeds Sales Data, but surfaced here with the KOT-level timestamp (not billing time) so your team sees consumption as it happens. Columns and row shape are frozen so the backend can target this exact shape when wired.
-   </div>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja Global Sales API (live)</span>
   </div>
 
   <div class="card"><div class="scroll"><table id="tblCn">
@@ -652,7 +646,7 @@ function updateHeaderStats(){
     : CURTAB === 'oi'
     ? (m.source || 'Raw Material Master (Ideal Inventory)')
     : CURTAB === 'cn'
-    ? (m.source || 'PetPooja webhook (not yet wired)')
+    ? (m.source || 'PetPooja Global Sales API')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
   $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi') ? 'live' : (CURTAB === 'pu' || CURTAB === 'cn') ? 'warn' : m.source ? 'warn' : 'live');
@@ -2235,47 +2229,32 @@ function rmLooseToggle(rmCode, level){
    RM master by item name — the backend should return it joined so this tab
    doesn't need to run its own lookup.
 
-   TODO when wiring: loadCn() swaps the mock seed for
-     const r = await fetch('/api/outlet-consumption-feed?from=...&to=...')
-   or a Supabase realtime channel subscription on the orders/order_items
-   tables in the AIFI project. */
+   Live wiring (2026-10-19): reads from /api/outlet-invoices — the same AIFI
+   endpoint Sales Data uses. One row per order_item. We project the invoice
+   row shape onto the Consumption shape here on the client, using placed_at
+   as the KOT timestamp (not billing time) so KOTs appear the moment they're
+   punched in PetPooja. */
 
-const CN_MOCK_ROWS = [
-  { kot_at: '2026-10-19T13:52:14+05:30', kot_no: 'KOT-7731', outlet: 'Rajinder Nagar',    item_name: 'Grilled Chicken Bowl',      category: 'Chiller',    qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Preparing' },
-  { kot_at: '2026-10-19T13:51:48+05:30', kot_no: 'KOT-7730', outlet: 'DLF Phase 2',       item_name: 'Falafel Hummus Salad',      category: 'Vegetable',  qty: 2, order_type: 'Delivery', channel: 'Swiggy', status: 'Placed' },
-  { kot_at: '2026-10-19T13:51:48+05:30', kot_no: 'KOT-7730', outlet: 'DLF Phase 2',       item_name: 'Blueberry Chia (300ml)',    category: 'Chiller',    qty: 2, order_type: 'Delivery', channel: 'Swiggy', status: 'Placed' },
-  { kot_at: '2026-10-19T13:49:02+05:30', kot_no: 'KOT-7729', outlet: 'Sector 15 Gurugram', item_name: 'Chicken Keema Biryani',    category: 'Frozen',     qty: 1, order_type: 'Delivery', channel: 'Zomato', status: 'Served' },
-  { kot_at: '2026-10-19T13:47:30+05:30', kot_no: 'KOT-7728', outlet: 'Noida',             item_name: 'Protein Pasta (Alfredo)',   category: 'Dry Store',  qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
-  { kot_at: '2026-10-19T13:46:11+05:30', kot_no: 'KOT-7727', outlet: 'Dwarka',            item_name: 'Grilled Paneer Wrap',       category: 'Chiller',    qty: 1, order_type: 'Pick Up',  channel: 'POS',    status: 'Preparing' },
-  { kot_at: '2026-10-19T13:44:55+05:30', kot_no: 'KOT-7726', outlet: 'Shivalik',          item_name: 'Avocado Breakfast Burrito', category: 'Vegetable',  qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
-  { kot_at: '2026-10-19T13:43:20+05:30', kot_no: 'KOT-7725', outlet: 'Prashant Vihar',    item_name: 'American Grilled Chicken',  category: 'Frozen',     qty: 2, order_type: 'Delivery', channel: 'Zomato', status: 'Served' },
-  { kot_at: '2026-10-19T13:41:57+05:30', kot_no: 'KOT-7724', outlet: 'Janakpuri',         item_name: 'Cold Brew Coffee',          category: 'Chiller',    qty: 2, order_type: 'Pick Up',  channel: 'POS',    status: 'Served' },
-  { kot_at: '2026-10-19T13:40:12+05:30', kot_no: 'KOT-7723', outlet: 'Karkardooma',       item_name: 'Keto Mutton Platter',       category: 'Frozen',     qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
-  { kot_at: '2026-10-19T13:38:44+05:30', kot_no: 'KOT-7722', outlet: 'Sector 63 Noida',   item_name: 'Container 500ml (Round)',   category: 'Packaging',  qty: 3, order_type: 'Delivery', channel: 'Swiggy', status: 'Served' },
-  { kot_at: '2026-10-19T13:37:28+05:30', kot_no: 'KOT-7721', outlet: 'Rajinder Nagar',    item_name: 'Quinoa Power Salad',        category: 'Vegetable',  qty: 1, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
-  { kot_at: '2026-10-19T13:36:03+05:30', kot_no: 'KOT-7720', outlet: 'DLF Phase 2',       item_name: 'Fish Tikka Bowl',           category: 'Frozen',     qty: 1, order_type: 'Delivery', channel: 'Swiggy', status: 'Cancelled' },
-  { kot_at: '2026-10-19T13:34:50+05:30', kot_no: 'KOT-7719', outlet: 'Shivalik',          item_name: 'Masala Buttermilk',         category: 'Chiller',    qty: 2, order_type: 'Dine In',  channel: 'POS',    status: 'Served' },
-  { kot_at: '2026-10-19T13:33:12+05:30', kot_no: 'KOT-7718', outlet: 'Noida',             item_name: 'Hand-Baked Multigrain Loaf', category: 'Dry Store', qty: 1, order_type: 'Pick Up',  channel: 'POS',    status: 'Served' },
-];
+// Rebuild a <select> from the unique values seen in the current data, keeping
+// the user's current selection if that value is still present.
+function cnRepopulateFilter(elId, values, allLabel){
+  const el = $(elId); if(!el) return;
+  const cur = el.value || '';
+  const uniq = Array.from(new Set(values)).sort((a, b) => String(a).localeCompare(String(b)));
+  const opts = ['<option value="">' + allLabel + '</option>']
+    .concat(uniq.map(v => '<option value="' + esc(v) + '">' + esc(v) + '</option>'));
+  el.innerHTML = opts.join('');
+  if(cur && uniq.includes(cur)) el.value = cur; else el.value = '';
+}
 
 async function loadCn(fresh){
-  // STRUCTURE ONLY — mock seed. When wired, replace with:
-  //   const params = new URLSearchParams();
-  //   if($('dateFromCn').value) params.set('from', $('dateFromCn').value);
-  //   if($('dateToCn').value)   params.set('to',   $('dateToCn').value);
-  //   const r = await fetch('/api/outlet-consumption-feed?' + params);
-  //   const j = await r.json(); if(!j.ok) throw new Error(j.error || ...);
-  //   CN.rows = j.rows || [];
   const stat = $('syncStatCn');
-  if(stat) stat.textContent = fresh ? 'Refreshing…' : 'Loading…';
-  await new Promise(r => setTimeout(r, 120));
-  CN.rows = CN_MOCK_ROWS.slice();
-  CN.meta = { source: 'mock data', synced_at: new Date().toISOString(), count: CN.rows.length };
-  CN_LOADED.v = true;
+
   // Default datetime range: today's business day — 8:00 AM today → 1:00 AM
   // tomorrow (NutrioBox operating hours). If it's currently past midnight but
   // before 2 AM, we're still in the previous business day's tail, so shift
   // the window back one calendar day so the current moment stays inside it.
+  // Set this BEFORE the fetch so the first load has a valid from/to.
   const toInput = $('dateToCn'), fromInput = $('dateFromCn');
   if(!toInput.value || !fromInput.value){
     const pad = (n) => String(n).padStart(2, '0');
@@ -2290,7 +2269,66 @@ async function loadCn(fresh){
     if(!fromInput.value) fromInput.value = toLocal(start);
     if(!toInput.value)   toInput.value   = toLocal(end);
   }
-  if(stat){ stat.textContent = fresh ? 'Refreshed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
+
+  if(stat) stat.textContent = fresh ? 'Refreshing…' : 'Loading…';
+  try {
+    const params = new URLSearchParams();
+    if(fromInput.value) params.set('from', fromInput.value);
+    if(toInput.value)   params.set('to',   toInput.value);
+    // Pull enough rows for a full business day across all 10 outlets. A busy
+    // day peaks around ~3-4k line items; 10k gives headroom.
+    params.set('limit_rows', '10000');
+    const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+
+    // Project invoice-row shape onto Consumption-row shape. Timestamp is
+    // placed_at (KOT time), outlet is restaurant_name, item is item_name,
+    // qty is item_quantity, channel is `area`, status is PetPooja status.
+    // Category here is the PetPooja menu category (what the KOT ticket shows);
+    // storage-class category (Frozen/Chiller/etc.) will join in later via the
+    // RM master once the BOM-to-dish map is wired.
+    // AIFI stores placed_at as plain text ("YYYY-MM-DD HH:MM:SS") with no
+    // offset — append +05:30 explicitly so Date.parse interprets it as IST
+    // on any browser.
+    const toIsoIst = (s) => {
+      if(!s) return '';
+      const t = String(s).trim();
+      // If it already carries a Z/±HH:MM, leave it alone.
+      if(/[zZ]$/.test(t) || /[+\-]\d{2}:?\d{2}$/.test(t)) return t;
+      return t.replace(' ', 'T') + '+05:30';
+    };
+    CN.rows = (j.rows || []).map(row => ({
+      kot_at:     toIsoIst(row.date),                // placed_at — KOT timestamp
+      kot_no:     row.pp_order_code || row.invoice_no || '—',
+      outlet:     row.restaurant_name,
+      item_name:  row.item_name,
+      category:   row.category_name || '',           // PetPooja menu category
+      qty:        row.item_quantity || 0,
+      order_type: row.order_type || '',
+      channel:    row.area || '',
+      status:     row.status || '',
+    }));
+    CN.meta = {
+      source: 'PetPooja Global Sales API',
+      synced_at: new Date().toISOString(),
+      count: CN.rows.length,
+      orders: j.totals && j.totals.orders,
+      limit_hit: j.totals && j.totals.limit_hit,
+    };
+    CN_LOADED.v = true;
+    // Make status + order-type filters match what PetPooja is actually
+    // returning for this account, rather than the mock-era hardcoded options.
+    cnRepopulateFilter('statusCn',    CN.rows.map(r => r.status).filter(Boolean),    'All statuses');
+    cnRepopulateFilter('orderTypeCn', CN.rows.map(r => r.order_type).filter(Boolean), 'All order types');
+    if(stat){ stat.textContent = fresh ? 'Refreshed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
+  } catch (err) {
+    console.error('Consumption fetch failed:', err);
+    if(stat){ stat.textContent = 'Fetch failed — ' + (err && err.message ? err.message : 'see console'); }
+    CN.rows = CN.rows || [];
+    CN.meta = CN.meta || { source: 'fetch error', synced_at: new Date().toISOString(), count: 0 };
+    CN_LOADED.v = true;
+  }
   renderCn();
   if(CURTAB === 'cn') updateHeaderStats();
 }
