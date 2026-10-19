@@ -225,7 +225,7 @@
     <option value="Packaging">Packaging</option>
    </select>
    <button id="btnErrorsRm" class="btn" onclick="toggleErrorsRm()" title="Show only Excel items that have no matching PACT product so your team can create them." style="border-color:#fca5a5;color:#991b1b;background:#fff5f5">⚠ Errors only: <span id="errorsRmState">off</span> <span id="errorsRmCount" style="margin-left:4px;background:#fecaca;color:#7f1d1d;padding:1px 7px;border-radius:999px;font-size:11.5px;font-weight:700"></span></button>
-   <button id="btnLooseModeRm" class="btn" onclick="rmLooseModeEnter()" title="Mark which level (L3 / L2 / L1) of each item is sold loose. A new Denomination column appears with gray L badges you can tap to turn green; Submit saves your picks and reflects them in the Opening Inventory sheet.">📏 Loose Denomination</button>
+   <button id="btnLooseModeRm" class="btn" onclick="rmLooseModeEnter()" title="Mark which level (L3 / L2 / L1) of each item is sold loose. Small gray L circles appear inside the L3, L2 and L1 UOM columns — tap one to mark that level as loose (green); Submit saves your picks and reflects them in the Opening Inventory sheet.">📏 Loose Denomination</button>
    <!-- Submit / Cancel show only while the Loose Denomination mode is active -->
    <button id="btnLooseSubmitRm" class="btn prim" onclick="rmLooseModeSubmit()" style="display:none;background:#065f46;border-color:#065f46" title="Save all green marks. Items with any green level will show that level under Loose Denomination on the Opening Inventory sheet.">✓ Submit Loose Denomination</button>
    <button id="btnLooseCancelRm" class="btn" onclick="rmLooseModeCancel()" style="display:none" title="Discard your in-progress marks and return to view mode.">✕ Cancel</button>
@@ -238,7 +238,7 @@
   <div id="ghostBanner" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:11px 14px;margin-bottom:10px;color:#991b1b;font-size:13.5px;line-height:1.4"></div>
   <!-- Instruction banner shown only while in Loose Denomination mode -->
   <div id="rmLooseBanner" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:11px 14px;margin-bottom:10px;color:#065f46;font-size:13px;line-height:1.5">
-   <b>Loose Denomination mode</b> — tap the gray <b style="font-family:system-ui">L</b> circle next to L3, L2 or L1 for each item to mark that level as loose. Tap again to un-mark. When you're done, click <b>✓ Submit Loose Denomination</b>; items with any green mark will show that level in the Loose Denomination column on the Opening Inventory sheet.
+   <b>Loose Denomination mode</b> — a small gray <b style="font-family:system-ui">L</b> circle has appeared next to the unit inside the <b>L3</b>, <b>L2</b> and <b>L1 UOM</b> columns. Tap it to mark that level as loose (it turns green); tap again to un-mark. When you're done, click <b>✓ Submit Loose Denomination</b> and the marks will show in the Loose Denomination column on the Opening Inventory sheet.
   </div>
   <div class="card"><div class="scroll"><table id="tblRm">
    <thead id="theadRm"><tr>
@@ -1093,38 +1093,16 @@ function renderRm(){
   const ghostCodeChip = () =>
     `<span class="sb" style="background:#fee2e2;color:#991b1b" title="This Excel ideal-inventory item is not yet in PACT Product Master. Create it in PACT so costing and dispatch can see it.">⚠ Not in PACT</span>`;
 
-  // In Loose Denomination mode the table grows a Denomination column after
-  // L3 Conversion. The header row is updated here so a saved HTML snapshot
-  // stays coherent; the cell renderer below writes the matching per-row cell.
+  // In Loose Denomination mode we DON'T grow a separate Denomination column
+  // (that was the earlier layout; Satvik asked on 2026-10-19 to put the L
+  // badge inside the existing L3 / L2 / L1 cells instead). The table always
+  // has 10 columns; only the content of L3-Unit, L2-Unit, L1-UOM changes.
   const inLoose = !!LD.mode;
-  const thead = document.getElementById('theadRm');
-  if(thead){
-    thead.innerHTML = inLoose
-      ? `<tr>
-          <th>#</th><th>RM Code</th><th>Raw Material Name</th><th>Category</th>
-          <th title="Packing UOM from the Ideal Inventory sheet (how the team orders the item, e.g. Carton, Pkt, Bunch)">Packing UOM</th>
-          <th title="L3 — case / outermost unit (e.g. Bag)">L3</th>
-          <th title="How many L2 units are in one L3">L3 Conversion</th>
-          <th title="Tap the gray L circle next to L3 / L2 / L1 to mark that level as loose; it turns green. Submit saves your picks." style="min-width:220px">Denomination</th>
-          <th title="L2 — pack unit (e.g. Kg)">L2</th>
-          <th title="How many L1 base units are in one L2">L2 Conversion</th>
-          <th title="L1 — base unit of measure (e.g. Gms)">L1 UOM</th>
-        </tr>`
-      : `<tr>
-          <th>#</th><th>RM Code</th><th>Raw Material Name</th><th>Category</th>
-          <th title="Packing UOM from the Ideal Inventory sheet (how the team orders the item, e.g. Carton, Pkt, Bunch)">Packing UOM</th>
-          <th title="L3 — case / outermost unit (e.g. Bag)">L3</th>
-          <th title="How many L2 units are in one L3">L3 Conversion</th>
-          <th title="L2 — pack unit (e.g. Kg)">L2</th>
-          <th title="How many L1 base units are in one L2">L2 Conversion</th>
-          <th title="L1 — base unit of measure (e.g. Gms)">L1 UOM</th>
-        </tr>`;
-  }
-  const colCount = inLoose ? 11 : 10;
+  // Header is static — no column insertion. The theadRm id is kept so a saved
+  // snapshot renders correctly if the user bookmarked the page.
 
-  // Loose-level L-badge for the Denomination column. In mode = clickable (draft).
-  // Out of mode = read-only pill showing the saved marks (not currently used here
-  // since the column is hidden out of mode, but kept for the OI view).
+  // Clickable L badge for a specific level. In mode: tapping toggles the
+  // level in LD.draft (gray -> green or vice versa).
   const looseLevelBadge = (rmCode, lvl) => {
     const draft = LD.draft[rmCode] || {};
     const isOn = !!draft[lvl];
@@ -1134,19 +1112,14 @@ function renderRm(){
     const title = isOn
       ? lvl + ' is marked as loose. Click to un-mark.'
       : 'Click to mark ' + lvl + ' as a loose denomination.';
-    return `<span onclick="rmLooseToggle('${esc(rmCode).replace(/\\/g,'\\\\').replace(/\'/g,"\\'")}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1;user-select:none;${style}">L</span>`;
+    const codeEsc = esc(rmCode).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
+    return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
   };
-  const denomCellFor = (x) => {
-    if(!inLoose) return '';
-    const parts = [];
-    const push = (level, uom) => {
-      if(!uom) return;
-      parts.push(`<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px">${looseLevelBadge(x.code, level)}<span class="code" style="font-size:11px">${esc(uom)}</span></span>`);
-    };
-    push('L3', x.caseUnit);
-    push('L2', x.packUnit);
-    push('L1', x.baseUnit || x.idealUom);
-    return `<td>${parts.join('') || '<span class="mut">—</span>'}</td>`;
+  // Decorate a cell with the per-level L badge when in mode and the level
+  // actually exists (has a UOM). Out of mode: return cell content unchanged.
+  const withBadge = (cellContent, rmCode, level, uom) => {
+    if(!inLoose || !uom) return cellContent;
+    return looseLevelBadge(rmCode, level) + cellContent;
   };
 
   const rows = list.slice(0, 3000).map((x, i) => {
@@ -1162,7 +1135,6 @@ function renderRm(){
         <td>${packUomGhost}</td>
         <td><span class="mut">—</span></td>
         <td><span class="mut">—</span></td>
-        ${inLoose ? '<td><span class="mut">—</span></td>' : ''}
         <td><span class="mut">—</span></td>
         <td><span class="mut">—</span></td>
         <td>${l1}</td>
@@ -1184,19 +1156,18 @@ function renderRm(){
       <td>${esc(x.name)}</td>
       <td>${groupBadge}</td>
       <td>${packUomCell}</td>
-      <td>${l3Unit}</td>
+      <td>${withBadge(l3Unit, x.code, 'L3', x.caseUnit)}</td>
       <td>${l3Conv}</td>
-      ${denomCellFor(x)}
-      <td>${l2Unit}</td>
+      <td>${withBadge(l2Unit, x.code, 'L2', x.packUnit)}</td>
       <td>${l2Conv}</td>
-      <td>${l1Cell}</td>
+      <td>${withBadge(l1Cell, x.code, 'L1', x.baseUnit || x.idealUom)}</td>
     </tr>`;
   }).join('');
   const extra = list.length > 3000
-    ? `<tr><td colspan="${colCount}" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
+    ? `<tr><td colspan="10" class="mut" style="padding:14px;text-align:center">… ${list.length-3000} more — refine the search to see them</td></tr>`
     : '';
   $('tbodyRm').innerHTML = (rows
-    || `<tr><td colspan="${colCount}" class="mut" style="padding:20px;text-align:center">No raw materials match this filter.</td></tr>`) + extra;
+    || `<tr><td colspan="10" class="mut" style="padding:20px;text-align:center">No raw materials match this filter.</td></tr>`) + extra;
 }
 
 function exportCsvRm(){
@@ -2287,15 +2258,23 @@ async function loadCn(fresh){
   CN.rows = CN_MOCK_ROWS.slice();
   CN.meta = { source: 'mock data', synced_at: new Date().toISOString(), count: CN.rows.length };
   CN_LOADED.v = true;
-  // Default datetime range: last 1h → now (IST), so the view feels like "latest activity".
+  // Default datetime range: today's business day — 8:00 AM today → 1:00 AM
+  // tomorrow (NutrioBox operating hours). If it's currently past midnight but
+  // before 2 AM, we're still in the previous business day's tail, so shift
+  // the window back one calendar day so the current moment stays inside it.
   const toInput = $('dateToCn'), fromInput = $('dateFromCn');
   if(!toInput.value || !fromInput.value){
     const pad = (n) => String(n).padStart(2, '0');
-    const toIst = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const toLocal = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     const now = new Date();
-    const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    if(!fromInput.value) fromInput.value = toIst(hourAgo);
-    if(!toInput.value)   toInput.value   = toIst(now);
+    const start = new Date(now);
+    if(now.getHours() < 2) start.setDate(start.getDate() - 1);  // overnight tail
+    start.setHours(8, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    end.setHours(1, 0, 0, 0);
+    if(!fromInput.value) fromInput.value = toLocal(start);
+    if(!toInput.value)   toInput.value   = toLocal(end);
   }
   if(stat){ stat.textContent = fresh ? 'Refreshed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
   renderCn();
