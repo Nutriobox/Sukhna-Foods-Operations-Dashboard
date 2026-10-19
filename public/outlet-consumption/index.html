@@ -1902,6 +1902,20 @@ const OI_CAT_ORDER = { 'Frozen':1, 'Chiller':2, 'Vegetable':3, 'Dry Store':4, 'P
 
 // Build OI's row list from RM.items. Returns [{rm_code, name, category, packing_uom}, ...]
 // sorted the same way RM Master sorts its table.
+// Colored category chip for the Opening Inventory count sheet. Same palette
+// RM Master uses so the two tabs read consistently.
+function oiCategoryChip(cat){
+  if(!cat) return '<span class="mut">—</span>';
+  const colors = {
+    'Frozen':    'background:#dbeafe;color:#1e40af',
+    'Chiller':   'background:#cffafe;color:#155e75',
+    'Vegetable': 'background:#dcfce7;color:#166534',
+    'Dry Store': 'background:#fef3c7;color:#92400e',
+    'Packaging': 'background:#fce7f3;color:#9d174d',
+  };
+  return `<span class="sb" style="${colors[cat] || 'background:#f3f4f6;color:#374151'}">${esc(cat)}</span>`;
+}
+
 function oiBuildItemsFromRm(){
   if(!RM_LOADED.v || !Array.isArray(RM.items)) return [];
   return RM.items
@@ -2023,7 +2037,7 @@ function oiRenderCount(){
         '<td>' + (i + 1) + '</td>' +
         '<td style="font-family:monospace;font-size:12.5px">' + esc(it.rm_code) + '</td>' +
         '<td>' + esc(it.name) + '</td>' +
-        '<td>' + esc(it.category) + '</td>' +
+        '<td>' + oiCategoryChip(it.category) + '</td>' +
         '<td>' + esc(it.packing_uom) + '</td>' +
         '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(qVal) + '" ' +
           'onchange="oiSetQty(\'' + codeEsc + '\', this.value)" ' +
