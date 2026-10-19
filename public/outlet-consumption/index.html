@@ -128,6 +128,7 @@
   <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
+  <div class="tab" data-t="ld" onclick="selTab('ld')">📏 Loose Denomination</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -432,11 +433,55 @@
      <th>Product Name</th>
      <th>Category</th>
      <th title="Packing UOM from the Ideal Inventory sheet">Packaging Unit</th>
+     <th title="Items marked as Loose Denomination in the Loose Denomination tab show a tick here" style="text-align:center">Loose Denomination</th>
      <th class="r" style="min-width:140px">Quantity</th>
     </tr></thead>
-    <tbody id="tbodyOi"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+    <tbody id="tbodyOi"><tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
    </table></div></div>
   </div>
+ </div>
+
+ <!-- ============== Loose Denomination tab (per-item setup: loose vs no denomination) ============== -->
+ <div id="tabLd" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap">
+   <input id="qLd" class="search" placeholder="Search raw material name or code…" oninput="ldRender()" style="min-width:260px">
+   <select id="catLd" onchange="ldRender()" class="btn" style="padding-right:28px" title="Filter rows by storage category">
+    <option value="" selected>All categories</option>
+    <option value="Frozen">Frozen</option>
+    <option value="Chiller">Chiller</option>
+    <option value="Vegetable">Vegetable</option>
+    <option value="Dry Store">Dry Store</option>
+    <option value="Packaging">Packaging</option>
+   </select>
+   <span id="ldMarkedChip" class="pill" title="How many items you have marked as Loose Denomination so far">0 marked loose</span>
+   <button class="btn" onclick="ldClearAll()" title="Reset all items to 'No denomination'">↺ Clear all</button>
+   <button class="btn" onclick="ldExportCsv()" title="Download the current denomination setup as CSV">⬇ Export CSV</button>
+   <span id="ldSaveStat" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Raw Material Master (Ideal Inventory list)</span>
+  </div>
+
+  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#eff6ff;border-color:#bfdbfe">
+   <div style="font-size:12.5px;color:#1e40af;line-height:1.45">
+    Same ~197 items as Raw Material Master. For each row, pick <b>Loose Denomination</b> or <b>No Denomination</b> from the dropdown in the new <b>Denomination</b> column. Items you mark as Loose automatically show a <b>✓</b> in the <b>Loose Denomination</b> column on the Opening Inventory count sheet. Your choices are saved locally in this browser; when the backend is wired they'll move to Supabase so every device sees the same setup.
+   </div>
+  </div>
+
+  <div class="card"><div class="scroll"><table id="tblLd">
+   <thead><tr>
+    <th>#</th>
+    <th>RM Code</th>
+    <th>Raw Material Name</th>
+    <th>Category</th>
+    <th title="Packing UOM from the Ideal Inventory sheet">Packing UOM</th>
+    <th title="L3 — case / outermost unit">L3</th>
+    <th title="How many L2 units are in one L3">L3 Conversion</th>
+    <th title="Pick Loose Denomination to flag this item on the Opening Inventory count sheet" style="min-width:180px">Denomination</th>
+    <th title="L2 — pack unit">L2</th>
+    <th title="How many L1 base units are in one L2">L2 Conversion</th>
+    <th title="L1 — base unit of measure">L1 UOM</th>
+   </tr></thead>
+   <tbody id="tbodyLd"><tr><td colspan="11" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+  </table></div></div>
  </div>
 
  <div class="footer">
@@ -461,7 +506,14 @@ let RM = { items: [], meta: {} };              // derived view: PM products filt
 let SD = { rows: [], outlets: [], meta: {} };  // sales data from /api/outlet-invoices (PetPooja webhook via AIFI)
 let PU = { rows: [], details: {}, meta: {} };  // GRN list + per-GRN detail (keyed by docNo). Mock for now; PACT sync TBD.
 let OI = { items: [], qty: {}, outlet: '', dtIso: '', meta: {} };  // Opening-inventory session: ideal items + Qty per RM code (keyed in-memory)
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false };
+// Loose Denomination per-item setup. denom[rm_code] === 'loose' means the item
+// is marked as loose; absent / 'none' means no denomination. Persisted in
+// localStorage so the choice survives page reloads; will move to Supabase when
+// the backend is wired so every device sees the same setup.
+let LD = { denom: {} };
+try { const raw = localStorage.getItem('oi_loose_denom'); if(raw) LD.denom = JSON.parse(raw) || {}; } catch(e) { /* corrupt localStorage; start empty */ }
+function ldSave(){ try { localStorage.setItem('oi_loose_denom', JSON.stringify(LD.denom)); } catch(e) {} }
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, LD_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
 // Item Master tab — PACT BOM joined with PetPooja categories
@@ -501,20 +553,25 @@ function selTab(t){
   $('tabSd').style.display = t === 'sd' ? '' : 'none';
   $('tabPu').style.display = t === 'pu' ? '' : 'none';
   $('tabOi').style.display = t === 'oi' ? '' : 'none';
+  $('tabLd').style.display = t === 'ld' ? '' : 'none';
   updateHeaderStats();
   if(t === 'rm' && !RM_LOADED.v) loadRm(false);
   if(t === 'im' && !IM_LOADED.v) loadIm(false);
   if(t === 'sd' && !SD_LOADED.v) loadSd(false);
   if(t === 'pu' && !PU_LOADED.v) loadPu(false);
   if(t === 'oi') oiOnTabEnter();
+  if(t === 'ld') ldOnTabEnter();
 }
 
 function updateHeaderStats(){
+  // Loose Denomination tab reads the SAME underlying data as Raw Material
+  // Master (RM.meta), so its source/synced timestamps mirror RM's.
   const m = (CURTAB === 'rm' ? RM
           : CURTAB === 'sd'  ? SD
           : CURTAB === 'im'  ? IM
           : CURTAB === 'pu'  ? PU
           : CURTAB === 'oi'  ? OI
+          : CURTAB === 'ld'  ? RM
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
     ? (m.source || 'PetPooja webhook')
@@ -524,15 +581,26 @@ function updateHeaderStats(){
     ? (m.source || 'PACT GRN (not yet wired)')
     : CURTAB === 'oi'
     ? (m.source || 'Raw Material Master (Ideal Inventory)')
+    : CURTAB === 'ld'
+    ? (m.source || 'Raw Material Master (Ideal Inventory)')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi') ? 'live' : CURTAB === 'pu' ? 'warn' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi' || CURTAB === 'ld') ? 'live' : CURTAB === 'pu' ? 'warn' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
              : CURTAB === 'pu'  ? ' GRNs'
              : CURTAB === 'oi'  ? ' items'
+             : CURTAB === 'ld'  ? ' raw materials'
              : ' raw materials';
-  $('statCnt').textContent = (m.count ?? 0).toLocaleString('en-IN') + unit;
+  // On the Loose Denomination tab, show how many are marked loose in parentheses too.
+  let cnt = (m.count ?? 0).toLocaleString('en-IN');
+  if(CURTAB === 'ld'){
+    const marked = Object.values(LD.denom).filter(v => v === 'loose').length;
+    cnt = cnt + unit + ' · ' + marked + ' marked loose';
+    $('statCnt').textContent = cnt;
+  } else {
+    $('statCnt').textContent = cnt + unit;
+  }
   $('statAt').textContent = 'synced: ' + fmtTime(m.synced_at);
 }
 
@@ -1821,11 +1889,13 @@ function oiRenderCount(){
   });
   const tb = $('tbodyOi');
   if(!rows.length){
-    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No items match these filters.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">No items match these filters.</td></tr>';
   } else {
     tb.innerHTML = rows.map((it, i) => {
       const q = OI.qty[it.rm_code];
       const qVal = q == null ? '' : String(q);
+      // Tick in Loose Denomination column when the item is marked loose in the LD tab.
+      const isLoose = LD.denom[it.rm_code] === 'loose';
       // onchange stashes the entered qty on OI.qty keyed by RM code. Numeric only;
       // negative Qty rejected (set empty). Save Count reads OI.qty when posting.
       return '<tr>' +
@@ -1834,6 +1904,7 @@ function oiRenderCount(){
         '<td>' + esc(it.name) + '</td>' +
         '<td>' + esc(it.category) + '</td>' +
         '<td>' + esc(it.packing_uom) + '</td>' +
+        '<td style="text-align:center;font-size:16px;color:' + (isLoose ? '#059669' : '#d1d5db') + '" title="' + (isLoose ? 'Marked as Loose Denomination (set in the Loose Denomination tab)' : 'Not marked loose') + '">' + (isLoose ? '✓' : '—') + '</td>' +
         '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(qVal) + '" ' +
           'onchange="oiSetQty(\'' + esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\', this.value)" ' +
           'style="width:120px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px"' +
@@ -1888,6 +1959,176 @@ async function oiSave(){
   stat.textContent = '✓ Saved ' + filled.length + ' line' + (filled.length===1?'':'s') + ' (mock — API not yet wired).';
   toast('Opening inventory saved (mock). ' + filled.length + ' lines captured.');
   setTimeout(() => { stat.textContent = ''; }, 4000);
+}
+
+/* ======================== LOOSE DENOMINATION (LD) ========================
+   Per-item setup tab. Shows the same ~197 Ideal Inventory items as RM
+   Master in the same category order, plus one new 'Denomination' column
+   between L3 Conversion and L2 with a dropdown: 'Loose Denomination' /
+   'No Denomination'. Items marked loose show a ✓ in the Opening
+   Inventory count sheet (new 'Loose Denomination' column there).
+
+   Storage: LD.denom[rm_code] = 'loose' | undefined. Persisted to
+   localStorage ('oi_loose_denom'); will move to Supabase when the
+   backend is wired (shape ready: { rm_code, denomination } rows). */
+
+async function ldOnTabEnter(){
+  // Make sure RM.items is populated (it drives the table). If not, pull PM
+  // through loadRm. ldRender gracefully handles the empty case too.
+  if(!RM_LOADED.v){
+    try { await loadRm(false); } catch(e) {
+      $('tbodyLd').innerHTML = '<tr><td colspan="11" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Could not load raw material list: ' + esc(e.message || e) + '</td></tr>';
+      return;
+    }
+  }
+  LD_LOADED.v = true;
+  if(CURTAB === 'ld') updateHeaderStats();
+  ldRender();
+}
+
+function ldRender(){
+  if(!RM_LOADED.v) return;
+  const q = ($('qLd').value || '').trim().toLowerCase();
+  const catF = $('catLd').value || '';
+  // Same filter + sort as RM Master. Ghost rows (Excel items not in PACT)
+  // get excluded here too — can't set a denomination on something with no RM code.
+  const list = RM.items
+    .filter(x => x.idealStorage && !x.isGhost)
+    .filter(x => {
+      if(catF && x.idealStorage !== catF) return false;
+      if(q){
+        const nm = (x.name || '').toLowerCase();
+        const cd = (x.code || '').toLowerCase();
+        if(!cd.includes(q) && !nm.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const ca = OI_CAT_ORDER[a.idealStorage] || 99;
+      const cb = OI_CAT_ORDER[b.idealStorage] || 99;
+      if(ca !== cb) return ca - cb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+  const idealChip = (st) => {
+    const colors = {
+      'Frozen':    'background:#dbeafe;color:#1e40af',
+      'Chiller':   'background:#cffafe;color:#155e75',
+      'Vegetable': 'background:#dcfce7;color:#166534',
+      'Dry Store': 'background:#fef3c7;color:#92400e',
+      'Packaging': 'background:#fce7f3;color:#9d174d',
+    };
+    return `<span class="sb" style="${colors[st] || 'background:#f3f4f6;color:#374151'}">${esc(st)}</span>`;
+  };
+
+  const tb = $('tbodyLd');
+  if(!list.length){
+    tb.innerHTML = '<tr><td colspan="11" class="mut" style="padding:20px;text-align:center">No raw materials match this filter.</td></tr>';
+  } else {
+    tb.innerHTML = list.map((x, i) => {
+      const l3Unit = x.caseUnit ? `<span class="code">${esc(x.caseUnit)}</span>` : '<span class="mut">—</span>';
+      const l3Conv = (x.caseUnit && x.packUnit && x.caseScale != null && x.packScale != null && x.packScale > 0)
+        ? `${qty(x.caseScale / x.packScale)} <span class="code">${esc(x.packUnit)}</span>`
+        : '<span class="mut">—</span>';
+      const l2Unit = x.packUnit ? `<span class="code">${esc(x.packUnit)}</span>` : '<span class="mut">—</span>';
+      const l2Conv = (x.packUnit && x.baseUnit && x.packScale != null)
+        ? `${qty(x.packScale)} <span class="code">${esc(x.baseUnit)}</span>`
+        : '<span class="mut">—</span>';
+      const l1Cell = x.baseUnit ? `<span class="code">${esc(x.baseUnit)}</span>` : '<span class="mut">—</span>';
+      const packUomCell = x.idealUom ? `<span class="code">${esc(x.idealUom)}</span>` : '<span class="mut">—</span>';
+      const code = esc(x.code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
+      const current = LD.denom[x.code] === 'loose' ? 'loose' : 'none';
+      const selStyle = current === 'loose' ? 'background:#d1fae5;color:#065f46;font-weight:600' : '';
+      const denomCell = `<select onchange="ldSetDenom('${code}', this.value)" style="padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;width:170px;${selStyle}" title="Pick Loose Denomination to flag this item on the Opening Inventory count sheet">
+        <option value="none"${current === 'none' ? ' selected' : ''}>No Denomination</option>
+        <option value="loose"${current === 'loose' ? ' selected' : ''}>Loose Denomination</option>
+      </select>`;
+      return `<tr>
+        <td class="mut">${i+1}</td>
+        <td class="code">${esc(x.code)}</td>
+        <td>${esc(x.name)}</td>
+        <td>${idealChip(x.idealStorage)}</td>
+        <td>${packUomCell}</td>
+        <td>${l3Unit}</td>
+        <td>${l3Conv}</td>
+        <td>${denomCell}</td>
+        <td>${l2Unit}</td>
+        <td>${l2Conv}</td>
+        <td>${l1Cell}</td>
+      </tr>`;
+    }).join('');
+  }
+  ldUpdateMarkedChip();
+}
+
+function ldSetDenom(rmCode, val){
+  // val is 'loose' | 'none'. 'none' is the default; store nothing for it so
+  // the localStorage object stays small and migrates cleanly to the backend.
+  if(val === 'loose'){
+    LD.denom[rmCode] = 'loose';
+  } else {
+    delete LD.denom[rmCode];
+  }
+  ldSave();
+  ldUpdateMarkedChip();
+  // Live-update the Opening Inventory count sheet if it's currently open —
+  // the Loose Denomination tick column should flip immediately.
+  if(OI_LOADED.v && CURTAB === 'oi') oiRenderCount();
+  // Save stat flash
+  const st = $('ldSaveStat');
+  if(st){ st.textContent = '✓ saved'; st.style.color = '#059669'; clearTimeout(ldSetDenom._t); ldSetDenom._t = setTimeout(() => { st.textContent = ''; }, 1200); }
+  // Also re-tint the <select> that triggered the change without re-rendering
+  // the whole table (keeps the user's scroll position / open filter dropdown).
+  const sels = document.querySelectorAll('#tblLd select');
+  for(const s of sels){
+    if(s.getAttribute('onchange') && s.getAttribute('onchange').includes("'" + rmCode + "'")){
+      if(s.value === 'loose'){
+        s.style.background = '#d1fae5'; s.style.color = '#065f46'; s.style.fontWeight = '600';
+      } else {
+        s.style.background = ''; s.style.color = ''; s.style.fontWeight = '';
+      }
+      break;
+    }
+  }
+}
+
+function ldUpdateMarkedChip(){
+  const chip = $('ldMarkedChip');
+  if(!chip) return;
+  const n = Object.values(LD.denom).filter(v => v === 'loose').length;
+  chip.textContent = n + ' marked loose';
+  if(CURTAB === 'ld') updateHeaderStats();
+}
+
+function ldClearAll(){
+  const n = Object.values(LD.denom).filter(v => v === 'loose').length;
+  if(!n){ toast('Nothing to clear — no items are marked loose.'); return; }
+  if(!confirm('Reset all ' + n + ' loose-denomination marks? Items will go back to "No Denomination".')) return;
+  LD.denom = {};
+  ldSave();
+  ldRender();
+  if(OI_LOADED.v && CURTAB === 'oi') oiRenderCount();
+  toast('Cleared ' + n + ' loose-denomination marks.');
+}
+
+function ldExportCsv(){
+  if(!RM_LOADED.v || !RM.items.length){ toast('Raw material list not loaded yet.'); return; }
+  const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['RM Code,Raw Material Name,Category,Packing UOM,Denomination'];
+  const list = RM.items
+    .filter(x => x.idealStorage && !x.isGhost)
+    .sort((a, b) => {
+      const ca = OI_CAT_ORDER[a.idealStorage] || 99;
+      const cb = OI_CAT_ORDER[b.idealStorage] || 99;
+      if(ca !== cb) return ca - cb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  for(const x of list){
+    const d = LD.denom[x.code] === 'loose' ? 'Loose Denomination' : 'No Denomination';
+    lines.push([x.code, x.name, x.idealStorage, x.idealUom || '', d].map(esc2).join(','));
+  }
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), 'loose-denomination-setup-'+today+'.csv');
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
