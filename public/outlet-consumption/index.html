@@ -2363,24 +2363,67 @@ function renderCn(){
     tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center">No consumption events match these filters.</td></tr>';
     return;
   }
+  // PetPooja statuses: Success (completed), Cancel (voided), Hold (parked),
+  // Delivered, Dispatched, Accepted, Food_Ready, Preparing, Placed, Pending.
+  // Case-insensitive lookup so "success" and "Success" land on the same chip.
+  // Anything we don't know about falls through to the hash palette below, so
+  // a new status PetPooja adds still gets a stable colour instead of grey.
+  const STATUS_COLORS = {
+    'success':      'background:#dcfce7;color:#166534',  // green
+    'successful':   'background:#dcfce7;color:#166534',
+    'delivered':    'background:#d1fae5;color:#065f46',  // emerald
+    'cancel':       'background:#fee2e2;color:#991b1b',  // red
+    'cancelled':    'background:#fee2e2;color:#991b1b',
+    'hold':         'background:#fef3c7;color:#92400e',  // amber
+    'pending':      'background:#fef9c3;color:#854d0e',  // yellow
+    'placed':       'background:#dbeafe;color:#1e40af',  // blue
+    'accept':       'background:#e0e7ff;color:#3730a3',  // indigo
+    'accepted':     'background:#e0e7ff;color:#3730a3',
+    'preparing':    'background:#ffedd5;color:#9a3412',  // orange
+    'food_ready':   'background:#cffafe;color:#155e75',  // cyan
+    'ready':        'background:#cffafe;color:#155e75',
+    'dispatch':     'background:#ede9fe;color:#5b21b6',  // violet
+    'dispatched':   'background:#ede9fe;color:#5b21b6',
+  };
+  // 14-colour palette for Category chips. PetPooja menu categories are open-
+  // ended (Super Appetisers, Nutri Licious Bowls, Add-Ons, Navratri Special…
+  // and more every time Satvik adds a menu section). We hash the category
+  // name into this palette so the same name always lands on the same chip
+  // across refreshes, outlets, and days — no re-mapping as new categories
+  // appear. Backgrounds are soft (100-tier Tailwind-ish) with dark ink so
+  // reading long category names stays easy.
+  const CAT_PALETTE = [
+    'background:#dbeafe;color:#1e40af',  // blue
+    'background:#dcfce7;color:#166534',  // green
+    'background:#fef3c7;color:#92400e',  // amber
+    'background:#fce7f3;color:#9d174d',  // pink
+    'background:#cffafe;color:#155e75',  // cyan
+    'background:#ede9fe;color:#5b21b6',  // violet
+    'background:#fee2e2;color:#991b1b',  // red
+    'background:#ccfbf1;color:#115e59',  // teal
+    'background:#fef9c3;color:#854d0e',  // yellow
+    'background:#e0e7ff;color:#3730a3',  // indigo
+    'background:#f3e8ff;color:#6b21a8',  // purple
+    'background:#ffedd5;color:#9a3412',  // orange
+    'background:#d1fae5;color:#065f46',  // emerald
+    'background:#fce4ec;color:#88144d',  // rose
+  ];
+  const hashIdx = (s, mod) => {
+    let h = 0;
+    const t = String(s);
+    for(let i = 0; i < t.length; i++){ h = ((h << 5) - h + t.charCodeAt(i)) | 0; }
+    return Math.abs(h) % mod;
+  };
   const statusChip = (s) => {
-    const colors = {
-      'Placed':    'background:#dbeafe;color:#1e40af',
-      'Preparing': 'background:#fef3c7;color:#92400e',
-      'Served':    'background:#dcfce7;color:#166534',
-      'Cancelled': 'background:#fee2e2;color:#991b1b',
-    };
-    return `<span class="sb" style="${colors[s] || 'background:#f3f4f6;color:#374151'}">${esc(s)}</span>`;
+    if(!s) return '<span class="mut">—</span>';
+    const key = String(s).trim().toLowerCase();
+    const style = STATUS_COLORS[key] || CAT_PALETTE[hashIdx(key, CAT_PALETTE.length)];
+    return `<span class="sb" style="${style}">${esc(s)}</span>`;
   };
   const catChip = (c) => {
-    const colors = {
-      'Frozen':    'background:#dbeafe;color:#1e40af',
-      'Chiller':   'background:#cffafe;color:#155e75',
-      'Vegetable': 'background:#dcfce7;color:#166534',
-      'Dry Store': 'background:#fef3c7;color:#92400e',
-      'Packaging': 'background:#fce7f3;color:#9d174d',
-    };
-    return c ? `<span class="sb" style="${colors[c] || 'background:#f3f4f6;color:#374151'}">${esc(c)}</span>` : '<span class="mut">—</span>';
+    if(!c) return '<span class="mut">—</span>';
+    const style = CAT_PALETTE[hashIdx(c, CAT_PALETTE.length)];
+    return `<span class="sb" style="${style}">${esc(c)}</span>`;
   };
   tb.innerHTML = rows.map(r => (
     '<tr>' +
