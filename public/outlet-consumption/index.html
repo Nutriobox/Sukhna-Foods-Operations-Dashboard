@@ -2419,6 +2419,12 @@ async function loadCn(fresh){
       channel:    row.area || '',
       status:     row.status || '',
     }));
+    // Latest KOT at the top. The invoice endpoint sorts orders by placed_at
+    // desc, but PostgREST's `order_id=in.(...)` on order_items doesn't
+    // preserve that order, so items come back ascending within each batch.
+    // Sort defensively on the real kot_at timestamp (ISO strings all carry
+    // +05:30, so lexicographic descending == time descending).
+    CN.rows.sort((a, b) => (b.kot_at || '').localeCompare(a.kot_at || ''));
     CN.meta = {
       source: 'PetPooja Global Sales API',
       synced_at: new Date().toISOString(),
