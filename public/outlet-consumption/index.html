@@ -406,6 +406,30 @@
      <span id="oiFormErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
     </div>
    </div>
+
+   <!-- Counts-so-far table: every opening-inventory count the team has
+        saved, latest first. Click a row's Delete to remove the entry
+        (asks for password 1122). -->
+   <div class="card" style="max-width:900px;margin:0 auto 40px;padding:20px 24px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+     <h3 style="margin:0;font-size:14px;font-weight:600">Opening-inventory counts so far</h3>
+     <span id="oiListCount" class="mut" style="font-size:12px"></span>
+     <button class="btn" onclick="oiListLoad()" style="margin-left:auto;padding:5px 12px;font-size:12px" title="Reload the list from the server">↻ Refresh</button>
+    </div>
+    <div style="font-size:12px;color:#6b7280;line-height:1.5;margin-bottom:10px">
+     Every outlet that has submitted an opening-inventory count shows up here with its outlet, date &amp; time of count, and <b>Score</b> (filled rows / total RMs). Delete removes the entry from the server and from the Ideal Inventory tab's Opening column (requires password <b>1122</b>).
+    </div>
+    <div class="scroll"><table style="width:100%;font-size:13px">
+     <thead><tr style="border-bottom:1px solid #e5e7eb">
+      <th style="text-align:left;padding:8px 10px">Outlet</th>
+      <th style="text-align:left;padding:8px 10px">Date &amp; Time</th>
+      <th style="text-align:left;padding:8px 10px">Score</th>
+      <th style="text-align:left;padding:8px 10px">Saved by</th>
+      <th style="text-align:right;padding:8px 10px">Delete</th>
+     </tr></thead>
+     <tbody id="tbodyOiList"><tr><td colspan="5" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
+    </table></div>
+   </div>
   </div>
 
   <!-- Step 2 — count sheet with per-row Qty input -->
@@ -2143,6 +2167,9 @@ function oiOnTabEnter(){
     const local = dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
     if(!$('oiFormDt').value) $('oiFormDt').value = local;
     $('oiFormErr').textContent = '';
+    // Fetch + render the saved-counts list under the form on every tab entry
+    // so returning to the form after a save shows the new row immediately.
+    oiListLoad();
   }
   if(CURTAB === 'oi') updateHeaderStats();
 }
@@ -2309,27 +2336,98 @@ function oiExportCsv(){
 
 async function oiSave(){
   const stat = $('oiSaveStat');
-  // A row is savable if EITHER qty is filled. Payload carries both.
   const codes = new Set([
     ...Object.entries(OI.qty     ).filter(([_, v]) => v != null && v !== '').map(([c]) => c),
     ...Object.entries(OI.qtyLoose).filter(([_, v]) => v != null && v !== '').map(([c]) => c),
   ]);
   if(!codes.size){ stat.textContent = 'Nothing to save — fill at least one Qty.'; stat.style.color = '#b91c1c'; return; }
-  stat.style.color = '';
-  stat.textContent = 'Saving…';
-  // When wired, replace this block with:
-  //   const r = await fetch('/api/opening-inventory', { method:'POST', headers:{'Content-Type':'application/json'},
-  //     body: JSON.stringify({ outlet: OI.outlet, dt_iso: OI.dtIso, items: [...codes].map(code => {
-  //       const it = OI.items.find(x => x.rm_code === code) || {};
-  //       return { rm_code: code, qty: OI.qty[code] ?? null, qty_loose: OI.qtyLoose[code] ?? null,
-  //                uom: it.packing_uom, loose_levels: ldLevelsFor(code) };
-  //     })}) });
-  //   const j = await r.json(); if(!j.ok) throw new Error(j.error || 'save failed');
-  await new Promise(r => setTimeout(r, 300));
-  const n = codes.size;
-  stat.textContent = '✓ Saved ' + n + ' line' + (n===1?'':'s') + ' (mock — API not yet wired).';
-  toast('Opening inventory saved (mock). ' + n + ' lines captured.');
-  setTimeout(() => { stat.textContent = ''; }, 4000);
+  stat.style.color = ''; stat.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/opening-inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        outlet: OI.outlet,
+        dt_iso: OI.dtIso,
+        qty: OI.qty,
+        qty_loose: OI.qtyLoose,
+        total_items: OI.items.length,
+      }),
+      cache: 'no-store',
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    const n = j.filled_count || codes.size;
+    stat.textContent = '✓ Saved ' + n + ' line' + (n===1?'':'s') + '.';
+    toast('Opening inventory saved. ' + n + ' lines captured.');
+    setTimeout(() => { stat.textContent = ''; }, 4000);
+  } catch(err){
+    stat.style.color = '#b91c1c';
+    stat.textContent = 'Save failed — ' + (err && err.message ? err.message : 'see console');
+    console.error('OI save failed:', err);
+  }
+}
+
+// Fetch + render the saved-counts list on the OI form view. Called from
+// oiOnTabEnter on every tab-enter and from the ↻ Refresh button.
+async function oiListLoad(){
+  const tb = $('tbodyOiList'); const cnt = $('oiListCount');
+  if(!tb) return;
+  tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:14px;text-align:center">Loading…</td></tr>';
+  try {
+    const r = await fetch('/api/opening-inventory', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    const rows = (j.counts || []).slice();
+    if(cnt) cnt.textContent = rows.length ? ('· ' + rows.length + ' saved') : '· none yet';
+    if(!rows.length){
+      tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:14px;text-align:center">No opening-inventory counts saved yet. Submit the form above to create your first one.</td></tr>';
+      return;
+    }
+    tb.innerHTML = rows.map(c => {
+      const scoreStyle = (c.filled_count >= c.total_items)
+        ? 'background:#dcfce7;color:#166534'
+        : (c.filled_count >= Math.ceil((c.total_items || 1) * 0.5))
+          ? 'background:#fef3c7;color:#92400e'
+          : 'background:#fee2e2;color:#991b1b';
+      const idEsc = esc(c.id).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
+      const outletEsc = esc(c.outlet || '').replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
+      const dtEsc = esc(c.dt_iso || '').replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
+      return '<tr style="border-bottom:1px solid #f3f4f6">'
+        + '<td style="padding:8px 10px">' + esc(c.outlet || '—') + '</td>'
+        + '<td style="padding:8px 10px">' + esc(c.dt_iso ? fmtTime(c.dt_iso + '+05:30') : '—') + '</td>'
+        + '<td style="padding:8px 10px"><span class="sb" style="' + scoreStyle + '">' + (c.filled_count || 0) + ' / ' + (c.total_items || 0) + '</span></td>'
+        + '<td style="padding:8px 10px;color:#6b7280;font-size:12px">' + esc(c.created_by || '—') + '</td>'
+        + '<td style="padding:8px 10px;text-align:right">'
+        +   '<button class="btn" onclick="oiListDelete(\'' + idEsc + '\',\'' + outletEsc + '\',\'' + dtEsc + '\')" style="padding:4px 10px;font-size:12px;color:#991b1b;border-color:#fecaca">🗑 Delete</button>'
+        + '</td>'
+      + '</tr>';
+    }).join('');
+  } catch(err){
+    tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:14px;text-align:center;color:#b91c1c">Load failed: ' + esc(err.message || err) + '</td></tr>';
+  }
+}
+
+// Delete handler with the password prompt Satvik asked for (1122).
+async function oiListDelete(id, outlet, dtIso){
+  const pwd = prompt('Delete the opening-inventory count for ' + outlet + ' at ' + fmtTime(dtIso + '+05:30') + '?\n\nThis clears the Ideal Inventory tab\'s Opening numbers for this outlet-window too. Enter password to confirm:');
+  if(pwd == null) return;             // Cancel
+  if(pwd.trim() !== '1122'){ toast('Wrong password. Delete cancelled.'); return; }
+  try {
+    const r = await fetch('/api/opening-inventory?id=' + encodeURIComponent(id), { method: 'DELETE', cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    toast('Deleted the count for ' + outlet + '.');
+    oiListLoad();
+    // If the Ideal Inventory tab is already rendered for this outlet, re-pull
+    // so the Opening column flips to the next-latest count (or 0 if none).
+    if(typeof IIv !== 'undefined' && IIv.outlet && IIv.outlet.toLowerCase() === String(outlet || '').toLowerCase() && typeof loadIi === 'function'){
+      try { loadIi(true); } catch(e) {}
+    }
+  } catch(err){
+    toast('Delete failed: ' + (err.message || err), 4000);
+    console.error('OI delete failed:', err);
+  }
 }
 
 /* ============== LOOSE DENOMINATION — mode inside Raw Material Master ==============
