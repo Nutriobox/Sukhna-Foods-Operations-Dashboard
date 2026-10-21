@@ -456,61 +456,84 @@
       triggered mode that reveals a Denomination column with clickable L3/L2/L1
       badges per row — see btnLooseModeRm + renderRm. -->
 
- <!-- ============== Consumption tab (real-time PetPooja KOT feed — structure only) ============== -->
+ <!-- ============== Consumption tab (two-step: pick outlet + window → aggregated item view) ============== -->
  <div id="tabCn" style="display:none">
-  <div class="toolbar" style="flex-wrap:wrap">
-   <input id="dateFromCn" type="datetime-local" onchange="renderCn()" class="btn" style="padding:7px 10px" title="From date & time (IST)">
-   <input id="dateToCn" type="datetime-local" onchange="renderCn()" class="btn" style="padding:7px 10px" title="To date & time (IST, inclusive)">
-   <select id="outletCn" onchange="renderCn()" class="btn" style="padding-right:28px" title="Filter by outlet">
-    <option value="">All outlets</option>
-    <option value="Rajinder Nagar">Rajinder Nagar</option>
-    <option value="DLF Phase 2">DLF Phase 2</option>
-    <option value="Sector 63 Noida">Sector 63 Noida</option>
-    <option value="Dwarka">Dwarka</option>
-    <option value="Janakpuri">Janakpuri</option>
-    <option value="Karkardooma">Karkardooma</option>
-    <option value="Noida">Noida</option>
-    <option value="Prashant Vihar">Prashant Vihar</option>
-    <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
-    <option value="Shivalik">Shivalik</option>
-   </select>
-   <select id="orderTypeCn" onchange="renderCn()" class="btn" style="padding-right:28px" title="Order type">
-    <option value="">All order types</option>
-    <option value="Dine In">Dine In</option>
-    <option value="Delivery">Delivery</option>
-    <option value="Pick Up">Pick Up</option>
-   </select>
-   <select id="statusCn" onchange="renderCn()" class="btn" style="padding-right:28px" title="KOT status">
-    <option value="">All statuses</option>
-    <option value="Placed">Placed</option>
-    <option value="Preparing">Preparing</option>
-    <option value="Served">Served</option>
-    <option value="Cancelled">Cancelled</option>
-   </select>
-   <input id="qCn" class="search" placeholder="Search item name or KOT no…" oninput="renderCn()" style="min-width:220px">
-   <button class="btn" onclick="exportCsvCn()">⬇ Export CSV</button>
-   <label class="btn" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Auto-refresh every 30s — pulls newest KOTs from PetPooja">
-    <input id="autoRefreshCn" type="checkbox" onchange="cnToggleAutoRefresh()" checked> Auto-refresh
-   </label>
-   <button class="btn prim" id="btnSyncCn" onclick="loadCn(true)" title="Fetch latest KOTs from PetPooja">⚡ Refresh now</button>
-   <span id="syncStatCn" class="mut" style="font-size:12.5px"></span>
-   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja Global Sales API (live)</span>
+
+  <!-- Step 1 — outlet + date-time form -->
+  <div id="cnFormView">
+   <div class="card" style="max-width:620px;margin:40px auto 20px;padding:28px 32px">
+    <h2 style="margin:0 0 6px;font-size:18px">View consumption</h2>
+    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet and a window. The next screen pulls every KOT in that window from PetPooja, groups them by item + order type, and shows the total quantity sold per line.</p>
+
+    <label style="display:block;margin-bottom:14px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Outlet</span>
+     <select id="cnFormOutlet" class="btn" style="width:100%;padding:10px 14px;padding-right:28px">
+      <option value="">— Choose outlet —</option>
+      <option value="Rajinder Nagar">Rajinder Nagar</option>
+      <option value="DLF Phase 2">DLF Phase 2</option>
+      <option value="Sector 63 Noida">Sector 63 Noida</option>
+      <option value="Dwarka">Dwarka</option>
+      <option value="Janakpuri">Janakpuri</option>
+      <option value="Karkardooma">Karkardooma</option>
+      <option value="Noida">Noida</option>
+      <option value="Prashant Vihar">Prashant Vihar</option>
+      <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+      <option value="Shivalik">Shivalik</option>
+     </select>
+    </label>
+
+    <label style="display:block;margin-bottom:14px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">From date &amp; time</span>
+     <div style="display:flex;gap:8px">
+      <input id="cnFormFrom" type="datetime-local" class="btn" style="flex:1;padding:10px 14px">
+      <button class="btn" onclick="cnFromOpening()" title="Fill From with the datetime of the last Opening Inventory count on the picked outlet, and set To to current time. Needs an Opening Inventory count to be saved first.">From Opening Inventory</button>
+     </div>
+    </label>
+
+    <label style="display:block;margin-bottom:22px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">To date &amp; time</span>
+     <div style="display:flex;gap:8px">
+      <input id="cnFormTo" type="datetime-local" class="btn" style="flex:1;padding:10px 14px">
+      <button class="btn" onclick="cnToNow()" title="Set To to the current date &amp; time (IST)">Current</button>
+     </div>
+    </label>
+
+    <div style="display:flex;gap:10px;align-items:center">
+     <button class="btn prim" onclick="cnSubmitForm()" style="padding:10px 22px">OK</button>
+     <span id="cnFormErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
+    </div>
+   </div>
   </div>
 
-  <div class="card"><div class="scroll"><table id="tblCn">
-   <thead><tr>
-    <th>Date &amp; Time</th>
-    <th>KOT / Order No</th>
-    <th>Outlet</th>
-    <th>Item Name</th>
-    <th>Category</th>
-    <th class="r">Qty</th>
-    <th>Order Type</th>
-    <th>Channel</th>
-    <th>Status</th>
-   </tr></thead>
-   <tbody id="tbodyCn"><tr><td colspan="9" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
-  </table></div></div>
+  <!-- Step 2 — results: fixed context pills + filters + aggregated table -->
+  <div id="cnResultsView" style="display:none">
+   <div class="toolbar" style="flex-wrap:wrap;align-items:center">
+    <button class="btn" onclick="cnBackToForm()" title="Return to the outlet / date picker">← Back</button>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">From: <b id="cnCtxFrom" style="margin-left:4px"></b></span>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">To: <b id="cnCtxTo" style="margin-left:4px"></b></span>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">Outlet: <b id="cnCtxOutlet" style="margin-left:4px"></b></span>
+    <select id="orderTypeCn" onchange="renderCn()" class="btn" style="padding-right:28px" title="Order type">
+     <option value="">All order types</option>
+    </select>
+    <input id="qCn" class="search" placeholder="Search item name or code…" oninput="renderCn()" style="min-width:220px">
+    <button class="btn" onclick="exportCsvCn()">⬇ Export CSV</button>
+    <button class="btn prim" id="btnSyncCn" onclick="loadCn(true)" title="Re-pull the window from PetPooja">⚡ Refresh now</button>
+    <span id="syncStatCn" class="mut" style="font-size:12.5px"></span>
+    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja Global Sales API (live)</span>
+   </div>
+
+   <div class="card"><div class="scroll"><table id="tblCn">
+    <thead><tr>
+     <th>#</th>
+     <th>Item Code</th>
+     <th>Item Name</th>
+     <th>Category</th>
+     <th>Order Type</th>
+     <th class="r">Quantity</th>
+    </tr></thead>
+    <tbody id="tbodyCn"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   </table></div></div>
+  </div>
  </div>
 
  <!-- ============== Ideal Inventory tab — closing = opening + purchase - consumption - variance, all in L1 ============== -->
@@ -549,12 +572,10 @@
   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#f0f9ff;border-color:#bae6fd">
    <div style="font-size:12.5px;color:#0c4a6e;line-height:1.5">
     <b>Formula.</b> Everything is normalised to each RM's L1 base unit so the arithmetic is apples-to-apples.
-    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1).</b>
+    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) − Variance (L1).</b>
     Consumption per RM = Σ (item qty sold × BOM raw qty per item, converted to L1) across every KOT in the window.
-    <br><b>Variance (L1) = Ideal Closing − Declared Closing.</b>
-    Declared Closing is the outlet's physical count at the window end (type it in the Declared column). A positive variance means stock went missing (wastage, pilferage, over-portioning); a negative variance means the physical count came out higher than the system expected.
-    <br>The <b>Full</b> and <b>Loose</b> columns on the right split the <b>Ideal Closing</b> figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
-    <br><b>Status.</b> Consumption pulls from PetPooja (live); Opening, Purchase and Declared Closing are editable placeholder cells for now and will plug into the Opening Inventory save, the Purchase (GRN) sync, and the next outlet-count save as those backends land.
+    The <b>Full</b> and <b>Loose</b> columns on the right split the closing figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
+    <br><b>Status.</b> Consumption pulls from PetPooja (live); Opening, Purchase and Variance are editable placeholder cells for now and will plug into the Opening Inventory save, the Purchase (GRN) sync and a wastage source as those backends land.
    </div>
   </div>
 
@@ -568,13 +589,12 @@
     <th class="r">Opening (L1)</th>
     <th class="r">Purchase (L1)</th>
     <th class="r">Consumption (L1)</th>
-    <th class="r">Ideal Closing (L1)</th>
-    <th class="r">Declared Closing (L1)</th>
     <th class="r">Variance (L1)</th>
+    <th class="r">Ideal Closing (L1)</th>
     <th class="r">Full</th>
     <th class="r">Loose</th>
    </tr></thead>
-   <tbody id="tbodyIi"><tr><td colspan="13" class="mut" style="padding:20px;text-align:center">Pick an outlet and date range above, then click ⚡ Recompute.</td></tr></tbody>
+   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Pick an outlet and date range above, then click ⚡ Recompute.</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -711,18 +731,20 @@ function ldLevelsFor(rmCode){
 function ldAnyLoose(rmCode){ return ldLevelsFor(rmCode).length > 0; }
 // Consumption (CN): per-item KOT events from PetPooja — real-time stream of
 // what's being made/sold at each outlet. Shape frozen so backend can target it.
-let CN = { rows: [], meta: {} };
-let CN_AUTOREFRESH_TIMER = null;
+// Consumption state (two-step view since 2026-10-21).
+//   outlet, from, to  — the picked window
+//   rows[]            — raw PetPooja line items for that window (kept so a
+//                       future resolver can group differently)
+//   items[]           — aggregated rows: { item_code, item_name, category,
+//                       order_type, qty } with qty summed across every KOT
+let CN = { outlet: '', from: '', to: '', rows: [], items: [], meta: {} };
 // Ideal Inventory: per-RM L1 arithmetic.
 //   items[i] = { rm_code, name, category, l1_unit, l2_unit, l3_unit,
 //                packScale, caseScale, opening_l1, purchase_l1,
-//                consumption_l1, declared_closing_l1 }
-// Two closings are computed at render time:
-//   Ideal Closing   = Opening + Purchase − Consumption   (what should be)
-//   Declared Closing = outlet's physical count            (what is)
-//   Variance        = Ideal Closing − Declared Closing   (the gap)
-// opening/purchase/declared are user-editable placeholders until their
-// backends land; consumption is derived from the live PetPooja feed × BOM.
+//                consumption_l1, variance_l1 }
+// Closing is computed at render time from the four buckets. opening/purchase/
+// variance are user-editable placeholders until their backends land;
+// consumption is derived from the live PetPooja feed × BOM.
 let IIv = { items: [], outlet: '', from: '', to: '', meta: {} };
 let II_LOADED = { v: false };
 const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, CN_LOADED = { v:false };
@@ -776,7 +798,7 @@ function selTab(t){
   if(t === 'sd' && !SD_LOADED.v) loadSd(false);
   if(t === 'pu' && !PU_LOADED.v) loadPu(false);
   if(t === 'oi') oiOnTabEnter();
-  if(t === 'cn' && !CN_LOADED.v) loadCn(false);
+  if(t === 'cn') cnOnTabEnter();
   if(t === 'ii') iiOnTabEnter();
 }
 
@@ -2429,8 +2451,102 @@ function rmLooseToggle(rmCode, level){
    as the KOT timestamp (not billing time) so KOTs appear the moment they're
    punched in PetPooja. */
 
-// Rebuild a <select> from the unique values seen in the current data, keeping
-// the user's current selection if that value is still present.
+   Two-step flow (2026-10-21):
+     1. cnFormView — pick outlet + from/to; "From Opening Inventory" sets
+        from=OI.dtIso and to=now; "Current" sets to=now. Click OK.
+     2. cnResultsView — three fixed context pills (From, To, Outlet) +
+        order-type / search filters + Export CSV. Table rows are AGGREGATED
+        by (item_code, item_name, category, order_type) with Quantity as the
+        sum across every KOT in the window. No per-KOT rows any more — the
+        earlier timestamp / KOT-no / status / channel columns are gone. */
+
+// ------- Form helpers -------
+
+function cnOnTabEnter(){
+  // Default landing: form view. Keep whatever outlet / dates the user picked
+  // last time so bouncing back doesn't force a re-pick.
+  if(!CN.outlet){
+    $('cnFormView').style.display = '';
+    $('cnResultsView').style.display = 'none';
+    // Pre-fill To with "now" and From with "today 8am IST" so a first-time
+    // visitor can just click OK and see today's consumption.
+    const pad = (n) => String(n).padStart(2, '0');
+    const toLocal = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const now = new Date();
+    if(!$('cnFormTo').value)   $('cnFormTo').value   = toLocal(now);
+    if(!$('cnFormFrom').value){
+      const s = new Date(now); s.setHours(8, 0, 0, 0);
+      $('cnFormFrom').value = toLocal(s);
+    }
+  } else {
+    // Already have a selection — show the results view immediately.
+    $('cnFormView').style.display = 'none';
+    $('cnResultsView').style.display = '';
+    cnPaintContextPills();
+  }
+}
+
+function cnFromOpening(){
+  // Fill From with the OI datetime for the picked outlet, and To with "now".
+  // OI state is in-session only right now (the Save Count backend isn't wired
+  // yet), so we read OI.dtIso directly. When the outlet differs from the one
+  // OI was counted on, flag that in the error line so the user doesn't fire
+  // a mismatched query.
+  const outlet = $('cnFormOutlet').value || '';
+  const err = $('cnFormErr'); if(err) err.textContent = '';
+  if(!OI.dtIso){
+    if(err) err.textContent = 'Save an Opening Inventory count first; its datetime will fill in here.';
+    return;
+  }
+  if(outlet && OI.outlet && outlet !== OI.outlet){
+    if(err) err.textContent = 'Last Opening Inventory was for ' + OI.outlet + ' (' + OI.dtIso.replace('T', ' ') + '). Filling anyway — pick that outlet above if you want a matched window.';
+  }
+  $('cnFormFrom').value = OI.dtIso;
+  cnToNow();
+}
+
+function cnToNow(){
+  const pad = (n) => String(n).padStart(2, '0');
+  const now = new Date();
+  $('cnFormTo').value = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+}
+
+function cnSubmitForm(){
+  const outlet = $('cnFormOutlet').value || '';
+  const from   = $('cnFormFrom').value || '';
+  const to     = $('cnFormTo').value || '';
+  const err = $('cnFormErr');
+  if(!outlet){ if(err) err.textContent = 'Pick an outlet.'; return; }
+  if(!from || !to){ if(err) err.textContent = 'Pick a From and To date & time.'; return; }
+  if(from >= to){ if(err) err.textContent = 'From must be earlier than To.'; return; }
+  if(err) err.textContent = '';
+  CN.outlet = outlet; CN.from = from; CN.to = to;
+  $('cnFormView').style.display = 'none';
+  $('cnResultsView').style.display = '';
+  cnPaintContextPills();
+  loadCn(false);
+}
+
+function cnBackToForm(){
+  // Keep CN.outlet / from / to populated so the user bounces back without losing their pick.
+  $('cnResultsView').style.display = 'none';
+  $('cnFormView').style.display = '';
+  if(CN.outlet) $('cnFormOutlet').value = CN.outlet;
+  if(CN.from)   $('cnFormFrom').value   = CN.from;
+  if(CN.to)     $('cnFormTo').value     = CN.to;
+}
+
+function cnPaintContextPills(){
+  // Render as "19 Oct 2026, 08:00 am" via fmtTime (which already handles the
+  // datetime-local wall-clock → readable transform).
+  const fmt = (dtl) => dtl ? fmtTime(dtl + '+05:30') : '—';
+  if($('cnCtxFrom'))   $('cnCtxFrom').textContent   = fmt(CN.from);
+  if($('cnCtxTo'))     $('cnCtxTo').textContent     = fmt(CN.to);
+  if($('cnCtxOutlet')) $('cnCtxOutlet').textContent = CN.outlet || '—';
+}
+
+// Rebuild a <select> from unique values in the current data, keeping the
+// user's selection when it still exists.
 function cnRepopulateFilter(elId, values, allLabel){
   const el = $(elId); if(!el) return;
   const cur = el.value || '';
@@ -2441,85 +2557,58 @@ function cnRepopulateFilter(elId, values, allLabel){
   if(cur && uniq.includes(cur)) el.value = cur; else el.value = '';
 }
 
+// ------- Data load + aggregation -------
+
 async function loadCn(fresh){
+  if(!CN.outlet || !CN.from || !CN.to) return;  // nothing to do until the form is submitted
   const stat = $('syncStatCn');
-
-  // Default datetime range: today's business day — 8:00 AM today → 1:00 AM
-  // tomorrow (NutrioBox operating hours). If it's currently past midnight but
-  // before 2 AM, we're still in the previous business day's tail, so shift
-  // the window back one calendar day so the current moment stays inside it.
-  // Set this BEFORE the fetch so the first load has a valid from/to.
-  const toInput = $('dateToCn'), fromInput = $('dateFromCn');
-  if(!toInput.value || !fromInput.value){
-    const pad = (n) => String(n).padStart(2, '0');
-    const toLocal = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    const now = new Date();
-    const start = new Date(now);
-    if(now.getHours() < 2) start.setDate(start.getDate() - 1);  // overnight tail
-    start.setHours(8, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    end.setHours(1, 0, 0, 0);
-    if(!fromInput.value) fromInput.value = toLocal(start);
-    if(!toInput.value)   toInput.value   = toLocal(end);
-  }
-
   if(stat) stat.textContent = fresh ? 'Refreshing…' : 'Loading…';
   try {
     const params = new URLSearchParams();
-    if(fromInput.value) params.set('from', fromInput.value);
-    if(toInput.value)   params.set('to',   toInput.value);
-    // Pull enough rows for a full business day across all 10 outlets. A busy
-    // day peaks around ~3-4k line items; 10k gives headroom.
+    params.set('from', CN.from); params.set('to', CN.to);
     params.set('limit_rows', '10000');
     const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
 
-    // Project invoice-row shape onto Consumption-row shape. Timestamp is
-    // placed_at (KOT time), outlet is restaurant_name, item is item_name,
-    // qty is item_quantity, channel is `area`, status is PetPooja status.
-    // Category here is the PetPooja menu category (what the KOT ticket shows);
-    // storage-class category (Frozen/Chiller/etc.) will join in later via the
-    // RM master once the BOM-to-dish map is wired.
-    // AIFI stores placed_at as plain text ("YYYY-MM-DD HH:MM:SS") with no
-    // offset — append +05:30 explicitly so Date.parse interprets it as IST
-    // on any browser.
-    const toIsoIst = (s) => {
-      if(!s) return '';
-      const t = String(s).trim();
-      // If it already carries a Z/±HH:MM, leave it alone.
-      if(/[zZ]$/.test(t) || /[+\-]\d{2}:?\d{2}$/.test(t)) return t;
-      return t.replace(' ', 'T') + '+05:30';
-    };
-    CN.rows = (j.rows || []).map(row => ({
-      kot_at:     toIsoIst(row.date),                // placed_at — KOT timestamp
-      kot_no:     row.pp_order_code || row.invoice_no || '—',
-      outlet:     row.restaurant_name,
-      item_name:  row.item_name,
-      category:   row.category_name || '',           // PetPooja menu category
-      qty:        row.item_quantity || 0,
-      order_type: row.order_type || '',
-      channel:    row.area || '',
-      status:     row.status || '',
-    }));
+    // Filter by outlet (substring, case-insensitive) and keep the raw rows so
+    // the aggregator can group them. restaurant_name on the AIFI side carries
+    // the "NutrioBox (…)" prefix; our outlet picker holds just the branch.
+    const outletLc = CN.outlet.toLowerCase();
+    const raw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
+
+    // Aggregate: one output row per unique (item_code, item_name, category, order_type).
+    // item_code falls back to sap_code → dish_id → '—' (sap_code is usually
+    // blank today; dish_id is PetPooja's menu item id and makes a stable key).
+    const groups = new Map();
+    for(const row of raw){
+      const code = String(row.sap_code || row.dish_id || '').trim() || '—';
+      const name = String(row.item_name || '').trim();
+      const cat  = String(row.category_name || '').trim();
+      const ot   = String(row.order_type || '').trim();
+      const qtyN = Number(row.item_quantity || 0);
+      const key  = code + '||' + name + '||' + cat + '||' + ot;
+      if(!groups.has(key)){
+        groups.set(key, { item_code: code, item_name: name, category: cat, order_type: ot, qty: 0 });
+      }
+      groups.get(key).qty += qtyN;
+    }
+    // Sort by Quantity desc (biggest consumers first), then item name asc.
+    CN.items = Array.from(groups.values()).sort((a, b) => (b.qty - a.qty) || a.item_name.localeCompare(b.item_name));
+    CN.rows  = raw;   // keep raw for completeness; render reads CN.items
     CN.meta = {
       source: 'PetPooja Global Sales API',
       synced_at: new Date().toISOString(),
-      count: CN.rows.length,
-      orders: j.totals && j.totals.orders,
-      limit_hit: j.totals && j.totals.limit_hit,
+      count: CN.items.length,
+      raw_line_items: raw.length,
     };
     CN_LOADED.v = true;
-    // Make status + order-type filters match what PetPooja is actually
-    // returning for this account, rather than the mock-era hardcoded options.
-    cnRepopulateFilter('statusCn',    CN.rows.map(r => r.status).filter(Boolean),    'All statuses');
-    cnRepopulateFilter('orderTypeCn', CN.rows.map(r => r.order_type).filter(Boolean), 'All order types');
+    cnRepopulateFilter('orderTypeCn', CN.items.map(x => x.order_type).filter(Boolean), 'All order types');
     if(stat){ stat.textContent = fresh ? 'Refreshed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
   } catch (err) {
     console.error('Consumption fetch failed:', err);
     if(stat){ stat.textContent = 'Fetch failed — ' + (err && err.message ? err.message : 'see console'); }
-    CN.rows = CN.rows || [];
+    CN.items = CN.items || [];
     CN.meta = CN.meta || { source: 'fetch error', synced_at: new Date().toISOString(), count: 0 };
     CN_LOADED.v = true;
   }
@@ -2529,134 +2618,65 @@ async function loadCn(fresh){
 
 function renderCn(){
   if(!CN_LOADED.v) return;
-  const q = ($('qCn').value || '').trim().toLowerCase();
-  const outletF = $('outletCn').value || '';
-  const typeF = $('orderTypeCn').value || '';
-  const statusF = $('statusCn').value || '';
-  const dFrom = $('dateFromCn').value || '';
-  const dTo   = $('dateToCn').value || '';
-  // KOT timestamps carry a TZ offset; datetime-local inputs are IST wall-clock
-  // (no offset) — append +05:30 so Date.parse interprets them as IST.
-  const fromMs = dFrom ? Date.parse(dFrom + '+05:30') : null;
-  const toMs   = dTo   ? Date.parse(dTo   + '+05:30') : null;
-  const rows = CN.rows.filter(r => {
-    if(outletF && r.outlet !== outletF) return false;
-    if(typeF   && r.order_type !== typeF)   return false;
-    if(statusF && r.status !== statusF)     return false;
-    const rMs = Date.parse(r.kot_at || '');
-    if(fromMs != null && isFinite(fromMs) && isFinite(rMs) && rMs < fromMs) return false;
-    if(toMs   != null && isFinite(toMs)   && isFinite(rMs) && rMs > toMs)   return false;
+  const q = (($('qCn') && $('qCn').value) || '').trim().toLowerCase();
+  const typeF = ($('orderTypeCn') && $('orderTypeCn').value) || '';
+  const list = (CN.items || []).filter(x => {
+    if(typeF && x.order_type !== typeF) return false;
     if(q){
-      const hay = (r.item_name + ' ' + r.kot_no + ' ' + r.outlet).toLowerCase();
+      const hay = (x.item_name + ' ' + x.item_code + ' ' + x.category).toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
   });
   const tb = $('tbodyCn');
-  if(!rows.length){
-    tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center">No consumption events match these filters.</td></tr>';
+  if(!list.length){
+    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No consumption rows match these filters.</td></tr>';
     return;
   }
-  // PetPooja statuses: Success (completed), Cancel (voided), Hold (parked),
-  // Delivered, Dispatched, Accepted, Food_Ready, Preparing, Placed, Pending.
-  // Case-insensitive lookup so "success" and "Success" land on the same chip.
-  // Anything we don't know about falls through to the hash palette below, so
-  // a new status PetPooja adds still gets a stable colour instead of grey.
-  const STATUS_COLORS = {
-    'success':      'background:#dcfce7;color:#166534',  // green
-    'successful':   'background:#dcfce7;color:#166534',
-    'delivered':    'background:#d1fae5;color:#065f46',  // emerald
-    'cancel':       'background:#fee2e2;color:#991b1b',  // red
-    'cancelled':    'background:#fee2e2;color:#991b1b',
-    'hold':         'background:#fef3c7;color:#92400e',  // amber
-    'pending':      'background:#fef9c3;color:#854d0e',  // yellow
-    'placed':       'background:#dbeafe;color:#1e40af',  // blue
-    'accept':       'background:#e0e7ff;color:#3730a3',  // indigo
-    'accepted':     'background:#e0e7ff;color:#3730a3',
-    'preparing':    'background:#ffedd5;color:#9a3412',  // orange
-    'food_ready':   'background:#cffafe;color:#155e75',  // cyan
-    'ready':        'background:#cffafe;color:#155e75',
-    'dispatch':     'background:#ede9fe;color:#5b21b6',  // violet
-    'dispatched':   'background:#ede9fe;color:#5b21b6',
-  };
-  // 14-colour palette for Category chips. PetPooja menu categories are open-
-  // ended (Super Appetisers, Nutri Licious Bowls, Add-Ons, Navratri Special…
-  // and more every time Satvik adds a menu section). We hash the category
-  // name into this palette so the same name always lands on the same chip
-  // across refreshes, outlets, and days — no re-mapping as new categories
-  // appear. Backgrounds are soft (100-tier Tailwind-ish) with dark ink so
-  // reading long category names stays easy.
+  // 14-colour palette for Category chips (open-ended PetPooja categories, so
+  // hash the name into a stable colour — same category always lands on the
+  // same chip across refreshes, outlets, and days).
   const CAT_PALETTE = [
-    'background:#dbeafe;color:#1e40af',  // blue
-    'background:#dcfce7;color:#166534',  // green
-    'background:#fef3c7;color:#92400e',  // amber
-    'background:#fce7f3;color:#9d174d',  // pink
-    'background:#cffafe;color:#155e75',  // cyan
-    'background:#ede9fe;color:#5b21b6',  // violet
-    'background:#fee2e2;color:#991b1b',  // red
-    'background:#ccfbf1;color:#115e59',  // teal
-    'background:#fef9c3;color:#854d0e',  // yellow
-    'background:#e0e7ff;color:#3730a3',  // indigo
-    'background:#f3e8ff;color:#6b21a8',  // purple
-    'background:#ffedd5;color:#9a3412',  // orange
-    'background:#d1fae5;color:#065f46',  // emerald
-    'background:#fce4ec;color:#88144d',  // rose
+    'background:#dbeafe;color:#1e40af','background:#dcfce7;color:#166534',
+    'background:#fef3c7;color:#92400e','background:#fce7f3;color:#9d174d',
+    'background:#cffafe;color:#155e75','background:#ede9fe;color:#5b21b6',
+    'background:#fee2e2;color:#991b1b','background:#ccfbf1;color:#115e59',
+    'background:#fef9c3;color:#854d0e','background:#e0e7ff;color:#3730a3',
+    'background:#f3e8ff;color:#6b21a8','background:#ffedd5;color:#9a3412',
+    'background:#d1fae5;color:#065f46','background:#fce4ec;color:#88144d',
   ];
   const hashIdx = (s, mod) => {
-    let h = 0;
-    const t = String(s);
+    let h = 0; const t = String(s);
     for(let i = 0; i < t.length; i++){ h = ((h << 5) - h + t.charCodeAt(i)) | 0; }
     return Math.abs(h) % mod;
   };
-  const statusChip = (s) => {
-    if(!s) return '<span class="mut">—</span>';
-    const key = String(s).trim().toLowerCase();
-    const style = STATUS_COLORS[key] || CAT_PALETTE[hashIdx(key, CAT_PALETTE.length)];
-    return `<span class="sb" style="${style}">${esc(s)}</span>`;
-  };
-  const catChip = (c) => {
-    if(!c) return '<span class="mut">—</span>';
-    const style = CAT_PALETTE[hashIdx(c, CAT_PALETTE.length)];
-    return `<span class="sb" style="${style}">${esc(c)}</span>`;
-  };
-  tb.innerHTML = rows.map(r => (
+  const catChip = (c) => !c
+    ? '<span class="mut">—</span>'
+    : `<span class="sb" style="${CAT_PALETTE[hashIdx(c, CAT_PALETTE.length)]}">${esc(c)}</span>`;
+  tb.innerHTML = list.map((x, i) => (
     '<tr>' +
-      '<td>' + esc(fmtTime(r.kot_at)) + '</td>' +
-      '<td style="font-family:monospace;font-size:12.5px">' + esc(r.kot_no) + '</td>' +
-      '<td>' + esc(r.outlet) + '</td>' +
-      '<td>' + esc(r.item_name) + '</td>' +
-      '<td>' + catChip(r.category) + '</td>' +
-      '<td class="r">' + qty(r.qty) + '</td>' +
-      '<td>' + esc(r.order_type) + '</td>' +
-      '<td>' + esc(r.channel) + '</td>' +
-      '<td>' + statusChip(r.status) + '</td>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td style="font-family:monospace;font-size:12.5px">' + esc(x.item_code) + '</td>' +
+      '<td>' + esc(x.item_name) + '</td>' +
+      '<td>' + catChip(x.category) + '</td>' +
+      '<td>' + esc(x.order_type || '—') + '</td>' +
+      '<td class="r" style="font-weight:600">' + qty(x.qty) + '</td>' +
     '</tr>'
   )).join('');
 }
 
-function cnToggleAutoRefresh(){
-  const on = $('autoRefreshCn') && $('autoRefreshCn').checked;
-  if(CN_AUTOREFRESH_TIMER){ clearInterval(CN_AUTOREFRESH_TIMER); CN_AUTOREFRESH_TIMER = null; }
-  if(on){
-    // 30-second refresh is reasonable for mock. When wired to Supabase
-    // Realtime, this timer can be replaced with a channel subscription.
-    CN_AUTOREFRESH_TIMER = setInterval(() => {
-      if(CURTAB === 'cn' && !document.hidden) loadCn(true).catch(() => {});
-    }, 30000);
-  }
-}
-// Kick off auto-refresh on page load so the moment the user opens the tab it's live.
-try { cnToggleAutoRefresh(); } catch(e) {}
-
 function exportCsvCn(){
-  if(!CN.rows.length){ toast('No consumption events to export yet.'); return; }
+  if(!(CN.items && CN.items.length)){ toast('No consumption rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['Date & Time,KOT / Order No,Outlet,Item Name,Category,Qty,Order Type,Channel,Status'];
-  for(const r of CN.rows){
-    lines.push([fmtTime(r.kot_at), r.kot_no, r.outlet, r.item_name, r.category, r.qty, r.order_type, r.channel, r.status].map(esc2).join(','));
+  const lines = ['#,Item Code,Item Name,Category,Order Type,Quantity'];
+  let i = 0;
+  for(const x of CN.items){
+    i++;
+    lines.push([i, x.item_code, x.item_name, x.category, x.order_type, x.qty].map(esc2).join(','));
   }
+  const slug = (CN.outlet || 'outlet').toLowerCase().replace(/\s+/g, '-');
   const today = (new Date()).toISOString().slice(0,10);
-  downloadBlob(lines.join('\n'), 'consumption-feed-'+today+'.csv');
+  downloadBlob(lines.join('\n'), 'consumption-' + slug + '-' + today + '.csv');
 }
 
 /* ============================ IDEAL INVENTORY (ii) ============================
@@ -2724,10 +2744,10 @@ function iiBuildItemsFromRm(){
       l3_unit:        x.caseUnit || '',
       packScale:      Number(x.packScale) || 0,   // L1 per L2
       caseScale:      Number(x.caseScale) || 0,   // L1 per L3
-      opening_l1:          0,
-      purchase_l1:         0,
-      consumption_l1:      0,
-      declared_closing_l1: 0,
+      opening_l1:     0,
+      purchase_l1:    0,
+      consumption_l1: 0,
+      variance_l1:    0,
     }))
     .sort((a, b) => {
       const ca = OI_CAT_ORDER[a.category] || 99;
@@ -2840,34 +2860,22 @@ function renderIi(){
   }
   const inputStyle = 'width:90px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px';
   tb.innerHTML = rows.map((it, i) => {
-    const ideal    = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0);
-    const declared = it.declared_closing_l1 || 0;
-    const variance = ideal - declared;
-    const split = iiSplitClosing(it, ideal);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const split = iiSplitClosing(it, closing);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
     const looseCell = split.looseQty == null ? '<span class="mut">—</span>' : qty(split.looseQty) + ' <span class="mut" style="font-size:11px">' + esc(split.looseUnit) + '</span>';
-    // Variance colour: positive (stock went missing) = red; negative (physical > system) = amber;
-    // zero = muted. Shown with a leading + / − so the direction is immediate.
-    let varStyle = 'color:#6b7280';   // zero / neutral
-    let varText  = qty(0);
-    if(declared > 0 || ideal > 0 || variance !== 0){
-      if(variance > 0)      { varStyle = 'color:#991b1b;font-weight:600'; varText = '+' + qty(variance); }
-      else if(variance < 0) { varStyle = 'color:#92400e;font-weight:600'; varText = qty(variance); }   // qty keeps the minus sign
-      else                  { varStyle = 'color:#6b7280'; varText = qty(0); }
-    }
     return '<tr>' +
       '<td>' + (i + 1) + '</td>' +
       '<td style="font-family:monospace;font-size:12.5px">' + esc(it.rm_code) + '</td>' +
       '<td>' + esc(it.name) + '</td>' +
       '<td>' + (typeof oiCategoryChip === 'function' ? oiCategoryChip(it.category) : esc(it.category)) + '</td>' +
       '<td><span class="code">' + esc(it.l1_unit) + '</span></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1 || '')          + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"          style="' + inputStyle + '" title="Opening stock on hand at the window start, in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1 || '')         + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"         style="' + inputStyle + '" title="Total purchased in the window (sum of GRNs), in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '')      + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)"      style="' + inputStyle + ';background:#f9fafb" title="Consumed in the window — will auto-fill from PetPooja × BOM once the BOM resolver is wired; editable in the meantime"></td>' +
-      '<td class="r" style="font-weight:600">' + qty(ideal) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.declared_closing_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'declared_closing_l1\',this.value)" style="' + inputStyle + '" title="What the outlet physically counted at the window end, in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r"><span style="' + varStyle + '">' + varText + '</span> <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1 || '')     + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + inputStyle + '" title="Opening stock on hand at the window start, in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + inputStyle + '" title="Total purchased in the window (sum of GRNs), in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + inputStyle + ';background:#f9fafb" title="Consumed in the window — will auto-fill from PetPooja × BOM once the BOM resolver is wired; editable in the meantime"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.variance_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + inputStyle + '" title="Wastage / variance in the window, in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
       '<td class="r">' + fullCell  + '</td>' +
       '<td class="r">' + looseCell + '</td>' +
     '</tr>';
@@ -2877,15 +2885,13 @@ function renderIi(){
 function exportCsvIi(){
   if(!IIv.items.length){ toast('No ideal inventory rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Ideal Closing (L1),Declared Closing (L1),Variance (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
+  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Variance (L1),Ideal Closing (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
   let i = 0;
   for(const it of IIv.items){
     i++;
-    const ideal    = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0);
-    const declared = it.declared_closing_l1 || 0;
-    const variance = ideal - declared;
-    const split = iiSplitClosing(it, ideal);
-    lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, ideal, declared, variance, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const split = iiSplitClosing(it, closing);
+    lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, it.variance_l1 || 0, closing, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
   }
   const today = (new Date()).toISOString().slice(0,10);
   const slug = (IIv.outlet || 'all').toLowerCase().replace(/\s+/g, '-');
