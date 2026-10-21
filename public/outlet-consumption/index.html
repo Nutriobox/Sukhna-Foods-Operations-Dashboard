@@ -424,10 +424,9 @@
       <th style="text-align:left;padding:8px 10px">Outlet</th>
       <th style="text-align:left;padding:8px 10px">Date &amp; Time</th>
       <th style="text-align:left;padding:8px 10px">Score</th>
-      <th style="text-align:left;padding:8px 10px">Saved by</th>
       <th style="text-align:right;padding:8px 10px">Delete</th>
      </tr></thead>
-     <tbody id="tbodyOiList"><tr><td colspan="5" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
+     <tbody id="tbodyOiList"><tr><td colspan="4" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
     </table></div>
    </div>
   </div>
@@ -2373,7 +2372,7 @@ async function oiSave(){
 async function oiListLoad(){
   const tb = $('tbodyOiList'); const cnt = $('oiListCount');
   if(!tb) return;
-  tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:14px;text-align:center">Loading…</td></tr>';
+  tb.innerHTML = '<tr><td colspan="4" class="mut" style="padding:14px;text-align:center">Loading…</td></tr>';
   try {
     const r = await fetch('/api/opening-inventory', { cache: 'no-store' });
     const j = await r.json();
@@ -2381,7 +2380,7 @@ async function oiListLoad(){
     const rows = (j.counts || []).slice();
     if(cnt) cnt.textContent = rows.length ? ('· ' + rows.length + ' saved') : '· none yet';
     if(!rows.length){
-      tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:14px;text-align:center">No opening-inventory counts saved yet. Submit the form above to create your first one.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="4" class="mut" style="padding:14px;text-align:center">No opening-inventory counts saved yet. Submit the form above to create your first one.</td></tr>';
       return;
     }
     tb.innerHTML = rows.map(c => {
@@ -2397,14 +2396,13 @@ async function oiListLoad(){
         + '<td style="padding:8px 10px">' + esc(c.outlet || '—') + '</td>'
         + '<td style="padding:8px 10px">' + esc(c.dt_iso ? fmtTime(c.dt_iso + '+05:30') : '—') + '</td>'
         + '<td style="padding:8px 10px"><span class="sb" style="' + scoreStyle + '">' + (c.filled_count || 0) + ' / ' + (c.total_items || 0) + '</span></td>'
-        + '<td style="padding:8px 10px;color:#6b7280;font-size:12px">' + esc(c.created_by || '—') + '</td>'
         + '<td style="padding:8px 10px;text-align:right">'
         +   '<button class="btn" onclick="oiListDelete(\'' + idEsc + '\',\'' + outletEsc + '\',\'' + dtEsc + '\')" style="padding:4px 10px;font-size:12px;color:#991b1b;border-color:#fecaca">🗑 Delete</button>'
         + '</td>'
       + '</tr>';
     }).join('');
   } catch(err){
-    tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:14px;text-align:center;color:#b91c1c">Load failed: ' + esc(err.message || err) + '</td></tr>';
+    tb.innerHTML = '<tr><td colspan="4" class="mut" style="padding:14px;text-align:center;color:#b91c1c">Load failed: ' + esc(err.message || err) + '</td></tr>';
   }
 }
 
