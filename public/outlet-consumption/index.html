@@ -2564,16 +2564,12 @@ function rmLooseModeSubmit(){
     if(Object.keys(kept).length) LD.denom[code] = kept;
   }
   ldSave();
-  // Stay in Loose Denomination mode after saving (Satvik's call on
-  // 2026-10-19): the green marks stay on screen so you can see what was
-  // just committed. Re-seed the draft from the newly saved state so any
-  // further clicks diff from a clean baseline. Click ✕ Cancel to exit.
-  LD.draft = {};
-  for(const [code, levels] of Object.entries(LD.denom)){
-    LD.draft[code] = Object.assign({}, levels);
-  }
-  renderRm();
   const n = Object.keys(LD.denom).length;
+  // Exit the mode on save (Satvik 2026-10-21): Submit + Cancel buttons go
+  // away, the entry button comes back, and the sheet returns to the normal
+  // RM Master view. Marks are saved to the Opening Inventory sheet; re-enter
+  // the mode to see the green L circles again.
+  rmLooseModeExit();
   toast('Saved. ' + n + ' item' + (n===1?'':'s') + ' now carry loose-denomination marks.');
   // If OI's count sheet is open elsewhere in the DOM, re-render so its Loose
   // Denomination column flips to the new marks immediately on next view.
