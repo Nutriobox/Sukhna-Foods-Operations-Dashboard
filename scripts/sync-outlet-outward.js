@@ -32,20 +32,21 @@ const { createClient } = require('@supabase/supabase-js');
 const { login } = require('../src/lib/pact/login');
 
 // Pinned column keys for the Stock Outlet Outward_Transfer Location report,
-// captured from the live BI UI 2026-10-21. doc_date is still auto-discovered
-// because PACT returns its date in a format that varies by build (we'll pin
-// it after one more run with the diag dump below).
-// Leave a field as '' to force auto-detect on it.
+// captured from the live BI UI 2026-10-21 inventory dump. All 9 fields are
+// pinned; the leftover keys (C6eaf..Abr/.dno/.prf) are PACT's decomposed
+// doc-no sub-fields and are intentionally not mapped.
+// Leave a field as '' to force auto-detect on it (keep the inventory block
+// below enabled so we can re-pin if PACT re-hashes its column keys).
 const C = {
   doc_no:            'C6eaf2c1718724b5695d4188c9639eeb0',
   doc_date:          'Ccc334cab7d154f7f93b37cf5939e3d50',
   transfer_location: 'C46fa7a64d72945f8b8f62e7c196733c1',
-  product_name:      'C6eaf2c1718724b5695d4188c9639eeb0Abr',
+  product_name:      'C4b0092c636c3470889bc640d8b6095e9',
   unit:              'Cec13213b195e44d4a3b8eeec133d1ee3',
-  outlet_qty:        'C6eaf2c1718724b5695d4188c9639eeb0dno',
+  outlet_qty:        'C82163b1c94994480a17bafa73e0bb1fc',
   batch_no:          'Cc0c28a4205ce45fe81407f37d59668a1',
   outlet_issue_type: 'C9a90c6d9e41e4da68c86ba51770e7c5d',
-  narration:         'C6eaf2c1718724b5695d4188c9639eeb0prf',
+  narration:         'Cb70889a95cb9418c95030889f3fb6906',
 };
 
 const sb = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
