@@ -31,18 +31,21 @@ const { chromium } = require('playwright');
 const { createClient } = require('@supabase/supabase-js');
 const { login } = require('../src/lib/pact/login');
 
-// Pin discovered column keys here after the first successful run.
-// Leave empty strings to force auto-detect on every run.
+// Pinned column keys for the Stock Outlet Outward_Transfer Location report,
+// captured from the live BI UI 2026-10-21. doc_date is still auto-discovered
+// because PACT returns its date in a format that varies by build (we'll pin
+// it after one more run with the diag dump below).
+// Leave a field as '' to force auto-detect on it.
 const C = {
-  doc_no:            '',
+  doc_no:            'C6eaf2c1718724b5695d4188c9639eeb0',
   doc_date:          '',
-  transfer_location: '',
-  product_name:      '',
-  unit:              '',
-  outlet_qty:        '',
-  batch_no:          '',
-  outlet_issue_type: '',
-  narration:         '',
+  transfer_location: 'C46fa7a64d72945f8b8f62e7c196733c1',
+  product_name:      'C6eaf2c1718724b5695d4188c9639eeb0Abr',
+  unit:              'Cec13213b195e44d4a3b8eeec133d1ee3',
+  outlet_qty:        'C6eaf2c1718724b5695d4188c9639eeb0dno',
+  batch_no:          'Cc0c28a4205ce45fe81407f37d59668a1',
+  outlet_issue_type: 'C9a90c6d9e41e4da68c86ba51770e7c5d',
+  narration:         'C6eaf2c1718724b5695d4188c9639eeb0prf',
 };
 
 const sb = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY)
@@ -79,8 +82,15 @@ function classifyColumn(sampleValues) {
   const first = String(sv[0]).trim();
   // Doc No: SOT-AF/26-27/3151, or similar outward-doc prefix
   if (/^SOT[-_]/i.test(first)) return 'doc_no';
-  // Doc Date: 01/10/2026, 2026-10-01, 1-Oct-2026
-  if (/^\d{1,4}[\/\-\. ][A-Za-z0-9]{1,4}[\/\-\. ]\d{1,4}$/.test(first)) return 'doc_date';
+  // Doc Date — try every PACT date shape I've seen:
+  //  2026-10-01, 2026-10-01T00:00:00(.000)(Z)?, 01/10/2026, 01-Oct-2026,
+  //  /Date(1727740800000)/ (old .NET format), or a 10/13-digit Unix epoch.
+  if (/^\d{4}-\d{1,2}-\d{1,2}(T\d{1,2}:\d{1,2}(:\d{1,2}(\.\d{1,3})?)?Z?)?$/.test(first)) return 'doc_date';
+  if (/^\d{1,2}[\/\-\. ]\d{1,2}[\/\-\. ]\d{2,4}$/.test(first)) return 'doc_date';
+  if (/^\d{1,2}[\/\-\. ][A-Za-z]{3,}[\/\-\. ]\d{2,4}$/.test(first)) return 'doc_date';
+  if (/^\/Date\(\d+([+-]\d+)?\)\/$/.test(first)) return 'doc_date';
+  // Unix epoch: 10-digit seconds (post-2001) or 13-digit ms (post-2001)
+  if (/^1[6-9]\d{8}$/.test(first) || /^1[6-9]\d{11}$/.test(first)) return 'doc_date';
   // Transfer Location: starts with Nutribox / Nutriobox
   if (/^nutri[o]?box\b/i.test(first)) return 'transfer_location';
   // Outlet Issue Type: one of the five storage categories
@@ -111,6 +121,15 @@ function assignProductAndNarration(unassignedKeys, allRows) {
   return out;
 }
 
+function firstNonEmpty(rows, k, limit = 50) {
+  for (let i = 0; i < Math.min(rows.length, limit); i++) {
+    const v = rows[i][k];
+    const s = v == null ? '' : String(v).trim();
+    if (s) return s;
+  }
+  return '';
+}
+
 function discoverColumns(rows) {
   const first = rows[0] || {};
   const keys = Object.keys(first);
@@ -129,6 +148,8 @@ function discoverColumns(rows) {
   const resolved = assignProductAndNarration(unassigned, rows);
   if (resolved.product_name) map.product_name = resolved.product_name;
   if (resolved.narration)    map.narration    = resolved.narration;
+  // Keep the leftover keys so the caller can print sample values for them.
+  map.__unassigned = unassigned.filter((k) => k !== resolved.product_name && k !== resolved.narration);
   return map;
 }
 
@@ -324,27 +345,36 @@ async function setDateRange(page) {
     log('[report] data table index=' + tableIndex + ' rows=' + rows.length);
     if (!rows.length) { log('[report] empty data table — nothing to upsert'); return; }
 
-    // Resolve column keys. Prefer the pinned C constants if filled in; else
-    // discover from the first batch of rows and log them so Satvik can pin
-    // them in the C object for the next run.
-    const empty = Object.keys(C).every((k) => !C[k]);
-    let map;
-    if (empty) {
-      map = discoverColumns(rows);
-      log('[discover] auto-detected column keys:');
-      for (const field of Object.keys(C)) {
-        log('  ' + field.padEnd(20) + ' -> ' + (map[field] || '(not found)'));
-      }
-      log('[discover] paste these into the C const at the top to pin them.');
-    } else {
-      map = {};
-      for (const k of Object.keys(C)) if (C[k]) map[k] = C[k];
+    // Resolve column keys: always run auto-discovery, then let the pinned C
+    // constants override. Pinned keys win; auto-discovery fills in anything
+    // still unknown. When a required field is still missing, dump the first
+    // non-empty value from each unassigned column so we can see which PACT
+    // hash to pin.
+    const discovered = discoverColumns(rows);
+    const unassignedKeys = discovered.__unassigned || [];
+    const map = {};
+    for (const field of Object.keys(C)) {
+      if (C[field]) { map[field] = C[field]; continue; }
+      if (discovered[field]) map[field] = discovered[field];
+    }
+    log('[discover] column mapping:');
+    for (const field of Object.keys(C)) {
+      const key = map[field];
+      const src = C[field] ? 'pinned' : (discovered[field] ? 'auto' : '(not found)');
+      log('  ' + field.padEnd(20) + ' -> ' + (key || '-').padEnd(40) + ' [' + src + ']');
     }
 
     // Required columns to produce a usable row.
     const required = ['doc_no', 'doc_date', 'transfer_location', 'product_name'];
     const missing = required.filter((f) => !map[f]);
-    if (missing.length) throw new Error('Column discovery missing: ' + missing.join(', ') + '. Keys seen: ' + Object.keys(rows[0] || {}).join(','));
+    if (missing.length) {
+      log('[discover] unassigned column keys (first non-empty sample value):');
+      for (const k of unassignedKeys) {
+        log('  ' + k + ' = ' + JSON.stringify(firstNonEmpty(rows, k)));
+      }
+      log('[discover] all keys in row 0: ' + Object.keys(rows[0] || {}).join(', '));
+      throw new Error('Column discovery missing: ' + missing.join(', '));
+    }
 
     // Parse into the Supabase row shape. doc_date comes back as text in
     // whatever PACT serialises (dd/mm/yyyy is most common); normalise to
