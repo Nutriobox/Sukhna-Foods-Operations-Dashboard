@@ -549,10 +549,12 @@
   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#f0f9ff;border-color:#bae6fd">
    <div style="font-size:12.5px;color:#0c4a6e;line-height:1.5">
     <b>Formula.</b> Everything is normalised to each RM's L1 base unit so the arithmetic is apples-to-apples.
-    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) − Variance (L1).</b>
+    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1).</b>
     Consumption per RM = Σ (item qty sold × BOM raw qty per item, converted to L1) across every KOT in the window.
-    The <b>Full</b> and <b>Loose</b> columns on the right split the closing figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
-    <br><b>Status.</b> Consumption pulls from PetPooja (live); Opening, Purchase and Variance are editable placeholder cells for now and will plug into the Opening Inventory save, the Purchase (GRN) sync and a wastage source as those backends land.
+    <br><b>Variance (L1) = Ideal Closing − Declared Closing.</b>
+    Declared Closing is the outlet's physical count at the window end (type it in the Declared column). A positive variance means stock went missing (wastage, pilferage, over-portioning); a negative variance means the physical count came out higher than the system expected.
+    <br>The <b>Full</b> and <b>Loose</b> columns on the right split the <b>Ideal Closing</b> figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
+    <br><b>Status.</b> Consumption pulls from PetPooja (live); Opening, Purchase and Declared Closing are editable placeholder cells for now and will plug into the Opening Inventory save, the Purchase (GRN) sync, and the next outlet-count save as those backends land.
    </div>
   </div>
 
@@ -566,12 +568,13 @@
     <th class="r">Opening (L1)</th>
     <th class="r">Purchase (L1)</th>
     <th class="r">Consumption (L1)</th>
-    <th class="r">Variance (L1)</th>
     <th class="r">Ideal Closing (L1)</th>
+    <th class="r">Declared Closing (L1)</th>
+    <th class="r">Variance (L1)</th>
     <th class="r">Full</th>
     <th class="r">Loose</th>
    </tr></thead>
-   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Pick an outlet and date range above, then click ⚡ Recompute.</td></tr></tbody>
+   <tbody id="tbodyIi"><tr><td colspan="13" class="mut" style="padding:20px;text-align:center">Pick an outlet and date range above, then click ⚡ Recompute.</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -713,10 +716,13 @@ let CN_AUTOREFRESH_TIMER = null;
 // Ideal Inventory: per-RM L1 arithmetic.
 //   items[i] = { rm_code, name, category, l1_unit, l2_unit, l3_unit,
 //                packScale, caseScale, opening_l1, purchase_l1,
-//                consumption_l1, variance_l1 }
-// Closing is computed at render time from the four buckets. opening/purchase/
-// variance are user-editable placeholders until their backends land;
-// consumption is derived from the live PetPooja feed × BOM.
+//                consumption_l1, declared_closing_l1 }
+// Two closings are computed at render time:
+//   Ideal Closing   = Opening + Purchase − Consumption   (what should be)
+//   Declared Closing = outlet's physical count            (what is)
+//   Variance        = Ideal Closing − Declared Closing   (the gap)
+// opening/purchase/declared are user-editable placeholders until their
+// backends land; consumption is derived from the live PetPooja feed × BOM.
 let IIv = { items: [], outlet: '', from: '', to: '', meta: {} };
 let II_LOADED = { v: false };
 const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, CN_LOADED = { v:false };
@@ -2718,10 +2724,10 @@ function iiBuildItemsFromRm(){
       l3_unit:        x.caseUnit || '',
       packScale:      Number(x.packScale) || 0,   // L1 per L2
       caseScale:      Number(x.caseScale) || 0,   // L1 per L3
-      opening_l1:     0,
-      purchase_l1:    0,
-      consumption_l1: 0,
-      variance_l1:    0,
+      opening_l1:          0,
+      purchase_l1:         0,
+      consumption_l1:      0,
+      declared_closing_l1: 0,
     }))
     .sort((a, b) => {
       const ca = OI_CAT_ORDER[a.category] || 99;
@@ -2834,22 +2840,34 @@ function renderIi(){
   }
   const inputStyle = 'width:90px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px';
   tb.innerHTML = rows.map((it, i) => {
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
-    const split = iiSplitClosing(it, closing);
+    const ideal    = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0);
+    const declared = it.declared_closing_l1 || 0;
+    const variance = ideal - declared;
+    const split = iiSplitClosing(it, ideal);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
     const looseCell = split.looseQty == null ? '<span class="mut">—</span>' : qty(split.looseQty) + ' <span class="mut" style="font-size:11px">' + esc(split.looseUnit) + '</span>';
+    // Variance colour: positive (stock went missing) = red; negative (physical > system) = amber;
+    // zero = muted. Shown with a leading + / − so the direction is immediate.
+    let varStyle = 'color:#6b7280';   // zero / neutral
+    let varText  = qty(0);
+    if(declared > 0 || ideal > 0 || variance !== 0){
+      if(variance > 0)      { varStyle = 'color:#991b1b;font-weight:600'; varText = '+' + qty(variance); }
+      else if(variance < 0) { varStyle = 'color:#92400e;font-weight:600'; varText = qty(variance); }   // qty keeps the minus sign
+      else                  { varStyle = 'color:#6b7280'; varText = qty(0); }
+    }
     return '<tr>' +
       '<td>' + (i + 1) + '</td>' +
       '<td style="font-family:monospace;font-size:12.5px">' + esc(it.rm_code) + '</td>' +
       '<td>' + esc(it.name) + '</td>' +
       '<td>' + (typeof oiCategoryChip === 'function' ? oiCategoryChip(it.category) : esc(it.category)) + '</td>' +
       '<td><span class="code">' + esc(it.l1_unit) + '</span></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1 || '')     + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + inputStyle + '" title="Opening stock on hand at the window start, in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + inputStyle + '" title="Total purchased in the window (sum of GRNs), in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + inputStyle + ';background:#f9fafb" title="Consumed in the window — will auto-fill from PetPooja × BOM once the BOM resolver is wired; editable in the meantime"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.variance_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + inputStyle + '" title="Wastage / variance in the window, in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1 || '')          + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"          style="' + inputStyle + '" title="Opening stock on hand at the window start, in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1 || '')         + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"         style="' + inputStyle + '" title="Total purchased in the window (sum of GRNs), in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '')      + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)"      style="' + inputStyle + ';background:#f9fafb" title="Consumed in the window — will auto-fill from PetPooja × BOM once the BOM resolver is wired; editable in the meantime"></td>' +
+      '<td class="r" style="font-weight:600">' + qty(ideal) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.declared_closing_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'declared_closing_l1\',this.value)" style="' + inputStyle + '" title="What the outlet physically counted at the window end, in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><span style="' + varStyle + '">' + varText + '</span> <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
       '<td class="r">' + fullCell  + '</td>' +
       '<td class="r">' + looseCell + '</td>' +
     '</tr>';
@@ -2859,13 +2877,15 @@ function renderIi(){
 function exportCsvIi(){
   if(!IIv.items.length){ toast('No ideal inventory rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Variance (L1),Ideal Closing (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
+  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Ideal Closing (L1),Declared Closing (L1),Variance (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
   let i = 0;
   for(const it of IIv.items){
     i++;
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
-    const split = iiSplitClosing(it, closing);
-    lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, it.variance_l1 || 0, closing, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
+    const ideal    = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0);
+    const declared = it.declared_closing_l1 || 0;
+    const variance = ideal - declared;
+    const split = iiSplitClosing(it, ideal);
+    lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, ideal, declared, variance, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
   }
   const today = (new Date()).toISOString().slice(0,10);
   const slug = (IIv.outlet || 'all').toLowerCase().replace(/\s+/g, '-');
