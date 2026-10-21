@@ -1286,7 +1286,7 @@ function renderRm(){
       ? lvl + ' is marked as loose. Click to un-mark.'
       : 'Click to mark ' + lvl + ' as a loose denomination.';
     const codeEsc = esc(rmCode).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
-    return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
+    return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-left:6px;vertical-align:middle;${style}">L</span>`;
   };
   // Non-clickable green L badge for the normal (non-loose) view, so the
   // team can see which levels are marked loose without entering edit mode.
@@ -1294,19 +1294,22 @@ function renderRm(){
   const savedLooseBadge = (lvl) => {
     const style = 'background:#dcfce7;color:#065f46;border:1.5px solid #16a34a;font-weight:700';
     const title = lvl + ' is marked as a loose denomination.';
-    return `<span title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
+    return `<span title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;line-height:1;user-select:none;margin-left:6px;vertical-align:middle;${style}">L</span>`;
   };
   // Decorate a cell with the per-level L badge:
   //   - In Loose Denomination mode: a clickable gray/green badge for every
   //     level that has a UOM, so the user can toggle it.
   //   - In normal mode: a non-clickable GREEN badge only for levels that
   //     are already saved as loose in LD.denom (so marks persist on the
-  //     page outside edit mode — Satvik's call on 2026-10-21).
+  //     page outside edit mode).
+  // Badge sits on the RIGHT of the UOM text (Satvik 2026-10-21), so the
+  // UOM reads first and the L mark acts as a trailing indicator rather
+  // than a leading glyph.
   const withBadge = (cellContent, rmCode, level, uom) => {
     if(!uom) return cellContent;
-    if(inLoose) return looseLevelBadge(rmCode, level) + cellContent;
+    if(inLoose) return cellContent + looseLevelBadge(rmCode, level);
     const saved = LD.denom[rmCode];
-    if(saved && saved[level]) return savedLooseBadge(level) + cellContent;
+    if(saved && saved[level]) return cellContent + savedLooseBadge(level);
     return cellContent;
   };
 
@@ -2388,15 +2391,11 @@ function rmLooseModeSubmit(){
     if(Object.keys(kept).length) LD.denom[code] = kept;
   }
   ldSave();
-  // Stay in Loose Denomination mode after saving (Satvik's call on
-  // 2026-10-19): the green marks stay on screen so you can see what was
-  // just committed. Re-seed the draft from the newly saved state so any
-  // further clicks diff from a clean baseline. Click ✕ Cancel to exit.
-  LD.draft = {};
-  for(const [code, levels] of Object.entries(LD.denom)){
-    LD.draft[code] = Object.assign({}, levels);
-  }
-  renderRm();
+  // After saving, exit Loose Denomination mode back to the normal view
+  // (Satvik 2026-10-21). The saved marks remain visible there as green
+  // non-clickable L circles on the right of each marked UOM, so the
+  // operator sees what was just committed without the gray editing clutter.
+  rmLooseModeExit();
   const n = Object.keys(LD.denom).length;
   toast('Saved. ' + n + ' item' + (n===1?'':'s') + ' now carry loose-denomination marks.');
   // If OI's count sheet is open elsewhere in the DOM, re-render so its Loose
