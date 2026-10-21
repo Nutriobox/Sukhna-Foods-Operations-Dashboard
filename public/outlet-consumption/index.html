@@ -547,14 +547,13 @@
 
    <div class="card"><div class="scroll"><table id="tblCn">
     <thead><tr>
-     <th>#</th>
      <th>Item Code</th>
      <th>Item Name</th>
      <th>Category</th>
      <th>Order Type</th>
      <th class="r">Quantity</th>
     </tr></thead>
-    <tbody id="tbodyCn"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+    <tbody id="tbodyCn"><tr><td colspan="5" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
    </table></div></div>
   </div>
  </div>
@@ -1309,7 +1308,7 @@ function renderRm(){
       ? lvl + ' is marked as loose. Click to un-mark.'
       : 'Click to mark ' + lvl + ' as a loose denomination.';
     const codeEsc = esc(rmCode).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
-    return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
+    return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-left:6px;vertical-align:middle;${style}">L</span>`;
   };
   // Non-clickable green L badge for the normal (non-loose) view, so the
   // team can see which levels are marked loose without entering edit mode.
@@ -1317,7 +1316,7 @@ function renderRm(){
   const savedLooseBadge = (lvl) => {
     const style = 'background:#dcfce7;color:#065f46;border:1.5px solid #16a34a;font-weight:700';
     const title = lvl + ' is marked as a loose denomination.';
-    return `<span title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
+    return `<span title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;line-height:1;user-select:none;margin-left:6px;vertical-align:middle;${style}">L</span>`;
   };
   // Decorate a cell with the per-level L badge:
   //   - In Loose Denomination mode: a clickable gray/green badge for every
@@ -1327,9 +1326,9 @@ function renderRm(){
   //     page outside edit mode — Satvik's call on 2026-10-21).
   const withBadge = (cellContent, rmCode, level, uom) => {
     if(!uom) return cellContent;
-    if(inLoose) return looseLevelBadge(rmCode, level) + cellContent;
+    if(inLoose) return cellContent + looseLevelBadge(rmCode, level);
     const saved = LD.denom[rmCode];
-    if(saved && saved[level]) return savedLooseBadge(level) + cellContent;
+    if(saved && saved[level]) return cellContent + savedLooseBadge(level);
     return cellContent;
   };
 
@@ -2733,7 +2732,11 @@ function cnBuildMenuList(){
         if(seen.has(key)) continue;
         seen.add(key);
         out.push({
-          item_code: dishId || it.bom_code || '—',
+          // Item Code: the BOM code shown on the right of the dish name in
+          // Item Master (e.g. DIN_BOM0099). Satvik 2026-10-21 — the PetPooja
+          // dish_id (small numbers like 1, 2, 4) wasn't useful; the BOM code
+          // matches what the operator sees on the Item Master tab.
+          item_code: it.bom_code || dishId || '—',
           item_name: name,
           category:  it.petpooja_category || catName || '',
           dish_id:   dishId,
@@ -2827,7 +2830,7 @@ function renderCn(){
   CN.items = rows;
 
   if(!list.length){
-    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">'
+    tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:20px;text-align:center">'
       + (IM_LOADED.v ? 'No consumption rows match these filters.' : 'Loading item master…')
       + '</td></tr>';
     if(CURTAB === 'cn') updateHeaderStats();
@@ -2854,12 +2857,11 @@ function renderCn(){
     ? '<span class="mut">—</span>'
     : `<span class="sb" style="${CAT_PALETTE[hashIdx(c, CAT_PALETTE.length)]}">${esc(c)}</span>`;
   // Qty cell: zero sales render muted so the eye jumps to the non-zero rows.
-  tb.innerHTML = list.map((x, i) => {
+  tb.innerHTML = list.map((x) => {
     const qCell = x.qty > 0
       ? '<td class="r" style="font-weight:600">' + qty(x.qty) + '</td>'
       : '<td class="r mut">0</td>';
     return '<tr>' +
-      '<td>' + (i + 1) + '</td>' +
       '<td style="font-family:monospace;font-size:12.5px">' + esc(x.item_code) + '</td>' +
       '<td>' + esc(x.item_name) + '</td>' +
       '<td>' + catChip(x.category) + '</td>' +
@@ -2873,11 +2875,9 @@ function renderCn(){
 function exportCsvCn(){
   if(!(CN.items && CN.items.length)){ toast('No consumption rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['#,Item Code,Item Name,Category,Order Type,Quantity'];
-  let i = 0;
+  const lines = ['Item Code,Item Name,Category,Order Type,Quantity'];
   for(const x of CN.items){
-    i++;
-    lines.push([i, x.item_code, x.item_name, x.category, x.order_type, x.qty].map(esc2).join(','));
+    lines.push([x.item_code, x.item_name, x.category, x.order_type, x.qty].map(esc2).join(','));
   }
   const slug = (CN.outlet || 'outlet').toLowerCase().replace(/\s+/g, '-');
   const today = (new Date()).toISOString().slice(0,10);
