@@ -173,14 +173,41 @@ function findDataTable(json, discoveryHints) {
   return best;
 }
 
+// The SOT report can emit several line items for the same product+batch+unit
+// in one doc (split-issue, re-shipment, same-batch top-up). Our unique key is
+// (doc_no, product_name, batch_no, unit), so Postgres rejects an upsert chunk
+// that carries more than one row for a given key with "ON CONFLICT DO UPDATE
+// command cannot affect row a second time". Collapse duplicates up-front:
+// sum outlet_qty across them (the dashboard totals per-doc anyway) and keep
+// the richest narration (longest non-empty wins; others are concatenated
+// with '; ' only if they add new text).
+function dedupeByUniqueKey(rows) {
+  const byKey = new Map();
+  for (const r of rows) {
+    const key = [r.doc_no, r.product_name, r.batch_no || '', r.unit || ''].join('|');
+    const prev = byKey.get(key);
+    if (!prev) { byKey.set(key, { ...r }); continue; }
+    prev.outlet_qty = (Number(prev.outlet_qty) || 0) + (Number(r.outlet_qty) || 0);
+    const narrA = (prev.narration || '').trim();
+    const narrB = (r.narration || '').trim();
+    if (narrB && narrB !== narrA) {
+      prev.narration = narrA ? (narrA.includes(narrB) ? narrA : narrA + '; ' + narrB) : narrB;
+    }
+    // Keep the latest scraped_at implicitly (default now() on insert).
+  }
+  return Array.from(byKey.values());
+}
+
 async function upsertRows(rows) {
   if (!sb) { log('[supabase] not configured; skipping write'); return; }
   if (DRY_RUN) { log('[dry-run] would upsert', rows.length, 'rows'); return; }
   if (!rows.length) { log('[supabase] no rows to upsert'); return; }
+  const deduped = dedupeByUniqueKey(rows);
+  if (deduped.length !== rows.length) log('[dedupe] collapsed', rows.length - deduped.length, 'duplicate-key rows (' + rows.length, '->', deduped.length + ')');
   // Chunk to stay under PostgREST payload limits on a big back-fill.
   let total = 0;
-  for (let i = 0; i < rows.length; i += 500) {
-    const chunk = rows.slice(i, i + 500);
+  for (let i = 0; i < deduped.length; i += 500) {
+    const chunk = deduped.slice(i, i + 500);
     const { error } = await sb
       .from('pact_stock_outlet_outward')
       .upsert(chunk, { onConflict: 'doc_no,product_name,batch_no,unit' });
