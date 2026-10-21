@@ -1286,7 +1286,7 @@ function renderRm(){
       ? lvl + ' is marked as loose. Click to un-mark.'
       : 'Click to mark ' + lvl + ' as a loose denomination.';
     const codeEsc = esc(rmCode).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
-    return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-left:6px;vertical-align:middle;${style}">L</span>`;
+    return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
   };
   // Non-clickable green L badge for the normal (non-loose) view, so the
   // team can see which levels are marked loose without entering edit mode.
@@ -1294,22 +1294,19 @@ function renderRm(){
   const savedLooseBadge = (lvl) => {
     const style = 'background:#dcfce7;color:#065f46;border:1.5px solid #16a34a;font-weight:700';
     const title = lvl + ' is marked as a loose denomination.';
-    return `<span title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;line-height:1;user-select:none;margin-left:6px;vertical-align:middle;${style}">L</span>`;
+    return `<span title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
   };
   // Decorate a cell with the per-level L badge:
   //   - In Loose Denomination mode: a clickable gray/green badge for every
   //     level that has a UOM, so the user can toggle it.
   //   - In normal mode: a non-clickable GREEN badge only for levels that
   //     are already saved as loose in LD.denom (so marks persist on the
-  //     page outside edit mode).
-  // Badge sits on the RIGHT of the UOM text (Satvik 2026-10-21), so the
-  // UOM reads first and the L mark acts as a trailing indicator rather
-  // than a leading glyph.
+  //     page outside edit mode — Satvik's call on 2026-10-21).
   const withBadge = (cellContent, rmCode, level, uom) => {
     if(!uom) return cellContent;
-    if(inLoose) return cellContent + looseLevelBadge(rmCode, level);
+    if(inLoose) return looseLevelBadge(rmCode, level) + cellContent;
     const saved = LD.denom[rmCode];
-    if(saved && saved[level]) return cellContent + savedLooseBadge(level);
+    if(saved && saved[level]) return savedLooseBadge(level) + cellContent;
     return cellContent;
   };
 
@@ -2391,11 +2388,15 @@ function rmLooseModeSubmit(){
     if(Object.keys(kept).length) LD.denom[code] = kept;
   }
   ldSave();
-  // After saving, exit Loose Denomination mode back to the normal view
-  // (Satvik 2026-10-21). The saved marks remain visible there as green
-  // non-clickable L circles on the right of each marked UOM, so the
-  // operator sees what was just committed without the gray editing clutter.
-  rmLooseModeExit();
+  // Stay in Loose Denomination mode after saving (Satvik's call on
+  // 2026-10-19): the green marks stay on screen so you can see what was
+  // just committed. Re-seed the draft from the newly saved state so any
+  // further clicks diff from a clean baseline. Click ✕ Cancel to exit.
+  LD.draft = {};
+  for(const [code, levels] of Object.entries(LD.denom)){
+    LD.draft[code] = Object.assign({}, levels);
+  }
+  renderRm();
   const n = Object.keys(LD.denom).length;
   toast('Saved. ' + n + ' item' + (n===1?'':'s') + ' now carry loose-denomination marks.');
   // If OI's count sheet is open elsewhere in the DOM, re-render so its Loose
@@ -2558,6 +2559,23 @@ function cnRepopulateFilter(elId, values, allLabel){
 
 // ------- Data load + aggregation -------
 
+// The three order types we fan every item out across, in a fixed sequence
+// so the same item's three rows always show in the same order.
+const CN_ORDER_TYPES = ['Dine In', 'Delivery', 'Pick Up'];
+
+// Normalise PetPooja's order_type strings down to our three canonical values.
+// PetPooja is inconsistent: "DineIn", "Dine-in", "Pickup", "Pick-up", "Take Away"
+// all turn up in the wild. Anything we don't recognise returns '' and that
+// line's qty is left out of the matrix (user can still see the raw aggregate
+// via a search).
+function cnNormOrderType(s){
+  const t = String(s || '').trim().toLowerCase().replace(/[\s_\-]+/g, '');
+  if(t === 'dinein') return 'Dine In';
+  if(t === 'delivery' || t === 'parcel' || t === 'home_delivery' || t === 'homedelivery') return 'Delivery';
+  if(t === 'pickup' || t === 'takeaway' || t === 'take_away') return 'Pick Up';
+  return '';
+}
+
 async function loadCn(fresh){
   if(!CN.outlet || !CN.from || !CN.to) return;  // nothing to do until the form is submitted
   const stat = $('syncStatCn');
@@ -2566,60 +2584,141 @@ async function loadCn(fresh){
     const params = new URLSearchParams();
     params.set('from', CN.from); params.set('to', CN.to);
     params.set('limit_rows', '10000');
-    const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
-    const j = await r.json();
-    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    // Pull sales + item master in parallel. Item Master gives us the canonical
+    // menu list + sequence (categories, items) so the Consumption view can
+    // show EVERY menu item in Item-Master order with one row per order type,
+    // not just the items that happened to sell in the window.
+    const [salesRes] = await Promise.all([
+      fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' }),
+      IM_LOADED.v ? Promise.resolve() : loadIm(false).catch(() => {}),
+    ]);
+    const j = await salesRes.json();
+    if(!salesRes.ok || !j.ok) throw new Error(j.error || ('HTTP ' + salesRes.status));
 
     // Filter by outlet (substring, case-insensitive) and keep the raw rows so
-    // the aggregator can group them. restaurant_name on the AIFI side carries
-    // the "NutrioBox (…)" prefix; our outlet picker holds just the branch.
+    // the renderer can aggregate them against the Item Master matrix.
     const outletLc = CN.outlet.toLowerCase();
     const raw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
-
-    // Aggregate: one output row per unique (item_code, item_name, category, order_type).
-    // item_code falls back to sap_code → dish_id → '—' (sap_code is usually
-    // blank today; dish_id is PetPooja's menu item id and makes a stable key).
-    const groups = new Map();
-    for(const row of raw){
-      const code = String(row.sap_code || row.dish_id || '').trim() || '—';
-      const name = String(row.item_name || '').trim();
-      const cat  = String(row.category_name || '').trim();
-      const ot   = String(row.order_type || '').trim();
-      const qtyN = Number(row.item_quantity || 0);
-      const key  = code + '||' + name + '||' + cat + '||' + ot;
-      if(!groups.has(key)){
-        groups.set(key, { item_code: code, item_name: name, category: cat, order_type: ot, qty: 0 });
-      }
-      groups.get(key).qty += qtyN;
-    }
-    // Sort by Quantity desc (biggest consumers first), then item name asc.
-    CN.items = Array.from(groups.values()).sort((a, b) => (b.qty - a.qty) || a.item_name.localeCompare(b.item_name));
-    CN.rows  = raw;   // keep raw for completeness; render reads CN.items
+    CN.rows = raw;
     CN.meta = {
       source: 'PetPooja Global Sales API',
       synced_at: new Date().toISOString(),
-      count: CN.items.length,
       raw_line_items: raw.length,
     };
     CN_LOADED.v = true;
-    cnRepopulateFilter('orderTypeCn', CN.items.map(x => x.order_type).filter(Boolean), 'All order types');
+    cnRepopulateFilter('orderTypeCn', CN_ORDER_TYPES, 'All order types');
     if(stat){ stat.textContent = fresh ? 'Refreshed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
   } catch (err) {
     console.error('Consumption fetch failed:', err);
     if(stat){ stat.textContent = 'Fetch failed — ' + (err && err.message ? err.message : 'see console'); }
-    CN.items = CN.items || [];
-    CN.meta = CN.meta || { source: 'fetch error', synced_at: new Date().toISOString(), count: 0 };
+    CN.rows = CN.rows || [];
+    CN.meta = CN.meta || { source: 'fetch error', synced_at: new Date().toISOString() };
     CN_LOADED.v = true;
   }
   renderCn();
   if(CURTAB === 'cn') updateHeaderStats();
 }
 
+// Build the canonical menu list from Item Master (dine_in first; delivery-only
+// items appended at the end). One entry per unique item, in Item Master order
+// so the Consumption table sequence matches what people see on the Item Master
+// tab. Each entry: { item_code, item_name, category, dish_id, name_key }.
+function cnBuildMenuList(){
+  const out = [];
+  const seen = new Set();  // dedupe by dish_id (preferred) or name (fallback)
+  const addSection = (section) => {
+    if(!section) return;
+    for(const [catName, items] of Object.entries(section.categories || {})){
+      for(const it of (items || [])){
+        const name = String(it.name || '').trim();
+        if(!name) continue;
+        const dishId = String(it.petpooja_dish_id || '').trim();
+        const key = dishId ? ('id:' + dishId) : ('nm:' + name.toLowerCase());
+        if(seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          item_code: dishId || it.bom_code || '—',
+          item_name: name,
+          category:  it.petpooja_category || catName || '',
+          dish_id:   dishId,
+          name_key:  name.toLowerCase(),
+        });
+      }
+    }
+  };
+  if(IM_LOADED.v && IM.data){
+    addSection(IM.data.dine_in);
+    addSection(IM.data.delivery);
+  }
+  return out;
+}
+
 function renderCn(){
   if(!CN_LOADED.v) return;
   const q = (($('qCn') && $('qCn').value) || '').trim().toLowerCase();
   const typeF = ($('orderTypeCn') && $('orderTypeCn').value) || '';
-  const list = (CN.items || []).filter(x => {
+  const tb = $('tbodyCn');
+
+  // Aggregate the raw sales rows by (match_key, order_type) once so each
+  // menu item × order_type lookup is O(1). match_key prefers dish_id for
+  // precision; falls back to lowercased name so sales from an item without
+  // a dish_id still match a menu entry by name.
+  const salesByKey = new Map();  // "id:123||Dine In" -> qty
+  const unmatchedByKey = new Map();  // key -> { name, category, order_type, qty }
+  for(const row of (CN.rows || [])){
+    const ot = cnNormOrderType(row.order_type);
+    if(!ot) continue;
+    const dishId = String(row.dish_id || '').trim();
+    const name   = String(row.item_name || '').trim();
+    if(!name) continue;
+    const kId   = dishId ? ('id:' + dishId)        : '';
+    const kName = ('nm:' + name.toLowerCase());
+    const qtyN = Number(row.item_quantity || 0);
+    if(kId){
+      salesByKey.set(kId + '||' + ot, (salesByKey.get(kId + '||' + ot) || 0) + qtyN);
+    }
+    salesByKey.set(kName + '||' + ot, (salesByKey.get(kName + '||' + ot) || 0) + qtyN);
+    // Also capture everything for the orphan sweep after the matrix is built.
+    const uk = (kId || kName) + '||' + ot;
+    if(!unmatchedByKey.has(uk)){
+      unmatchedByKey.set(uk, { item_code: dishId || '—', item_name: name, category: row.category_name || '', order_type: ot, qty: 0, _key: (kId || kName) });
+    }
+    unmatchedByKey.get(uk).qty += qtyN;
+  }
+
+  // Build the full matrix: every menu item × 3 order types, in IM order.
+  const menu = cnBuildMenuList();
+  const rows = [];
+  const matched = new Set();  // keys we've drawn from the menu side
+  for(const item of menu){
+    for(const ot of CN_ORDER_TYPES){
+      const idKey = item.dish_id ? ('id:' + item.dish_id + '||' + ot) : '';
+      const nmKey = 'nm:' + item.name_key + '||' + ot;
+      const q1 = idKey ? (salesByKey.get(idKey) || 0) : 0;
+      const q2 = salesByKey.get(nmKey) || 0;
+      // Prefer dish_id match; fall back to name match. Don't double-count.
+      const qtyVal = idKey && salesByKey.has(idKey) ? q1 : q2;
+      if(idKey) matched.add('id:' + item.dish_id + '||' + ot);
+      matched.add('nm:' + item.name_key + '||' + ot);
+      rows.push({
+        item_code:  item.item_code,
+        item_name:  item.item_name,
+        category:   item.category,
+        order_type: ot,
+        qty:        qtyVal,
+      });
+    }
+  }
+  // Append any sold items that didn't match a menu entry (modifiers, retired
+  // items, name-spelling drift) so no sale disappears from the sheet. These
+  // land under a sentinel category sorted to the bottom.
+  for(const [uk, u] of unmatchedByKey.entries()){
+    if(matched.has(uk)) continue;
+    rows.push({ item_code: u.item_code, item_name: u.item_name, category: u.category || 'Other / Modifiers', order_type: u.order_type, qty: u.qty });
+  }
+
+  // Filter: order type + search
+  const list = rows.filter(x => {
     if(typeF && x.order_type !== typeF) return false;
     if(q){
       const hay = (x.item_name + ' ' + x.item_code + ' ' + x.category).toLowerCase();
@@ -2627,14 +2726,20 @@ function renderCn(){
     }
     return true;
   });
-  const tb = $('tbodyCn');
+
+  // Keep track of total row count across all order types for the header pill.
+  CN.items = rows;
+
   if(!list.length){
-    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No consumption rows match these filters.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">'
+      + (IM_LOADED.v ? 'No consumption rows match these filters.' : 'Loading item master…')
+      + '</td></tr>';
+    if(CURTAB === 'cn') updateHeaderStats();
     return;
   }
-  // 14-colour palette for Category chips (open-ended PetPooja categories, so
-  // hash the name into a stable colour — same category always lands on the
-  // same chip across refreshes, outlets, and days).
+
+  // Category chip — hash into a 14-colour soft palette so the same category
+  // always lands on the same chip across refreshes, outlets, and days.
   const CAT_PALETTE = [
     'background:#dbeafe;color:#1e40af','background:#dcfce7;color:#166534',
     'background:#fef3c7;color:#92400e','background:#fce7f3;color:#9d174d',
@@ -2652,16 +2757,21 @@ function renderCn(){
   const catChip = (c) => !c
     ? '<span class="mut">—</span>'
     : `<span class="sb" style="${CAT_PALETTE[hashIdx(c, CAT_PALETTE.length)]}">${esc(c)}</span>`;
-  tb.innerHTML = list.map((x, i) => (
-    '<tr>' +
+  // Qty cell: zero sales render muted so the eye jumps to the non-zero rows.
+  tb.innerHTML = list.map((x, i) => {
+    const qCell = x.qty > 0
+      ? '<td class="r" style="font-weight:600">' + qty(x.qty) + '</td>'
+      : '<td class="r mut">0</td>';
+    return '<tr>' +
       '<td>' + (i + 1) + '</td>' +
       '<td style="font-family:monospace;font-size:12.5px">' + esc(x.item_code) + '</td>' +
       '<td>' + esc(x.item_name) + '</td>' +
       '<td>' + catChip(x.category) + '</td>' +
-      '<td>' + esc(x.order_type || '—') + '</td>' +
-      '<td class="r" style="font-weight:600">' + qty(x.qty) + '</td>' +
-    '</tr>'
-  )).join('');
+      '<td>' + esc(x.order_type) + '</td>' +
+      qCell +
+    '</tr>';
+  }).join('');
+  if(CURTAB === 'cn') updateHeaderStats();
 }
 
 function exportCsvCn(){
