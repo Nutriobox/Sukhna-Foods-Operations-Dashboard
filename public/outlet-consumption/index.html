@@ -349,15 +349,14 @@
     <div id="puGrnMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
     <div class="card" style="margin:0"><div class="scroll"><table id="tblPuGrn">
      <thead><tr>
-      <th>#</th>
-      <th>Item Name</th>
-      <th>RM Code</th>
+      <th>Doc Number</th>
+      <th>Date &amp; Time</th>
+      <th>Product Name</th>
+      <th>Batch Number</th>
       <th>UOM</th>
-      <th class="r">Qty</th>
-      <th class="r">Rate</th>
-      <th class="r">Amount</th>
+      <th class="r">Quantity</th>
      </tr></thead>
-     <tbody id="tbodyPuGrn"><tr><td colspan="7" class="mut" style="padding:16px;text-align:center">No data</td></tr></tbody>
+     <tbody id="tbodyPuGrn"><tr><td colspan="6" class="mut" style="padding:16px;text-align:center">No data</td></tr></tbody>
     </table></div></div>
     <div id="puGrnTotals" class="mut" style="margin-top:12px;font-size:13px;text-align:right"></div>
    </div>
@@ -1994,7 +1993,7 @@ function renderPu(){
 async function openGrnDetail(docNo){
   $('puGrnDocNo').textContent = docNo;
   $('puGrnMeta').innerHTML = '<span class="mut">Loading…</span>';
-  $('tbodyPuGrn').innerHTML = '<tr><td colspan="7" class="mut" style="padding:16px;text-align:center">Loading…</td></tr>';
+  $('tbodyPuGrn').innerHTML = '<tr><td colspan="6" class="mut" style="padding:16px;text-align:center">Loading…</td></tr>';
   $('puGrnTotals').innerHTML = '';
   $('puGrnModal').style.display = 'flex';
   try {
@@ -2010,32 +2009,30 @@ async function openGrnDetail(docNo){
     if(d.category)           headParts.push('<b>Category:</b> ' + esc(d.category));
     $('puGrnMeta').innerHTML = headParts.join(' &nbsp;·&nbsp; ');
     const lines = d.lines || [];
-    // Shift the table headers to match the SOT shape: no rate / amount (the
-    // Stock Outlet Outward report is a stock-movement doc, not a priced
-    // invoice). Replace Rate/Amount columns with Batch / Narration.
-    const thead = document.querySelector('#tblPuGrn thead tr');
-    if(thead){
-      thead.innerHTML = '<th>#</th><th>Item Name</th><th>RM Code</th><th>UOM</th><th class="r">Qty</th><th>Batch</th><th>Narration</th>';
-    }
+    // Line-item columns: Doc Number, Date & Time, Product Name, Batch Number,
+    // UOM, Quantity (one row per batch of each product in this SOT doc).
+    // doc_no and doc_date are repeated on every row so each line is a
+    // self-contained record if the user exports or copies the table.
+    const docDate = d.doc_date || '';
+    const dtDisplay = fmtTime(docDate);
     $('tbodyPuGrn').innerHTML = lines.length
-      ? lines.map((ln, i) => (
+      ? lines.map((ln) => (
           '<tr>' +
-            '<td>' + (i + 1) + '</td>' +
+            '<td style="font-weight:600;color:#1e40af">' + esc(d.doc_no || docNo) + '</td>' +
+            '<td>' + esc(dtDisplay) + '</td>' +
             '<td>' + esc(ln.item_name) + '</td>' +
-            '<td>' + esc(ln.rm_code || '') + '</td>' +
+            '<td style="font-family:monospace;font-size:12px">' + esc(ln.batch_no || '') + '</td>' +
             '<td>' + esc(ln.uom || '') + '</td>' +
             '<td class="r">' + qty(ln.qty) + '</td>' +
-            '<td style="font-family:monospace;font-size:12px">' + esc(ln.batch_no || '') + '</td>' +
-            '<td class="mut" style="font-size:12px">' + esc(ln.narration || '') + '</td>' +
           '</tr>'
         )).join('')
-      : '<tr><td colspan="7" class="mut" style="padding:16px;text-align:center">No line items.</td></tr>';
+      : '<tr><td colspan="6" class="mut" style="padding:16px;text-align:center">No line items.</td></tr>';
     const totalQty = lines.reduce((s, ln) => s + Number(ln.qty || 0), 0);
     $('puGrnTotals').innerHTML = '<b>Total line items:</b> ' + lines.length + ' &nbsp;·&nbsp; <b>Total qty:</b> ' + qty(totalQty);
   } catch(err){
     console.error('GRN detail load failed:', err);
     $('puGrnMeta').innerHTML = '<span style="color:#991b1b">Load failed: ' + esc(err.message || err) + '</span>';
-    $('tbodyPuGrn').innerHTML = '<tr><td colspan="7" class="mut" style="padding:16px;text-align:center">—</td></tr>';
+    $('tbodyPuGrn').innerHTML = '<tr><td colspan="6" class="mut" style="padding:16px;text-align:center">—</td></tr>';
   }
 }
 
