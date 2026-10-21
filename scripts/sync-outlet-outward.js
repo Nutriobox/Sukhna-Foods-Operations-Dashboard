@@ -364,6 +364,19 @@ async function setDateRange(page) {
       log('  ' + field.padEnd(20) + ' -> ' + (key || '-').padEnd(40) + ' [' + src + ']');
     }
 
+    // Full-column inventory: every PACT column key and its first non-empty
+    // sample value, with the field name we've mapped it to (if any). Lets us
+    // spot cases where PACT exposes decomposed sub-fields of one logical
+    // column (e.g. doc_no with .Abr / .dno / .prf parts) and the heuristic
+    // pinned a sub-field by mistake.
+    const keyToField = {};
+    for (const field of Object.keys(C)) if (map[field]) keyToField[map[field]] = field;
+    log('[inventory] all ' + Object.keys(rows[0] || {}).length + ' PACT column keys (first non-empty value):');
+    for (const k of Object.keys(rows[0] || {})) {
+      const field = keyToField[k] || '-';
+      log('  ' + k.padEnd(42) + ' [' + field.padEnd(18) + '] = ' + JSON.stringify(firstNonEmpty(rows, k)));
+    }
+
     // Required columns to produce a usable row.
     const required = ['doc_no', 'doc_date', 'transfer_location', 'product_name'];
     const missing = required.filter((f) => !map[f]);
