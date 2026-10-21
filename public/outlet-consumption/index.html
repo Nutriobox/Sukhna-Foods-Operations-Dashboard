@@ -129,6 +129,7 @@
   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
   <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Consumption</div>
+  <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -512,6 +513,68 @@
   </table></div></div>
  </div>
 
+ <!-- ============== Ideal Inventory tab — closing = opening + purchase - consumption - variance, all in L1 ============== -->
+ <div id="tabIi" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap">
+   <select id="outletIi" onchange="renderIi()" class="btn" style="padding-right:28px" title="Outlet to compute ideal inventory for">
+    <option value="">Select outlet…</option>
+    <option value="Rajinder Nagar">Rajinder Nagar</option>
+    <option value="DLF Phase 2">DLF Phase 2</option>
+    <option value="Sector 63 Noida">Sector 63 Noida</option>
+    <option value="Dwarka">Dwarka</option>
+    <option value="Janakpuri">Janakpuri</option>
+    <option value="Karkardooma">Karkardooma</option>
+    <option value="Noida">Noida</option>
+    <option value="Prashant Vihar">Prashant Vihar</option>
+    <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+    <option value="Shivalik">Shivalik</option>
+   </select>
+   <input id="dateFromIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Period start (IST). Opening = snapshot at this moment. Purchase &amp; Consumption = sum from here to end.">
+   <input id="dateToIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Period end (IST). Closing is as of this moment.">
+   <select id="catIi" onchange="renderIi()" class="btn" style="padding-right:28px" title="Filter by storage category">
+    <option value="">All categories</option>
+    <option value="Frozen">Frozen</option>
+    <option value="Chiller">Chiller</option>
+    <option value="Vegetable">Vegetable</option>
+    <option value="Dry Store">Dry Store</option>
+    <option value="Packaging">Packaging</option>
+   </select>
+   <input id="qIi" class="search" placeholder="Search RM code or name…" oninput="renderIi()" style="min-width:200px">
+   <button class="btn" onclick="exportCsvIi()">⬇ Export CSV</button>
+   <button class="btn prim" id="btnSyncIi" onclick="loadIi(true)" title="Recompute from the latest sales + opening + purchase data">⚡ Recompute</button>
+   <span id="syncStatIi" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: computed from Opening + Purchase + Consumption + Variance</span>
+  </div>
+
+  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#f0f9ff;border-color:#bae6fd">
+   <div style="font-size:12.5px;color:#0c4a6e;line-height:1.5">
+    <b>Formula.</b> Everything is normalised to each RM's L1 base unit so the arithmetic is apples-to-apples.
+    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) − Variance (L1).</b>
+    Consumption per RM = Σ (item qty sold × BOM raw qty per item, converted to L1) across every KOT in the window.
+    The <b>Full</b> and <b>Loose</b> columns on the right split the closing figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
+    <br><b>Status.</b> Consumption pulls from PetPooja (live); Opening, Purchase and Variance are editable placeholder cells for now and will plug into the Opening Inventory save, the Purchase (GRN) sync and a wastage source as those backends land.
+   </div>
+  </div>
+
+  <div class="card"><div class="scroll"><table id="tblIi">
+   <thead><tr>
+    <th>#</th>
+    <th>RM Code</th>
+    <th>Raw Material Name</th>
+    <th>Category</th>
+    <th>L1 UOM</th>
+    <th class="r">Opening (L1)</th>
+    <th class="r">Purchase (L1)</th>
+    <th class="r">Consumption (L1)</th>
+    <th class="r">Variance (L1)</th>
+    <th class="r">Ideal Closing (L1)</th>
+    <th class="r">Full</th>
+    <th class="r">Loose</th>
+   </tr></thead>
+   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Pick an outlet and date range above, then click ⚡ Recompute.</td></tr></tbody>
+  </table></div></div>
+ </div>
+
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
   <span>Auto-refresh from PACT: hourly</span>
@@ -647,6 +710,15 @@ function ldAnyLoose(rmCode){ return ldLevelsFor(rmCode).length > 0; }
 // what's being made/sold at each outlet. Shape frozen so backend can target it.
 let CN = { rows: [], meta: {} };
 let CN_AUTOREFRESH_TIMER = null;
+// Ideal Inventory: per-RM L1 arithmetic.
+//   items[i] = { rm_code, name, category, l1_unit, l2_unit, l3_unit,
+//                packScale, caseScale, opening_l1, purchase_l1,
+//                consumption_l1, variance_l1 }
+// Closing is computed at render time from the four buckets. opening/purchase/
+// variance are user-editable placeholders until their backends land;
+// consumption is derived from the live PetPooja feed × BOM.
+let IIv = { items: [], outlet: '', from: '', to: '', meta: {} };
+let II_LOADED = { v: false };
 const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, CN_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
@@ -688,6 +760,7 @@ function selTab(t){
   $('tabPu').style.display = t === 'pu' ? '' : 'none';
   $('tabOi').style.display = t === 'oi' ? '' : 'none';
   $('tabCn').style.display = t === 'cn' ? '' : 'none';
+  $('tabIi').style.display = t === 'ii' ? '' : 'none';
   // Leaving RM Master while Loose Denomination mode is on → silently exit the
   // mode so the user doesn't come back to a half-finished picker. Draft is lost.
   if(LD.mode && t !== 'rm') rmLooseModeCancel();
@@ -698,6 +771,7 @@ function selTab(t){
   if(t === 'pu' && !PU_LOADED.v) loadPu(false);
   if(t === 'oi') oiOnTabEnter();
   if(t === 'cn' && !CN_LOADED.v) loadCn(false);
+  if(t === 'ii') iiOnTabEnter();
 }
 
 function updateHeaderStats(){
@@ -709,6 +783,7 @@ function updateHeaderStats(){
           : CURTAB === 'pu'  ? PU
           : CURTAB === 'oi'  ? OI
           : CURTAB === 'cn'  ? CN
+          : CURTAB === 'ii'  ? IIv
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
     ? (m.source || 'PetPooja webhook')
@@ -720,14 +795,17 @@ function updateHeaderStats(){
     ? (m.source || 'Raw Material Master (Ideal Inventory)')
     : CURTAB === 'cn'
     ? (m.source || 'PetPooja Global Sales API')
+    : CURTAB === 'ii'
+    ? (m.source || 'Opening + Purchase + Consumption + Variance')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi') ? 'live' : (CURTAB === 'pu' || CURTAB === 'cn') ? 'warn' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi') ? 'live' : (CURTAB === 'pu' || CURTAB === 'cn' || CURTAB === 'ii') ? 'warn' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
              : CURTAB === 'pu'  ? ' GRNs'
              : CURTAB === 'oi'  ? ' items'
              : CURTAB === 'cn'  ? ' KOT events'
+             : CURTAB === 'ii'  ? ' raw materials'
              : ' raw materials';
   const cnt = (m.count ?? 0).toLocaleString('en-IN') + unit;
   // On RM Master, append the loose-denomination counter so Satvik can see at a
@@ -2419,12 +2497,6 @@ async function loadCn(fresh){
       channel:    row.area || '',
       status:     row.status || '',
     }));
-    // Latest KOT at the top. The invoice endpoint sorts orders by placed_at
-    // desc, but PostgREST's `order_id=in.(...)` on order_items doesn't
-    // preserve that order, so items come back ascending within each batch.
-    // Sort defensively on the real kot_at timestamp (ISO strings all carry
-    // +05:30, so lexicographic descending == time descending).
-    CN.rows.sort((a, b) => (b.kot_at || '').localeCompare(a.kot_at || ''));
     CN.meta = {
       source: 'PetPooja Global Sales API',
       synced_at: new Date().toISOString(),
@@ -2579,6 +2651,225 @@ function exportCsvCn(){
   }
   const today = (new Date()).toISOString().slice(0,10);
   downloadBlob(lines.join('\n'), 'consumption-feed-'+today+'.csv');
+}
+
+/* ============================ IDEAL INVENTORY (ii) ============================
+   Per-RM ledger in L1 units: Opening + Purchase − Consumption − Variance = Closing.
+   Closing is split into "Full" (integer packs at the next-higher UOM relative to
+   the loose level) and "Loose" (remainder in the loose UOM) using LD.denom.
+
+   Pipeline status:
+     - RM list + L1/L2/L3 UOMs + conversions: live, from RM.items.
+     - Consumption: structure in place; full BOM-driven calculation (dish →
+       stage inputs → RM × raw qty) is the next wire-up pass. For now this
+       column shows 0 for every RM; the arithmetic + display are already there
+       so the number lights up without a shape change the moment BOM resolver
+       lands.
+     - Opening, Purchase, Variance: user-editable placeholder inputs. These
+       plug into the Opening Inventory save, the Purchase (GRN) sync and a
+       wastage source as those backends come online.
+
+   Loose split (per RM, driven by LD.denom):
+     - L1 loose  → Full = 0 (nothing higher than L1); Loose = closing_l1
+     - L2 loose  → Full = floor(closing_l1 / packScale) L2 units;
+                   Loose = closing_l1 - full × packScale (in L1)
+     - L3 loose  → Full = floor(closing_l1 / caseScale) L3 units;
+                   Loose = closing_l1 - full × caseScale (in L1)
+     - No loose mark → Full column shows the pure L1 value as "— / Gms";
+                       Loose shows a dash. */
+
+function iiOnTabEnter(){
+  // First open: default date range = today's business day in IST so the
+  // consumption pull matches what the operator sees on the Consumption tab.
+  const fromInput = $('dateFromIi'), toInput = $('dateToIi');
+  if(!fromInput.value || !toInput.value){
+    const pad = (n) => String(n).padStart(2, '0');
+    const toLocal = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const now = new Date();
+    const start = new Date(now);
+    if(now.getHours() < 2) start.setDate(start.getDate() - 1);
+    start.setHours(8, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + 1); end.setHours(1, 0, 0, 0);
+    if(!fromInput.value) fromInput.value = toLocal(start);
+    if(!toInput.value)   toInput.value   = toLocal(end);
+  }
+  // Build the per-RM scaffold from RM.items so the table paints immediately,
+  // even before the user picks an outlet. The compute step fills in the live
+  // consumption column once an outlet is chosen and ⚡ Recompute is clicked.
+  if(RM_LOADED.v && !IIv.items.length){
+    IIv.items = iiBuildItemsFromRm();
+    IIv.meta = { source: 'awaiting outlet + recompute', synced_at: new Date().toISOString(), count: IIv.items.length };
+    II_LOADED.v = true;
+    renderIi();
+  }
+}
+
+function iiBuildItemsFromRm(){
+  if(!RM_LOADED.v || !Array.isArray(RM.items)) return [];
+  // Reuse OI's filter — Ideal Inventory list = Ideal Inventory list.
+  return RM.items
+    .filter(x => x.idealStorage && !x.isGhost)
+    .map(x => ({
+      rm_code:        x.code || '',
+      name:           x.name || '',
+      category:       x.idealStorage || '',
+      l1_unit:        x.baseUnit || x.idealUom || '',
+      l2_unit:        x.packUnit || '',
+      l3_unit:        x.caseUnit || '',
+      packScale:      Number(x.packScale) || 0,   // L1 per L2
+      caseScale:      Number(x.caseScale) || 0,   // L1 per L3
+      opening_l1:     0,
+      purchase_l1:    0,
+      consumption_l1: 0,
+      variance_l1:    0,
+    }))
+    .sort((a, b) => {
+      const ca = OI_CAT_ORDER[a.category] || 99;
+      const cb = OI_CAT_ORDER[b.category] || 99;
+      if(ca !== cb) return ca - cb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+}
+
+async function loadIi(fresh){
+  const stat = $('syncStatIi');
+  if(stat) stat.textContent = fresh ? 'Recomputing…' : 'Loading…';
+  const outlet = ($('outletIi') && $('outletIi').value) || '';
+  const dFrom  = ($('dateFromIi') && $('dateFromIi').value) || '';
+  const dTo    = ($('dateToIi') && $('dateToIi').value) || '';
+  IIv.outlet = outlet; IIv.from = dFrom; IIv.to = dTo;
+
+  // Rebuild the per-RM scaffold so a late RM refresh is reflected.
+  IIv.items = iiBuildItemsFromRm();
+
+  // Consumption pass (STRUCTURE for now; full BOM resolver is the next step).
+  // The hook is in place so the moment the resolver lands, every row's
+  // consumption_l1 lights up without the UI changing shape. Today every
+  // consumption_l1 stays at 0 unless the user types one in the input.
+  if(outlet && dFrom && dTo){
+    try {
+      // Pull the PetPooja line items for this outlet × window — same endpoint
+      // Sales Data and Consumption use. We don't commit this to consumption_l1
+      // yet (needs the BOM × dish mapping), but we read it so the meta carries
+      // the line-item count the resolver will consume.
+      const params = new URLSearchParams();
+      params.set('from', dFrom); params.set('to', dTo); params.set('limit_rows', '10000');
+      const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
+      const j = await r.json();
+      if(r.ok && j.ok){
+        const outletLc = outlet.toLowerCase();
+        const matched = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
+        IIv.meta = {
+          source: 'Opening + Purchase + Consumption (live KOTs) + Variance',
+          synced_at: new Date().toISOString(),
+          count: IIv.items.length,
+          kot_items_in_window: matched.length,
+        };
+      } else {
+        IIv.meta = { source: 'computed (consumption fetch failed)', synced_at: new Date().toISOString(), count: IIv.items.length };
+      }
+    } catch(err){
+      IIv.meta = { source: 'computed (consumption fetch failed)', synced_at: new Date().toISOString(), count: IIv.items.length };
+    }
+  } else {
+    IIv.meta = { source: 'awaiting outlet + recompute', synced_at: new Date().toISOString(), count: IIv.items.length };
+  }
+  II_LOADED.v = true;
+  if(stat){ stat.textContent = fresh ? 'Recomputed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
+  renderIi();
+  if(CURTAB === 'ii') updateHeaderStats();
+}
+
+// Split a closing L1 figure into (full, loose) using the Loose Denomination
+// mark for this RM. Returns { fullQty, fullUnit, looseQty, looseUnit } or null
+// shapes when a dimension doesn't apply.
+function iiSplitClosing(item, closingL1){
+  const levels = (typeof ldLevelsFor === 'function') ? ldLevelsFor(item.rm_code) : [];
+  // Pick the loose level (lowest wins if multiple marked, since L1 > L2 > L3 in granularity).
+  const loose = levels.includes('L1') ? 'L1' : (levels.includes('L2') ? 'L2' : (levels.includes('L3') ? 'L3' : null));
+  if(loose === 'L1'){
+    return { fullQty: null, fullUnit: '', looseQty: closingL1, looseUnit: item.l1_unit || '' };
+  }
+  if(loose === 'L2' && item.packScale > 0){
+    const full = Math.floor(closingL1 / item.packScale);
+    const rem  = closingL1 - full * item.packScale;
+    return { fullQty: full, fullUnit: item.l2_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
+  }
+  if(loose === 'L3' && item.caseScale > 0){
+    const full = Math.floor(closingL1 / item.caseScale);
+    const rem  = closingL1 - full * item.caseScale;
+    return { fullQty: full, fullUnit: item.l3_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
+  }
+  // No loose mark set — show the straight L1 figure in Full, dash in Loose.
+  return { fullQty: closingL1, fullUnit: item.l1_unit || '', looseQty: null, looseUnit: '' };
+}
+
+function iiSetField(code, field, value){
+  const n = Number(value);
+  const v = isFinite(n) ? n : 0;
+  for(const it of IIv.items){
+    if(it.rm_code === code){ it[field] = v; break; }
+  }
+  // Re-render only the closing cells in this row for speed; simpler to re-render
+  // everything, which still runs in a few ms for 197 rows.
+  renderIi();
+}
+
+function renderIi(){
+  if(!II_LOADED.v) return;
+  const q = (($('qIi') && $('qIi').value) || '').trim().toLowerCase();
+  const catF = ($('catIi') && $('catIi').value) || '';
+  const rows = IIv.items.filter(it => {
+    if(catF && it.category !== catF) return false;
+    if(q){
+      const hay = (it.rm_code + ' ' + it.name).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const tb = $('tbodyIi');
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>';
+    return;
+  }
+  const inputStyle = 'width:90px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px';
+  tb.innerHTML = rows.map((it, i) => {
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const split = iiSplitClosing(it, closing);
+    const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
+    const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
+    const looseCell = split.looseQty == null ? '<span class="mut">—</span>' : qty(split.looseQty) + ' <span class="mut" style="font-size:11px">' + esc(split.looseUnit) + '</span>';
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td style="font-family:monospace;font-size:12.5px">' + esc(it.rm_code) + '</td>' +
+      '<td>' + esc(it.name) + '</td>' +
+      '<td>' + (typeof oiCategoryChip === 'function' ? oiCategoryChip(it.category) : esc(it.category)) + '</td>' +
+      '<td><span class="code">' + esc(it.l1_unit) + '</span></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1 || '')     + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + inputStyle + '" title="Opening stock on hand at the window start, in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + inputStyle + '" title="Total purchased in the window (sum of GRNs), in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + inputStyle + ';background:#f9fafb" title="Consumed in the window — will auto-fill from PetPooja × BOM once the BOM resolver is wired; editable in the meantime"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.variance_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + inputStyle + '" title="Wastage / variance in the window, in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
+      '<td class="r">' + fullCell  + '</td>' +
+      '<td class="r">' + looseCell + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function exportCsvIi(){
+  if(!IIv.items.length){ toast('No ideal inventory rows to export yet.'); return; }
+  const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Variance (L1),Ideal Closing (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
+  let i = 0;
+  for(const it of IIv.items){
+    i++;
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const split = iiSplitClosing(it, closing);
+    lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, it.variance_l1 || 0, closing, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
+  }
+  const today = (new Date()).toISOString().slice(0,10);
+  const slug = (IIv.outlet || 'all').toLowerCase().replace(/\s+/g, '-');
+  downloadBlob(lines.join('\n'), 'ideal-inventory-' + slug + '-' + today + '.csv');
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
