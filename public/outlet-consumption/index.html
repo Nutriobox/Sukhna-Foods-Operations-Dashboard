@@ -540,7 +540,6 @@
     </select>
     <input id="qCn" class="search" placeholder="Search item name or code…" oninput="renderCn()" style="min-width:220px">
     <button class="btn" onclick="exportCsvCn()">⬇ Export CSV</button>
-    <button class="btn prim" id="btnSyncCn" onclick="loadCn(true)" title="Re-pull the window from PetPooja">⚡ Refresh now</button>
     <span id="syncStatCn" class="mut" style="font-size:12.5px"></span>
     <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja Global Sales API (live)</span>
    </div>
@@ -2678,11 +2677,18 @@ async function loadCn(fresh){
   try {
     const params = new URLSearchParams();
     params.set('from', CN.from); params.set('to', CN.to);
+    // outlet_name pushes the filter to the server (API resolves it to
+    // restaurant_id and scopes the Supabase orders query), so we don't need
+    // to over-fetch across all 10 outlets just to filter one out on the
+    // client. Was returning near-zero quantities on long windows because a
+    // 6-day cross-outlet window exceeded the 10k row cap and the picked
+    // outlet's rows were falling off the end of the response.
+    params.set('outlet_name', CN.outlet);
     params.set('limit_rows', '10000');
     // Pull sales + item master in parallel. Item Master gives us the canonical
-    // menu list + sequence (categories, items) so the Consumption view can
-    // show EVERY menu item in Item-Master order with one row per order type,
-    // not just the items that happened to sell in the window.
+    // menu list + sequence so the Consumption view can show every menu item
+    // in Item-Master order with one row per order type, not just the items
+    // that happened to sell in the window.
     const [salesRes] = await Promise.all([
       fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' }),
       IM_LOADED.v ? Promise.resolve() : loadIm(false).catch(() => {}),
@@ -2690,14 +2696,19 @@ async function loadCn(fresh){
     const j = await salesRes.json();
     if(!salesRes.ok || !j.ok) throw new Error(j.error || ('HTTP ' + salesRes.status));
 
-    // Filter by outlet (substring, case-insensitive) and keep the raw rows so
-    // the renderer can aggregate them against the Item Master matrix.
+    // Server already filtered by outlet. Keep a defensive client-side filter
+    // too in case the server-side resolution misses (e.g. outlet-name typo
+    // on the AIFI side) — a near-match on 'restaurant_name' catches it.
     const outletLc = CN.outlet.toLowerCase();
     const raw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
     CN.rows = raw;
     CN.meta = {
       source: 'PetPooja Global Sales API',
       synced_at: new Date().toISOString(),
+      // count feeds the header pill ('N KOT events'). raw.length is the per-
+      // item line count AFTER the outlet filter — matches what Satvik would
+      // call 'KOT line items' from a PetPooja report.
+      count: raw.length,
       raw_line_items: raw.length,
     };
     CN_LOADED.v = true;

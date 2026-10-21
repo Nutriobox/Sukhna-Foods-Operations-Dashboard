@@ -164,7 +164,8 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const to = u.searchParams.get("to") || istToday();
   const from = u.searchParams.get("from") || istDaysAgo(7);
-  const outletFilter = u.searchParams.get("outlet_id");
+  let outletFilter = u.searchParams.get("outlet_id");
+  const outletNameFilter = u.searchParams.get("outlet_name");
   const channelFilter = u.searchParams.get("channel");
   const orderTypeFilter = u.searchParams.get("order_type");
   const search = (u.searchParams.get("search") || "").trim().toLowerCase();
@@ -173,6 +174,18 @@ export async function GET(req: Request) {
   try {
     const restaurants = await sbGet<Restaurant>(url, key, "restaurants?select=id,name,pp_rest_id&order=id.asc");
     const restByCode = new Map(restaurants.map((r) => [r.id, r]));
+
+    // outlet_name=... (substring, case-insensitive) resolves to outlet_id by
+    // matching restaurants.name on the server side. This keeps the Supabase
+    // orders query filtered to one outlet so a six-day window across all 10
+    // outlets doesn't need a 50k-row cap just to get one outlet's rows
+    // through. Dashboard uses outlet_name (short branch label like 'DLF
+    // Phase 2'); internal callers can still pass outlet_id directly.
+    if (!outletFilter && outletNameFilter) {
+      const needle = outletNameFilter.toLowerCase();
+      const match = restaurants.find((r) => (r.name || "").toLowerCase().includes(needle));
+      if (match) outletFilter = String(match.id);
+    }
 
     // Date range on placed_at (text column, YYYY-MM-DD HH:MM:SS, lexicographic sort works).
     // Dashboard sends either 'YYYY-MM-DD' (date-only) OR 'YYYY-MM-DDTHH:mm[:ss]' (datetime-local)
