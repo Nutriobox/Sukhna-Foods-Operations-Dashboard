@@ -1182,11 +1182,26 @@ function renderRm(){
     const codeEsc = esc(rmCode).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     return `<span onclick="rmLooseToggle('${codeEsc}','${lvl}')" title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
   };
-  // Decorate a cell with the per-level L badge when in mode and the level
-  // actually exists (has a UOM). Out of mode: return cell content unchanged.
+  // Non-clickable green L badge for the normal (non-loose) view, so the
+  // team can see which levels are marked loose without entering edit mode.
+  // Only renders when LD.denom has this level saved.
+  const savedLooseBadge = (lvl) => {
+    const style = 'background:#dcfce7;color:#065f46;border:1.5px solid #16a34a;font-weight:700';
+    const title = lvl + ' is marked as a loose denomination.';
+    return `<span title="${title}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;line-height:1;user-select:none;margin-right:6px;vertical-align:middle;${style}">L</span>`;
+  };
+  // Decorate a cell with the per-level L badge:
+  //   - In Loose Denomination mode: a clickable gray/green badge for every
+  //     level that has a UOM, so the user can toggle it.
+  //   - In normal mode: a non-clickable GREEN badge only for levels that
+  //     are already saved as loose in LD.denom (so marks persist on the
+  //     page outside edit mode — Satvik's call on 2026-10-21).
   const withBadge = (cellContent, rmCode, level, uom) => {
-    if(!inLoose || !uom) return cellContent;
-    return looseLevelBadge(rmCode, level) + cellContent;
+    if(!uom) return cellContent;
+    if(inLoose) return looseLevelBadge(rmCode, level) + cellContent;
+    const saved = LD.denom[rmCode];
+    if(saved && saved[level]) return savedLooseBadge(level) + cellContent;
+    return cellContent;
   };
 
   const rows = list.slice(0, 3000).map((x, i) => {
