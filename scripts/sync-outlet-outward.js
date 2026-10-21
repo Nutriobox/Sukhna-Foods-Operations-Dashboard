@@ -38,7 +38,7 @@ const { login } = require('../src/lib/pact/login');
 // Leave a field as '' to force auto-detect on it.
 const C = {
   doc_no:            'C6eaf2c1718724b5695d4188c9639eeb0',
-  doc_date:          '',
+  doc_date:          'Ccc334cab7d154f7f93b37cf5939e3d50',
   transfer_location: 'C46fa7a64d72945f8b8f62e7c196733c1',
   product_name:      'C6eaf2c1718724b5695d4188c9639eeb0Abr',
   unit:              'Cec13213b195e44d4a3b8eeec133d1ee3',
@@ -377,28 +377,69 @@ async function setDateRange(page) {
     }
 
     // Parse into the Supabase row shape. doc_date comes back as text in
-    // whatever PACT serialises (dd/mm/yyyy is most common); normalise to
-    // ISO YYYY-MM-DD for the date column.
+    // whatever PACT serialises; normalise to ISO YYYY-MM-DD. Supported shapes:
+    //   dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+    //   yyyy-mm-dd (bare or with Txx:xx[:xx[.sss]][Z] suffix)
+    //   dd-Mon-yyyy / dd Mon yyyy
+    //   /Date(1727740800000)/ (.NET epoch, optional ±hhmm offset)
+    //   10-digit Unix epoch (seconds), 13-digit (ms)
+    const MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
     const toIso = (s) => {
-      const t = String(s || '').trim();
+      const t = String(s == null ? '' : s).trim();
       if (!t) return null;
-      let m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      // dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+      let m = t.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
       if (m) {
         const y = (m[3].length === 2 ? ('20' + m[3]) : m[3]);
         return y + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
       }
-      m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      // yyyy-mm-dd, optionally with Txx:xx[:xx[.sss]][Z]
+      m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:T\d{1,2}:\d{1,2}(?::\d{1,2}(?:\.\d{1,3})?)?Z?)?$/);
       if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+      // dd-Mon-yyyy, dd Mon yyyy, dd/Mon/yyyy
+      m = t.match(/^(\d{1,2})[\/\-\. ]([A-Za-z]{3,})[\/\-\. ](\d{2,4})$/);
+      if (m) {
+        const mm = MONTHS[m[2].slice(0, 3).toLowerCase()];
+        if (mm) {
+          const y = (m[3].length === 2 ? ('20' + m[3]) : m[3]);
+          return y + '-' + String(mm).padStart(2, '0') + '-' + m[1].padStart(2, '0');
+        }
+      }
+      // /Date(1727740800000)/ or /Date(1727740800000+0530)/
+      m = t.match(/^\/Date\((\d+)(?:[+-]\d+)?\)\/$/);
+      if (m) {
+        const d = new Date(Number(m[1]));
+        if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+      }
+      // Bare Unix epoch: 10-digit seconds (post-2001) or 13-digit ms
+      if (/^1[6-9]\d{8}$/.test(t))  { const d = new Date(Number(t) * 1000); if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10); }
+      if (/^1[6-9]\d{11}$/.test(t)) { const d = new Date(Number(t));         if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10); }
       return null;
     };
 
     const parsed = [];
+    const dropReasons = { no_doc: 0, no_date: 0, no_product: 0 };
+    const dropSamples = [];
     for (const r of rows) {
-      const docNo    = str(r[map.doc_no]);
-      const docDate  = toIso(r[map.doc_date]);
+      const docNoRaw  = r[map.doc_no];
+      const docDateRaw = r[map.doc_date];
+      const productRaw = r[map.product_name];
+      const docNo    = str(docNoRaw);
+      const docDate  = toIso(docDateRaw);
       const transfer = str(r[map.transfer_location]);
-      const product  = str(r[map.product_name]);
-      if (!docNo || !docDate || !product) continue;
+      const product  = str(productRaw);
+      if (!docNo || !docDate || !product) {
+        if (!docNo)   dropReasons.no_doc++;
+        if (!docDate) dropReasons.no_date++;
+        if (!product) dropReasons.no_product++;
+        if (dropSamples.length < 3) {
+          dropSamples.push({
+            doc_no_raw: docNoRaw, doc_date_raw: docDateRaw, product_raw: productRaw,
+            doc_date_parsed: docDate,
+          });
+        }
+        continue;
+      }
       parsed.push({
         doc_no:             docNo,
         doc_date:           docDate,
@@ -415,6 +456,11 @@ async function setDateRange(page) {
 
     log('[parse] parsed', parsed.length, 'rows from', rows.length, 'raw report rows');
     if (parsed[0]) log('[parse] sample row:', JSON.stringify(parsed[0]));
+    if (!parsed.length && rows.length) {
+      log('[parse] all rows dropped. reasons:', JSON.stringify(dropReasons));
+      log('[parse] first dropped-row samples (raw values, so you can see shape):');
+      for (const d of dropSamples) log('  ', JSON.stringify(d));
+    }
     await upsertRows(parsed);
     log('[done] sync complete');
   } finally {
