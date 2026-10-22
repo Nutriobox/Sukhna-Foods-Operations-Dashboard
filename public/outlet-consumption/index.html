@@ -932,8 +932,8 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&am
 function qty(n){ if(n==null||isNaN(Number(n))||n==='')return ''; return Number(n).toLocaleString('en-IN',{maximumFractionDigits:3}); }
 // Higher-precision formatter for sub-decimal values: for a per-unit RM
 // consumption of 0.0005 Pkt or 0.00014 Kg, qty() rounds to 0 (useless);
-// qtyPrecise() keeps up to 6 significant digits so tiny values stay visible
-// while big values still read cleanly (12,345.68 — not 12,345.678901).
+// qtyPrecise() keeps significant digits so tiny values stay visible while
+// big values still read cleanly (12,345.68 — not 12,345.678901).
 function qtyPrecise(n){
   if(n == null || n === '' || isNaN(Number(n))) return '';
   const num = Number(n);
@@ -3245,7 +3245,14 @@ function rcReload(){
 }
 
 // RM's packing divisor: how many base (L1) units make up one packing UOM unit.
-// Returns 1 for a base-level pack, packScale for L2, packScale*caseScale for L3.
+// Returns 1 for a base-level pack, packScale for L2, caseScale for L3.
+// IMPORTANT: PACT stores L3.s as **L1 units per L3** (e.g. for 140g Basa Fish
+// L3.s = 1400 Gms per Bunch), NOT L2 units per L3. The old code multiplied
+// packScale * caseScale and overshot the divisor by `packScale`× (140 × 1400 =
+// 196,000 Gms per Bunch instead of 1,400), which showed every Bunch total 140×
+// too small. The Loose Denomination code (line ~3643) comments this correctly
+// — `caseScale: // L1 per L3` — and uses it the right way; this function was
+// the odd one out.
 function rcPackingDivisor(rm){
   if(!rm) return 1;
   const pack = String(rm.idealUom || '').toLowerCase().trim();
@@ -3253,8 +3260,8 @@ function rcPackingDivisor(rm){
   const l2   = String(rm.packUnit || '').toLowerCase().trim();
   const l3   = String(rm.caseUnit || '').toLowerCase().trim();
   if(!pack || pack === base) return 1;
-  if(pack === l2 && rm.packScale)                     return Number(rm.packScale) || 1;
-  if(pack === l3 && rm.packScale && rm.caseScale)     return (Number(rm.packScale) || 1) * (Number(rm.caseScale) || 1);
+  if(pack === l2 && rm.packScale)   return Number(rm.packScale) || 1;
+  if(pack === l3 && rm.caseScale)   return Number(rm.caseScale) || 1;
   return 1;
 }
 
@@ -3340,19 +3347,33 @@ async function loadRc(fresh){
     for(const rm of (RM.items || [])) rmByCode.set(String(rm.code || '').toUpperCase(), rm);
 
     // Unit conversion from the BOM's declared input unit to the RM Master's
-    // L1 base unit. PACT BOM rows usually store Gms/ML, but we have seen Kg
-    // and L for some items. Convert to the RM's base unit before applying
-    // the packing divisor; otherwise a BOM in Kg against an RM in Gms
-    // undercounts by 1000x (and that's the single biggest source of the
-    // wrong-looking numbers Satvik flagged).
+    // L1 base unit. PACT BOMs declare an input in whichever unit the recipe
+    // author typed — commonly the RM's L2 (Pkt, Pcs, Nos) or L3 (Bunch, Case),
+    // sometimes the L1 (Gms, ML), occasionally a different weight/volume unit
+    // (Kg against an RM in Gms). We need to collapse all of those to the
+    // RM's L1 base unit before dividing by the packing divisor, otherwise
+    // the magnitudes come out wildly wrong (e.g. a BOM declaring "1 Pkt" of
+    // 140g Basa Fish was previously treated as "1 Gms", producing totals
+    // 140× too small).
     function convertBomUnitToBase(qty, bomUnit, rm){
       const base = String((rm && rm.baseUnit) || '').trim().toLowerCase();
       const bu   = String(bomUnit || '').trim().toLowerCase();
       if(!bu || !base || bu === base) return qty;
+      // 1) Direct weight/volume conversions (unit metadata-free).
       if(bu === 'kg' && base === 'gms') return qty * 1000;
       if(bu === 'gms' && base === 'kg') return qty / 1000;
       if(bu === 'l'  && base === 'ml')  return qty * 1000;
       if(bu === 'ml' && base === 'l')   return qty / 1000;
+      // 2) BOM unit matches the RM's L2 (Pkt, Pcs, Nos, …): multiply by
+      //    packScale, which PACT stores as L1-units-per-L2.
+      if(rm && rm.packUnit && String(rm.packUnit).trim().toLowerCase() === bu && rm.packScale){
+        return qty * (Number(rm.packScale) || 1);
+      }
+      // 3) BOM unit matches the RM's L3 (Bunch, Case, …): multiply by
+      //    caseScale, which PACT stores as L1-units-per-L3.
+      if(rm && rm.caseUnit && String(rm.caseUnit).trim().toLowerCase() === bu && rm.caseScale){
+        return qty * (Number(rm.caseScale) || 1);
+      }
       // Unknown mismatch — pass through so the number still shows up; the
       // breakdown modal makes it visible if the magnitude looks off.
       return qty;
@@ -3424,6 +3445,8 @@ async function loadRc(fresh){
 
           const bk = rmCode + '||' + name + '||' + ot;
           let bl = perItemLine.get(bk);
+          const perUnitBom = rawQty / bom.fpQty;    // in the BOM's own declared unit (Pkt, Gms, …)
+          const totalBom   = perUnitBom * qty;
           if(!bl){
             bl = {
               rm_code: rmCode,
@@ -3434,6 +3457,13 @@ async function loadRc(fresh){
               qty_sold: 0,
               rm_pack_uom: rmPackUom,
               rm_base_unit: baseUnit,
+              // What Satvik asked for in the "RM Consumed per Unit" column:
+              // display the quantity in the unit the BOM itself declares,
+              // not the RM's L1 base unit. The totals column stays in
+              // packing UOM, which is what the main aggregate table shows.
+              rm_bom_unit: bomUnit,
+              rm_per_unit_bom: perUnitBom,
+              rm_total_bom: 0,
               rm_per_unit_pack: perUnitPack,
               rm_per_unit_base: perUnitBase,
               rm_total_pack: 0,
@@ -3444,10 +3474,12 @@ async function loadRc(fresh){
             breakdown.get(rmCode).push(bl);
           }
           bl.qty_sold      += qty;
+          bl.rm_total_bom  += totalBom;
           bl.rm_total_pack += totalPack;
           bl.rm_total_base += totalBase;
           // per-unit stays the same across identical item×order rows; recompute defensively
           if(bl.qty_sold > 0){
+            bl.rm_per_unit_bom  = bl.rm_total_bom  / bl.qty_sold;
             bl.rm_per_unit_pack = bl.rm_total_pack / bl.qty_sold;
             bl.rm_per_unit_base = bl.rm_total_base / bl.qty_sold;
           }
@@ -3546,7 +3578,7 @@ function renderRc(){
       + '<td>' + esc(r.rm_name) + '</td>'
       + '<td>' + rcCategoryChip(r.category) + '</td>'
       + '<td>' + esc(r.packing_uom) + '</td>'
-      + '<td class="r"><b>' + qty(r.consumed_pack) + '</b> <span class="mut" style="font-size:11px">' + esc(r.packing_uom) + '</span></td>'
+      + '<td class="r"><b>' + qtyPrecise(r.consumed_pack) + '</b> <span class="mut" style="font-size:11px">' + esc(r.packing_uom) + '</span></td>'
       + '<td><button class="btn" onclick="rcViewBreakdown(\'' + codeEsc + '\')" style="padding:4px 10px;font-size:12px" title="See which items contributed to this RM">👁 View</button></td>'
       + '</tr>';
   }).join('');
@@ -3563,7 +3595,7 @@ function rcViewBreakdown(rmCode){
     if(agg){
       parts.push('<b>Category:</b> ' + esc(agg.category || '—'));
       parts.push('<b>Packing UOM:</b> ' + esc(agg.packing_uom || '—'));
-      parts.push('<b>Total consumed:</b> ' + qty(agg.consumed_pack) + ' ' + esc(agg.packing_uom || ''));
+      parts.push('<b>Total consumed:</b> ' + qtyPrecise(agg.consumed_pack) + ' ' + esc(agg.packing_uom || ''));
       parts.push('<b>Contributing lines:</b> ' + list.length);
     }
     metaEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
@@ -3578,9 +3610,16 @@ function rcViewBreakdown(rmCode){
     // first row, blank on the rest — easier to scan item×order contributions.
     // The per-item columns (Item Name, Order Type, Qty Sold, RM Consumed per
     // Unit, RM Consumed Total) still vary row to row and are shown in full.
+    //
+    // "RM Consumed per Unit" is rendered in the BOM's own declared unit
+    // (what the recipe author typed into PACT — Pkt, Gms, Pcs, Nos, …) so
+    // the number matches the BOM directly. Totals stay in the RM's packing
+    // UOM, matching the main aggregate table.
     const bodyRows = list.map((ln, i) => {
       let perUnitHtml;
-      if(ln.rm_base_unit){
+      if(ln.rm_bom_unit){
+        perUnitHtml = qtyPrecise(ln.rm_per_unit_bom) + ' <span class="mut" style="font-size:11px">' + esc(ln.rm_bom_unit) + '</span>';
+      } else if(ln.rm_base_unit){
         perUnitHtml = qtyPrecise(ln.rm_per_unit_base) + ' <span class="mut" style="font-size:11px">' + esc(ln.rm_base_unit) + '</span>';
       } else {
         perUnitHtml = qtyPrecise(ln.rm_per_unit_pack) + ' <span class="mut" style="font-size:11px">' + esc(ln.rm_pack_uom || '') + '</span>';
