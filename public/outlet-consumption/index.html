@@ -125,7 +125,7 @@
  <div class="tabs">
   <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
   <div class="tab" data-t="im" onclick="selTab('im')">📋 Item Master</div>
-  <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
+  <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales API</div>
   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
   <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Sales Summary</div>
@@ -139,7 +139,7 @@
       Outlet Recipes & BOM tab both read from them. Only the top-level tab
       UI is gone; the underlying loadPm() / loadBom() are still invoked. -->
 
- <!-- ============== Sales Data tab (PetPooja webhook feed) ============== -->
+ <!-- ============== Sales API tab (PetPooja webhook feed) ============== -->
  <div id="tabSd" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap">
    <input id="dateFromSd" type="datetime-local" onchange="loadSd(true)" class="btn" style="padding:7px 10px" title="From date & time (IST). Leave the time at 00:00 for 'from the start of this day'.">
@@ -1909,7 +1909,7 @@ async function loadSd(fresh){
     if(stat) stat.textContent = '✓ ' + SD.rows.length.toLocaleString('en-IN') + ' rows · ' + Math.round((Date.now()-t0)/100)/10 + 's';
   } catch(e){
     if(stat) stat.textContent = '✗ ' + (e.message || e);
-    $('tbodySd').innerHTML = `<tr><td colspan="32" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales Data: ${esc(e.message || e)}</td></tr>`;
+    $('tbodySd').innerHTML = `<tr><td colspan="32" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales API: ${esc(e.message || e)}</td></tr>`;
   }
 }
 
@@ -3660,14 +3660,52 @@ function closeRcBreakdown(){ const m = $('rcBreakdownModal'); if(m) m.style.disp
 function rcExportCsv(){
   if(!(RC.aggregates && RC.aggregates.length)){ toast('No RM consumption rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['RM Code,RM Name,Category,Packing UOM,Consumed Qty (packing UOM)'];
+  // Expanded shape — same columns as the Breakdown modal, with every
+  // contributing item×order_type row inlined under its RM. The RM-level
+  // consumed total is written on each line so Excel pivots work without
+  // extra joins. If a sales file came through but Satvik later asks for
+  // the compressed per-RM-only view too, we'll add a toggle; for now the
+  // breakdown IS the download.
+  const lines = [[
+    'RM Code', 'RM Name', 'Category', 'RM Packing UOM',
+    'RM Consumed Total (packing UOM)',
+    'Item Name', 'Order Type', 'Qty of Item Sold',
+    'RM Consumed per Unit (BOM unit)', 'BOM Unit',
+    'RM Consumed Total for this Item (packing UOM)',
+  ].map(esc2).join(',')];
+  let rowCount = 0;
   for(const r of RC.aggregates){
     if(!(r.consumed_pack > 0)) continue;
-    lines.push([r.rm_code, r.rm_name, r.category, r.packing_uom, Number(r.consumed_pack).toFixed(4)].map(esc2).join(','));
+    const breakdownList = (RC.breakdownByRm && RC.breakdownByRm.get(r.rm_code)) || [];
+    const totalPack = Number(r.consumed_pack).toFixed(6);
+    if(!breakdownList.length){
+      // Shouldn't happen if consumed_pack > 0, but write the RM-level
+      // row anyway so the export doesn't silently drop a consumed RM.
+      lines.push([
+        r.rm_code, r.rm_name, r.category, r.packing_uom,
+        totalPack, '', '', '', '', '', '',
+      ].map(esc2).join(','));
+      rowCount++;
+      continue;
+    }
+    for(const ln of breakdownList){
+      lines.push([
+        r.rm_code, r.rm_name, r.category, r.packing_uom,
+        totalPack,
+        ln.item_name || '',
+        ln.order_type || '',
+        Number(ln.qty_sold || 0),
+        Number(ln.rm_per_unit_bom || ln.rm_per_unit_base || ln.rm_per_unit_pack || 0),
+        ln.rm_bom_unit || ln.rm_base_unit || r.packing_uom || '',
+        Number(ln.rm_total_pack || 0).toFixed(6),
+      ].map(esc2).join(','));
+      rowCount++;
+    }
   }
   const slug = (RC.outlet || 'outlet').toLowerCase().replace(/\s+/g, '-');
   const today = (new Date()).toISOString().slice(0,10);
-  downloadBlob(lines.join('\n'), 'rm-consumption-' + slug + '-' + today + '.csv');
+  downloadBlob(lines.join('\n'), 'rm-consumption-expanded-' + slug + '-' + today + '.csv');
+  toast('Exported ' + rowCount + ' breakdown rows.');
 }
 
 /* ============================ IDEAL INVENTORY (ii) ============================
