@@ -99,17 +99,22 @@ export async function GET(req: Request) {
         outlet_qty: number | null; outlet_name: string | null;
         transfer_location: string | null; doc_date: string | null;
       }>;
-      // Group by rm_code; keep the first-seen product_name + unit as the
-      // display label (consistent per-RM across GRNs; mismatches would
-      // mean the RM master changed mid-window — rare but harmless).
+      // Group by rm_code when it's populated; fall back to the product
+      // name otherwise. The PACT scraper leaves rm_code empty on most
+      // rows today (see pact_stock_outlet_outward sample), so without
+      // the name fallback every distinct product collapses into one
+      // "no-code" bucket and the Ideal Inventory Purchase column stays
+      // empty. The frontend tries code first, then name.
       type Agg = { rm_code: string; product_name: string; unit: string; total_qty: number; line_count: number };
       const by = new Map<string, Agg>();
       for (const ln of lines) {
-        const key = (ln.rm_code || "").trim() || "__no_rm_code__";
+        const code = (ln.rm_code || "").trim();
+        const nameLc = String(ln.product_name || "").trim().toLowerCase();
+        const key = code ? ("code:" + code) : (nameLc ? ("nm:" + nameLc) : "__no_label__");
         let a = by.get(key);
         if (!a) {
           a = {
-            rm_code:      ln.rm_code || "",
+            rm_code:      code,
             product_name: ln.product_name || "",
             unit:         ln.unit || "",
             total_qty:    0,
@@ -120,9 +125,11 @@ export async function GET(req: Request) {
         a.total_qty  += Number(ln.outlet_qty || 0);
         a.line_count += 1;
       }
-      const aggregates = [...by.values()].sort((a, b) =>
-        (a.rm_code || "zzzz").localeCompare(b.rm_code || "zzzz")
-      );
+      const aggregates = [...by.values()].sort((a, b) => {
+        const ka = a.rm_code || ("~" + (a.product_name || "zzzz"));
+        const kb = b.rm_code || ("~" + (b.product_name || "zzzz"));
+        return ka.localeCompare(kb);
+      });
       return NextResponse.json({
         ok: true,
         aggregates,

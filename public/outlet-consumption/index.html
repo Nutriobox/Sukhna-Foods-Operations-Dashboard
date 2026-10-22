@@ -3873,14 +3873,27 @@ async function loadIi(fresh){
   IIv.from = dFromFinal; IIv.to = dToFinal;
 
   // 2) Purchases: per-RM aggregate from Stock Outlet Outward GRNs,
-  //    outlet-filtered, date-bounded. PACT stores doc_date as DATE (no
-  //    time), so we take the date part of dFromFinal as the lower bound
-  //    (inclusive). Same-day GRNs for the outlet are counted as post-
-  //    opening — the morning count almost always precedes the day's
-  //    delivery truck.
+  //    outlet-filtered, date-bounded.
+  //
+  //    PACT stores doc_date as a DATE (no time), so to apply the "only
+  //    count purchases that happened AFTER the opening count" rule we
+  //    synthesize each voucher's time as 10:00 IST — Satvik's standing
+  //    convention until the scraper exposes real times. The lower bound
+  //    then becomes:
+  //      • opening count time of day ≤ 10:00  → from = opening_date
+  //        (same-day voucher at 10am is still post-count)
+  //      • opening count time of day >  10:00 → from = opening_date + 1
+  //        (same-day voucher at 10am precedes the count; skip it)
+  //    When no opening count exists yet, we fall back to the From input's
+  //    date part.
+  //
+  //    The GRN scraper currently leaves rm_code empty on most rows, so
+  //    the API groups by product name when the code is missing; the
+  //    frontend matches by code first, then by lower-cased name against
+  //    RM Master.
   try {
-    const fromDate = (dFromFinal || '').slice(0, 10) || istDateStr();
-    const toDate   = (dToFinal   || '').slice(0, 10) || istDateStr();
+    const fromDate = iiPurchaseFromDate(dFromAuto || dFromFinal);
+    const toDate   = (dToFinal || '').slice(0, 10) || istDateStr();
     const r = await fetch(
       '/api/outlet-grns?aggregate=rm'
       + '&outlet=' + encodeURIComponent(outlet)
@@ -3890,12 +3903,24 @@ async function loadIi(fresh){
     );
     const j = await r.json();
     if(r.ok && j.ok && Array.isArray(j.aggregates)){
+      // Name-fallback index for GRN rows without an rm_code.
+      const byName = new Map();
+      for(const it of IIv.items){
+        const nm = String(it.name || '').trim().toLowerCase();
+        if(nm) byName.set(nm, it);
+      }
+      let matched = 0, unmatched = 0;
       for(const row of j.aggregates){
         const code = String(row.rm_code || '').toUpperCase();
-        const it = byCode.get(code);
-        if(!it) continue;  // GRN for a non-ideal-inventory RM; skip
+        const nm   = String(row.product_name || '').trim().toLowerCase();
+        const it = (code && byCode.get(code)) || (nm && byName.get(nm)) || null;
+        if(!it){ unmatched++; continue; }
         it.purchase_l1 += iiGrnQtyToL1(it, row.total_qty, row.unit);
+        matched++;
       }
+      // Stash for the status area so Satvik can see at a glance how many
+      // GRN products landed vs how many fell through name matching.
+      IIv._purchaseMatch = { matched, unmatched, from: fromDate, to: toDate };
     }
   } catch(_){ /* leave purchase at 0 */ }
 
@@ -3992,7 +4017,12 @@ async function loadIi(fresh){
   II_LOADED.v = true;
   if(stat){
     const openingLbl = openingDtIso ? ('OI count ' + fmtTime(openingDtIso)) : 'no opening count yet';
-    stat.textContent = '✓ computed · ' + openingLbl;
+    const pm = IIv._purchaseMatch;
+    const purchaseLbl = pm
+      ? ('purchase ' + pm.from + '→' + pm.to + ' · ' + pm.matched + ' matched'
+         + (pm.unmatched ? ', ' + pm.unmatched + ' unmatched' : ''))
+      : '';
+    stat.textContent = '✓ computed · ' + openingLbl + (purchaseLbl ? ' · ' + purchaseLbl : '');
   }
   renderIi();
   if(CURTAB === 'ii') updateHeaderStats();
@@ -4020,6 +4050,30 @@ function istDateStr(){
   const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
   const pad = (n) => String(n).padStart(2, '0');
   return ist.getFullYear() + '-' + pad(ist.getMonth()+1) + '-' + pad(ist.getDate());
+}
+
+// Figure out the Purchase window lower bound given an Opening-count
+// datetime-local string ("YYYY-MM-DDTHH:MM"), using the convention that
+// each voucher without a time is treated as having happened at 10:00 IST.
+//   • opening ≤ 10:00  → from = opening date (same-day voucher still counts)
+//   • opening >  10:00  → from = opening date + 1 (same-day voucher precedes count)
+// Fallback: no opening -> today in IST.
+function iiPurchaseFromDate(openingLocal){
+  if(!openingLocal) return istDateStr();
+  const s = String(openingLocal).slice(0, 16);
+  const [datePart, timePart] = s.split('T');
+  if(!datePart) return istDateStr();
+  if(!timePart) return datePart;
+  const [hh, mm] = timePart.split(':').map((n) => Number(n) || 0);
+  const openingMin = hh * 60 + mm;
+  const VOUCHER_SYNTH_MIN = 10 * 60;  // 10:00 IST
+  if(openingMin <= VOUCHER_SYNTH_MIN) return datePart;
+  // Opening is later than the synthetic voucher time — same-day GRN would
+  // precede the count, so start from the next day.
+  const d = new Date(datePart + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 1);
+  const pad = (n) => String(n).padStart(2, '0');
+  return d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate());
 }
 
 // Split a closing L1 figure into (full, loose) using the Loose Denomination
