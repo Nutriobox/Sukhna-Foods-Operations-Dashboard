@@ -324,7 +324,8 @@
    </select>
    <input id="qPu" class="search" placeholder="Search doc number or outlet…" oninput="renderPu()" style="min-width:220px">
    <button class="btn" onclick="exportCsvPu()">⬇ Export CSV</button>
-   <button class="btn prim" id="btnSyncPu" onclick="loadPu(true)" title="Reload from the latest PACT scrape">⚡ Reload</button>
+   <button class="btn" id="btnReloadPu" onclick="loadPu(true)" title="Reload the GRN list from Supabase (no PACT round-trip)">↻ Reload</button>
+   <button class="btn prim" id="btnSyncPu" onclick="syncPu()" title="Queue a fresh scrape of the PACT Stock Outlet Outward report on pact-windows and reload when it lands">⚡ Sync from PACT</button>
    <span id="syncStatPu" class="mut" style="font-size:12.5px"></span>
    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PACT — Stock Outlet Outward (Transfer Location)</span>
   </div>
@@ -1136,6 +1137,49 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
 }
 function syncPM(){ if(!$('btnSyncPm')) return; syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
 function syncBOM(){ if(!$('btnSyncBom')) return; syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
+
+// Purchase tab Sync — enqueues an outlet-outward job for the pact-windows
+// worker and polls /api/outlet-grns watching for `synced_at` to tick past the
+// current baseline. The scrape itself takes ~90-150 s so we wait up to 10 min
+// before giving up (the job may still finish later and the next page load
+// will show it). Mirrors syncReport but talks to our own endpoint.
+async function syncPu(){
+  const btn = $('btnSyncPu'); const stat = $('syncStatPu');
+  if(!btn || btn.disabled) return;
+  btn.disabled = true;
+  const baseline = (PU.meta && PU.meta.synced_at) || '';
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    const s = Math.round((Date.now()-t0)/1000);
+    stat.textContent = s < 90
+      ? ('syncing from PACT… ' + s + 's')
+      : ('waiting for worker (behind other jobs)… ' + s + 's');
+  }, 500);
+  try {
+    const q = await fetch('/api/sync-outlet-outward', { method: 'POST' }).then(r => r.json()).catch(e => ({ok:false,error:String(e)}));
+    if(!q.ok) throw new Error(q.error || 'queue failed');
+    const deadline = Date.now() + 600000;   // 10 min
+    while(Date.now() < deadline){
+      await new Promise(r => setTimeout(r, 5000));
+      // Hit the list endpoint with limit=1 just to read its `synced_at` meta.
+      const j = await fetch('/api/outlet-grns?limit=1', { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+      if(j && j.ok && j.synced_at && j.synced_at !== baseline){
+        await loadPu(true);
+        const secs = Math.round((Date.now()-t0)/1000);
+        stat.textContent = '✓ synced · ' + secs + 's';
+        toast('Purchase synced from PACT (' + secs + 's)');
+        return;
+      }
+    }
+    stat.textContent = '⏱ still queued · reload the page in a few minutes';
+    toast('Sync still queued in the background. Reload the page in a few minutes to see the fresh data.', 6000);
+  } catch(err){
+    stat.textContent = '✗ ' + (err.message || err);
+    toast('Sync failed: ' + (err.message || err), 5000);
+  } finally {
+    clearInterval(tick); btn.disabled = false;
+  }
+}
 function syncOR(){ /* panel removed 2026-10-16 */ }
 function syncOR_noop(/* removed */){ syncReport('bom','btnSyncOr','syncStatOr', BOM.meta.synced_at || '', async () => { await loadBom(true); await loadOr(false); }); }
 function syncRM(){ syncReport('pm','btnSyncRm','syncStatRm', PM.meta.synced_at || '', async () => { await loadPm(true); await loadRm(false); }); }

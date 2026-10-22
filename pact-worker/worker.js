@@ -34,6 +34,7 @@ const SCRIPTS = {
   'inventory': 'scripts/sync-inventory.js',
   'sales-orders': 'scripts/sync-sales-orders.js',
   'outlet-requisitions': 'scripts/sync-outlet-requisitions.js',
+  'outlet-outward': 'scripts/sync-outlet-outward.js',   // Stock Outlet Outward (Transfer Location) -> Purchase tab
   // Live Factory-Costing reports (enqueued by /api/sync-costing and the scheduler below)
   'costing-pf': 'scripts/sync-costing-pf.js',
   'costing-pm': 'scripts/sync-costing-pm.js',
@@ -249,4 +250,34 @@ if (String(process.env.INVENTORY_CRON || '') === '1') {
   log('Inventory scheduler ON  (every ' + (EVERY_MS / 60000) + ' min)');
   setInterval(invTick, 60 * 1000);
   setTimeout(invTick, 30 * 1000); // first pre-warm shortly after boot
+}
+
+// ---------------------------------------------------------------------------
+// Scheduled outlet-outward sync — pulls the PACT "Stock Outlet Outward
+// (Transfer Location)" BI report that feeds the Purchase tab's GRN list on
+// opsdashboard.sukhnafoods.com. Enabled with OUTLET_OUTWARD_CRON=1; cadence
+// OUTLET_OUTWARD_SYNC_MIN minutes (default 60 = hourly). Skips a tick if a
+// previous outlet-outward sync is still queued or processing so a slow run
+// (big 30-day pulls can take ~2 min) never piles up.
+if (String(process.env.OUTLET_OUTWARD_CRON || '') === '1') {
+  const EVERY_MS = Math.max(10, Number(process.env.OUTLET_OUTWARD_SYNC_MIN || 60)) * 60 * 1000;
+  let lastOutward = 0;
+  async function outwardTick() {
+    try {
+      if (Date.now() - lastOutward < EVERY_MS) return;
+      const { data: pend } = await sb.from('pact_jobs')
+        .select('id').eq('invoice', 'sync:outlet-outward').in('status', ['queued', 'processing']).limit(1);
+      if (pend && pend.length) { lastOutward = Date.now(); return; }
+      lastOutward = Date.now();
+      const { error } = await sb.from('pact_jobs').insert({
+        id: (require('crypto').randomUUID && require('crypto').randomUUID()) || (Date.now() + '-outward'),
+        invoice: 'sync:outlet-outward', status: 'queued', dry_run: false, payload: { __sync: 'outlet-outward' },
+      });
+      if (error) log('[outlet-outward-cron] enqueue failed:', error.message);
+      else log('[outlet-outward-cron] queued outlet-outward sync');
+    } catch (e) { log('[outlet-outward-cron] tick error:', e && e.message ? e.message : e); }
+  }
+  log('Outlet-Outward scheduler ON  (every ' + (EVERY_MS / 60000) + ' min)');
+  setInterval(outwardTick, 60 * 1000);
+  setTimeout(outwardTick, 45 * 1000); // first pull shortly after boot
 }
