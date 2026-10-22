@@ -653,7 +653,7 @@
     </select>
     <input id="qRc" class="search" placeholder="Search RM code or name…" oninput="renderRc()" style="min-width:220px">
     <label style="font-size:12.5px;color:#374151;display:flex;align-items:center;gap:6px;cursor:pointer">
-     <input type="checkbox" id="rcOnlyConsumed" checked onchange="renderRc()"> Only RMs with consumption
+     <input type="checkbox" id="rcOnlyConsumed" onchange="renderRc()"> Only RMs with consumption
     </label>
     <button class="btn" onclick="rcExportCsv()">⬇ Export CSV</button>
     <button class="btn prim" onclick="loadRc(true)" title="Re-pull sales + BOM and recompute">⚡ Reload</button>
@@ -665,7 +665,7 @@
     <thead><tr>
      <th>#</th>
      <th>RM Code</th>
-     <th>RM Name</th>
+     <th>Raw Material Name</th>
      <th>Category</th>
      <th>Packing UOM</th>
      <th class="r">Consumed Qty (packing UOM)</th>
@@ -685,7 +685,7 @@
      <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table id="tblRcBreakdown">
       <thead><tr>
        <th>RM Code</th>
-       <th>RM Name</th>
+       <th>Raw Material Name</th>
        <th>Category</th>
        <th>Item Name</th>
        <th>Order Type</th>
@@ -3360,33 +3360,33 @@ async function loadRc(fresh){
       }
     }
 
-    // 7. Build the aggregates list: ALL RMs (so Satvik sees even unconsumed ones
-    //    when the toggle is off), sorted by consumed_pack desc then name.
+    // 7. Build the aggregates list in the SAME shape and sequence as the
+    //    Raw Material Master tab: only Ideal-Inventory RMs (rm.idealStorage set),
+    //    grouped by CAT_ORDER (Frozen, Chiller, Vegetable, Dry Store, Packaging)
+    //    then alphabetical within each category. Semi-finished / packaging RMs
+    //    the BOM references but aren't in RM Master are intentionally excluded
+    //    so this list matches the operator's Ideal Inventory sheet one-to-one.
+    const CAT_ORDER_RC = { 'Frozen':1, 'Chiller':2, 'Vegetable':3, 'Dry Store':4, 'Packaging':5 };
     const rows = [];
-    const seen = new Set();
-    for(const [code, a] of agg.entries()){
-      rows.push({
-        rm_code: code,
-        rm_name: a.rm.name || '',
-        category: a.rm.idealStorage || '',
-        packing_uom: a.rm.idealUom || '',
-        consumed_pack: a.consumed_pack,
-      });
-      seen.add(code);
-    }
     for(const rm of (RM.items || [])){
+      if(!rm.idealStorage) continue;
       const code = String(rm.code || '').toUpperCase();
-      if(!code || seen.has(code)) continue;
-      if(!rm.idealStorage) continue;      // only Ideal-Inventory RMs
+      if(!code) continue;
+      const a = agg.get(code);
       rows.push({
         rm_code: code,
         rm_name: rm.name || '',
         category: rm.idealStorage || '',
         packing_uom: rm.idealUom || '',
-        consumed_pack: 0,
+        consumed_pack: a ? a.consumed_pack : 0,
       });
     }
-    rows.sort((a, b) => (b.consumed_pack - a.consumed_pack) || (a.rm_name || '').localeCompare(b.rm_name || ''));
+    rows.sort((a, b) => {
+      const ca = CAT_ORDER_RC[a.category] || 99;
+      const cb = CAT_ORDER_RC[b.category] || 99;
+      if(ca !== cb) return ca - cb;
+      return (a.rm_name || '').localeCompare(b.rm_name || '');
+    });
 
     // Sort each RM's breakdown by (item_name, order_type) for stable display.
     for(const list of breakdown.values()){
