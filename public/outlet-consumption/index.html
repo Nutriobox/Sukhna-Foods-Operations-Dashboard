@@ -3573,30 +3573,45 @@ function rcViewBreakdown(rmCode){
   if(!list.length){
     tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:16px;text-align:center">No sales in this window consumed this RM.</td></tr>';
   } else {
-    tb.innerHTML = list.map(ln => {
-      // Per-unit column: show the base-unit value (Gms / ML / Pcs) because it
-      // reads naturally and avoids the 0.0005 Pkt problem where a real
-      // consumption rounds to 0 under 3-decimal display. Fall back to packing
-      // UOM when the base unit is missing. Always keep both the raw number
-      // and the unit label visible so the operator can sanity-check.
+    // RM Code / RM Name / Category / RM Packing UOM are the same on every
+    // row of this modal (it's one RM, after all). Show them only on the
+    // first row, blank on the rest — easier to scan item×order contributions.
+    // The per-item columns (Item Name, Order Type, Qty Sold, RM Consumed per
+    // Unit, RM Consumed Total) still vary row to row and are shown in full.
+    const bodyRows = list.map((ln, i) => {
       let perUnitHtml;
       if(ln.rm_base_unit){
         perUnitHtml = qtyPrecise(ln.rm_per_unit_base) + ' <span class="mut" style="font-size:11px">' + esc(ln.rm_base_unit) + '</span>';
       } else {
         perUnitHtml = qtyPrecise(ln.rm_per_unit_pack) + ' <span class="mut" style="font-size:11px">' + esc(ln.rm_pack_uom || '') + '</span>';
       }
+      const first = (i === 0);
       return '<tr>'
-        + '<td style="font-family:monospace;font-size:12px">' + esc(ln.rm_code) + '</td>'
-        + '<td>' + esc(ln.rm_name) + '</td>'
-        + '<td>' + rcCategoryChip(ln.category) + '</td>'
+        + '<td style="font-family:monospace;font-size:12px">' + (first ? esc(ln.rm_code) : '') + '</td>'
+        + '<td>' + (first ? esc(ln.rm_name) : '') + '</td>'
+        + '<td>' + (first ? rcCategoryChip(ln.category) : '') + '</td>'
         + '<td>' + esc(ln.item_name) + '</td>'
         + '<td>' + esc(ln.order_type) + '</td>'
         + '<td class="r">' + qty(ln.qty_sold) + '</td>'
-        + '<td>' + esc(ln.rm_pack_uom) + '</td>'
+        + '<td>' + (first ? esc(ln.rm_pack_uom) : '') + '</td>'
         + '<td class="r">' + perUnitHtml + '</td>'
         + '<td class="r"><b>' + qtyPrecise(ln.rm_total_pack) + '</b> <span class="mut" style="font-size:11px">' + esc(ln.rm_pack_uom || '') + '</span></td>'
       + '</tr>';
-    }).join('');
+    });
+    // Subtotal row at the bottom — sum of Qty Sold and RM Consumed Total
+    // across every contributing line. Per-unit doesn't sum meaningfully so
+    // that cell stays blank.
+    const totalQtySold = list.reduce((s, ln) => s + (Number(ln.qty_sold) || 0), 0);
+    const totalRm      = list.reduce((s, ln) => s + (Number(ln.rm_total_pack) || 0), 0);
+    const packUom      = (list[0] && list[0].rm_pack_uom) || '';
+    const totalRow = '<tr style="background:#f3f4f6;font-weight:600;border-top:2px solid #9ca3af">'
+      + '<td colspan="5" style="text-align:right;padding-right:12px">Totals</td>'
+      + '<td class="r">' + qty(totalQtySold) + '</td>'
+      + '<td></td>'
+      + '<td></td>'
+      + '<td class="r"><b>' + qtyPrecise(totalRm) + '</b> <span class="mut" style="font-size:11px;font-weight:400">' + esc(packUom) + '</span></td>'
+    + '</tr>';
+    tb.innerHTML = bodyRows.join('') + totalRow;
   }
   $('rcBreakdownModal').style.display = 'flex';
 }
