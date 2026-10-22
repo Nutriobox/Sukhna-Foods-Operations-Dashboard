@@ -3262,18 +3262,22 @@ async function loadRc(fresh){
     const outletLc = RC.outlet.toLowerCase();
     const salesRaw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
 
-    // 3. Build an item index: dish_id|name_lower → { bom_code, order_type_bom_mode }
-    //    We draw from Item Master which carries bom_code per menu item.
+    // 3. Build an item index: dish_id|name_lower → { bom_code, mode }
+    //    IM.data.dine_in / delivery are not flat arrays; they're
+    //    {categories: {catName: [items]}} just like cnBuildMenuList walks.
+    //    Each item has bom_code, name, petpooja_dish_id, petpooja_category.
     const itemBomByKey = new Map();  // "id:123" or "nm:foo" -> {bom_code, mode}
     const addItem = (section, mode) => {
-      if(!section || !Array.isArray(section)) return;
-      for(const it of section){
-        const bc = String(it.bom_code || '').trim();
-        if(!bc) continue;
-        const dishId = String(it.dish_id || '').trim();
-        const nm     = String(it.name    || '').trim().toLowerCase();
-        if(dishId) itemBomByKey.set('id:' + dishId, { bom_code: bc, mode });
-        if(nm)     itemBomByKey.set('nm:' + nm,     { bom_code: bc, mode });
+      if(!section) return;
+      for(const [catName, items] of Object.entries(section.categories || {})){
+        for(const it of (items || [])){
+          const bc = String(it.bom_code || '').trim();
+          if(!bc) continue;
+          const dishId = String(it.petpooja_dish_id || '').trim();
+          const nm     = String(it.name || '').trim().toLowerCase();
+          if(dishId) itemBomByKey.set('id:' + dishId, { bom_code: bc, mode });
+          if(nm)     itemBomByKey.set('nm:' + nm,     { bom_code: bc, mode });
+        }
       }
     };
     if(IM_LOADED.v && IM.data){
