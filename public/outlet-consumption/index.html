@@ -593,13 +593,15 @@
  <!-- ============== RM Consumption tab — sales × BOM aggregated per raw material ============== -->
  <div id="tabRc" style="display:none">
 
-  <!-- Step 1 — outlet + date-time form (same shape as Consumption tab) -->
+  <!-- Step 1 — outlet picker only. The window is auto-derived:
+       From = datetime of the latest Opening Inventory count on this outlet,
+       To   = right now (IST at the moment OK is pressed). -->
   <div id="rcFormView">
    <div class="card" style="max-width:620px;margin:40px auto 20px;padding:28px 32px">
     <h2 style="margin:0 0 6px;font-size:18px">RM Consumption</h2>
-    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet and a window. The next screen pulls every KOT in that window from PetPooja, walks each sold item through its BOM, and shows the total raw material consumed in the item's packing UOM. Click the eye on any RM to see the per-item breakdown.</p>
+    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet. The next screen pulls every KOT between that outlet's <b>latest Opening Inventory count</b> and <b>right now</b>, walks each sold item through its BOM, and shows the total raw material consumed in the item's packing UOM. Click the eye on any RM to see the per-item breakdown.</p>
 
-    <label style="display:block;margin-bottom:14px">
+    <label style="display:block;margin-bottom:22px">
      <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Outlet</span>
      <select id="rcFormOutlet" class="btn" style="width:100%;padding:10px 14px;padding-right:28px">
       <option value="">— Choose outlet —</option>
@@ -614,19 +616,6 @@
       <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
       <option value="Shivalik">Shivalik</option>
      </select>
-    </label>
-
-    <label style="display:block;margin-bottom:14px">
-     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">From date &amp; time</span>
-     <input id="rcFormFrom" type="datetime-local" class="btn" style="width:100%;padding:10px 14px">
-    </label>
-
-    <label style="display:block;margin-bottom:22px">
-     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">To date &amp; time</span>
-     <div style="display:flex;gap:8px">
-      <input id="rcFormTo" type="datetime-local" class="btn" style="flex:1;padding:10px 14px">
-      <button class="btn" onclick="rcToNow()" title="Set To to the current date &amp; time (IST)">Current</button>
-     </div>
     </label>
 
     <div style="display:flex;gap:10px;align-items:center">
@@ -656,7 +645,7 @@
      <input type="checkbox" id="rcOnlyConsumed" onchange="renderRc()"> Only RMs with consumption
     </label>
     <button class="btn" onclick="rcExportCsv()">⬇ Export CSV</button>
-    <button class="btn prim" onclick="loadRc(true)" title="Re-pull sales + BOM and recompute">⚡ Reload</button>
+    <button class="btn prim" onclick="rcReload()" title="Advance To to right now and re-pull sales + BOM">⚡ Reload</button>
     <span id="syncStatRc" class="mut" style="font-size:12.5px"></span>
     <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja Global Sales API × PACT BOM</span>
    </div>
@@ -3155,31 +3144,22 @@ function exportCsvCn(){
         rm_total}, ...]) for the eye-button modal.
 */
 
-function rcToNow(){
-  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
-  const iso = d.toISOString().slice(0, 16);  // "YYYY-MM-DDTHH:mm"
-  const to = $('rcFormTo'); if(to) to.value = iso;
+// "Right now" as a datetime-local string in IST, "YYYY-MM-DDTHH:mm".
+function rcNowIst(){
+  const pad = (n) => String(n).padStart(2, '0');
+  const now = new Date();
+  return now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
 }
 
 function rcOnTabEnter(){
-  // First open: default From = today 08:00 IST, To = now IST.
-  const fromInput = $('rcFormFrom'), toInput = $('rcFormTo');
-  if(fromInput && !fromInput.value){
-    const d = new Date(Date.now() + 5.5 * 3600 * 1000);
-    const yyyy = d.getUTCFullYear(), mm = String(d.getUTCMonth() + 1).padStart(2, '0'), dd = String(d.getUTCDate()).padStart(2, '0');
-    fromInput.value = yyyy + '-' + mm + '-' + dd + 'T08:00';
-  }
-  if(toInput && !toInput.value) rcToNow();
   // Bounce straight to results when the user has already run RC in this session.
   if(RC.outlet && RC.from && RC.to){
     $('rcFormView').style.display = 'none';
     $('rcResultsView').style.display = '';
-    if($('rcCtxFrom'))   $('rcCtxFrom').textContent   = (v => v ? v.replace('T', ' ') : '')(RC.from);
-    if($('rcCtxTo'))     $('rcCtxTo').textContent     = (v => v ? v.replace('T', ' ') : '')(RC.to);
+    if($('rcCtxFrom'))   $('rcCtxFrom').textContent   = (RC.from || '').replace('T', ' ');
+    if($('rcCtxTo'))     $('rcCtxTo').textContent     = (RC.to   || '').replace('T', ' ');
     if($('rcCtxOutlet')) $('rcCtxOutlet').textContent = RC.outlet;
     if($('rcFormOutlet')) $('rcFormOutlet').value = RC.outlet;
-    if($('rcFormFrom'))   $('rcFormFrom').value   = RC.from;
-    if($('rcFormTo'))     $('rcFormTo').value     = RC.to;
     renderRc();
   } else {
     $('rcFormView').style.display = '';
@@ -3187,19 +3167,49 @@ function rcOnTabEnter(){
   }
 }
 
-function rcSubmitForm(){
+// Fetch the latest Opening Inventory count for a specific outlet.
+// Returns { dt_iso, filled_count, total_items, id } or null if none exists.
+async function rcLatestOpeningForOutlet(outletName){
+  if(!outletName) return null;
+  // The /api/opening-inventory endpoint returns rows ordered by updated_at desc.
+  // We filter by outlet so the first row is the latest for that outlet.
+  const url = '/api/opening-inventory?outlet=' + encodeURIComponent(outletName);
+  const r = await fetch(url, { cache: 'no-store' });
+  if(!r.ok) throw new Error('Opening Inventory API HTTP ' + r.status);
+  const j = await r.json();
+  if(!j.ok) throw new Error(j.error || 'Opening Inventory API returned not-ok');
+  const list = Array.isArray(j.counts) ? j.counts : [];
+  if(!list.length) return null;
+  return list[0];
+}
+
+async function rcSubmitForm(){
   const outlet = $('rcFormOutlet').value || '';
-  const from   = $('rcFormFrom').value || '';
-  const to     = $('rcFormTo').value   || '';
   const err    = $('rcFormErr');
-  if(!outlet || !from || !to){ err.textContent = 'Outlet, From and To are all required.'; return; }
-  if(from >= to){ err.textContent = 'From must be before To.'; return; }
+  if(!outlet){ err.textContent = 'Pick an outlet.'; return; }
+  err.textContent = 'Looking up this outlet\'s latest Opening Inventory count…';
+  let opening;
+  try {
+    opening = await rcLatestOpeningForOutlet(outlet);
+  } catch(e){
+    err.textContent = 'Could not fetch Opening Inventory: ' + (e.message || e);
+    return;
+  }
+  if(!opening || !opening.dt_iso){
+    err.textContent = 'No Opening Inventory count has been saved for ' + outlet + ' yet. Save one on the Opening Inventory tab first, then come back.';
+    return;
+  }
   err.textContent = '';
-  RC.outlet = outlet; RC.from = from; RC.to = to;
+  // From = the OI dt_iso (already in "YYYY-MM-DDTHH:mm" or ISO form from the API).
+  // To   = right now (IST) when OK was pressed, as the user asked.
+  RC.outlet = outlet;
+  RC.from   = String(opening.dt_iso).slice(0, 16);
+  RC.to     = rcNowIst();
+  RC.openingMeta = { id: opening.id, filled_count: opening.filled_count, total_items: opening.total_items };
   $('rcFormView').style.display = 'none';
   $('rcResultsView').style.display = '';
-  if($('rcCtxFrom'))   $('rcCtxFrom').textContent   = from.replace('T', ' ');
-  if($('rcCtxTo'))     $('rcCtxTo').textContent     = to.replace('T', ' ');
+  if($('rcCtxFrom'))   $('rcCtxFrom').textContent   = RC.from.replace('T', ' ') + ' (from last Opening Inventory count)';
+  if($('rcCtxTo'))     $('rcCtxTo').textContent     = RC.to.replace('T', ' ') + ' (now)';
   if($('rcCtxOutlet')) $('rcCtxOutlet').textContent = outlet;
   loadRc(false);
 }
@@ -3208,8 +3218,15 @@ function rcBackToForm(){
   $('rcFormView').style.display = '';
   $('rcResultsView').style.display = 'none';
   if($('rcFormOutlet') && RC.outlet) $('rcFormOutlet').value = RC.outlet;
-  if($('rcFormFrom')   && RC.from)   $('rcFormFrom').value   = RC.from;
-  if($('rcFormTo')     && RC.to)     $('rcFormTo').value     = RC.to;
+}
+
+// Reload button: refresh the To cutoff to right now and re-pull everything.
+// From stays pinned to the Opening Inventory the user originally picked.
+function rcReload(){
+  if(!RC.outlet || !RC.from){ toast('Pick an outlet and press OK first.'); return; }
+  RC.to = rcNowIst();
+  if($('rcCtxTo')) $('rcCtxTo').textContent = RC.to.replace('T', ' ') + ' (now)';
+  loadRc(true);
 }
 
 // RM's packing divisor: how many base (L1) units make up one packing UOM unit.
