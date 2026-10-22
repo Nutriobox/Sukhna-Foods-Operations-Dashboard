@@ -57,8 +57,83 @@ export async function GET(req: Request) {
   const h = { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" };
 
   const docNo = sp.get("doc_no");
+  const aggregate = (sp.get("aggregate") || "").toLowerCase().trim();
 
   try {
+    // ------------------------------------------------------------------
+    // Per-RM aggregate: sum outlet_qty across every line item for one
+    // outlet × date window, grouped by rm_code. Used by the Ideal
+    // Inventory tab to fill its Purchase (L1) column from GRNs that fall
+    // between the latest Opening Inventory count and the end of the
+    // selected window. PACT stores doc_date as a DATE (no time), so the
+    // bounds are date-inclusive — a GRN posted on the same day as the
+    // morning OI count is treated as a post-count purchase.
+    //   GET /api/outlet-grns?aggregate=rm&outlet=<name>&from=YYYY-MM-DD&to=YYYY-MM-DD
+    //   -> { ok, aggregates: [{ rm_code, product_name, unit, total_qty, line_count }],
+    //        count, source, synced_at, filters }
+    // Rows without an rm_code are grouped under rm_code=null so the
+    // caller sees them (usually open-text items the scraper couldn't
+    // resolve) and can decide what to do with them, rather than
+    // silently dropping them.
+    if (aggregate === "rm") {
+      const to     = sp.get("to")   || istToday();
+      const from   = sp.get("from") || istDaysAgo(30);
+      const outletFilter = (sp.get("outlet") || "").trim();
+      const parts: string[] = [
+        "select=rm_code,product_name,unit,outlet_qty,outlet_name,transfer_location,doc_date",
+        `doc_date=gte.${encodeURIComponent(from)}`,
+        `doc_date=lte.${encodeURIComponent(to)}`,
+        "limit=20000",
+      ];
+      if (outletFilter) parts.push(`outlet_name=ilike.${encodeURIComponent("%" + outletFilter + "%")}`);
+      const r = await fetch(
+        `${url}/rest/v1/pact_stock_outlet_outward?${parts.join("&")}`,
+        { headers: h, cache: "no-store" }
+      );
+      if (!r.ok) {
+        const t = await r.text().catch(() => "");
+        return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
+      }
+      const lines = (await r.json()) as Array<{
+        rm_code: string | null; product_name: string | null; unit: string | null;
+        outlet_qty: number | null; outlet_name: string | null;
+        transfer_location: string | null; doc_date: string | null;
+      }>;
+      // Group by rm_code; keep the first-seen product_name + unit as the
+      // display label (consistent per-RM across GRNs; mismatches would
+      // mean the RM master changed mid-window — rare but harmless).
+      type Agg = { rm_code: string; product_name: string; unit: string; total_qty: number; line_count: number };
+      const by = new Map<string, Agg>();
+      for (const ln of lines) {
+        const key = (ln.rm_code || "").trim() || "__no_rm_code__";
+        let a = by.get(key);
+        if (!a) {
+          a = {
+            rm_code:      ln.rm_code || "",
+            product_name: ln.product_name || "",
+            unit:         ln.unit || "",
+            total_qty:    0,
+            line_count:   0,
+          };
+          by.set(key, a);
+        }
+        a.total_qty  += Number(ln.outlet_qty || 0);
+        a.line_count += 1;
+      }
+      const aggregates = [...by.values()].sort((a, b) =>
+        (a.rm_code || "zzzz").localeCompare(b.rm_code || "zzzz")
+      );
+      return NextResponse.json({
+        ok: true,
+        aggregates,
+        count: aggregates.length,
+        line_rows_scanned: lines.length,
+        source: "PACT Stock Outlet Outward (BI) — aggregated per RM",
+        synced_at: new Date().toISOString(),
+        filters: { from, to, outlet: outletFilter },
+      }, { headers: CORS });
+    }
+
     // Per-doc detail: all line items for one Doc No.
     if (docNo) {
       const r = await fetch(

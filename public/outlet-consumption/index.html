@@ -128,7 +128,7 @@
   <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales Data</div>
   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
-  <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Consumption</div>
+  <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Sales Summary</div>
   <div class="tab" data-t="rc" onclick="selTab('rc')">🥬 RM Consumption</div>
   <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
  </div>
@@ -512,13 +512,13 @@
       triggered mode that reveals a Denomination column with clickable L3/L2/L1
       badges per row — see btnLooseModeRm + renderRm. -->
 
- <!-- ============== Consumption tab (two-step: pick outlet + window → aggregated item view) ============== -->
+ <!-- ============== Sales Summary tab (two-step: pick outlet + window → aggregated item view) ============== -->
  <div id="tabCn" style="display:none">
 
   <!-- Step 1 — outlet + date-time form -->
   <div id="cnFormView">
    <div class="card" style="max-width:620px;margin:40px auto 20px;padding:28px 32px">
-    <h2 style="margin:0 0 6px;font-size:18px">View consumption</h2>
+    <h2 style="margin:0 0 6px;font-size:18px">View sales summary</h2>
     <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet and a window. The next screen pulls every KOT in that window from PetPooja, groups them by item + order type, and shows the total quantity sold per line.</p>
 
     <label style="display:block;margin-bottom:14px">
@@ -693,7 +693,7 @@
  <!-- ============== Ideal Inventory tab — closing = opening + purchase - consumption - variance, all in L1 ============== -->
  <div id="tabIi" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap">
-   <select id="outletIi" onchange="renderIi()" class="btn" style="padding-right:28px" title="Outlet to compute ideal inventory for">
+   <select id="outletIi" onchange="loadIi(true)" class="btn" style="padding-right:28px" title="Outlet to compute ideal inventory for. Picks the latest Opening Inventory count for this outlet and anchors the window there.">
     <option value="">Select outlet…</option>
     <option value="Rajinder Nagar">Rajinder Nagar</option>
     <option value="DLF Phase 2">DLF Phase 2</option>
@@ -706,8 +706,8 @@
     <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
     <option value="Shivalik">Shivalik</option>
    </select>
-   <input id="dateFromIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Period start (IST). Opening = snapshot at this moment. Purchase &amp; Consumption = sum from here to end.">
-   <input id="dateToIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Period end (IST). Closing is as of this moment.">
+   <input id="dateFromIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Window start (IST). Auto-set to the latest Opening Inventory count for this outlet. Purchase and Consumption only count events after this moment.">
+   <input id="dateToIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Window end (IST). Closing is as of this moment.">
    <select id="catIi" onchange="renderIi()" class="btn" style="padding-right:28px" title="Filter by storage category">
     <option value="">All categories</option>
     <option value="Frozen">Frozen</option>
@@ -726,10 +726,10 @@
   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#f0f9ff;border-color:#bae6fd">
    <div style="font-size:12.5px;color:#0c4a6e;line-height:1.5">
     <b>Formula.</b> Everything is normalised to each RM's L1 base unit so the arithmetic is apples-to-apples.
-    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) − Variance (L1).</b>
+    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) + Variance (L1).</b>
     Consumption per RM = Σ (item qty sold × BOM raw qty per item, converted to L1) across every KOT in the window.
     The <b>Full</b> and <b>Loose</b> columns on the right split the closing figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
-    <br><b>Status.</b> Consumption pulls from PetPooja (live); Opening, Purchase and Variance are editable placeholder cells for now and will plug into the Opening Inventory save, the Purchase (GRN) sync and a wastage source as those backends land.
+    <br><b>Data sources.</b> <b>Opening</b> is the latest Opening Inventory count saved for the selected outlet (also anchors the window start). <b>Purchase</b> is the sum of GRN line items for the outlet in the window (PACT Stock Outlet Outward). <b>Consumption</b> is sales × BOM over the window (PetPooja KOTs). <b>Variance</b> is manual — type it in each row to record a known gain or loss.
    </div>
   </div>
 
@@ -3733,8 +3733,9 @@ function iiBuildItemsFromRm(){
       l1_unit:        x.baseUnit || x.idealUom || '',
       l2_unit:        x.packUnit || '',
       l3_unit:        x.caseUnit || '',
-      packScale:      Number(x.packScale) || 0,   // L1 per L2
-      caseScale:      Number(x.caseScale) || 0,   // L1 per L3
+      packing_uom:    x.idealUom || x.baseUnit || '',  // which level the operator counts in
+      packScale:      Number(x.packScale) || 0,        // L1 per L2
+      caseScale:      Number(x.caseScale) || 0,        // L1 per L3
       opening_l1:     0,
       purchase_l1:    0,
       consumption_l1: 0,
@@ -3748,53 +3749,277 @@ function iiBuildItemsFromRm(){
     });
 }
 
+// Convert an Opening-Inventory count entry to L1 units, mirroring the
+// shape OI's render + save uses:
+//   • OI.qty[rm_code]       is in the item's packing UOM (idealUom)
+//   • OI.qty_loose[rm_code] is in the lowest marked Loose Denomination
+//     level's UOM (L1 / L2 / L3 — see ldLevelsFor + iiSplitClosing)
+// Returns an L1 total ready to drop into opening_l1.
+function iiOpeningToL1(item, qtyPack, qtyLoose){
+  let l1 = 0;
+  // Pack portion: multiply by L1-per-packing-UOM
+  const packLc = String(item.packing_uom || '').toLowerCase().trim();
+  const l1Lc   = String(item.l1_unit || '').toLowerCase().trim();
+  const l2Lc   = String(item.l2_unit || '').toLowerCase().trim();
+  const l3Lc   = String(item.l3_unit || '').toLowerCase().trim();
+  let packDivisor = 1;
+  if(packLc && packLc !== l1Lc){
+    if(packLc === l2Lc && item.packScale > 0)      packDivisor = item.packScale;
+    else if(packLc === l3Lc && item.caseScale > 0) packDivisor = item.caseScale;
+  }
+  if(qtyPack != null && qtyPack !== '') l1 += Number(qtyPack) * packDivisor;
+  // Loose portion: lowest marked level wins (L1 beats L2 beats L3).
+  if(qtyLoose != null && qtyLoose !== ''){
+    const levels = (typeof ldLevelsFor === 'function') ? ldLevelsFor(item.rm_code) : [];
+    const loose  = levels.includes('L1') ? 'L1' : (levels.includes('L2') ? 'L2' : (levels.includes('L3') ? 'L3' : null));
+    const n = Number(qtyLoose);
+    if(loose === 'L1')      l1 += n;
+    else if(loose === 'L2') l1 += n * (item.packScale || 1);
+    else if(loose === 'L3') l1 += n * (item.caseScale || 1);
+    // No loose level marked -> treat the loose number as already in L1.
+    else                    l1 += n;
+  }
+  return l1;
+}
+
+// Convert a GRN line's qty (in whatever UOM PACT stored it) to the RM's
+// L1 units. The GRN tells us the line's unit (Gms, Kg, Pkt, Pcs, Bunch,
+// …); the RM master knows what each level is worth in L1 units. If the
+// unit doesn't match any of L1/L2/L3, pass the number through — the RM
+// list guards against silent 1000x drift the same way convertBomUnitToBase
+// does for weight/volume family units.
+function iiGrnQtyToL1(item, qty, unitRaw){
+  const n = Number(qty || 0);
+  if(!(n > 0)) return 0;
+  const u    = String(unitRaw || '').trim().toLowerCase();
+  const l1Lc = String(item.l1_unit || '').trim().toLowerCase();
+  const l2Lc = String(item.l2_unit || '').trim().toLowerCase();
+  const l3Lc = String(item.l3_unit || '').trim().toLowerCase();
+  if(!u || u === l1Lc) return n;
+  if(u === l2Lc && item.packScale > 0) return n * item.packScale;
+  if(u === l3Lc && item.caseScale > 0) return n * item.caseScale;
+  // Family conversions when units don't name a level directly.
+  if(u === 'kg' && l1Lc === 'gms') return n * 1000;
+  if(u === 'gms' && l1Lc === 'kg') return n / 1000;
+  if(u === 'l'  && l1Lc === 'ml')  return n * 1000;
+  if(u === 'ml' && l1Lc === 'l')   return n / 1000;
+  return n;
+}
+
 async function loadIi(fresh){
   const stat = $('syncStatIi');
   if(stat) stat.textContent = fresh ? 'Recomputing…' : 'Loading…';
   const outlet = ($('outletIi') && $('outletIi').value) || '';
-  const dFrom  = ($('dateFromIi') && $('dateFromIi').value) || '';
-  const dTo    = ($('dateToIi') && $('dateToIi').value) || '';
-  IIv.outlet = outlet; IIv.from = dFrom; IIv.to = dTo;
+  const dToInput = ($('dateToIi') && $('dateToIi').value) || '';
+  IIv.outlet = outlet;
 
-  // Rebuild the per-RM scaffold so a late RM refresh is reflected.
+  // Rebuild the per-RM scaffold so a late RM refresh is reflected, and
+  // index by rm_code for O(1) lookups on the data passes.
   IIv.items = iiBuildItemsFromRm();
+  const byCode = new Map();
+  for(const it of IIv.items) byCode.set(String(it.rm_code).toUpperCase(), it);
 
-  // Consumption pass (STRUCTURE for now; full BOM resolver is the next step).
-  // The hook is in place so the moment the resolver lands, every row's
-  // consumption_l1 lights up without the UI changing shape. Today every
-  // consumption_l1 stays at 0 unless the user types one in the input.
-  if(outlet && dFrom && dTo){
-    try {
-      // Pull the PetPooja line items for this outlet × window — same endpoint
-      // Sales Data and Consumption use. We don't commit this to consumption_l1
-      // yet (needs the BOM × dish mapping), but we read it so the meta carries
-      // the line-item count the resolver will consume.
-      const params = new URLSearchParams();
-      params.set('from', dFrom); params.set('to', dTo); params.set('limit_rows', '10000');
-      const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
-      const j = await r.json();
-      if(r.ok && j.ok){
-        const outletLc = outlet.toLowerCase();
-        const matched = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
-        IIv.meta = {
-          source: 'Opening + Purchase + Consumption (live KOTs) + Variance',
-          synced_at: new Date().toISOString(),
-          count: IIv.items.length,
-          kot_items_in_window: matched.length,
-        };
-      } else {
-        IIv.meta = { source: 'computed (consumption fetch failed)', synced_at: new Date().toISOString(), count: IIv.items.length };
-      }
-    } catch(err){
-      IIv.meta = { source: 'computed (consumption fetch failed)', synced_at: new Date().toISOString(), count: IIv.items.length };
-    }
-  } else {
-    IIv.meta = { source: 'awaiting outlet + recompute', synced_at: new Date().toISOString(), count: IIv.items.length };
+  if(!outlet){
+    IIv.from = ''; IIv.to = dToInput;
+    IIv.meta = { source: 'awaiting outlet', synced_at: new Date().toISOString(), count: IIv.items.length };
+    II_LOADED.v = true;
+    if(stat) stat.textContent = 'Pick an outlet to pull Opening / Purchase / Consumption.';
+    renderIi();
+    if(CURTAB === 'ii') updateHeaderStats();
+    return;
   }
+
+  // Make sure the three master datasets are loaded. These are independent.
+  try {
+    await Promise.all([
+      RM_LOADED.v  ? Promise.resolve() : loadRm(false).catch(() => {}),
+      BOM_LOADED.v ? Promise.resolve() : loadBom(false).catch(() => {}),
+      IM_LOADED.v  ? Promise.resolve() : loadIm(false).catch(() => {}),
+    ]);
+  } catch(_){ /* each already logs */ }
+
+  // 1) Latest Opening Inventory count for this outlet. Its dt_iso
+  //    becomes the window start — Satvik's rule is Purchase and
+  //    Consumption are only counted AFTER the opening count.
+  let openingDtIso = '';
+  try {
+    const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
+    const j = await r.json();
+    if(r.ok && j.ok && Array.isArray(j.counts) && j.counts.length){
+      // GET lists updated_at.desc; take the first (= most recent) count.
+      const latest = j.counts[0];
+      openingDtIso = latest.dt_iso || '';
+      // Load its qty maps.
+      const r2 = await fetch('/api/opening-inventory?id=' + encodeURIComponent(latest.id), { cache: 'no-store' });
+      const j2 = await r2.json();
+      if(r2.ok && j2.ok && j2.count){
+        const q   = j2.count.qty       || {};
+        const qL  = j2.count.qty_loose || {};
+        for(const [code, _] of byCode){
+          const it = byCode.get(code);
+          it.opening_l1 = iiOpeningToL1(it, q[it.rm_code], qL[it.rm_code]);
+        }
+      }
+    }
+  } catch(_){ /* leave opening at 0 */ }
+
+  // Anchor the From input to the opening count's time (local-datetime
+  // string in IST). To defaults to right now if the user hasn't picked one.
+  const dFromAuto = openingDtIso ? iiIsoToLocalDatetime(openingDtIso) : '';
+  const dFromFinal = dFromAuto || (($('dateFromIi') && $('dateFromIi').value) || '');
+  if(dFromAuto && $('dateFromIi')) $('dateFromIi').value = dFromAuto;
+  const dToFinal = dToInput || iiNowIstDatetime();
+  if(!dToInput && $('dateToIi')) $('dateToIi').value = dToFinal;
+  IIv.from = dFromFinal; IIv.to = dToFinal;
+
+  // 2) Purchases: per-RM aggregate from Stock Outlet Outward GRNs,
+  //    outlet-filtered, date-bounded. PACT stores doc_date as DATE (no
+  //    time), so we take the date part of dFromFinal as the lower bound
+  //    (inclusive). Same-day GRNs for the outlet are counted as post-
+  //    opening — the morning count almost always precedes the day's
+  //    delivery truck.
+  try {
+    const fromDate = (dFromFinal || '').slice(0, 10) || istDateStr();
+    const toDate   = (dToFinal   || '').slice(0, 10) || istDateStr();
+    const r = await fetch(
+      '/api/outlet-grns?aggregate=rm'
+      + '&outlet=' + encodeURIComponent(outlet)
+      + '&from='   + encodeURIComponent(fromDate)
+      + '&to='     + encodeURIComponent(toDate),
+      { cache: 'no-store' }
+    );
+    const j = await r.json();
+    if(r.ok && j.ok && Array.isArray(j.aggregates)){
+      for(const row of j.aggregates){
+        const code = String(row.rm_code || '').toUpperCase();
+        const it = byCode.get(code);
+        if(!it) continue;  // GRN for a non-ideal-inventory RM; skip
+        it.purchase_l1 += iiGrnQtyToL1(it, row.total_qty, row.unit);
+      }
+    }
+  } catch(_){ /* leave purchase at 0 */ }
+
+  // 3) Consumption: walk sales × BOM for this outlet × window, same as
+  //    the RM Consumption tab does, but accumulate L1 totals per RM
+  //    instead of packing-UOM totals.
+  try {
+    const params = new URLSearchParams();
+    params.set('from', dFromFinal); params.set('to', dToFinal);
+    params.set('outlet_name', outlet); params.set('limit_rows', '10000');
+    const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
+    const j = await r.json();
+    if(r.ok && j.ok){
+      const outletLc = outlet.toLowerCase();
+      const salesRaw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
+
+      // Reuse the two-section Item Master index + pickBomCode logic from loadRc.
+      const dineByKey  = new Map();
+      const delivByKey = new Map();
+      const addItem = (section, target) => {
+        if(!section) return;
+        for(const [_cat, items] of Object.entries(section.categories || {})){
+          for(const it of (items || [])){
+            const bc = String(it.bom_code || '').trim(); if(!bc) continue;
+            const dishId = String(it.petpooja_dish_id || '').trim();
+            const nm     = String(it.name || '').trim().toLowerCase();
+            if(dishId) target.set('id:' + dishId, bc);
+            if(nm)     target.set('nm:' + nm,     bc);
+          }
+        }
+      };
+      if(IM_LOADED.v && IM.data){ addItem(IM.data.dine_in, dineByKey); addItem(IM.data.delivery, delivByKey); }
+      const pickBomCode = (ot, dishId, name) => {
+        const idKey = dishId ? ('id:' + dishId) : '';
+        const nmKey = 'nm:' + name.toLowerCase();
+        const primary  = (ot === 'Dine In') ? dineByKey  : delivByKey;
+        const fallback = (ot === 'Dine In') ? delivByKey : dineByKey;
+        return (idKey && primary.get(idKey)) || primary.get(nmKey)
+            || (idKey && fallback.get(idKey)) || fallback.get(nmKey) || '';
+      };
+
+      const bomByCode = new Map();
+      for(const b of (BOM.boms || [])) bomByCode.set(String(b.code || '').toUpperCase(), b);
+      const rmByCode = new Map();
+      for(const rm of (RM.items || [])) rmByCode.set(String(rm.code || '').toUpperCase(), rm);
+
+      for(const row of salesRaw){
+        const ot = rcNormOrderType(row.order_type); if(!ot) continue;
+        const qSold = Number(row.item_quantity || 0); if(!(qSold > 0)) continue;
+        const dishId = String(row.dish_id || '').trim();
+        const name   = String(row.item_name || '').trim(); if(!name) continue;
+        const bomCode = pickBomCode(ot, dishId, name); if(!bomCode) continue;
+        const bom = bomByCode.get(bomCode.toUpperCase()); if(!bom || !bom.fpQty) continue;
+
+        const intermediateCodes = new Set();
+        for(const s of (bom.stages ? bom.stages.values() : [])){
+          for(const outp of (s.outputs || [])){
+            const oc = String(outp[4] || '').toUpperCase(); if(oc) intermediateCodes.add(oc);
+          }
+        }
+        for(const s of (bom.stages ? bom.stages.values() : [])){
+          for(const inp of s.inputs){
+            const rmCode = String(inp[4] || '').toUpperCase();
+            if(!rmCode) continue;
+            if(intermediateCodes.has(rmCode)) continue;
+            const rm = rmByCode.get(rmCode);
+            if(!rm) continue;
+            const rawQty = Number(inp[9]); if(!(rawQty > 0)) continue;
+            const bomUnit = inp[6] || '';
+            // Reuse iiGrnQtyToL1 for unit conversion — same table of
+            // scale factors, same intent (convert any unit to L1).
+            const iitem = byCode.get(rmCode);
+            if(!iitem) continue;  // Not an Ideal-Inventory RM
+            const rawInL1 = iiGrnQtyToL1(iitem, rawQty, bomUnit);
+            const perFp = rawInL1 / bom.fpQty;
+            iitem.consumption_l1 += perFp * qSold;
+          }
+        }
+      }
+      IIv.meta = {
+        source: 'Opening (OI count) + Purchase (GRN sum) + Consumption (sales × BOM) + Variance (manual)',
+        synced_at: new Date().toISOString(),
+        count: IIv.items.length,
+        kot_items_in_window: salesRaw.length,
+        opening_dt_iso: openingDtIso || null,
+      };
+    } else {
+      IIv.meta = { source: 'opening + purchase done; consumption fetch failed', synced_at: new Date().toISOString(), count: IIv.items.length };
+    }
+  } catch(err){
+    IIv.meta = { source: 'opening + purchase done; consumption fetch failed', synced_at: new Date().toISOString(), count: IIv.items.length };
+  }
+
   II_LOADED.v = true;
-  if(stat){ stat.textContent = fresh ? 'Recomputed.' : ''; setTimeout(() => { stat.textContent = ''; }, 2500); }
+  if(stat){
+    const openingLbl = openingDtIso ? ('OI count ' + fmtTime(openingDtIso)) : 'no opening count yet';
+    stat.textContent = '✓ computed · ' + openingLbl;
+  }
   renderIi();
   if(CURTAB === 'ii') updateHeaderStats();
+}
+
+// IST wall-clock helpers for the Ideal Inventory window inputs.
+function iiNowIstDatetime(){
+  const now = new Date();
+  const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return ist.getFullYear() + '-' + pad(ist.getMonth()+1) + '-' + pad(ist.getDate())
+       + 'T' + pad(ist.getHours()) + ':' + pad(ist.getMinutes());
+}
+function iiIsoToLocalDatetime(iso){
+  // Server stores dt_iso as a naive ISO string meant to be read in IST.
+  if(!iso) return '';
+  const s = String(iso);
+  // Strip any trailing Z or ±HH:MM so the string lands cleanly in a
+  // datetime-local input (which expects "YYYY-MM-DDTHH:MM" without TZ).
+  const m = s.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  return m ? m[1] : s.slice(0, 16);
+}
+function istDateStr(){
+  const now = new Date();
+  const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return ist.getFullYear() + '-' + pad(ist.getMonth()+1) + '-' + pad(ist.getDate());
 }
 
 // Split a closing L1 figure into (full, loose) using the Loose Denomination
@@ -3849,9 +4074,14 @@ function renderIi(){
     tb.innerHTML = '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>';
     return;
   }
-  const inputStyle = 'width:90px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px';
+  const inputStyle    = 'width:90px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px';
+  // Auto-filled cells render in a subtler style so the operator can tell
+  // what's live and what's manual at a glance. They stay editable so a
+  // one-off override is still a single click away.
+  const computedStyle = inputStyle + ';background:#f3f4f6;color:#374151';
+  const varianceStyle = inputStyle + ';background:#fffbeb;border-color:#fde68a';
   tb.innerHTML = rows.map((it, i) => {
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) + (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
@@ -3862,10 +4092,10 @@ function renderIi(){
       '<td>' + esc(it.name) + '</td>' +
       '<td>' + (typeof oiCategoryChip === 'function' ? oiCategoryChip(it.category) : esc(it.category)) + '</td>' +
       '<td><span class="code">' + esc(it.l1_unit) + '</span></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1 || '')     + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + inputStyle + '" title="Opening stock on hand at the window start, in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + inputStyle + '" title="Total purchased in the window (sum of GRNs), in ' + esc(it.l1_unit) + '"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + inputStyle + ';background:#f9fafb" title="Consumed in the window — will auto-fill from PetPooja × BOM once the BOM resolver is wired; editable in the meantime"></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.variance_l1 || '')    + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + inputStyle + '" title="Wastage / variance in the window, in ' + esc(it.l1_unit) + '"></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1     || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + computedStyle + '" title="Auto-filled from the latest Opening Inventory count for this outlet (converted to ' + esc(it.l1_unit) + '). Editable if you need to override."></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + computedStyle + '" title="Auto-filled from GRNs posted to this outlet in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
+      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + computedStyle + '" title="Auto-filled from PetPooja sales × BOM in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
+      '<td class="r"><input type="number" step="0.001"        value="' + esc(it.variance_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + varianceStyle + '" title="Manual gain/loss in ' + esc(it.l1_unit) + ' (positive = unexplained gain, negative = loss)"></td>' +
       '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
       '<td class="r">' + fullCell  + '</td>' +
       '<td class="r">' + looseCell + '</td>' +
@@ -3880,7 +4110,7 @@ function exportCsvIi(){
   let i = 0;
   for(const it of IIv.items){
     i++;
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) + (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, it.variance_l1 || 0, closing, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
   }
