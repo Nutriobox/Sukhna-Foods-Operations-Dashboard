@@ -718,7 +718,6 @@
    </select>
    <input id="qIi" class="search" placeholder="Search RM code or name…" oninput="renderIi()" style="min-width:200px">
    <button class="btn" onclick="exportCsvIi()">⬇ Export CSV</button>
-   <button class="btn prim" id="btnSyncIi" onclick="loadIi(true)" title="Recompute from the latest sales + opening + purchase data">⚡ Recompute</button>
    <span id="syncStatIi" class="mut" style="font-size:12.5px"></span>
    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: computed from Opening + Purchase + Consumption + Variance</span>
   </div>
@@ -748,7 +747,7 @@
     <th class="r">Full</th>
     <th class="r">Loose</th>
    </tr></thead>
-   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Pick an outlet and date range above, then click ⚡ Recompute.</td></tr></tbody>
+   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Pick an outlet above. The window auto-anchors to the latest Opening Inventory count and the numbers compute on the fly as you change dates.</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -3791,10 +3790,10 @@ function iiOnTabEnter(){
   }
   // Build the per-RM scaffold from RM.items so the table paints immediately,
   // even before the user picks an outlet. The compute step fills in the live
-  // consumption column once an outlet is chosen and ⚡ Recompute is clicked.
+  // columns the moment an outlet is picked (outlet onchange fires loadIi).
   if(RM_LOADED.v && !IIv.items.length){
     IIv.items = iiBuildItemsFromRm();
-    IIv.meta = { source: 'awaiting outlet + recompute', synced_at: new Date().toISOString(), count: IIv.items.length };
+    IIv.meta = { source: 'awaiting outlet', synced_at: new Date().toISOString(), count: IIv.items.length };
     II_LOADED.v = true;
     renderIi();
   }
