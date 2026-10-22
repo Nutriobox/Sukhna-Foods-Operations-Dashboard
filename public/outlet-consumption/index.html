@@ -930,6 +930,21 @@ function toast(msg, ms){ const t=$('toast'); t.textContent=msg; t.classList.add(
 function fmtTime(iso){ if(!iso)return '—'; try{ return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}); }catch(e){ return iso; } }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function qty(n){ if(n==null||isNaN(Number(n))||n==='')return ''; return Number(n).toLocaleString('en-IN',{maximumFractionDigits:3}); }
+// Higher-precision formatter for sub-decimal values: for a per-unit RM
+// consumption of 0.0005 Pkt or 0.00014 Kg, qty() rounds to 0 (useless);
+// qtyPrecise() keeps up to 6 significant digits so tiny values stay visible
+// while big values still read cleanly (12,345.68 — not 12,345.678901).
+function qtyPrecise(n){
+  if(n == null || n === '' || isNaN(Number(n))) return '';
+  const num = Number(n);
+  if(num === 0) return '0';
+  const abs = Math.abs(num);
+  // For values >= 1, show 2 decimals; for small values, keep significant digits
+  // so a 0.00042 doesn't collapse to 0.
+  if(abs >= 1)     return num.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  if(abs >= 0.01)  return num.toLocaleString('en-IN', { maximumFractionDigits: 4 });
+  return num.toLocaleString('en-IN', { maximumSignificantDigits: 3 });
+}
 
 function selTab(t){
   CURTAB = t;
@@ -3396,6 +3411,12 @@ async function loadRc(fresh){
           const divisor = rcPackingDivisor(rm);
           const perUnitPack = perFp / divisor;     // RM in packing UOM per 1 item sold
           const totalPack   = totalBase / divisor; // RM total consumed in packing UOM
+          // Keep the base-unit per-item value too (Gms / ML / Pcs), so the
+          // breakdown modal can show '140 Gms per burger' instead of
+          // '0 Pkt per burger' — the latter is what you get when the real
+          // per-unit is 0.0005 Pkt (one Pkt = 300 Gms, say).
+          const perUnitBase = perFp;               // RM in L1 base unit per 1 item sold
+          const baseUnit    = (rm && rm.baseUnit) || '';
 
           let a = agg.get(rmCode);
           if(!a){ a = { rm: rm || { code: rmCode, name: rmName, idealStorage: rmCat, idealUom: rmPackUom }, consumed_pack: 0 }; agg.set(rmCode, a); }
@@ -3412,17 +3433,24 @@ async function loadRc(fresh){
               order_type: ot,
               qty_sold: 0,
               rm_pack_uom: rmPackUom,
+              rm_base_unit: baseUnit,
               rm_per_unit_pack: perUnitPack,
+              rm_per_unit_base: perUnitBase,
               rm_total_pack: 0,
+              rm_total_base: 0,
             };
             perItemLine.set(bk, bl);
             if(!breakdown.has(rmCode)) breakdown.set(rmCode, []);
             breakdown.get(rmCode).push(bl);
           }
-          bl.qty_sold     += qty;
+          bl.qty_sold      += qty;
           bl.rm_total_pack += totalPack;
-          // (per_unit stays the same across identical item×order rows; recompute defensively)
-          if(bl.qty_sold > 0) bl.rm_per_unit_pack = bl.rm_total_pack / bl.qty_sold;
+          bl.rm_total_base += totalBase;
+          // per-unit stays the same across identical item×order rows; recompute defensively
+          if(bl.qty_sold > 0){
+            bl.rm_per_unit_pack = bl.rm_total_pack / bl.qty_sold;
+            bl.rm_per_unit_base = bl.rm_total_base / bl.qty_sold;
+          }
         }
       }
     }
@@ -3545,8 +3573,19 @@ function rcViewBreakdown(rmCode){
   if(!list.length){
     tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:16px;text-align:center">No sales in this window consumed this RM.</td></tr>';
   } else {
-    tb.innerHTML = list.map(ln => (
-      '<tr>'
+    tb.innerHTML = list.map(ln => {
+      // Per-unit column: show the base-unit value (Gms / ML / Pcs) because it
+      // reads naturally and avoids the 0.0005 Pkt problem where a real
+      // consumption rounds to 0 under 3-decimal display. Fall back to packing
+      // UOM when the base unit is missing. Always keep both the raw number
+      // and the unit label visible so the operator can sanity-check.
+      let perUnitHtml;
+      if(ln.rm_base_unit){
+        perUnitHtml = qtyPrecise(ln.rm_per_unit_base) + ' <span class="mut" style="font-size:11px">' + esc(ln.rm_base_unit) + '</span>';
+      } else {
+        perUnitHtml = qtyPrecise(ln.rm_per_unit_pack) + ' <span class="mut" style="font-size:11px">' + esc(ln.rm_pack_uom || '') + '</span>';
+      }
+      return '<tr>'
         + '<td style="font-family:monospace;font-size:12px">' + esc(ln.rm_code) + '</td>'
         + '<td>' + esc(ln.rm_name) + '</td>'
         + '<td>' + rcCategoryChip(ln.category) + '</td>'
@@ -3554,10 +3593,10 @@ function rcViewBreakdown(rmCode){
         + '<td>' + esc(ln.order_type) + '</td>'
         + '<td class="r">' + qty(ln.qty_sold) + '</td>'
         + '<td>' + esc(ln.rm_pack_uom) + '</td>'
-        + '<td class="r">' + qty(ln.rm_per_unit_pack) + '</td>'
-        + '<td class="r"><b>' + qty(ln.rm_total_pack) + '</b></td>'
-      + '</tr>'
-    )).join('');
+        + '<td class="r">' + perUnitHtml + '</td>'
+        + '<td class="r"><b>' + qtyPrecise(ln.rm_total_pack) + '</b> <span class="mut" style="font-size:11px">' + esc(ln.rm_pack_uom || '') + '</span></td>'
+      + '</tr>';
+    }).join('');
   }
   $('rcBreakdownModal').style.display = 'flex';
 }
