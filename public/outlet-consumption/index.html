@@ -3279,12 +3279,15 @@ async function loadRc(fresh){
     const outletLc = RC.outlet.toLowerCase();
     const salesRaw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
 
-    // 3. Build an item index: dish_id|name_lower → { bom_code, mode }
-    //    IM.data.dine_in / delivery are not flat arrays; they're
-    //    {categories: {catName: [items]}} just like cnBuildMenuList walks.
-    //    Each item has bom_code, name, petpooja_dish_id, petpooja_category.
-    const itemBomByKey = new Map();  // "id:123" or "nm:foo" -> {bom_code, mode}
-    const addItem = (section, mode) => {
+    // 3. Build TWO item indexes — one per order-type family — so a Dine In
+    //    sale picks the DIN_BOM* recipe and a Delivery/Pick Up sale picks the
+    //    BOM_O* recipe. The old code shared a single map, so Delivery items
+    //    overwrote Dine In items with the same dish_id and the wrong BOM was
+    //    walked for Dining sales. Item Master stores dine_in and delivery
+    //    as {categories: {catName: [items]}}.
+    const dineByKey = new Map();      // "id:123" or "nm:foo" -> bom_code (DIN_BOM*)
+    const delivByKey = new Map();     //                       -> bom_code (BOM_O*)
+    const addItem = (section, target) => {
       if(!section) return;
       for(const [catName, items] of Object.entries(section.categories || {})){
         for(const it of (items || [])){
@@ -3292,14 +3295,25 @@ async function loadRc(fresh){
           if(!bc) continue;
           const dishId = String(it.petpooja_dish_id || '').trim();
           const nm     = String(it.name || '').trim().toLowerCase();
-          if(dishId) itemBomByKey.set('id:' + dishId, { bom_code: bc, mode });
-          if(nm)     itemBomByKey.set('nm:' + nm,     { bom_code: bc, mode });
+          if(dishId) target.set('id:' + dishId, bc);
+          if(nm)     target.set('nm:' + nm,     bc);
         }
       }
     };
     if(IM_LOADED.v && IM.data){
-      addItem(IM.data.dine_in,  'Dining');
-      addItem(IM.data.delivery, 'Delivery');
+      addItem(IM.data.dine_in,  dineByKey);
+      addItem(IM.data.delivery, delivByKey);
+    }
+    // Pick the right map by order type; fallback to the other if the item
+    // only exists in one section (common for Zomato/Swiggy-only or
+    // dine-in-only menu items).
+    function pickBomCode(ot, dishId, name){
+      const idKey = dishId ? ('id:' + dishId) : '';
+      const nmKey = 'nm:' + name.toLowerCase();
+      const primary = (ot === 'Dine In') ? dineByKey : delivByKey;
+      const fallback = (ot === 'Dine In') ? delivByKey : dineByKey;
+      return (idKey && primary.get(idKey)) || primary.get(nmKey)
+          || (idKey && fallback.get(idKey)) || fallback.get(nmKey) || '';
     }
 
     // 4. Index BOMs by code so we can walk inputs quickly.
@@ -3309,6 +3323,25 @@ async function loadRc(fresh){
     // 5. Index RM Master by code.
     const rmByCode = new Map();
     for(const rm of (RM.items || [])) rmByCode.set(String(rm.code || '').toUpperCase(), rm);
+
+    // Unit conversion from the BOM's declared input unit to the RM Master's
+    // L1 base unit. PACT BOM rows usually store Gms/ML, but we have seen Kg
+    // and L for some items. Convert to the RM's base unit before applying
+    // the packing divisor; otherwise a BOM in Kg against an RM in Gms
+    // undercounts by 1000x (and that's the single biggest source of the
+    // wrong-looking numbers Satvik flagged).
+    function convertBomUnitToBase(qty, bomUnit, rm){
+      const base = String((rm && rm.baseUnit) || '').trim().toLowerCase();
+      const bu   = String(bomUnit || '').trim().toLowerCase();
+      if(!bu || !base || bu === base) return qty;
+      if(bu === 'kg' && base === 'gms') return qty * 1000;
+      if(bu === 'gms' && base === 'kg') return qty / 1000;
+      if(bu === 'l'  && base === 'ml')  return qty * 1000;
+      if(bu === 'ml' && base === 'l')   return qty / 1000;
+      // Unknown mismatch — pass through so the number still shows up; the
+      // breakdown modal makes it visible if the magnitude looks off.
+      return qty;
+    }
 
     // 6. Walk the sales rows. For each (dish+order_type) line, find the BOM,
     //    then for each input row convert to RM packing UOM and tally.
@@ -3325,23 +3358,40 @@ async function loadRc(fresh){
       const dishId = String(row.dish_id || '').trim();
       const name   = String(row.item_name || '').trim();
       if(!name) continue;
-      // Look up BOM code: dish_id first, then name.
-      let hit = (dishId && itemBomByKey.get('id:' + dishId)) || itemBomByKey.get('nm:' + name.toLowerCase());
-      if(!hit){ unmatchedItems++; continue; }
-      const bom = bomByCode.get(String(hit.bom_code).toUpperCase());
+      // Route to the correct BOM for this order type (DIN_BOM* for Dine In,
+      // BOM_O* for Delivery / Pick Up). Falls back to the other map if the
+      // item only lives in one section (e.g. Zomato-only menu).
+      const bomCode = pickBomCode(ot, dishId, name);
+      if(!bomCode){ unmatchedItems++; continue; }
+      const bom = bomByCode.get(String(bomCode).toUpperCase());
       if(!bom || !bom.fpQty){ continue; }
+
+      // Collect this BOM's intermediate output codes so a Stage-2 input that
+      // was produced by Stage 1 (a semi-finished product) is NOT double-
+      // counted as a raw-material draw. For a single-stage BOM this set is
+      // empty and nothing changes.
+      const intermediateCodes = new Set();
+      for(const s of (bom.stages ? bom.stages.values() : [])){
+        for(const outp of (s.outputs || [])){
+          const oc = String(outp[4] || '').toUpperCase();
+          if(oc) intermediateCodes.add(oc);
+        }
+      }
 
       for(const s of (bom.stages ? bom.stages.values() : [])){
         for(const inp of s.inputs){
           const rmCode = String(inp[4] || '').toUpperCase();
           if(!rmCode) continue;
+          if(intermediateCodes.has(rmCode)) continue;  // skip semi-finished re-inputs
           const rm = rmByCode.get(rmCode);
           const rmName = (rm && rm.name) || (inp[5] || '');
           const rmCat  = (rm && rm.idealStorage) || '';
           const rmPackUom = (rm && rm.idealUom) || (inp[6] || '');
-          const rawQty = Number(inp[9]);           // in BOM's base unit (L1 for the RM)
+          const rawQty = Number(inp[9]);           // in the BOM's own declared unit
           if(!(rawQty > 0)) continue;
-          const perFp = rawQty / bom.fpQty;        // RM base units per 1 unit of FP
+          const bomUnit = inp[6] || '';
+          const rawQtyInBase = convertBomUnitToBase(rawQty, bomUnit, rm);
+          const perFp = rawQtyInBase / bom.fpQty;  // RM base units per 1 unit of FP
           const totalBase = perFp * qty;           // total RM base units consumed for this sale
           const divisor = rcPackingDivisor(rm);
           const perUnitPack = perFp / divisor;     // RM in packing UOM per 1 item sold
