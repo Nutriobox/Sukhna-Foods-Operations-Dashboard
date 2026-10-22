@@ -769,6 +769,32 @@ const $ = (id) => document.getElementById(id);
 let CURTAB = 'rm';
 let PM = { products: [], meta: {} };
 let BOM = { rows: [], boms: [], meta: {} };
+
+// --------------------------------------------------------------------------
+// Manual overrides to PACT's Ideal Inventory list, keyed by uppercase RM code.
+// PACT drives the base list via each product's idealStorage / idealUom fields;
+// these overrides patch rough edges Satvik called out on Oct 22, 2026:
+//   • Swap Black Pepper (Whole) → Black Pepper Powder (In-house)
+//   • Swap Coffee Powder → Moka Pot Machine (Coffee Powder)
+//   • Drop two spurious "Quinoa" (Nos-only) duplicates; keep RM0276 with a
+//     packing UOM of Kg instead of Bag (operators count salt and quinoa by Kg)
+//   • Tata Salt packing UOM: Bag → Kg
+// out:true clears idealStorage so the row drops out of every ideal-list filter
+// (Ideal Inventory, Opening Inventory, RM Consumption aggregate). An entry
+// with storage/uom patches the fields that drive the list placement. Applied
+// in loadRm() after RM.items is mapped, so every downstream consumer sees the
+// override without extra plumbing.
+const IDEAL_INVENTORY_OVERRIDES = {
+  'RM0120': { out: true },                             // Black Pepper (Whole) → removed
+  'SF0050': { storage: 'Dry Store', uom: 'Pkt' },      // Black Pepper Powder (In-house) → added
+  'RM0160': { out: true },                             // Coffee Powder → removed
+  'RM5082': { storage: 'Dry Store', uom: 'Pkt' },     // Moka Pot Machine (Coffee Powder) → added
+  'FGO400': { out: true },                             // Quinoa (Nos-only dup) → removed
+  'FGO465': { out: true },                             // Quinoa (Nos-only dup) → removed
+  'RM0276': { uom: 'Kg' },                             // Quinoa — Bag → Kg
+  'RM0318': { uom: 'Kg' },                             // Tata Salt — Bag → Kg
+};
+
 let OR = { recipes: [], meta: {} };            // derived outlet-recipe view: list of {type, name, mode, bomCode, bomName, outCode, inputs:[]}
 let RM = { items: [], meta: {} };              // derived view: PM products filtered to Raw Material / Packing / Semi Process
 let SD = { rows: [], outlets: [], meta: {} };  // sales data from /api/outlet-invoices (PetPooja webhook via AIFI)
@@ -1393,6 +1419,21 @@ async function loadRm(fresh){
       isGhost:      !!p.isGhost,
     };
   });
+  // Apply manual Ideal Inventory overrides (see IDEAL_INVENTORY_OVERRIDES
+  // above). This has to happen BEFORE RM.items is assigned so the
+  // header count below reflects the final list, and before any renderer
+  // reads it.
+  for(const rm of list){
+    const ov = IDEAL_INVENTORY_OVERRIDES[String(rm.code || '').toUpperCase()];
+    if(!ov) continue;
+    if(ov.out){
+      rm.idealStorage = '';
+      rm.idealUom = '';
+      continue;
+    }
+    if(ov.storage) rm.idealStorage = ov.storage;
+    if(ov.uom)     rm.idealUom     = ov.uom;
+  }
   RM.items = list;
   RM.outlets = (PM && PM.outlets) || RM.outlets || [];
   // Count reflects the filtered (ideal-list-only) view so the header pill matches the table.
