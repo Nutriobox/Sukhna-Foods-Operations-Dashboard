@@ -129,6 +129,7 @@
   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
   <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Consumption</div>
+  <div class="tab" data-t="rc" onclick="selTab('rc')">🥬 RM Consumption</div>
   <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
  </div>
 
@@ -589,6 +590,117 @@
   </div>
  </div>
 
+ <!-- ============== RM Consumption tab — sales × BOM aggregated per raw material ============== -->
+ <div id="tabRc" style="display:none">
+
+  <!-- Step 1 — outlet + date-time form (same shape as Consumption tab) -->
+  <div id="rcFormView">
+   <div class="card" style="max-width:620px;margin:40px auto 20px;padding:28px 32px">
+    <h2 style="margin:0 0 6px;font-size:18px">RM Consumption</h2>
+    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet and a window. The next screen pulls every KOT in that window from PetPooja, walks each sold item through its BOM, and shows the total raw material consumed in the item's packing UOM. Click the eye on any RM to see the per-item breakdown.</p>
+
+    <label style="display:block;margin-bottom:14px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Outlet</span>
+     <select id="rcFormOutlet" class="btn" style="width:100%;padding:10px 14px;padding-right:28px">
+      <option value="">— Choose outlet —</option>
+      <option value="Rajinder Nagar">Rajinder Nagar</option>
+      <option value="DLF Phase 2">DLF Phase 2</option>
+      <option value="Sector 63 Noida">Sector 63 Noida</option>
+      <option value="Dwarka">Dwarka</option>
+      <option value="Janakpuri">Janakpuri</option>
+      <option value="Karkardooma">Karkardooma</option>
+      <option value="Noida">Noida</option>
+      <option value="Prashant Vihar">Prashant Vihar</option>
+      <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+      <option value="Shivalik">Shivalik</option>
+     </select>
+    </label>
+
+    <label style="display:block;margin-bottom:14px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">From date &amp; time</span>
+     <input id="rcFormFrom" type="datetime-local" class="btn" style="width:100%;padding:10px 14px">
+    </label>
+
+    <label style="display:block;margin-bottom:22px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">To date &amp; time</span>
+     <div style="display:flex;gap:8px">
+      <input id="rcFormTo" type="datetime-local" class="btn" style="flex:1;padding:10px 14px">
+      <button class="btn" onclick="rcToNow()" title="Set To to the current date &amp; time (IST)">Current</button>
+     </div>
+    </label>
+
+    <div style="display:flex;gap:10px;align-items:center">
+     <button class="btn prim" onclick="rcSubmitForm()" style="padding:10px 22px">OK</button>
+     <span id="rcFormErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
+    </div>
+   </div>
+  </div>
+
+  <!-- Step 2 — results: context pills + filters + aggregated-per-RM table -->
+  <div id="rcResultsView" style="display:none">
+   <div class="toolbar" style="flex-wrap:wrap;align-items:center">
+    <button class="btn" onclick="rcBackToForm()" title="Return to the outlet / date picker">← Back</button>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">From: <b id="rcCtxFrom" style="margin-left:4px"></b></span>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">To: <b id="rcCtxTo" style="margin-left:4px"></b></span>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">Outlet: <b id="rcCtxOutlet" style="margin-left:4px"></b></span>
+    <select id="catRc" onchange="renderRc()" class="btn" style="padding-right:28px" title="Storage category">
+     <option value="">All categories</option>
+     <option value="Frozen">Frozen</option>
+     <option value="Chiller">Chiller</option>
+     <option value="Vegetable">Vegetable</option>
+     <option value="Dry Store">Dry Store</option>
+     <option value="Packaging">Packaging</option>
+    </select>
+    <input id="qRc" class="search" placeholder="Search RM code or name…" oninput="renderRc()" style="min-width:220px">
+    <label style="font-size:12.5px;color:#374151;display:flex;align-items:center;gap:6px;cursor:pointer">
+     <input type="checkbox" id="rcOnlyConsumed" checked onchange="renderRc()"> Only RMs with consumption
+    </label>
+    <button class="btn" onclick="rcExportCsv()">⬇ Export CSV</button>
+    <button class="btn prim" onclick="loadRc(true)" title="Re-pull sales + BOM and recompute">⚡ Reload</button>
+    <span id="syncStatRc" class="mut" style="font-size:12.5px"></span>
+    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja Global Sales API × PACT BOM</span>
+   </div>
+
+   <div class="card"><div class="scroll"><table id="tblRc">
+    <thead><tr>
+     <th>#</th>
+     <th>RM Code</th>
+     <th>RM Name</th>
+     <th>Category</th>
+     <th>Packing UOM</th>
+     <th class="r">Consumed Qty (packing UOM)</th>
+     <th>View</th>
+    </tr></thead>
+    <tbody id="tbodyRc"><tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   </table></div></div>
+
+   <!-- Breakdown modal (opens on 👁 View click) -->
+   <div id="rcBreakdownModal" class="nmmodal" style="display:none" onclick="if(event.target===this)closeRcBreakdown()">
+    <div class="nmbody" style="max-width:1100px">
+     <div class="nmhdr">
+      <h3 style="margin:0;flex:1">🥬 RM Consumption Breakdown — <span id="rcBreakdownRm" style="font-weight:600;color:#1e40af"></span></h3>
+      <button class="btn" onclick="closeRcBreakdown()">✕</button>
+     </div>
+     <div id="rcBreakdownMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
+     <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table id="tblRcBreakdown">
+      <thead><tr>
+       <th>RM Code</th>
+       <th>RM Name</th>
+       <th>Category</th>
+       <th>Item Name</th>
+       <th>Order Type</th>
+       <th class="r">Qty of Item Sold</th>
+       <th>RM Packing UOM</th>
+       <th class="r">RM Consumed per Unit</th>
+       <th class="r">RM Consumed Total</th>
+      </tr></thead>
+      <tbody id="tbodyRcBreakdown"></tbody>
+     </table></div></div>
+    </div>
+   </div>
+  </div>
+ </div>
+
  <!-- ============== Ideal Inventory tab — closing = opening + purchase - consumption - variance, all in L1 ============== -->
  <div id="tabIi" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap">
@@ -791,6 +903,7 @@ function ldAnyLoose(rmCode){ return ldLevelsFor(rmCode).length > 0; }
 //   items[]           — aggregated rows: { item_code, item_name, category,
 //                       order_type, qty } with qty summed across every KOT
 let CN = { outlet: '', from: '', to: '', rows: [], items: [], meta: {} };
+let RC = { outlet: '', from: '', to: '', aggregates: [], breakdownByRm: new Map(), meta: {} };   // RM Consumption state
 // Ideal Inventory: per-RM L1 arithmetic.
 //   items[i] = { rm_code, name, category, l1_unit, l2_unit, l3_unit,
 //                packScale, caseScale, opening_l1, purchase_l1,
@@ -800,7 +913,7 @@ let CN = { outlet: '', from: '', to: '', rows: [], items: [], meta: {} };
 // consumption is derived from the live PetPooja feed × BOM.
 let IIv = { items: [], outlet: '', from: '', to: '', meta: {} };
 let II_LOADED = { v: false };
-const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, CN_LOADED = { v:false };
+const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, CN_LOADED = { v:false }, RC_LOADED = { v:false };
 const OR_EXP = new Set();                      // expanded BOM codes in the Outlet Recipes tab
 
 // Item Master tab — PACT BOM joined with PetPooja categories
@@ -841,6 +954,7 @@ function selTab(t){
   $('tabPu').style.display = t === 'pu' ? '' : 'none';
   $('tabOi').style.display = t === 'oi' ? '' : 'none';
   $('tabCn').style.display = t === 'cn' ? '' : 'none';
+  $('tabRc').style.display = t === 'rc' ? '' : 'none';
   $('tabIi').style.display = t === 'ii' ? '' : 'none';
   // Leaving RM Master while Loose Denomination mode is on → silently exit the
   // mode so the user doesn't come back to a half-finished picker. Draft is lost.
@@ -852,6 +966,7 @@ function selTab(t){
   if(t === 'pu' && !PU_LOADED.v) loadPu(false);
   if(t === 'oi') oiOnTabEnter();
   if(t === 'cn') cnOnTabEnter();
+  if(t === 'rc') rcOnTabEnter();
   if(t === 'ii') iiOnTabEnter();
 }
 
@@ -864,6 +979,7 @@ function updateHeaderStats(){
           : CURTAB === 'pu'  ? PU
           : CURTAB === 'oi'  ? OI
           : CURTAB === 'cn'  ? CN
+          : CURTAB === 'rc'  ? RC
           : CURTAB === 'ii'  ? IIv
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
@@ -876,16 +992,19 @@ function updateHeaderStats(){
     ? (m.source || 'Raw Material Master (Ideal Inventory)')
     : CURTAB === 'cn'
     ? (m.source || 'PetPooja Global Sales API')
+    : CURTAB === 'rc'
+    ? (m.source || 'PetPooja × PACT BOM')
     : CURTAB === 'ii'
     ? (m.source || 'Opening + Purchase + Consumption + Variance')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
   $('statSrc').textContent = 'source: ' + srcLabel;
-  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi') ? 'live' : (CURTAB === 'pu' || CURTAB === 'cn' || CURTAB === 'ii') ? 'warn' : m.source ? 'warn' : 'live');
+  $('statSrc').className = 'pill ' + ((m.source === 'pact-live' || CURTAB === 'sd' || CURTAB === 'im' || CURTAB === 'oi') ? 'live' : (CURTAB === 'pu' || CURTAB === 'cn' || CURTAB === 'rc' || CURTAB === 'ii') ? 'warn' : m.source ? 'warn' : 'live');
   const unit = CURTAB === 'sd'  ? ' sales rows'
              : CURTAB === 'im'  ? ' menu items'
              : CURTAB === 'pu'  ? ' GRNs'
              : CURTAB === 'oi'  ? ' items'
              : CURTAB === 'cn'  ? ' KOT events'
+             : CURTAB === 'rc'  ? ' raw materials'
              : CURTAB === 'ii'  ? ' raw materials'
              : ' raw materials';
   const cnt = (m.count ?? 0).toLocaleString('en-IN') + unit;
@@ -3015,6 +3134,376 @@ function exportCsvCn(){
   const slug = (CN.outlet || 'outlet').toLowerCase().replace(/\s+/g, '-');
   const today = (new Date()).toISOString().slice(0,10);
   downloadBlob(lines.join('\n'), 'consumption-' + slug + '-' + today + '.csv');
+}
+
+/* ============================ RM CONSUMPTION (rc) ============================
+   Sales × BOM → aggregated per-RM consumption in each RM's packing UOM.
+
+   Pipeline (one submit of the form fires loadRc()):
+     1. Reuse /api/outlet-invoices with the same outlet + window as the
+        Consumption tab (shares the AIFI sink).
+     2. Ensure RM Master (RM.items), BOM (BOM.boms) and Item Master (IM.data)
+        are loaded, so we can walk sales → bom_code → BOM.inputs → RM.
+     3. For each sold (item, order_type) with qty > 0: find the BOM by
+        bom_code (from Item Master). For each BOM input row:
+            consumed_base = rawQty * qty_sold / fpQty   (in RM's base/L1 unit)
+            consumed_pack = consumed_base / packingDivisor(rm)
+        Where packingDivisor returns 1 if idealUom==baseUnit, packScale if
+        idealUom==packUnit, packScale*caseScale if idealUom==caseUnit.
+     4. Aggregate consumed_pack per rm_code; keep a parallel breakdown
+        list (rm_code -> [{item_name, order_type, qty_sold, rm_per_unit,
+        rm_total}, ...]) for the eye-button modal.
+*/
+
+function rcToNow(){
+  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const iso = d.toISOString().slice(0, 16);  // "YYYY-MM-DDTHH:mm"
+  const to = $('rcFormTo'); if(to) to.value = iso;
+}
+
+function rcOnTabEnter(){
+  // First open: default From = today 08:00 IST, To = now IST.
+  const fromInput = $('rcFormFrom'), toInput = $('rcFormTo');
+  if(fromInput && !fromInput.value){
+    const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+    const yyyy = d.getUTCFullYear(), mm = String(d.getUTCMonth() + 1).padStart(2, '0'), dd = String(d.getUTCDate()).padStart(2, '0');
+    fromInput.value = yyyy + '-' + mm + '-' + dd + 'T08:00';
+  }
+  if(toInput && !toInput.value) rcToNow();
+  // Bounce straight to results when the user has already run RC in this session.
+  if(RC.outlet && RC.from && RC.to){
+    $('rcFormView').style.display = 'none';
+    $('rcResultsView').style.display = '';
+    if($('rcCtxFrom'))   $('rcCtxFrom').textContent   = (v => v ? v.replace('T', ' ') : '')(RC.from);
+    if($('rcCtxTo'))     $('rcCtxTo').textContent     = (v => v ? v.replace('T', ' ') : '')(RC.to);
+    if($('rcCtxOutlet')) $('rcCtxOutlet').textContent = RC.outlet;
+    if($('rcFormOutlet')) $('rcFormOutlet').value = RC.outlet;
+    if($('rcFormFrom'))   $('rcFormFrom').value   = RC.from;
+    if($('rcFormTo'))     $('rcFormTo').value     = RC.to;
+    renderRc();
+  } else {
+    $('rcFormView').style.display = '';
+    $('rcResultsView').style.display = 'none';
+  }
+}
+
+function rcSubmitForm(){
+  const outlet = $('rcFormOutlet').value || '';
+  const from   = $('rcFormFrom').value || '';
+  const to     = $('rcFormTo').value   || '';
+  const err    = $('rcFormErr');
+  if(!outlet || !from || !to){ err.textContent = 'Outlet, From and To are all required.'; return; }
+  if(from >= to){ err.textContent = 'From must be before To.'; return; }
+  err.textContent = '';
+  RC.outlet = outlet; RC.from = from; RC.to = to;
+  $('rcFormView').style.display = 'none';
+  $('rcResultsView').style.display = '';
+  if($('rcCtxFrom'))   $('rcCtxFrom').textContent   = from.replace('T', ' ');
+  if($('rcCtxTo'))     $('rcCtxTo').textContent     = to.replace('T', ' ');
+  if($('rcCtxOutlet')) $('rcCtxOutlet').textContent = outlet;
+  loadRc(false);
+}
+
+function rcBackToForm(){
+  $('rcFormView').style.display = '';
+  $('rcResultsView').style.display = 'none';
+  if($('rcFormOutlet') && RC.outlet) $('rcFormOutlet').value = RC.outlet;
+  if($('rcFormFrom')   && RC.from)   $('rcFormFrom').value   = RC.from;
+  if($('rcFormTo')     && RC.to)     $('rcFormTo').value     = RC.to;
+}
+
+// RM's packing divisor: how many base (L1) units make up one packing UOM unit.
+// Returns 1 for a base-level pack, packScale for L2, packScale*caseScale for L3.
+function rcPackingDivisor(rm){
+  if(!rm) return 1;
+  const pack = String(rm.idealUom || '').toLowerCase().trim();
+  const base = String(rm.baseUnit || '').toLowerCase().trim();
+  const l2   = String(rm.packUnit || '').toLowerCase().trim();
+  const l3   = String(rm.caseUnit || '').toLowerCase().trim();
+  if(!pack || pack === base) return 1;
+  if(pack === l2 && rm.packScale)                     return Number(rm.packScale) || 1;
+  if(pack === l3 && rm.packScale && rm.caseScale)     return (Number(rm.packScale) || 1) * (Number(rm.caseScale) || 1);
+  return 1;
+}
+
+// Normalise order-type strings the same way the Consumption tab does.
+function rcNormOrderType(s){
+  const t = String(s || '').toLowerCase();
+  if(!t) return '';
+  if(/dine/.test(t))     return 'Dine In';
+  if(/pick/.test(t))     return 'Pick Up';
+  if(/deliv|take|parcel|zomato|swiggy/.test(t)) return 'Delivery';
+  return s;
+}
+
+async function loadRc(fresh){
+  if(!RC.outlet || !RC.from || !RC.to) return;
+  const stat = $('syncStatRc');
+  if(stat) stat.textContent = fresh ? 'Refreshing…' : 'Loading…';
+  try {
+    // 1. Make sure all three master datasets are loaded. These are independent
+    //    so run in parallel.
+    await Promise.all([
+      RM_LOADED.v  && !fresh ? Promise.resolve() : loadRm(false).catch(() => {}),
+      BOM_LOADED.v && !fresh ? Promise.resolve() : loadBom(false).catch(() => {}),
+      IM_LOADED.v  && !fresh ? Promise.resolve() : loadIm(false).catch(() => {}),
+    ]);
+
+    // 2. Pull sales for the picked window + outlet (same shape loadCn uses).
+    const params = new URLSearchParams();
+    params.set('from', RC.from); params.set('to', RC.to);
+    params.set('outlet_name', RC.outlet);
+    params.set('limit_rows', '10000');
+    const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+
+    // Defensive client-side outlet filter (same as loadCn does).
+    const outletLc = RC.outlet.toLowerCase();
+    const salesRaw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
+
+    // 3. Build an item index: dish_id|name_lower → { bom_code, order_type_bom_mode }
+    //    We draw from Item Master which carries bom_code per menu item.
+    const itemBomByKey = new Map();  // "id:123" or "nm:foo" -> {bom_code, mode}
+    const addItem = (section, mode) => {
+      if(!section || !Array.isArray(section)) return;
+      for(const it of section){
+        const bc = String(it.bom_code || '').trim();
+        if(!bc) continue;
+        const dishId = String(it.dish_id || '').trim();
+        const nm     = String(it.name    || '').trim().toLowerCase();
+        if(dishId) itemBomByKey.set('id:' + dishId, { bom_code: bc, mode });
+        if(nm)     itemBomByKey.set('nm:' + nm,     { bom_code: bc, mode });
+      }
+    };
+    if(IM_LOADED.v && IM.data){
+      addItem(IM.data.dine_in,  'Dining');
+      addItem(IM.data.delivery, 'Delivery');
+    }
+
+    // 4. Index BOMs by code so we can walk inputs quickly.
+    const bomByCode = new Map();
+    for(const b of (BOM.boms || [])) bomByCode.set(String(b.code || '').toUpperCase(), b);
+
+    // 5. Index RM Master by code.
+    const rmByCode = new Map();
+    for(const rm of (RM.items || [])) rmByCode.set(String(rm.code || '').toUpperCase(), rm);
+
+    // 6. Walk the sales rows. For each (dish+order_type) line, find the BOM,
+    //    then for each input row convert to RM packing UOM and tally.
+    const agg = new Map();            // rm_code -> { rm, consumed_pack }
+    const breakdown = new Map();      // rm_code -> [ {item_name, order_type, qty_sold, rm_per_unit_pack, rm_total_pack, rm_pack_uom} ]
+    const perItemLine = new Map();    // key "rm|item|order" -> aggregated breakdown row (combine duplicate sales)
+    let unmatchedItems = 0;
+
+    for(const row of salesRaw){
+      const ot = rcNormOrderType(row.order_type);
+      if(!ot) continue;
+      const qty = Number(row.item_quantity || 0);
+      if(!(qty > 0)) continue;
+      const dishId = String(row.dish_id || '').trim();
+      const name   = String(row.item_name || '').trim();
+      if(!name) continue;
+      // Look up BOM code: dish_id first, then name.
+      let hit = (dishId && itemBomByKey.get('id:' + dishId)) || itemBomByKey.get('nm:' + name.toLowerCase());
+      if(!hit){ unmatchedItems++; continue; }
+      const bom = bomByCode.get(String(hit.bom_code).toUpperCase());
+      if(!bom || !bom.fpQty){ continue; }
+
+      for(const s of (bom.stages ? bom.stages.values() : [])){
+        for(const inp of s.inputs){
+          const rmCode = String(inp[4] || '').toUpperCase();
+          if(!rmCode) continue;
+          const rm = rmByCode.get(rmCode);
+          const rmName = (rm && rm.name) || (inp[5] || '');
+          const rmCat  = (rm && rm.idealStorage) || '';
+          const rmPackUom = (rm && rm.idealUom) || (inp[6] || '');
+          const rawQty = Number(inp[9]);           // in BOM's base unit (L1 for the RM)
+          if(!(rawQty > 0)) continue;
+          const perFp = rawQty / bom.fpQty;        // RM base units per 1 unit of FP
+          const totalBase = perFp * qty;           // total RM base units consumed for this sale
+          const divisor = rcPackingDivisor(rm);
+          const perUnitPack = perFp / divisor;     // RM in packing UOM per 1 item sold
+          const totalPack   = totalBase / divisor; // RM total consumed in packing UOM
+
+          let a = agg.get(rmCode);
+          if(!a){ a = { rm: rm || { code: rmCode, name: rmName, idealStorage: rmCat, idealUom: rmPackUom }, consumed_pack: 0 }; agg.set(rmCode, a); }
+          a.consumed_pack += totalPack;
+
+          const bk = rmCode + '||' + name + '||' + ot;
+          let bl = perItemLine.get(bk);
+          if(!bl){
+            bl = {
+              rm_code: rmCode,
+              rm_name: rmName,
+              category: rmCat,
+              item_name: name,
+              order_type: ot,
+              qty_sold: 0,
+              rm_pack_uom: rmPackUom,
+              rm_per_unit_pack: perUnitPack,
+              rm_total_pack: 0,
+            };
+            perItemLine.set(bk, bl);
+            if(!breakdown.has(rmCode)) breakdown.set(rmCode, []);
+            breakdown.get(rmCode).push(bl);
+          }
+          bl.qty_sold     += qty;
+          bl.rm_total_pack += totalPack;
+          // (per_unit stays the same across identical item×order rows; recompute defensively)
+          if(bl.qty_sold > 0) bl.rm_per_unit_pack = bl.rm_total_pack / bl.qty_sold;
+        }
+      }
+    }
+
+    // 7. Build the aggregates list: ALL RMs (so Satvik sees even unconsumed ones
+    //    when the toggle is off), sorted by consumed_pack desc then name.
+    const rows = [];
+    const seen = new Set();
+    for(const [code, a] of agg.entries()){
+      rows.push({
+        rm_code: code,
+        rm_name: a.rm.name || '',
+        category: a.rm.idealStorage || '',
+        packing_uom: a.rm.idealUom || '',
+        consumed_pack: a.consumed_pack,
+      });
+      seen.add(code);
+    }
+    for(const rm of (RM.items || [])){
+      const code = String(rm.code || '').toUpperCase();
+      if(!code || seen.has(code)) continue;
+      if(!rm.idealStorage) continue;      // only Ideal-Inventory RMs
+      rows.push({
+        rm_code: code,
+        rm_name: rm.name || '',
+        category: rm.idealStorage || '',
+        packing_uom: rm.idealUom || '',
+        consumed_pack: 0,
+      });
+    }
+    rows.sort((a, b) => (b.consumed_pack - a.consumed_pack) || (a.rm_name || '').localeCompare(b.rm_name || ''));
+
+    // Sort each RM's breakdown by (item_name, order_type) for stable display.
+    for(const list of breakdown.values()){
+      list.sort((a, b) => (a.item_name || '').localeCompare(b.item_name || '') || (a.order_type || '').localeCompare(b.order_type || ''));
+    }
+
+    RC.aggregates = rows;
+    RC.breakdownByRm = breakdown;
+    RC.meta = {
+      source: 'PetPooja × PACT BOM',
+      synced_at: new Date().toISOString(),
+      count: rows.filter(r => r.consumed_pack > 0).length,
+      total_sales_rows: salesRaw.length,
+      unmatched_items: unmatchedItems,
+    };
+    RC_LOADED.v = true;
+    if(CURTAB === 'rc') updateHeaderStats();
+    if(stat) stat.textContent = '✓ computed · ' + rows.filter(r => r.consumed_pack > 0).length + ' RMs' + (unmatchedItems ? ' · ' + unmatchedItems + ' items without BOM match' : '');
+    renderRc();
+  } catch(err){
+    console.error('RC load failed:', err);
+    if(stat){ stat.textContent = '✗ ' + (err.message || err); stat.style.color = '#b91c1c'; }
+    toast('RM Consumption load failed: ' + (err.message || err), 5000);
+  }
+}
+
+function rcCategoryChip(cat){
+  if(!cat) return '<span class="mut">—</span>';
+  const colors = {
+    'Frozen':    'background:#dbeafe;color:#1e40af',
+    'Chiller':   'background:#cffafe;color:#155e75',
+    'Vegetable': 'background:#dcfce7;color:#166534',
+    'Dry Store': 'background:#fef3c7;color:#92400e',
+    'Packaging': 'background:#fce7f3;color:#9d174d',
+  };
+  return '<span class="sb" style="' + (colors[cat] || 'background:#f3f4f6;color:#374151') + '">' + esc(cat) + '</span>';
+}
+
+function renderRc(){
+  const tb = $('tbodyRc'); if(!tb) return;
+  const q = (($('qRc') && $('qRc').value) || '').trim().toLowerCase();
+  const catF = ($('catRc') && $('catRc').value) || '';
+  const onlyCons = $('rcOnlyConsumed') && $('rcOnlyConsumed').checked;
+  const rows = (RC.aggregates || []).filter(r => {
+    if(onlyCons && !(r.consumed_pack > 0)) return false;
+    if(catF && r.category !== catF) return false;
+    if(q){
+      const hay = ((r.rm_code || '') + ' ' + (r.rm_name || '')).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">No RMs match these filters.</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map((r, i) => {
+    const codeEsc = esc(r.rm_code).replace(/'/g, "\\'");
+    return '<tr>'
+      + '<td class="mut">' + (i + 1) + '</td>'
+      + '<td style="font-family:monospace;font-size:12px">' + esc(r.rm_code) + '</td>'
+      + '<td>' + esc(r.rm_name) + '</td>'
+      + '<td>' + rcCategoryChip(r.category) + '</td>'
+      + '<td>' + esc(r.packing_uom) + '</td>'
+      + '<td class="r"><b>' + qty(r.consumed_pack) + '</b> <span class="mut" style="font-size:11px">' + esc(r.packing_uom) + '</span></td>'
+      + '<td><button class="btn" onclick="rcViewBreakdown(\'' + codeEsc + '\')" style="padding:4px 10px;font-size:12px" title="See which items contributed to this RM">👁 View</button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function rcViewBreakdown(rmCode){
+  const list = (RC.breakdownByRm && RC.breakdownByRm.get(rmCode)) || [];
+  const agg  = (RC.aggregates || []).find(r => r.rm_code === rmCode);
+  const nameEl = $('rcBreakdownRm');
+  if(nameEl) nameEl.textContent = (agg && agg.rm_name) ? (agg.rm_name + ' (' + rmCode + ')') : rmCode;
+  const metaEl = $('rcBreakdownMeta');
+  if(metaEl){
+    const parts = [];
+    if(agg){
+      parts.push('<b>Category:</b> ' + esc(agg.category || '—'));
+      parts.push('<b>Packing UOM:</b> ' + esc(agg.packing_uom || '—'));
+      parts.push('<b>Total consumed:</b> ' + qty(agg.consumed_pack) + ' ' + esc(agg.packing_uom || ''));
+      parts.push('<b>Contributing lines:</b> ' + list.length);
+    }
+    metaEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  }
+  const tb = $('tbodyRcBreakdown');
+  if(!tb) { $('rcBreakdownModal').style.display = 'flex'; return; }
+  if(!list.length){
+    tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:16px;text-align:center">No sales in this window consumed this RM.</td></tr>';
+  } else {
+    tb.innerHTML = list.map(ln => (
+      '<tr>'
+        + '<td style="font-family:monospace;font-size:12px">' + esc(ln.rm_code) + '</td>'
+        + '<td>' + esc(ln.rm_name) + '</td>'
+        + '<td>' + rcCategoryChip(ln.category) + '</td>'
+        + '<td>' + esc(ln.item_name) + '</td>'
+        + '<td>' + esc(ln.order_type) + '</td>'
+        + '<td class="r">' + qty(ln.qty_sold) + '</td>'
+        + '<td>' + esc(ln.rm_pack_uom) + '</td>'
+        + '<td class="r">' + qty(ln.rm_per_unit_pack) + '</td>'
+        + '<td class="r"><b>' + qty(ln.rm_total_pack) + '</b></td>'
+      + '</tr>'
+    )).join('');
+  }
+  $('rcBreakdownModal').style.display = 'flex';
+}
+
+function closeRcBreakdown(){ const m = $('rcBreakdownModal'); if(m) m.style.display = 'none'; }
+
+function rcExportCsv(){
+  if(!(RC.aggregates && RC.aggregates.length)){ toast('No RM consumption rows to export yet.'); return; }
+  const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['RM Code,RM Name,Category,Packing UOM,Consumed Qty (packing UOM)'];
+  for(const r of RC.aggregates){
+    if(!(r.consumed_pack > 0)) continue;
+    lines.push([r.rm_code, r.rm_name, r.category, r.packing_uom, Number(r.consumed_pack).toFixed(4)].map(esc2).join(','));
+  }
+  const slug = (RC.outlet || 'outlet').toLowerCase().replace(/\s+/g, '-');
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), 'rm-consumption-' + slug + '-' + today + '.csv');
 }
 
 /* ============================ IDEAL INVENTORY (ii) ============================
