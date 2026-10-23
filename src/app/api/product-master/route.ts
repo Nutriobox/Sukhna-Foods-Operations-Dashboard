@@ -228,13 +228,25 @@ export async function GET(req: Request) {
       if (l2u && l2s != null && l2s > 0) levels.L2 = { u: l2u, s: l2s };
       if (l3u && l3s != null && l3s > 0) levels.L3 = { u: l3u, s: l3s };
 
-      // Determine printLevel: PACT's DefaultBarcodePrintUOM is a unit name — match it to L1/L2/L3.
-      const dpu = str(row[iDPU]).toLowerCase();
+      // Determine printLevel. PACT's DefaultBarcodePrintUOM column can carry
+      // the LEVEL NAME directly ("L1" / "L2" / "L3" — this is what PACT
+      // actually returns for Blueberry Filling and most records in Satvik's
+      // export) OR, in older records, the UOM string that matches one of
+      // L1/L2/L3's `u`. Try both so we pick up every shape PACT emits.
+      const dpuRaw = str(row[iDPU]);
+      const dpu    = dpuRaw.toLowerCase();
       let printLevel: string | null = null;
-      for (const k of ["L1", "L2", "L3"] as const) {
-        if (levels[k] && String(levels[k].u || "").toLowerCase() === dpu) { printLevel = k; break; }
+      // 1. Direct level-name match ("l1", "l2", "l3")
+      if (dpu === "l1" || dpu === "l2" || dpu === "l3") {
+        const k = dpu.toUpperCase();
+        if (levels[k]) printLevel = k;
       }
-      const lv = (printLevel && levels[printLevel]) || {};
+      // 2. Fallback: match against each level's UOM string (old behaviour)
+      if (!printLevel && dpu) {
+        for (const k of ["L1", "L2", "L3"] as const) {
+          if (levels[k] && String(levels[k].u || "").toLowerCase() === dpu) { printLevel = k; break; }
+        }
+      }
 
       const stat = STATIC_BY_CODE.get(upper);
       // Fallbacks: carry printLevel/idealWarehouse/scanBatches from the static JSON
@@ -242,6 +254,10 @@ export async function GET(req: Request) {
       if (!printLevel && stat?.printLevel) printLevel = stat.printLevel;
       const idealWarehouse = (stat?.idealWarehouse || "").trim();
       const scanBatches = stat?.scanBatches ?? null;
+
+      // Capture lv AFTER the backfill so idealUom (below) picks up a
+      // printLevel that only came from the static JSON too.
+      const lv = (printLevel && levels[printLevel]) || {};
 
       const name = str(row[iName]) || stat?.name || "";
       const out: Product = {
