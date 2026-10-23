@@ -160,21 +160,17 @@
     <option value="Delivery">Delivery</option>
     <option value="Pick Up">Pick Up</option>
    </select>
+   <select id="statusSd" onchange="renderSd()" class="btn" style="padding-right:28px" title="PetPooja billing status (Success / Cancelled)">
+    <option value="">All statuses</option>
+    <option value="success">Success only</option>
+    <option value="cancelled">Cancelled only</option>
+   </select>
    <input id="qSd" class="search" placeholder="Search product name or invoice no…" oninput="renderSd()" style="min-width:220px">
    <button class="btn" onclick="exportCsvSd()">⬇ Export CSV</button>
    <input id="pttUpload" type="file" accept=".csv" style="display:none" onchange="uploadPetPoojaCsv(event)">
    <button class="btn prim" onclick="document.getElementById('pttUpload').click()" title="Upload PetPooja Order Summary Item Report CSV. Fills in Unit MRP / Item Total / Discount / Tax / Round Off / Order Total from the billing module.">⬆ Upload PetPooja Report</button>
    <button class="btn" id="btnSyncSd" onclick="loadSd(true)" title="Re-fetch from AI Food Inspector Supabase (PetPooja webhook sink)">⚡ Reload Webhook</button>
    <span id="syncStatSd" class="mut" style="font-size:12.5px"></span>
-  </div>
-  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fffbeb;border-color:#fcd34d">
-   <div style="font-size:12.5px;color:#92400e;line-height:1.45">
-    <b>Two data sources:</b>
-    <ol style="margin:4px 0 0 18px;padding:0">
-     <li><b>Live webhook feed</b> (default, auto-loads on page open) &mdash; real-time KOT signal from PetPooja. Carries invoice number, outlet, product, qty, channel. <b>No billing columns</b> &mdash; those travel through a different PetPooja feed.</li>
-     <li><b>Uploaded PetPooja CSV</b> &mdash; use <b>⬆ Upload PetPooja Report</b> above to drop in the "Order Summary Item Report" exported from PetPooja. Fills in Unit MRP, Item Total, Discount, Tax, Round Off, Order Total and every per-order field, keyed on the <b>Invoice No</b>.</li>
-    </ol>
-   </div>
   </div>
   <div class="card"><div class="scroll"><table id="tblSd">
    <thead><tr>
@@ -2176,7 +2172,20 @@ async function loadSd(fresh){
 
 function renderSd(){
   const q = ($('qSd').value || '').trim().toLowerCase();
+  const statusFilter = (($('statusSd') && $('statusSd').value) || '').toLowerCase();
+  // Normalise PetPooja's status so "Success"/"success" and "Cancelled"/
+  // "Cancel"/"cancelled" all land in two stable buckets for the filter.
+  // Anything else (null, "Pending", etc.) is treated as neither bucket, so
+  // the user never silently loses rows they wouldn't expect to lose.
+  const statusBucket = (v) => {
+    const s = String(v || '').toLowerCase();
+    if(!s) return '';
+    if(s.includes('cancel')) return 'cancelled';
+    if(s.includes('success')) return 'success';
+    return s;
+  };
   const list = SD.rows.filter(r => {
+    if(statusFilter && statusBucket(r.status) !== statusFilter) return false;
     if(!q) return true;
     const nm = String(r.item_name || r.product_name || '').toLowerCase();
     const inv = String(r.invoice_no || r.doc_no || '').toLowerCase();
@@ -2187,6 +2196,16 @@ function renderSd(){
                      : '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
   const txt = (v) => (v == null || v === '') ? dash : esc(String(v));
   const num = (v) => (v == null || v === '' || isNaN(Number(v))) ? dash : qty(v);
+  // Status pill colour matches the bucket: Cancelled red, Success green,
+  // anything else neutral grey — so a quick scan tells the operator which
+  // rows are live revenue and which are reversed.
+  const statusPill = (v) => {
+    if(v == null || v === '') return dash;
+    const b = statusBucket(v);
+    const bg = b === 'cancelled' ? '#fee2e2' : b === 'success' ? '#dcfce7' : '#e5e7eb';
+    const fg = b === 'cancelled' ? '#b91c1c' : b === 'success' ? '#166534' : '#374151';
+    return `<span class="sb" style="background:${bg};color:${fg}">${esc(String(v))}</span>`;
+  };
   const rows = list.slice(0, 5000).map(r => `
     <tr>
       <td>${txt(r.restaurant_name || r.outlet_name)}</td>
@@ -2194,7 +2213,7 @@ function renderSd(){
       <td>${txt(r.date || r.doc_date)}</td>
       <td>${txt(r.payment_type)}</td>
       <td>${txt(r.order_type)}</td>
-      <td>${r.status ? `<span class="sb" style="background:#dcfce7;color:#166534">${esc(r.status)}</span>` : dash}</td>
+      <td>${statusPill(r.status)}</td>
       <td>${r.area || r.channel ? `<span class="sb">${esc(r.area || r.channel)}</span>` : dash}</td>
       <td>${txt(r.virtual_brand_name)}</td>
       <td>${txt(r.brand_grouping)}</td>
@@ -2348,9 +2367,21 @@ async function uploadPetPoojaCsv(ev){
 
 function exportCsvSd(){
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  // Honour the on-screen filters (status + search) so Export CSV always
+  // writes the dataset the user is looking at, not the full unfiltered pull.
+  const q = ($('qSd').value || '').trim().toLowerCase();
+  const statusFilter = (($('statusSd') && $('statusSd').value) || '').toLowerCase();
+  const bucket = (v) => { const s = String(v || '').toLowerCase(); if(!s) return ''; if(s.includes('cancel')) return 'cancelled'; if(s.includes('success')) return 'success'; return s; };
+  const rowsOut = SD.rows.filter(r => {
+    if(statusFilter && bucket(r.status) !== statusFilter) return false;
+    if(!q) return true;
+    const nm = String(r.item_name || r.product_name || '').toLowerCase();
+    const inv = String(r.invoice_no || r.doc_no || '').toLowerCase();
+    return nm.includes(q) || inv.includes(q);
+  });
   const header = ['restaurant_name','invoice_no','date','payment_type','order_type','status','area','virtual_brand_name','brand_grouping','assign_to','customer_phone','customer_name','customer_address','persons','order_cancel_reason','my_amount','total_tax','discount','delivery_charge','container_charge','service_charge','additional_charge','deduction_charge','waived_off','round_off','total','item_name','category_name','sap_code','item_price','item_quantity','item_total'];
   const lines = [header.map(esc2).join(',')];
-  for(const r of SD.rows){
+  for(const r of rowsOut){
     lines.push([
       r.restaurant_name || r.outlet_name || '', r.invoice_no || r.doc_no || '', r.date || r.doc_date || '',
       r.payment_type || '', r.order_type || '', r.status || '', r.area || r.channel || '',
