@@ -31,6 +31,8 @@
   .tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
   .tab{flex:0 0 auto;padding:11px 20px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:pointer;font-weight:600;color:var(--mut);text-align:center;font-size:14px}
   .tab.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+  .moreItem:hover{background:#f3f4f6}
+  .moreItem.on{background:#eef2ff;color:#4338ca}
   .im-modes{display:flex;gap:6px}
   .im-mode{font-weight:700;padding:9px 18px}
   .im-mode.on{background:#4f46e5;color:#fff;border-color:#4f46e5;box-shadow:0 1px 3px rgba(79,70,229,0.3)}
@@ -130,9 +132,21 @@
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
   <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Sales Summary</div>
   <div class="tab" data-t="rc" onclick="selTab('rc')">🥬 RM Consumption</div>
-  <div class="tab" data-t="fg" onclick="selTab('fg')">🧮 FG → RM</div>
   <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
   <div class="tab" data-t="va" onclick="selTab('va')">⚖ Variance</div>
+  <!-- "More ▾" opens a dropdown of extra tabs — right now just FG → RM,
+       but the markup is designed to hold more. Clicking a menu item fires
+       the same selTab() the top-level chips do, so the active-tab styling
+       inherits automatically. -->
+  <div id="moreMenuWrap" style="position:relative">
+   <div id="moreMenuBtn" class="tab" onclick="toggleMoreMenu(event)" title="More tabs">⋯ More ▾</div>
+   <div id="moreMenu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,0.15);min-width:220px;z-index:50;overflow:hidden">
+    <div class="moreItem" data-t="fg" onclick="selTab('fg');closeMoreMenu()" style="padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:600;color:#374151;display:flex;align-items:center;gap:8px">
+     <span>🧮</span><span>FG → RM</span>
+     <span class="mut" style="font-size:11.5px;font-weight:400;margin-left:auto">Consumption calculator + RM mismatches</span>
+    </div>
+   </div>
+  </div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -910,10 +924,12 @@
    </div>
    <div class="tabs" style="margin:12px 0 10px">
     <div class="tab on" data-mm="bomNotRm" onclick="fgMmTab('bomNotRm')" title="Raw materials consumed by a BOM but missing from Raw Material Master">In BOM, not in RM Master <span id="mmBomNotRmCount" class="pill" style="margin-left:6px">0</span></div>
+    <div class="tab" data-mm="rmNotBom" onclick="fgMmTab('rmNotBom')" title="Raw materials in RM Master that no BOM consumes">In RM Master, not in BOM <span id="mmRmNotBomCount" class="pill" style="margin-left:6px">0</span></div>
     <div class="tab" data-mm="invNotBom" onclick="fgMmTab('invNotBom')" title="Raw materials on the Opening-Inventory list that no BOM consumes">In Inventory, not in any BOM <span id="mmInvNotBomCount" class="pill" style="margin-left:6px">0</span></div>
     <div class="tab" data-mm="bomNotInv" onclick="fgMmTab('bomNotInv')" title="Raw materials used in a BOM but not inventoried in the Opening-Inventory list">In BOM, not in Inventory <span id="mmBomNotInvCount" class="pill" style="margin-left:6px">0</span></div>
    </div>
    <div id="mmBomNotRmList"></div>
+   <div id="mmRmNotBomList" style="display:none"></div>
    <div id="mmInvNotBomList" style="display:none"></div>
    <div id="mmBomNotInvList" style="display:none"></div>
   </div>
@@ -1168,9 +1184,31 @@ function qtyPrecise(n){
   return num.toLocaleString('en-IN', { maximumSignificantDigits: 3 });
 }
 
+// Tabs listed inside the "⋯ More ▾" dropdown — kept here so selTab can
+// (a) light up the More button when one of them is the active tab, and
+// (b) mark the dropdown item itself as active.
+const MORE_TABS = ['fg'];
+function toggleMoreMenu(e){
+  if(e) e.stopPropagation();
+  const el = $('moreMenu');
+  if(!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+function closeMoreMenu(){ const el = $('moreMenu'); if(el) el.style.display = 'none'; }
+document.addEventListener('click', (e) => {
+  // Click anywhere outside the More menu or its button closes it.
+  const wrap = document.getElementById('moreMenuWrap');
+  if(wrap && !wrap.contains(e.target)) closeMoreMenu();
+});
 function selTab(t){
   CURTAB = t;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  // Keep the "⋯ More ▾" button highlighted whenever one of its tabs is active
+  // (data-t isn't set on the button itself) and mark the matching dropdown
+  // row with the active style.
+  const moreBtn = $('moreMenuBtn');
+  if(moreBtn) moreBtn.classList.toggle('on', MORE_TABS.includes(t));
+  document.querySelectorAll('.moreItem').forEach(x => x.classList.toggle('on', x.dataset.t === t));
   // PM / BOM tabs were removed in 2026-10-15 — only the panes still live in the DOM
   // for a brief transition were cleaned out, but we keep the loaders because RM-Master
   // and Outlet-Recipes still depend on them.
@@ -5387,6 +5425,17 @@ function fgComputeMismatches(){
     if(rmByCode.has(code)) continue;
     bomNotRm.push({ rm_code: code, name: b.name, unit: b.unit, note: b.first_bom });
   }
+  // RM Master without any BOM reference — RMs the Product Master lists that no
+  // recipe actually consumes. Satvik 2026-10-23: "In RM Master, not in BOM"
+  // tab. Note shows the storage category + ideal unit so you can tell at a
+  // glance whether this is a packaging material (expected to be in some
+  // BOMs), a raw ingredient (expected to be in cooking BOMs), or something
+  // never meant to appear in any recipe.
+  const rmNotBom = [];
+  for(const [code, r] of rmByCode){
+    if(bomByCode.has(code)) continue;
+    rmNotBom.push({ rm_code: code, name: r.name || '', unit: r.idealUom || r.baseUnit || '', note: r.idealStorage || r.group || '' });
+  }
   const invNotBom = [];
   for(const [code, it] of invByCode){
     if(bomByCode.has(code)) continue;
@@ -5398,8 +5447,8 @@ function fgComputeMismatches(){
     bomNotInv.push({ rm_code: code, name: b.name, unit: b.unit, note: b.first_bom });
   }
   // Sort by name, case-insensitive
-  for(const arr of [bomNotRm, invNotBom, bomNotInv]) arr.sort((a,b) => String(a.name).localeCompare(String(b.name)));
-  return { bomNotRm, invNotBom, bomNotInv };
+  for(const arr of [bomNotRm, rmNotBom, invNotBom, bomNotInv]) arr.sort((a,b) => String(a.name).localeCompare(String(b.name)));
+  return { bomNotRm, rmNotBom, invNotBom, bomNotInv };
 }
 
 async function fgOpenMismatchModal(){
@@ -5409,13 +5458,14 @@ async function fgOpenMismatchModal(){
   if(!RM_LOADED.v)  waits.push(loadRm(false).catch(() => {}));
   if(waits.length) await Promise.all(waits);
   MM.data = fgComputeMismatches();
-  const bnr = $('mmBomNotRmCount'); if(bnr) bnr.textContent = MM.data.bomNotRm.length;
+  const bnr = $('mmBomNotRmCount');  if(bnr) bnr.textContent = MM.data.bomNotRm.length;
+  const rnb = $('mmRmNotBomCount');  if(rnb) rnb.textContent = MM.data.rmNotBom.length;
   const inb = $('mmInvNotBomCount'); if(inb) inb.textContent = MM.data.invNotBom.length;
   const bni = $('mmBomNotInvCount'); if(bni) bni.textContent = MM.data.bomNotInv.length;
   // Update the badge in the toolbar as well
   const badge = $('fgMismatchBadge');
   if(badge){
-    const total = MM.data.bomNotRm.length + MM.data.invNotBom.length + MM.data.bomNotInv.length;
+    const total = MM.data.bomNotRm.length + MM.data.rmNotBom.length + MM.data.invNotBom.length + MM.data.bomNotInv.length;
     badge.textContent = total ? ('⚠ ' + total) : '✓';
   }
   fgRenderMismatchLists();
@@ -5428,7 +5478,8 @@ function fgCloseMismatchModal(){ $('fgMismatchModal').style.display = 'none'; }
 function fgMmTab(k){
   MM.current = k;
   document.querySelectorAll('#fgMismatchModal .tab').forEach(x => x.classList.toggle('on', x.dataset.mm === k));
-  $('mmBomNotRmList').style.display  = k === 'bomNotRm' ? '' : 'none';
+  $('mmBomNotRmList').style.display  = k === 'bomNotRm'  ? '' : 'none';
+  $('mmRmNotBomList').style.display  = k === 'rmNotBom'  ? '' : 'none';
   $('mmInvNotBomList').style.display = k === 'invNotBom' ? '' : 'none';
   $('mmBomNotInvList').style.display = k === 'bomNotInv' ? '' : 'none';
 }
@@ -5450,6 +5501,7 @@ function fgRenderMismatchLists(){
     return out;
   };
   $('mmBomNotRmList').innerHTML  = render(MM.data.bomNotRm,  'Every raw material used in a BOM is in Raw Material Master.');
+  $('mmRmNotBomList').innerHTML  = render(MM.data.rmNotBom,  'Every raw material in RM Master is consumed by at least one BOM.');
   $('mmInvNotBomList').innerHTML = render(MM.data.invNotBom, 'Every item on the Opening-Inventory list is consumed by at least one BOM.');
   $('mmBomNotInvList').innerHTML = render(MM.data.bomNotInv, 'Every raw material a BOM uses is on the Opening-Inventory list.');
 }
@@ -5460,6 +5512,7 @@ function fgExportMismatchCsv(){
   const which = MM.current;
   const map = {
     bomNotRm:  { label: 'In BOM, not in RM Master',       hdr: ['RM Code','RM Name','BOM Unit','First BOM referencing it'], rows: MM.data.bomNotRm,  file: 'rm-mismatch-bom-not-in-rm-master-' },
+    rmNotBom:  { label: 'In RM Master, not in BOM',       hdr: ['RM Code','RM Name','Ideal UoM','Storage Category / Group'], rows: MM.data.rmNotBom,  file: 'rm-mismatch-rm-master-not-in-bom-' },
     invNotBom: { label: 'In Inventory, not in any BOM',   hdr: ['RM Code','RM Name','Inventory UoM','Storage Category'],    rows: MM.data.invNotBom, file: 'rm-mismatch-inventory-not-in-bom-' },
     bomNotInv: { label: 'In BOM, not in Inventory',       hdr: ['RM Code','RM Name','BOM Unit','First BOM referencing it'], rows: MM.data.bomNotInv, file: 'rm-mismatch-bom-not-in-inventory-' },
   }[which];
