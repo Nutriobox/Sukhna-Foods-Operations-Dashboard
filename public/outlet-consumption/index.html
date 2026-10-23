@@ -579,6 +579,7 @@
      <input type="checkbox" id="cnShowPact" checked onchange="renderCn()">
      Show PACT details
     </label>
+    <button class="btn" id="btnCnMismatch" onclick="cnToggleMismatch()" title="Show only rows where the PetPooja item name does not match the PACT BOM title. Click again to clear the filter."><span id="cnMismatchLabel">⚠ Mismatches</span></button>
     <button class="btn" onclick="exportCsvCn()">⬇ Export CSV</button>
     <span id="syncStatCn" class="mut" style="font-size:12.5px"></span>
     <span class="mut" style="font-size:12.5px;margin-left:auto">Sales: PetPooja (live) · PACT: BOM mapping from Item Master</span>
@@ -1034,7 +1035,7 @@ function ldAnyLoose(rmCode){ return ldLevelsFor(rmCode).length > 0; }
 //                       future resolver can group differently)
 //   items[]           — aggregated rows: { item_code, item_name, category,
 //                       order_type, qty } with qty summed across every KOT
-let CN = { outlet: '', from: '', to: '', rows: [], items: [], meta: {} };
+let CN = { outlet: '', from: '', to: '', rows: [], items: [], meta: {}, mismatchOnly: false };
 let RC = { outlet: '', from: '', to: '', aggregates: [], breakdownByRm: new Map(), meta: {} };   // RM Consumption state
 // Ideal Inventory: per-RM L1 arithmetic.
 //   items[i] = { rm_code, name, category, l1_unit, l2_unit, l3_unit,
@@ -3240,6 +3241,50 @@ function cnBuildMenuList(){
   return out;
 }
 
+// Normalize names for mismatch comparison. Operators don't care about
+// whitespace, case, or punctuation drift — only about real differences like
+// "Steamed" vs "Chilli Sauce". Strip punctuation (parens, brackets, hyphens,
+// &) and collapse whitespace so "Veg Whole Wheat Momos (Chilli Sauce)" and
+// "Veg Whole Wheat Momos [Chilli Sauce]" count as the same.
+function cnNormNameForMismatch(s){
+  if(!s) return '';
+  let x = String(s).toLowerCase();
+  x = x.replace(/[()\[\]{}\-_,.&]+/g, ' ');
+  x = x.replace(/\s+/g, ' ').trim();
+  return x;
+}
+function cnRowIsMismatch(row){
+  // Orphan rows have no PACT name — not a mismatch, just a row without a
+  // BOM. The mismatch filter is specifically for rows that DO have both
+  // sides and the two sides disagree.
+  if(!row.item_name_pp || !row.item_name_pact) return false;
+  return cnNormNameForMismatch(row.item_name_pp) !== cnNormNameForMismatch(row.item_name_pact);
+}
+function cnToggleMismatch(){
+  CN.mismatchOnly = !CN.mismatchOnly;
+  const btn = $('btnCnMismatch');
+  if(btn){
+    btn.classList.toggle('prim', CN.mismatchOnly);
+  }
+  renderCn();
+}
+function cnUpdateMismatchChip(rows){
+  const label = $('cnMismatchLabel');
+  if(!label) return;
+  // Count UNIQUE mismatched (PetPooja, PACT) pairs rather than rows — a
+  // mismatch repeated across three order types is still one naming issue
+  // to fix, not three.
+  const uniq = new Set();
+  for(const r of rows){
+    if(!cnRowIsMismatch(r)) continue;
+    uniq.add(cnNormNameForMismatch(r.item_name_pp) + '||' + cnNormNameForMismatch(r.item_name_pact));
+  }
+  const n = uniq.size;
+  label.textContent = CN.mismatchOnly
+    ? ('⚠ Mismatches: ' + n + ' (click to clear)')
+    : ('⚠ Mismatches: ' + n);
+}
+
 function renderCn(){
   if(!CN_LOADED.v) return;
   const q = (($('qCn') && $('qCn').value) || '').trim().toLowerCase();
@@ -3326,14 +3371,22 @@ function renderCn(){
   }
 
   // Filter: order type + search (search covers BOTH PetPooja and PACT names)
+  // + mismatch (when ⚠ Mismatches is toggled on).
   const list = rows.filter(x => {
     if(typeF && x.order_type !== typeF) return false;
     if(q){
       const hay = ((x.item_name_pp || '') + ' ' + (x.item_name_pact || '') + ' ' + x.item_code + ' ' + x.category).toLowerCase();
       if(!hay.includes(q)) return false;
     }
+    if(CN.mismatchOnly && !cnRowIsMismatch(x)) return false;
     return true;
   });
+
+  // Keep the Mismatch button chip in sync with the live count (and highlight
+  // it when the filter is on). Count mismatches across the FULL rows set, not
+  // just the currently-filtered view — the number should answer "how many
+  // disagree in total", not "how many disagree among what I'm already looking at".
+  cnUpdateMismatchChip(rows);
 
   // Keep track of total row count across all order types for the header pill.
   CN.items = rows;
