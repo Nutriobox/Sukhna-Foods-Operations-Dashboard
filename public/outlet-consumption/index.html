@@ -2083,7 +2083,13 @@ async function loadSd(fresh){
   if(outlet)    params.set('outlet_id',  outlet);
   if(channel)   params.set('channel',    channel);
   if(orderType) params.set('order_type', orderType);
-  params.set('limit_rows', '3000');
+  // 10,000 is the API's hard cap. The old 3000 silently clipped the oldest
+  // rows (the API returns newest-first) — a 17-hour window across 10
+  // outlets routinely has >3000 line items, so morning data was dropping
+  // off the bottom without any visible warning. Bumping to the max covers
+  // a full busy day; the limit_hit chip below surfaces it if we still
+  // exceed the cap on a wider window.
+  params.set('limit_rows', '10000');
 
   const t0 = Date.now();
   try {
@@ -2109,7 +2115,17 @@ async function loadSd(fresh){
     SD_LOADED.v = true;
     if(CURTAB === 'sd') updateHeaderStats();
     renderSd();
-    if(stat) stat.textContent = '✓ ' + SD.rows.length.toLocaleString('en-IN') + ' rows · ' + Math.round((Date.now()-t0)/100)/10 + 's';
+    if(stat){
+      const base = '✓ ' + SD.rows.length.toLocaleString('en-IN') + ' rows · ' + Math.round((Date.now()-t0)/100)/10 + 's';
+      // Visibly flag a truncated result so the operator doesn't silently
+      // work from a partial window (what happened with the old 3000 cap).
+      if(j.totals && j.totals.limit_hit){
+        const total = (j.totals.rows_total || 0).toLocaleString('en-IN');
+        stat.innerHTML = base + ' · <span style="color:#b45309;font-weight:600" title="Window has ' + total + ' rows total; the API cap trimmed the oldest. Narrow the date range or an outlet filter to see them.">⚠ truncated (' + total + ' total)</span>';
+      } else {
+        stat.textContent = base;
+      }
+    }
   } catch(e){
     if(stat) stat.textContent = '✗ ' + (e.message || e);
     $('tbodySd').innerHTML = `<tr><td colspan="32" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Failed to load Sales API: ${esc(e.message || e)}</td></tr>`;
