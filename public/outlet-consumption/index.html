@@ -130,6 +130,7 @@
   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
   <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Sales Summary</div>
   <div class="tab" data-t="rc" onclick="selTab('rc')">🥬 RM Consumption</div>
+  <div class="tab" data-t="fg" onclick="selTab('fg')">🧮 FG → RM</div>
   <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
   <div class="tab" data-t="va" onclick="selTab('va')">⚖ Variance</div>
  </div>
@@ -853,6 +854,71 @@
  </div>
 
  <!-- ============== Variance tab — approval queue for saved snapshots ============== -->
+ <!-- ============== FG → RM Explorer (finished-goods consumption calculator) ============== -->
+ <div id="tabFg" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap;align-items:center">
+   <h2 style="margin:0;font-size:18px">🧮 Finished-Goods → Raw-Material Consumption</h2>
+   <button class="btn warn" onclick="fgOpenMismatchModal()" title="Show mismatches between RM Master, Opening-Inventory list and BOM raw materials"><span id="fgMismatchBadge">⚠</span> RM Mismatches</button>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PACT BOM × Raw Material Master</span>
+  </div>
+
+  <!-- Input row: pick a BOM + qty, add to the list -->
+  <div class="card" style="padding:12px 14px;margin-bottom:10px">
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <label style="font-size:13px;color:#374151;font-weight:600">Finished Good:</label>
+    <input id="fgPickInput" list="fgBomList" placeholder="Search BOM name or code…" style="min-width:360px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px">
+    <datalist id="fgBomList"></datalist>
+    <label style="font-size:13px;color:#374151;font-weight:600">Qty Sold:</label>
+    <input id="fgQtyInput" type="number" min="0" step="any" placeholder="e.g. 10" style="width:120px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px">
+    <button class="btn prim" onclick="fgAddEntry()">+ Add</button>
+    <button class="btn" onclick="fgClearAll()">Clear all</button>
+    <span id="fgAddErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
+   </div>
+  </div>
+
+  <!-- Added FG entries -->
+  <div class="card" style="padding:10px 14px;margin-bottom:10px">
+   <div style="display:flex;align-items:center;margin-bottom:6px">
+    <strong style="font-size:13px">Added finished goods</strong>
+    <span id="fgEntriesCount" class="mut" style="font-size:12.5px;margin-left:8px"></span>
+    <button class="btn" style="margin-left:auto" onclick="fgExportCsv()">⬇ Export CSV</button>
+   </div>
+   <div id="fgEntriesList" style="font-size:13px;color:#374151">Nothing added yet. Pick a finished good above and click <b>+ Add</b>.</div>
+  </div>
+
+  <!-- Aggregated RM consumption table -->
+  <div class="card"><div class="scroll"><table id="tblFg">
+   <thead><tr>
+    <th>RM Code</th>
+    <th>Raw Material Name</th>
+    <th>Category</th>
+    <th>BOM UoM</th>
+    <th class="r" title="Weighted ideal qty for 1 unit of the mix of finished goods you added (sum(usage × fg_qty) / sum(fg_qty))">Ideal Qty / 1 FG</th>
+    <th class="r" title="Total raw material consumed: sum over every added finished good of (ideal usage per 1 FG × units sold)">Qty Consumed</th>
+   </tr></thead>
+   <tbody id="tbodyFg"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Add a finished good above to see its raw-material breakdown.</td></tr></tbody>
+  </table></div></div>
+ </div>  <!-- /tabFg -->
+
+ <!-- Mismatch report modal (triggered from FG → RM tab) -->
+ <div id="fgMismatchModal" class="nmmodal" style="display:none" onclick="if(event.target===this)fgCloseMismatchModal()">
+  <div class="nmbody">
+   <div class="nmhdr">
+    <h3 style="margin:0;flex:1">⚠ RM Mismatch Report</h3>
+    <button class="btn" onclick="fgExportMismatchCsv()" title="Download the currently visible tab as a CSV">⬇ Export CSV</button>
+    <button class="btn" onclick="fgCloseMismatchModal()">✕</button>
+   </div>
+   <div class="tabs" style="margin:12px 0 10px">
+    <div class="tab on" data-mm="bomNotRm" onclick="fgMmTab('bomNotRm')" title="Raw materials consumed by a BOM but missing from Raw Material Master">In BOM, not in RM Master <span id="mmBomNotRmCount" class="pill" style="margin-left:6px">0</span></div>
+    <div class="tab" data-mm="invNotBom" onclick="fgMmTab('invNotBom')" title="Raw materials on the Opening-Inventory list that no BOM consumes">In Inventory, not in any BOM <span id="mmInvNotBomCount" class="pill" style="margin-left:6px">0</span></div>
+    <div class="tab" data-mm="bomNotInv" onclick="fgMmTab('bomNotInv')" title="Raw materials used in a BOM but not inventoried in the Opening-Inventory list">In BOM, not in Inventory <span id="mmBomNotInvCount" class="pill" style="margin-left:6px">0</span></div>
+   </div>
+   <div id="mmBomNotRmList"></div>
+   <div id="mmInvNotBomList" style="display:none"></div>
+   <div id="mmBomNotInvList" style="display:none"></div>
+  </div>
+ </div>
+
  <div id="tabVa" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap;align-items:center">
    <h2 style="margin:0;font-size:18px">⚖ Variance Approvals</h2>
@@ -1115,6 +1181,7 @@ function selTab(t){
   $('tabOi').style.display = t === 'oi' ? '' : 'none';
   $('tabCn').style.display = t === 'cn' ? '' : 'none';
   $('tabRc').style.display = t === 'rc' ? '' : 'none';
+  $('tabFg').style.display = t === 'fg' ? '' : 'none';
   $('tabIi').style.display = t === 'ii' ? '' : 'none';
   $('tabVa').style.display = t === 'va' ? '' : 'none';
   // Leaving RM Master while Loose Denomination mode is on → silently exit the
@@ -1128,6 +1195,7 @@ function selTab(t){
   if(t === 'oi') oiOnTabEnter();
   if(t === 'cn') cnOnTabEnter();
   if(t === 'rc') rcOnTabEnter();
+  if(t === 'fg') fgOnTabEnter();
   if(t === 'ii') iiOnTabEnter();
   if(t === 'va') vaOnTabEnter();
 }
@@ -1142,6 +1210,7 @@ function updateHeaderStats(){
           : CURTAB === 'oi'  ? OI
           : CURTAB === 'cn'  ? CN
           : CURTAB === 'rc'  ? RC
+          : CURTAB === 'fg'  ? BOM
           : CURTAB === 'ii'  ? IIv
           : RM).meta;
   const srcLabel = CURTAB === 'sd'
@@ -1156,6 +1225,8 @@ function updateHeaderStats(){
     ? (m.source || 'PetPooja Global Sales API')
     : CURTAB === 'rc'
     ? (m.source || 'PetPooja × PACT BOM')
+    : CURTAB === 'fg'
+    ? (m.source || 'PACT BOM')
     : CURTAB === 'ii'
     ? (m.source || 'Opening + Purchase + Consumption + Variance')
     : (m.source === 'pact-live' ? 'PACT live' : (m.source || '…'));
@@ -1167,6 +1238,7 @@ function updateHeaderStats(){
              : CURTAB === 'oi'  ? ' items'
              : CURTAB === 'cn'  ? ' KOT events'
              : CURTAB === 'rc'  ? ' raw materials'
+             : CURTAB === 'fg'  ? ' BOMs'
              : CURTAB === 'ii'  ? ' raw materials'
              : ' raw materials';
   const cnt = (m.count ?? 0).toLocaleString('en-IN') + unit;
@@ -5044,6 +5116,361 @@ async function iiDeleteSaved(id, outletLabel){
 // settled first. The approved_at / approved_by columns on the snapshot
 // row are the real system of record either way, so switching to OTP later
 // is a server-side change the UI won't notice.
+
+/* ============================ FG → RM Explorer ============================
+   Ad-hoc "what did I consume" calculator. Pick a finished good (BOM) from
+   the dropdown, enter the quantity sold, and the tab shows the raw-material
+   breakdown — RM name, unit from the BOM line, ideal usage per 1 FG, and
+   total qty consumed. Multiple FGs can be added; the table aggregates each
+   RM across every added FG, so if two different BOMs both use Refined Oil,
+   its row sums both contributions.
+
+   Design decisions:
+   - Uses DIRECT BOM inputs only (Section = INPUT across all stages). Does
+     not explode intermediate outputs — Satvik can walk sub-BOMs by adding
+     the intermediate as a separate FG line if needed.
+   - Weighted "Ideal Qty / 1 FG" = sum(usage × fg_qty) / sum(fg_qty)
+     — accurate when one RM comes from several FGs with different per-FG
+     usages, and still equals the straight per-1 value when only one FG
+     contributes.
+   - Depends on BOM data already loaded (loadBom) — if the user lands on
+     this tab before BOM has arrived, we trigger a load and render once it
+     resolves. */
+const FG = { entries: [] };  // [{ bom_code, bom_name, qty }]
+
+async function fgOnTabEnter(){
+  // Ensure BOM data is loaded — the dropdown + the breakdown both need it.
+  if(!BOM_LOADED.v){
+    try { await loadBom(false); } catch(e){ /* non-fatal; dropdown stays empty */ }
+  }
+  fgBuildBomDatalist();
+  fgRender();
+}
+
+function fgBuildBomDatalist(){
+  const dl = $('fgBomList'); if(!dl) return;
+  const parts = [];
+  for(const b of (BOM.boms || [])){
+    const label = (b.code || '') + ' — ' + (b.name || '');
+    parts.push('<option value="' + esc(label) + '"></option>');
+  }
+  dl.innerHTML = parts.join('');
+}
+
+// Pull the typed BOM back out of the datalist text ("CODE — Name" → code).
+function fgResolveBom(text){
+  const raw = String(text || '').trim();
+  if(!raw) return null;
+  // Prefer the "CODE — Name" shape the datalist produces.
+  const sepIdx = raw.search(/\s—\s|\s-\s/);
+  const codeGuess = sepIdx > 0 ? raw.slice(0, sepIdx).trim() : raw;
+  // Exact BOM code match (case-insensitive) first.
+  const upByCode = String(codeGuess).toUpperCase();
+  for(const b of (BOM.boms || [])){
+    if(String(b.code || '').toUpperCase() === upByCode) return b;
+  }
+  // Fall back to exact name match.
+  const lowByName = String(raw).toLowerCase();
+  for(const b of (BOM.boms || [])){
+    if(String(b.name || '').toLowerCase() === lowByName) return b;
+  }
+  // Partial name match (take the first hit).
+  for(const b of (BOM.boms || [])){
+    if(String(b.name || '').toLowerCase().includes(lowByName)) return b;
+  }
+  return null;
+}
+
+function fgAddEntry(){
+  const err = $('fgAddErr'); if(err) err.textContent = '';
+  const bom = fgResolveBom($('fgPickInput').value);
+  if(!bom){
+    if(err) err.textContent = 'Pick a BOM from the dropdown.';
+    return;
+  }
+  const qtyRaw = String($('fgQtyInput').value || '').trim();
+  const qty = Number(qtyRaw);
+  if(!qtyRaw || !isFinite(qty) || qty <= 0){
+    if(err) err.textContent = 'Enter a positive quantity.';
+    return;
+  }
+  FG.entries.push({ bom_code: bom.code, bom_name: bom.name || '', qty });
+  $('fgPickInput').value = '';
+  $('fgQtyInput').value = '';
+  $('fgPickInput').focus();
+  fgRender();
+}
+
+function fgRemoveEntry(idx){
+  FG.entries.splice(idx, 1);
+  fgRender();
+}
+
+function fgClearAll(){
+  FG.entries = [];
+  fgRender();
+}
+
+// Walk a BOM and return its INPUT lines across every stage. Each entry:
+// { product_code, product_name, unit, usage_qty }
+function fgBomInputs(bomCode){
+  const bom = (BOM.boms || []).find((b) => String(b.code || '').toUpperCase() === String(bomCode || '').toUpperCase());
+  if(!bom) return [];
+  const out = [];
+  for(const s of bom.stages.values()){
+    for(const r of (s.inputs || [])){
+      // r positional: [Section, Stage, BOMCode, BOM, Product Code, Product Name, Unit, Usage Qty, Wastage, Raw Qty, OPQty, BOMStatus]
+      const code = String(r[4] || '').trim();
+      const name = String(r[5] || '').trim();
+      const unit = String(r[6] || '').trim();
+      const usage = Number(r[7] || 0);
+      if(!code && !name) continue;
+      out.push({ product_code: code, product_name: name, unit, usage_qty: isFinite(usage) ? usage : 0 });
+    }
+  }
+  return out;
+}
+
+// Aggregate RM consumption across every entry. Returns an array of rows
+// keyed by product_code (fallback: name) with ideal-weighted usage per 1 FG
+// and the total consumed quantity.
+function fgComputeConsumption(){
+  const map = new Map();  // key -> row
+  for(const ent of FG.entries){
+    const lines = fgBomInputs(ent.bom_code);
+    for(const ln of lines){
+      const key = (ln.product_code || 'name:' + ln.product_name).toUpperCase();
+      let row = map.get(key);
+      if(!row){
+        row = {
+          product_code: ln.product_code,
+          product_name: ln.product_name,
+          unit:         ln.unit,
+          sum_usage_x_qty: 0,  // for weighted-average "Ideal / 1"
+          sum_qty:         0,  // sum of FG qtys that referenced this RM
+          qty_consumed:    0,
+        };
+        map.set(key, row);
+      }
+      // First seen unit wins; if a later BOM uses a different unit for the
+      // same RM, we flag it in the "unit" cell so the mismatch is visible.
+      if(!row.unit) row.unit = ln.unit;
+      else if(ln.unit && ln.unit !== row.unit && !row.unit.includes('⚠')){
+        row.unit = row.unit + ' ⚠ ' + ln.unit;
+      }
+      row.sum_usage_x_qty += ln.usage_qty * ent.qty;
+      row.sum_qty         += ent.qty;
+      row.qty_consumed    += ln.usage_qty * ent.qty;
+    }
+  }
+  const out = [...map.values()].map((r) => ({
+    product_code: r.product_code,
+    product_name: r.product_name,
+    unit:         r.unit,
+    ideal_per_1:  r.sum_qty > 0 ? (r.sum_usage_x_qty / r.sum_qty) : 0,
+    qty_consumed: r.qty_consumed,
+  }));
+  // Join RM Master to resolve category / idealStorage so the user sees
+  // where this RM is counted at the outlet. Fall back to "—" when the
+  // code is foreign (which also flags it in the mismatch report).
+  const rmByCode = new Map((RM.items || []).map((r) => [String(r.code || '').toUpperCase(), r]));
+  for(const o of out){
+    const rm = rmByCode.get(String(o.product_code || '').toUpperCase());
+    o.category = rm ? (rm.idealStorage || '') : '';
+  }
+  out.sort((a, b) => (a.product_name || '').localeCompare(b.product_name || ''));
+  return out;
+}
+
+function fgRender(){
+  // Entries list
+  const entriesEl = $('fgEntriesList');
+  const countEl   = $('fgEntriesCount');
+  if(!FG.entries.length){
+    if(entriesEl) entriesEl.textContent = 'Nothing added yet. Pick a finished good above and click + Add.';
+    if(countEl)   countEl.textContent   = '';
+  } else {
+    const chips = FG.entries.map((e, idx) =>
+      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;margin:3px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;font-size:12.5px">'
+        + '<b>' + esc(e.bom_code) + '</b> · ' + esc(e.bom_name) + ' · <span style="color:#4338ca">' + qty(e.qty) + '</span>'
+        + ' <button class="btn" style="padding:2px 6px;font-size:11px;background:#fff" onclick="fgRemoveEntry(' + idx + ')">✕</button>'
+      + '</span>'
+    ).join('');
+    if(entriesEl) entriesEl.innerHTML = chips;
+    if(countEl)   countEl.textContent = '· ' + FG.entries.length + ' item' + (FG.entries.length === 1 ? '' : 's');
+  }
+
+  // Consumption table
+  const tb = $('tbodyFg'); if(!tb) return;
+  const rows = fgComputeConsumption();
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">'
+      + (FG.entries.length ? 'Added finished goods have no BOM inputs on record.' : 'Add a finished good above to see its raw-material breakdown.')
+      + '</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map((r) =>
+    '<tr>'
+      + '<td class="code">' + esc(r.product_code || '—') + '</td>'
+      + '<td>' + esc(r.product_name || '') + '</td>'
+      + '<td>' + (r.category ? ('<span class="sb">' + esc(r.category) + '</span>') : '<span class="mut">—</span>') + '</td>'
+      + '<td>' + esc(r.unit || '') + '</td>'
+      + '<td class="r">' + qty(r.ideal_per_1) + '</td>'
+      + '<td class="r" style="font-weight:600">' + qty(r.qty_consumed) + '</td>'
+    + '</tr>'
+  ).join('');
+}
+
+function fgExportCsv(){
+  if(!FG.entries.length){ toast('Add a finished good first.', 1800); return; }
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = [];
+  // Section 1: the inputs the user added
+  lines.push('# Finished goods entered');
+  lines.push(['BOM Code','BOM Name','Qty Sold'].map(esc2).join(','));
+  for(const e of FG.entries) lines.push([e.bom_code, e.bom_name, e.qty].map(esc2).join(','));
+  lines.push('');
+  // Section 2: aggregated consumption
+  lines.push('# Aggregated raw-material consumption');
+  lines.push(['RM Code','RM Name','Category','BOM UoM','Ideal Qty / 1 FG','Qty Consumed'].map(esc2).join(','));
+  for(const r of fgComputeConsumption()){
+    lines.push([r.product_code, r.product_name, r.category, r.unit, r.ideal_per_1, r.qty_consumed].map(esc2).join(','));
+  }
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), 'fg-rm-consumption-' + today + '.csv');
+}
+
+/* ======================== RM Mismatch Report ========================
+   Three cross-set views over RM Master, Opening-Inventory list and BOM
+   inputs. All three use the SAME RM identifier — product_code — because
+   the BOM CSV, RM Master and Opening Inventory are all indexed by the
+   PACT RM code. Name-based matching is deliberately NOT used here: a
+   name typo in a BOM is itself the kind of mismatch this report should
+   surface, not hide. */
+const MM = { current: 'bomNotRm', data: null };
+
+function fgComputeMismatches(){
+  // RM Master set — PACT product codes with isGhost=false. (We allow
+  // ghost items here because some BOMs still reference them historically
+  // and we want to see that too.)
+  const rmByCode = new Map();
+  for(const r of (RM.items || [])){
+    const code = String(r.code || '').trim().toUpperCase();
+    if(!code) continue;
+    if(!rmByCode.has(code)) rmByCode.set(code, r);
+  }
+  // Opening Inventory set — RMs with idealStorage set, built by oiBuildItemsFromRm.
+  const invByCode = new Map();
+  const invList = (typeof oiBuildItemsFromRm === 'function') ? oiBuildItemsFromRm() : [];
+  for(const it of invList){
+    const code = String(it.rm_code || '').trim().toUpperCase();
+    if(!code) continue;
+    invByCode.set(code, it);
+  }
+  // BOM RM set — every INPUT product_code across every BOM, with the first
+  // BOM that mentions it (so a mismatch row can show "where it came from").
+  const bomByCode = new Map();
+  for(const b of (BOM.boms || [])){
+    for(const s of b.stages.values()){
+      for(const r of (s.inputs || [])){
+        const code = String(r[4] || '').trim().toUpperCase();
+        if(!code) continue;
+        if(!bomByCode.has(code)){
+          bomByCode.set(code, { name: String(r[5] || ''), unit: String(r[6] || ''), first_bom: b.code + ' — ' + (b.name || '') });
+        }
+      }
+    }
+  }
+  // Set operations
+  const bomNotRm = [];
+  for(const [code, b] of bomByCode){
+    if(rmByCode.has(code)) continue;
+    bomNotRm.push({ rm_code: code, name: b.name, unit: b.unit, note: b.first_bom });
+  }
+  const invNotBom = [];
+  for(const [code, it] of invByCode){
+    if(bomByCode.has(code)) continue;
+    invNotBom.push({ rm_code: code, name: it.name, unit: it.packing_uom, note: it.category || '' });
+  }
+  const bomNotInv = [];
+  for(const [code, b] of bomByCode){
+    if(invByCode.has(code)) continue;
+    bomNotInv.push({ rm_code: code, name: b.name, unit: b.unit, note: b.first_bom });
+  }
+  // Sort by name, case-insensitive
+  for(const arr of [bomNotRm, invNotBom, bomNotInv]) arr.sort((a,b) => String(a.name).localeCompare(String(b.name)));
+  return { bomNotRm, invNotBom, bomNotInv };
+}
+
+async function fgOpenMismatchModal(){
+  // Ensure both BOM and RM are loaded before we compare.
+  const waits = [];
+  if(!BOM_LOADED.v) waits.push(loadBom(false).catch(() => {}));
+  if(!RM_LOADED.v)  waits.push(loadRm(false).catch(() => {}));
+  if(waits.length) await Promise.all(waits);
+  MM.data = fgComputeMismatches();
+  const bnr = $('mmBomNotRmCount'); if(bnr) bnr.textContent = MM.data.bomNotRm.length;
+  const inb = $('mmInvNotBomCount'); if(inb) inb.textContent = MM.data.invNotBom.length;
+  const bni = $('mmBomNotInvCount'); if(bni) bni.textContent = MM.data.bomNotInv.length;
+  // Update the badge in the toolbar as well
+  const badge = $('fgMismatchBadge');
+  if(badge){
+    const total = MM.data.bomNotRm.length + MM.data.invNotBom.length + MM.data.bomNotInv.length;
+    badge.textContent = total ? ('⚠ ' + total) : '✓';
+  }
+  fgRenderMismatchLists();
+  $('fgMismatchModal').style.display = 'flex';
+  fgMmTab('bomNotRm');
+}
+
+function fgCloseMismatchModal(){ $('fgMismatchModal').style.display = 'none'; }
+
+function fgMmTab(k){
+  MM.current = k;
+  document.querySelectorAll('#fgMismatchModal .tab').forEach(x => x.classList.toggle('on', x.dataset.mm === k));
+  $('mmBomNotRmList').style.display  = k === 'bomNotRm' ? '' : 'none';
+  $('mmInvNotBomList').style.display = k === 'invNotBom' ? '' : 'none';
+  $('mmBomNotInvList').style.display = k === 'bomNotInv' ? '' : 'none';
+}
+
+function fgRenderMismatchLists(){
+  if(!MM.data) return;
+  const render = (list, emptyMsg) => {
+    if(!list.length) return '<div class="mut" style="padding:14px;text-align:center">✓ ' + emptyMsg + '</div>';
+    let out = '<div class="nm-list">';
+    for(const r of list){
+      out += '<div class="nm-row">'
+          + '<span class="nm-code">' + esc(r.rm_code) + '</span>'
+          + '<span>' + esc(r.name || '') + '</span>'
+          + '<span class="nm-mode">' + esc(r.unit || '—') + '</span>'
+          + '<span class="nm-cat">' + esc(r.note || '—') + '</span>'
+          + '</div>';
+    }
+    out += '</div>';
+    return out;
+  };
+  $('mmBomNotRmList').innerHTML  = render(MM.data.bomNotRm,  'Every raw material used in a BOM is in Raw Material Master.');
+  $('mmInvNotBomList').innerHTML = render(MM.data.invNotBom, 'Every item on the Opening-Inventory list is consumed by at least one BOM.');
+  $('mmBomNotInvList').innerHTML = render(MM.data.bomNotInv, 'Every raw material a BOM uses is on the Opening-Inventory list.');
+}
+
+function fgExportMismatchCsv(){
+  if(!MM.data){ toast('Open a tab first.', 1500); return; }
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const which = MM.current;
+  const map = {
+    bomNotRm:  { label: 'In BOM, not in RM Master',       hdr: ['RM Code','RM Name','BOM Unit','First BOM referencing it'], rows: MM.data.bomNotRm,  file: 'rm-mismatch-bom-not-in-rm-master-' },
+    invNotBom: { label: 'In Inventory, not in any BOM',   hdr: ['RM Code','RM Name','Inventory UoM','Storage Category'],    rows: MM.data.invNotBom, file: 'rm-mismatch-inventory-not-in-bom-' },
+    bomNotInv: { label: 'In BOM, not in Inventory',       hdr: ['RM Code','RM Name','BOM Unit','First BOM referencing it'], rows: MM.data.bomNotInv, file: 'rm-mismatch-bom-not-in-inventory-' },
+  }[which];
+  if(!map){ toast('Unknown mismatch view.', 1500); return; }
+  if(!map.rows.length){ toast('Nothing to export — list is empty.', 1800); return; }
+  const lines = [map.hdr.map(esc2).join(',')];
+  for(const r of map.rows) lines.push([r.rm_code, r.name, r.unit, r.note].map(esc2).join(','));
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), map.file + today + '.csv');
+  toast('Exported ' + map.rows.length + ' row(s) — ' + map.label, 1800);
+}
 
 const VA = { snapshots: [], loaded: false };
 
