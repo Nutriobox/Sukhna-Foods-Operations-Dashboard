@@ -1262,13 +1262,33 @@ async function loadBom(fresh){
   const j = await r.json();
   if(!j.ok){ throw new Error(j.error || ('/api/costing/bom returned '+r.status)); }
   const data = Array.isArray(j.data) ? j.data : [];
+  // Look up the BOMStatus column by header name (added 2026-10-23, index 11
+  // in the current scraper output but we don't rely on position). Rows from
+  // older snapshots won't have a BOMStatus column at all, in which case we
+  // keep every BOM — the filter only kicks in once the new scraper has run.
+  const hdrs = (data[0] || []).map(h => String(h || '').toLowerCase());
+  const iStatus = hdrs.indexOf('bomstatus');
   BOM.rows = data.length > 1 ? data.slice(1) : [];
   BOM.meta = { source: 'pact-live', synced_at: j.synced_at || null };
+  // First pass: find BOMs PACT has marked inactive (status != "Active"). We
+  // drop the whole BOM — all its rows across all stages — before indexing,
+  // so RM Consumption's recipe walk never touches an inactive BOM even if
+  // the active replacement shares the dish name. PACT writes "In Active"
+  // (two words); we normalise so "InActive" / casing variants also match.
+  const inactiveBoms = new Set();
+  if(iStatus >= 0){
+    for(const r of BOM.rows){
+      const code = r[2]; if(!code) continue;
+      const st = String(r[iStatus] || '').toLowerCase().replace(/\s+/g, '');
+      if(st && st !== 'active') inactiveBoms.add(code);
+    }
+  }
   // Group into BOMs
   const map = new Map();
   for(const r of BOM.rows){
-    // columns: 0 Section, 1 Stage, 2 BOMCode, 3 BOM, 4 Product Code, 5 Product Name, 6 Unit, 7 Usage Qty, 8 Wastage, 9 Raw Qty, 10 OPQty
+    // columns: 0 Section, 1 Stage, 2 BOMCode, 3 BOM, 4 Product Code, 5 Product Name, 6 Unit, 7 Usage Qty, 8 Wastage, 9 Raw Qty, 10 OPQty, 11 BOMStatus
     const code = r[2]; if(!code) continue;
+    if(inactiveBoms.has(code)) continue;
     if(!map.has(code)) map.set(code, { code, name:'', fp:'', fpQty:null, fpUnit:'', stages:new Map(), nIn:0, nOut:0 });
     const b = map.get(code);
     // Parse "140G BASA FISH (10 PKT/BUNCH)   (FP: 140g Basa Fish (10 Pkt/Bunch)   Qty: 30   Units: Bunch)"

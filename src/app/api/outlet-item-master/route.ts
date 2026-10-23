@@ -133,16 +133,26 @@ function parsePactBom(rows: unknown[][], headers: string[]) {
   const col = (name: string) => headers.findIndex((h) => String(h).toLowerCase() === name.toLowerCase());
   const iS = col("Section"), iSt = col("Stage"), iB = col("BOMCode"), iD = col("BOM"),
         iPC = col("Product Code"), iPN = col("Product Name"),
-        iU = col("Unit"), iUs = col("Usage Qty"), iW = col("Wastage"), iRw = col("Raw Qty");
+        iU = col("Unit"), iUs = col("Usage Qty"), iW = col("Wastage"), iRw = col("Raw Qty"),
+        iStatus = col("BOMStatus");
 
-  // Group BOM lines by BOMCode
+  // Group BOM lines by BOMCode. Also track per-BOM status so inactive BOMs
+  // (PACT's "In Active" flag — user marked old BOMs inactive 2026-10-23 after
+  // adding replacements with the same dish name) are dropped before the
+  // PetPooja name match collapses them onto a dish. Missing/empty status
+  // treated as active for backward compatibility with pre-BOMStatus snapshots.
   const bomLines = new Map<string, BomLine[]>();
   const bomName = new Map<string, string>();
+  const bomStatus = new Map<string, string>();
   for (const r of rows) {
     if (!r || !r.length) continue;
     const code = str(r[iB]);
     if (!code) continue;
     if (!bomName.has(code)) bomName.set(code, str(r[iD]));
+    if (iStatus >= 0 && !bomStatus.has(code)) {
+      const st = str(r[iStatus]);
+      if (st) bomStatus.set(code, st);
+    }
     // Only keep INPUT section rows for the BOM-detail table
     if (str(r[iS]).toUpperCase() !== "INPUT") continue;
     const line: BomLine = {
@@ -162,6 +172,11 @@ function parsePactBom(rows: unknown[][], headers: string[]) {
   type Raw = { bom_code: string; mode: "dine_in" | "delivery"; kind: "item" | "addon"; dish_name: string; fg_code: string; bom: BomLine[] };
   const raws: Raw[] = [];
   for (const [code, lines] of bomLines) {
+    // Skip BOMs PACT has marked inactive. PACT uses the string "In Active"
+    // (two words) for the inactive state; "Active" or missing is treated as
+    // live. Normalise aggressively so "InActive", "inactive", etc. are caught.
+    const st = (bomStatus.get(code) || "").toLowerCase().replace(/\s+/g, "");
+    if (st && st !== "active") continue;
     let mode: "dine_in" | "delivery", kind: "item" | "addon";
     if (code.startsWith("DIN_BOM"))        { mode = "dine_in";  kind = "item";  }
     else if (code.startsWith("Dine_AddOn")) { mode = "dine_in";  kind = "addon"; }
