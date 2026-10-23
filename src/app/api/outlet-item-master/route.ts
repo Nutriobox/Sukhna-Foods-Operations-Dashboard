@@ -103,10 +103,27 @@ function normName(s: string): string {
   x = x.replace(/^f[gh]o?\d+_\s*/, "");
   // Drop the (FP: ...) trailer PACT appends inside the BOM name column
   x = x.replace(/\s*\(fp:[^)]*\)\s*$/, "");
-  // Drop parenthetical qualifiers "(Veg)", "(400 Gms)", "(8 Pkt/Carton)"
-  x = x.replace(/\s*\([^)]*\)\s*/g, " ");
-  // Drop remaining punctuation except spaces and ampersands
-  x = x.replace(/[^a-z0-9&\s]+/g, " ");
+  // Drop parenthetical and bracketed qualifiers. The old regex only
+  // caught "(...)" but PetPooja dish names overwhelmingly use "[...]" for
+  // the same job — "[300 Ml]", "[6 Pcs]", "[SB]", "[SBN]", "[Combos]".
+  // Leaving brackets in made ~96 PetPooja dishes land in the Not Matching
+  // list even though PACT had a BOM for the base dish. Also strip some
+  // common free-floating qualifier tokens that aren't wrapped — the old
+  // regex handled "(Combos)" but PetPooja ships both bracketed AND bare
+  // ("Butter(Less) Chicken (4 Pcs)" vs "Butter(Less) Chicken Combos").
+  x = x.replace(/\s*[([][^)\]]*[)\]]\s*/g, " ");
+  // Drop known qualifier words that appear bare (no brackets) at the end
+  // of PetPooja dish names: "Combos", "Full", "Half", "Regular", meal-size
+  // markers, and the PetPooja menu suffixes "SB" / "SBN". These are
+  // variants of the same base dish; PACT keeps one BOM and leaves the
+  // sizing to the operator. Deliberately short list — words like "new",
+  // "special", "veg" are part of real dish names, so we leave them alone.
+  x = x.replace(/\b(combos?|full|half|regular|large|small|medium|sbn?)\b/g, " ");
+  // Normalise ampersands to the word "and" (PACT writes "Tofu AND Walnut",
+  // PetPooja writes "Tofu & Walnut"). Do this before stripping punctuation.
+  x = x.replace(/\s*&\s*/g, " and ");
+  // Drop remaining punctuation (ampersand already handled above)
+  x = x.replace(/[^a-z0-9\s]+/g, " ");
   // Collapse whitespace
   x = x.replace(/\s+/g, " ").trim();
   return x;
