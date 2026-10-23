@@ -3397,20 +3397,29 @@ async function loadRc(fresh){
     //    overwrote Dine In items with the same dish_id and the wrong BOM was
     //    walked for Dining sales. Item Master stores dine_in and delivery
     //    as {categories: {catName: [items]}}.
-    const dineByKey = new Map();      // "id:123" or "nm:foo" -> bom_code (DIN_BOM*)
-    const delivByKey = new Map();     //                       -> bom_code (BOM_O*)
+    const dineByKey = new Map();      // "id:123" or "nm:foo" -> bom_code (DIN_BOM* / Dine_AddOn*)
+    const delivByKey = new Map();     //                       -> bom_code (BOM_O*  / Del_AddOn*)
+    const indexItem = (it, target) => {
+      const bc = String(it.bom_code || '').trim();
+      if(!bc) return;
+      const dishId = String(it.petpooja_dish_id || '').trim();
+      const nm     = String(it.name || '').trim().toLowerCase();
+      if(dishId) target.set('id:' + dishId, bc);
+      if(nm)     target.set('nm:' + nm,     bc);
+    };
     const addItem = (section, target) => {
       if(!section) return;
-      for(const [catName, items] of Object.entries(section.categories || {})){
-        for(const it of (items || [])){
-          const bc = String(it.bom_code || '').trim();
-          if(!bc) continue;
-          const dishId = String(it.petpooja_dish_id || '').trim();
-          const nm     = String(it.name || '').trim().toLowerCase();
-          if(dishId) target.set('id:' + dishId, bc);
-          if(nm)     target.set('nm:' + nm,     bc);
-        }
+      // Main menu items (grouped under PetPooja categories).
+      for(const [_cat, items] of Object.entries(section.categories || {})){
+        for(const it of (items || [])) indexItem(it, target);
       }
+      // Add-ons (Dine_AddOn* / Del_AddOn* BOMs). PetPooja sells these as
+      // separate line items (Chicken Breast 80 Gm, Tofu, Cottage Cheese,
+      // Creamy Walnut Pesto, …) that reduce the same raw materials as the
+      // dish-level BOMs. Not walking this list was the single biggest
+      // reason RM Consumption was leaving ~140 item-qty units unmatched
+      // in a typical outlet × day window.
+      for(const it of (section.add_ons || [])) indexItem(it, target);
     };
     if(IM_LOADED.v && IM.data){
       addItem(IM.data.dine_in,  dineByKey);
@@ -4068,17 +4077,21 @@ async function loadIi(fresh){
       // Reuse the two-section Item Master index + pickBomCode logic from loadRc.
       const dineByKey  = new Map();
       const delivByKey = new Map();
+      const indexItem = (it, target) => {
+        const bc = String(it.bom_code || '').trim(); if(!bc) return;
+        const dishId = String(it.petpooja_dish_id || '').trim();
+        const nm     = String(it.name || '').trim().toLowerCase();
+        if(dishId) target.set('id:' + dishId, bc);
+        if(nm)     target.set('nm:' + nm,     bc);
+      };
       const addItem = (section, target) => {
         if(!section) return;
         for(const [_cat, items] of Object.entries(section.categories || {})){
-          for(const it of (items || [])){
-            const bc = String(it.bom_code || '').trim(); if(!bc) continue;
-            const dishId = String(it.petpooja_dish_id || '').trim();
-            const nm     = String(it.name || '').trim().toLowerCase();
-            if(dishId) target.set('id:' + dishId, bc);
-            if(nm)     target.set('nm:' + nm,     bc);
-          }
+          for(const it of (items || [])) indexItem(it, target);
         }
+        // Include add-ons so Chicken Breast, Tofu, Cottage Cheese etc.
+        // sold as line items get their BOM too (same fix as loadRc).
+        for(const it of (section.add_ons || [])) indexItem(it, target);
       };
       if(IM_LOADED.v && IM.data){ addItem(IM.data.dine_in, dineByKey); addItem(IM.data.delivery, delivByKey); }
       const pickBomCode = (ot, dishId, name) => {
