@@ -270,7 +270,9 @@
    <button class="btn" onclick="imExpandAll()">⇕ Expand all</button>
    <button class="btn" onclick="imCollapseAll()">⇱ Collapse all</button>
    <button class="btn warn" onclick="imShowNotMatching()" title="Items in PACT but not in PetPooja, or vice versa"><span id="imNmCount">⚠</span> Not Matching List</button>
-   <button class="btn prim" id="btnSyncIm" onclick="loadIm(true)" title="Re-fetch from PACT BOM + PetPooja">⚡ Refresh</button>
+   <button class="btn" id="btnSyncIm" onclick="loadIm(true)" title="Refresh the view from the latest Supabase snapshot (fast — skips the 60s cache but does NOT re-scrape PACT)">↻ Refresh</button>
+   <button class="btn prim" id="btnSyncImPact" onclick="syncIm()" title="Queue a fresh pull from PACT BOM and reload Item Master when it lands. Use this after editing BOMs in PACT so the changes show up here.">⚡ Sync from PACT</button>
+   <span id="syncStatImPact" class="mut" style="font-size:12.5px"></span>
    <span id="syncStatIm" class="mut" style="font-size:12.5px"></span>
   </div>
   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#eff6ff;border-color:#bfdbfe">
@@ -1285,6 +1287,22 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
 }
 function syncPM(){ if(!$('btnSyncPm')) return; syncReport('pm','btnSyncPm','syncStatPm', PM.meta.synced_at || '', () => loadPm(true)); }
 function syncBOM(){ if(!$('btnSyncBom')) return; syncReport('bom','btnSyncBom','syncStatBom', BOM.meta.synced_at || '', () => loadBom(true)); }
+// Item Master "Sync from PACT": queue the same BOM re-scrape syncBOM uses
+// (Item Master is BOM × PetPooja), then after the fresh snapshot lands
+// reload BOM in memory AND re-pull /api/outlet-item-master with ?fresh=1
+// so the Item Master view and its "Not Matching" badge pick up the new data.
+// Used after editing BOMs in PACT so the dashboard reflects the edit in
+// real time instead of waiting for the next scheduled EC2 scrape.
+function syncIm(){
+  if(!$('btnSyncImPact')) return;
+  syncReport(
+    'bom',
+    'btnSyncImPact',
+    'syncStatImPact',
+    BOM.meta.synced_at || '',
+    async () => { await loadBom(true); await loadIm(true); }
+  );
+}
 
 // Purchase tab Sync — enqueues an outlet-outward job for the pact-windows
 // worker and polls /api/outlet-grns watching for `synced_at` to tick past the
