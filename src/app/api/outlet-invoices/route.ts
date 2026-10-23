@@ -311,13 +311,28 @@ export async function GET(req: Request) {
       const dateOnly = (o.placed_at || "").slice(0, 10);
       // Prefer the real PetPooja invoice_no when present (backfilled); fall back to the PP order code otherwise.
       const invoice = o.invoice_no || (o.code ? o.code.replace(/^PP-\d*-?/, "") : null);
+      // Derive the dashboard status from every cancellation signal AIFI
+      // carries, not just pp_status. In production (verified 2026-10-23) the
+      // webhook sink was dropping cancelled orders from pp_status while
+      // still writing order_cancel_reason, so the dashboard was showing
+      // "Success" for them (and status filter couldn't isolate them). Order:
+      //   1. order_cancel_reason set → "Cancelled" (unambiguous)
+      //   2. status column ~ "cancel" → "Cancelled"
+      //   3. pp_status as-is (usually "Success")
+      let statusOut: string | null = o.pp_status;
+      const stLow = String(o.status || "").toLowerCase();
+      if (o.order_cancel_reason && String(o.order_cancel_reason).trim()) {
+        statusOut = "Cancelled";
+      } else if (stLow.includes("cancel")) {
+        statusOut = "Cancelled";
+      }
       rows.push({
         restaurant_name:     rest?.name || `restaurant ${o.restaurant_id}`,
         invoice_no:          invoice,
         date:                o.placed_at,
         payment_type:        o.payment_type,
         order_type:          o.order_type,
-        status:              o.pp_status,
+        status:              statusOut,
         area:                o.channel,
         virtual_brand_name:  o.sub_order_type,
         brand_grouping:      o.group_name,
@@ -352,7 +367,16 @@ export async function GET(req: Request) {
         transaction_id: o.transaction_id,
       });
     }
-    // Already in order-desc because orders were fetched in placed_at desc; keep natural order.
+    // The row-build loop iterates `items` which comes back from fetchItemsFor
+    // in Supabase's default order (order_items.id ASC within each 400-order
+    // batch), NOT in orders DESC. So the "natural order" was wrong: the top
+    // of the dashboard showed the OLDEST item in the newest 400-order batch
+    // (verified 2026-10-23 by Satvik — filter 10/22 00:00 → 10/23 01:59,
+    // ~3700 rows, top row was 10/22 21:18 instead of the latest 10/23
+    // early-morning rows). Sort explicitly by placed_at DESC before clipping
+    // so (a) newest is on top where the user expects it and (b) if we DO hit
+    // limit_rows, the trim keeps the newest rows, not a random band.
+    rows.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     const clipped = rows.slice(0, limit);
 
     return NextResponse.json({
