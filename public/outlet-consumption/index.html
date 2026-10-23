@@ -575,20 +575,25 @@
      <option value="">All order types</option>
     </select>
     <input id="qCn" class="search" placeholder="Search item name or code…" oninput="renderCn()" style="min-width:220px">
+    <label style="font-size:12.5px;color:#374151;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none" title="Hide the PACT BOM Code and PACT Item Name columns so only the PetPooja fields remain. Useful when you want the row to read exactly as it does on Sales API.">
+     <input type="checkbox" id="cnShowPact" checked onchange="renderCn()">
+     Show PACT details
+    </label>
     <button class="btn" onclick="exportCsvCn()">⬇ Export CSV</button>
     <span id="syncStatCn" class="mut" style="font-size:12.5px"></span>
-    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PetPooja Global Sales API (live)</span>
+    <span class="mut" style="font-size:12.5px;margin-left:auto">Sales: PetPooja (live) · PACT: BOM mapping from Item Master</span>
    </div>
 
    <div class="card"><div class="scroll"><table id="tblCn">
     <thead><tr>
-     <th>Item Code</th>
-     <th>Item Name</th>
+     <th class="cn-col-pact-code">PACT Code</th>
+     <th>PetPooja Item Name</th>
+     <th class="cn-col-pact-name">PACT Item Name (BOM)</th>
      <th>Category</th>
      <th>Order Type</th>
      <th class="r">Quantity</th>
     </tr></thead>
-    <tbody id="tbodyCn"><tr><td colspan="5" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+    <tbody id="tbodyCn"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
    </table></div></div>
   </div>
  </div>
@@ -3200,10 +3205,17 @@ function cnBuildMenuList(){
     if(!section) return;
     for(const [catName, items] of Object.entries(section.categories || {})){
       for(const it of (items || [])){
-        const name = String(it.name || '').trim();
-        if(!name) continue;
+        // name_pact = the BOM title PACT holds for this dish (e.g. "Veg
+        //   Whole Wheat Momos (Chilli Sauce)"). This is what the recipe
+        //   book calls it; may differ from what the customer sees.
+        // name_petpooja = PetPooja's dish name — not stored on the Item
+        //   Master item object directly, so we leave it blank here and
+        //   fill it from the first matching sales row in renderCn (every
+        //   sales row carries item_name from AIFI).
+        const namePact = String(it.name || '').trim();
+        if(!namePact) continue;
         const dishId = String(it.petpooja_dish_id || '').trim();
-        const key = dishId ? ('id:' + dishId) : ('nm:' + name.toLowerCase());
+        const key = dishId ? ('id:' + dishId) : ('nm:' + namePact.toLowerCase());
         if(seen.has(key)) continue;
         seen.add(key);
         out.push({
@@ -3211,11 +3223,12 @@ function cnBuildMenuList(){
           // Item Master (e.g. DIN_BOM0099). Satvik 2026-10-21 — the PetPooja
           // dish_id (small numbers like 1, 2, 4) wasn't useful; the BOM code
           // matches what the operator sees on the Item Master tab.
-          item_code: it.bom_code || dishId || '—',
-          item_name: name,
-          category:  it.petpooja_category || catName || '',
-          dish_id:   dishId,
-          name_key:  name.toLowerCase(),
+          item_code:      it.bom_code || dishId || '—',
+          item_name_pact: namePact,          // PACT BOM title
+          item_name_pp:   '',                // filled from a sales row at render time
+          category:       it.petpooja_category || catName || '',
+          dish_id:        dishId,
+          name_key:       namePact.toLowerCase(),
         });
       }
     }
@@ -3236,8 +3249,12 @@ function renderCn(){
   // Aggregate the raw sales rows by (match_key, order_type) once so each
   // menu item × order_type lookup is O(1). match_key prefers dish_id for
   // precision; falls back to lowercased name so sales from an item without
-  // a dish_id still match a menu entry by name.
+  // a dish_id still match a menu entry by name. We ALSO capture the raw
+  // PetPooja item_name per dish_id (first-seen wins) so the row can show
+  // the PetPooja name alongside the PACT BOM name.
   const salesByKey = new Map();  // "id:123||Dine In" -> qty
+  const petpoojaNameByDishId = new Map();  // dish_id -> PetPooja item_name (first seen)
+  const petpoojaNameByNameKey = new Map(); // lower(name) -> PetPooja item_name (first seen; identical in most cases)
   const unmatchedByKey = new Map();  // key -> { name, category, order_type, qty }
   for(const row of (CN.rows || [])){
     const ot = cnNormOrderType(row.order_type);
@@ -3250,12 +3267,14 @@ function renderCn(){
     const qtyN = Number(row.item_quantity || 0);
     if(kId){
       salesByKey.set(kId + '||' + ot, (salesByKey.get(kId + '||' + ot) || 0) + qtyN);
+      if(!petpoojaNameByDishId.has(dishId)) petpoojaNameByDishId.set(dishId, name);
     }
     salesByKey.set(kName + '||' + ot, (salesByKey.get(kName + '||' + ot) || 0) + qtyN);
+    if(!petpoojaNameByNameKey.has(name.toLowerCase())) petpoojaNameByNameKey.set(name.toLowerCase(), name);
     // Also capture everything for the orphan sweep after the matrix is built.
     const uk = (kId || kName) + '||' + ot;
     if(!unmatchedByKey.has(uk)){
-      unmatchedByKey.set(uk, { item_code: dishId || '—', item_name: name, category: row.category_name || '', order_type: ot, qty: 0, _key: (kId || kName) });
+      unmatchedByKey.set(uk, { item_code: dishId || '—', item_name_pp: name, item_name_pact: '', category: row.category_name || '', order_type: ot, qty: 0, _key: (kId || kName) });
     }
     unmatchedByKey.get(uk).qty += qtyN;
   }
@@ -3265,6 +3284,13 @@ function renderCn(){
   const rows = [];
   const matched = new Set();  // keys we've drawn from the menu side
   for(const item of menu){
+    // Look up the PetPooja name for this menu entry. Prefer the dish_id
+    // match (what PetPooja's till actually sent); fall back to a name
+    // match; if the item hasn't sold in the window we just mirror the
+    // PACT BOM name so the column isn't blank.
+    const ppName = (item.dish_id && petpoojaNameByDishId.get(item.dish_id))
+                || petpoojaNameByNameKey.get(item.name_key)
+                || item.item_name_pact;
     for(const ot of CN_ORDER_TYPES){
       const idKey = item.dish_id ? ('id:' + item.dish_id + '||' + ot) : '';
       const nmKey = 'nm:' + item.name_key + '||' + ot;
@@ -3275,11 +3301,12 @@ function renderCn(){
       if(idKey) matched.add('id:' + item.dish_id + '||' + ot);
       matched.add('nm:' + item.name_key + '||' + ot);
       rows.push({
-        item_code:  item.item_code,
-        item_name:  item.item_name,
-        category:   item.category,
-        order_type: ot,
-        qty:        qtyVal,
+        item_code:      item.item_code,
+        item_name_pact: item.item_name_pact,   // what PACT's BOM calls it
+        item_name_pp:   ppName,                // what the customer sees on PetPooja
+        category:       item.category,
+        order_type:     ot,
+        qty:            qtyVal,
       });
     }
   }
@@ -3288,14 +3315,21 @@ function renderCn(){
   // land under a sentinel category sorted to the bottom.
   for(const [uk, u] of unmatchedByKey.entries()){
     if(matched.has(uk)) continue;
-    rows.push({ item_code: u.item_code, item_name: u.item_name, category: u.category || 'Other / Modifiers', order_type: u.order_type, qty: u.qty });
+    rows.push({
+      item_code:      u.item_code,
+      item_name_pact: '',                       // orphan — no PACT BOM
+      item_name_pp:   u.item_name_pp,
+      category:       u.category || 'Other / Modifiers',
+      order_type:     u.order_type,
+      qty:            u.qty,
+    });
   }
 
-  // Filter: order type + search
+  // Filter: order type + search (search covers BOTH PetPooja and PACT names)
   const list = rows.filter(x => {
     if(typeF && x.order_type !== typeF) return false;
     if(q){
-      const hay = (x.item_name + ' ' + x.item_code + ' ' + x.category).toLowerCase();
+      const hay = ((x.item_name_pp || '') + ' ' + (x.item_name_pact || '') + ' ' + x.item_code + ' ' + x.category).toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
@@ -3304,8 +3338,17 @@ function renderCn(){
   // Keep track of total row count across all order types for the header pill.
   CN.items = rows;
 
+  // Read the "Show PACT details" toggle. When off, the PACT Code and
+  // PACT Item Name columns are hidden so the row reads exactly like it
+  // does on the Sales API tab — easier to match side-by-side.
+  const showPact = $('cnShowPact') ? $('cnShowPact').checked : true;
+  // Toggle visibility of the two PACT-column headers (CSS-only, no row rebuild).
+  document.querySelectorAll('#tblCn .cn-col-pact-code, #tblCn .cn-col-pact-name').forEach((th) => {
+    th.style.display = showPact ? '' : 'none';
+  });
+
   if(!list.length){
-    tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:20px;text-align:center">'
+    tb.innerHTML = '<tr><td colspan="' + (showPact ? 6 : 4) + '" class="mut" style="padding:20px;text-align:center">'
       + (IM_LOADED.v ? 'No consumption rows match these filters.' : 'Loading item master…')
       + '</td></tr>';
     if(CURTAB === 'cn') updateHeaderStats();
@@ -3332,17 +3375,25 @@ function renderCn(){
     ? '<span class="mut">—</span>'
     : `<span class="sb" style="${CAT_PALETTE[hashIdx(c, CAT_PALETTE.length)]}">${esc(c)}</span>`;
   // Qty cell: zero sales render muted so the eye jumps to the non-zero rows.
+  // Two name columns: PetPooja (always visible — this is what the customer
+  // and the till staff see) and PACT BOM title (toggleable; what the recipe
+  // book calls it). When the two agree the second column reads the same,
+  // which is the common case — the duplication is only visible when they
+  // actually disagree, which is the whole reason the toggle exists.
   tb.innerHTML = list.map((x) => {
     const qCell = x.qty > 0
       ? '<td class="r" style="font-weight:600">' + qty(x.qty) + '</td>'
       : '<td class="r mut">0</td>';
-    return '<tr>' +
-      '<td style="font-family:monospace;font-size:12.5px">' + esc(x.item_code) + '</td>' +
-      '<td>' + esc(x.item_name) + '</td>' +
-      '<td>' + catChip(x.category) + '</td>' +
-      '<td>' + esc(x.order_type) + '</td>' +
-      qCell +
-    '</tr>';
+    const codeCell = '<td class="cn-col-pact-code" style="font-family:monospace;font-size:12.5px;' + (showPact ? '' : 'display:none') + '">' + esc(x.item_code) + '</td>';
+    const pactCell = '<td class="cn-col-pact-name" style="' + (showPact ? '' : 'display:none') + '">' + esc(x.item_name_pact || '') + '</td>';
+    return '<tr>'
+      + codeCell
+      + '<td>' + esc(x.item_name_pp || x.item_name_pact || '') + '</td>'
+      + pactCell
+      + '<td>' + catChip(x.category) + '</td>'
+      + '<td>' + esc(x.order_type) + '</td>'
+      + qCell
+    + '</tr>';
   }).join('');
   if(CURTAB === 'cn') updateHeaderStats();
 }
@@ -3350,13 +3401,17 @@ function renderCn(){
 function exportCsvCn(){
   if(!(CN.items && CN.items.length)){ toast('No consumption rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['Item Code,Item Name,Category,Order Type,Quantity'];
+  // Export carries BOTH names so the CSV is useful for either side (reconciling
+  // against PetPooja's own Sales report OR against PACT's BOM list). The "Show
+  // PACT details" toggle on the UI only affects display; the CSV always has
+  // both columns.
+  const lines = ['PACT Code,PetPooja Item Name,PACT Item Name (BOM),Category,Order Type,Quantity'];
   for(const x of CN.items){
-    lines.push([x.item_code, x.item_name, x.category, x.order_type, x.qty].map(esc2).join(','));
+    lines.push([x.item_code, (x.item_name_pp || ''), (x.item_name_pact || ''), x.category, x.order_type, x.qty].map(esc2).join(','));
   }
   const slug = (CN.outlet || 'outlet').toLowerCase().replace(/\s+/g, '-');
   const today = (new Date()).toISOString().slice(0,10);
-  downloadBlob(lines.join('\n'), 'consumption-' + slug + '-' + today + '.csv');
+  downloadBlob(lines.join('\n'), 'sales-summary-' + slug + '-' + today + '.csv');
 }
 
 /* ============================ RM CONSUMPTION (rc) ============================
