@@ -261,11 +261,25 @@ export async function GET(req: Request) {
     // 2) PetPooja dishes (all)
     const dishes = await fetchPetpoojaDishes();
 
-    // Index dishes by normalized name
-    const dishByNorm = new Map<string, Dish>();
+    // Index dishes by both EXACT (lowercased, trimmed) name AND aggressive
+    // normalized name. The aggressive normalizer strips bracketed qualifiers
+    // like "[300 Ml]" so "Blueberry Chia [300 Ml]." matches PACT's
+    // "Blueberry Chia (300ML)" — but it ALSO strips meaningful variant
+    // qualifiers like "(Masala Veggie)" / "(Chicken Tikka)" / "(Egg White)",
+    // which caused all three Hearty Omelettes dishes to collapse into one
+    // key and get routed to whichever BOM arrived first. Fix: try an exact
+    // (case-insensitive, trimmed) match first — this preserves variant
+    // distinctions — and only fall through to the aggressive normalizer
+    // when there's no exact hit, so the packaging-qualifier case still
+    // works.
+    const exactKey = (s: string) => String(s || "").toLowerCase().trim();
+    const dishByExact = new Map<string, Dish>();
+    const dishByNorm  = new Map<string, Dish>();
     for (const d of dishes) {
-      const key = normName(d.name);
-      if (key && !dishByNorm.has(key)) dishByNorm.set(key, d);
+      const ek = exactKey(d.name);
+      if (ek && !dishByExact.has(ek)) dishByExact.set(ek, d);
+      const nk = normName(d.name);
+      if (nk && !dishByNorm.has(nk)) dishByNorm.set(nk, d);
     }
 
     // 3) Build mode-split sections
@@ -276,8 +290,10 @@ export async function GET(req: Request) {
     const pactUnmatched: { bom_code: string; name: string; mode: string }[] = [];
 
     for (const p of pactItems) {
-      const normKey = normName(p.dish_name);
-      const dish = normKey ? dishByNorm.get(normKey) : undefined;
+      // Exact match first (variant-safe), then normalised match (packaging-safe).
+      const ek = exactKey(p.dish_name);
+      const nk = normName(p.dish_name);
+      const dish = (ek && dishByExact.get(ek)) || (nk ? dishByNorm.get(nk) : undefined);
       const item: Item = {
         bom_code:         p.bom_code,
         fg_code:          p.fg_code,
