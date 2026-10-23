@@ -255,7 +255,15 @@ export async function GET(req: Request) {
         scanBatches,
         group: str(row[iGrp]) || (stat?.group || ""),
         idealStorage: idealStorageFor(name),
-        idealUom: idealEntryFor(name)?.uom ?? null,
+        // PACT's DefaultBarcodePrintUOM is the operator-preferred counting
+        // unit (parsed above into printLevel → lv). It's the correct source
+        // for Packing UOM — e.g. Blueberry Filling: L2=Kg, L3=Carton,
+        // DefaultBarcodePrintUOM=Kg, which is how the kitchen counts it.
+        // The static JSON's uom field (idealEntryFor().uom) only wins
+        // when PACT didn't set DefaultBarcodePrintUOM for that product.
+        // Fixed 16 items on the Ideal Inventory list in one pass
+        // (Blueberry Filling, Tata Salt, Quinoa, Ginger, Sweet Corn, …).
+        idealUom: (lv.u ? String(lv.u) : null) ?? idealEntryFor(name)?.uom ?? null,
         idealQty: idealEntryFor(name)?.ideals ?? null,
       };
       if (includeRaw) {
