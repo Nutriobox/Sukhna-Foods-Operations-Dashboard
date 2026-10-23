@@ -367,6 +367,141 @@ export async function GET(req: Request) {
         transaction_id: o.transaction_id,
       });
     }
+    // Cancelled-order synthesis (2026-10-23). AIFI's orders table does NOT
+    // contain cancelled orders — verified live: PetPooja sends the cancel as
+    // another "orderdetails" webhook with properties.Order.status="Cancelled",
+    // and AIFI's materialiser never creates a row for it (mapped_order_id =
+    // NULL). The 15 auto-rejected orders in a 40-hour window landed in
+    // petpooja_events.raw with the full OrderItem array still intact, so we
+    // can build Sales API rows straight from the webhook payload.
+    //
+    // Field mapping (petpooja_events.raw.properties ...)
+    //   Order.status           -> "Cancelled" (always)
+    //   Order.reason           -> order_cancel_reason
+    //   Order.created_on       -> date (falls back to received_at)
+    //   Order.customer_invoice_id | Order.orderID | pp_order_id -> invoice_no
+    //   Order.payment_type/order_type/order_from/sub_order_type/GroupName/assignee
+    //   Order.{core_total,tax_total,discount_total,delivery_charges,
+    //          packaging_charge,service_charge,round_off,total,no_of_persons}
+    //   Restaurant.restID -> restaurants.pp_rest_id -> local restaurant_id/name
+    //   OrderItem[].{name,category_name,sap_code,price,quantity,total}
+    try {
+      const restByPpId = new Map<string, Restaurant>();
+      for (const r of restaurants) {
+        if (r.pp_rest_id != null) restByPpId.set(String(r.pp_rest_id), r);
+      }
+      // PostgREST supports chained -> / ->> in filters; status lives at
+      // properties.Order.status, exactly where the schema probe placed it.
+      const cancelPath =
+        "petpooja_events?select=pp_order_id,received_at,raw" +
+        `&received_at=gte.${encodeURIComponent(fromTs)}` +
+        `&received_at=lte.${encodeURIComponent(toTs)}` +
+        `&raw->properties->Order->>status=eq.Cancelled`;
+      const cancelEvents = await sbGetPaged<{ pp_order_id: string; received_at: string; raw: Record<string, unknown> }>(
+        url, key, cancelPath, 5_000
+      );
+      const normDate = (s: string | null | undefined): string => {
+        const raw = String(s || "").trim();
+        if (!raw) return "";
+        // PetPooja uses "YYYY-MM-DD HH:MM:SS"; strip anything timezone-ish.
+        return raw.replace("T", " ").slice(0, 19);
+      };
+      const n = (v: unknown): number | null => {
+        if (v == null || v === "") return null;
+        const x = Number(String(v).replace(/,/g, ""));
+        return isFinite(x) ? x : null;
+      };
+      const s = (v: unknown): string | null => (v == null || v === "" ? null : String(v));
+      type J = Record<string, unknown>;
+      for (const ev of cancelEvents) {
+        const props = ((ev.raw as J)?.properties ?? {}) as J;
+        const ord  = (props.Order      ?? {}) as J;
+        const rest = (props.Restaurant ?? {}) as J;
+        const cust = (props.Customer   ?? {}) as J;
+        const itemsArr = Array.isArray(props.OrderItem) ? (props.OrderItem as J[]) : [];
+        const ppRestId = s(rest.restID);
+        const matchedRest = ppRestId ? restByPpId.get(ppRestId) : undefined;
+        const restaurant_id = matchedRest ? matchedRest.id : 0;
+        // Honour the outlet filter the dashboard sent — otherwise a cancel at
+        // Shivalik would show up when the user asked for Dwarka.
+        if (outletFilter && String(restaurant_id) !== outletFilter) continue;
+        if (channelFilter && String(ord.order_from || "").toLowerCase() !== channelFilter.toLowerCase()) continue;
+        if (orderTypeFilter && String(ord.order_type || "").toLowerCase() !== orderTypeFilter.toLowerCase()) continue;
+        const invoice =
+          s(ord.customer_invoice_id) ||
+          s(ord.orderID) ||
+          s(ev.pp_order_id);
+        const base = {
+          restaurant_name:     matchedRest?.name || s(rest.res_name) || `restaurant ${ppRestId || "?"}`,
+          invoice_no:          invoice,
+          date:                normDate((ord.created_on as string) || ev.received_at),
+          payment_type:        s(ord.payment_type),
+          order_type:          s(ord.order_type),
+          status:              "Cancelled",
+          area:                s(ord.order_from),
+          virtual_brand_name:  s(ord.sub_order_type),
+          brand_grouping:      s(ord.GroupName),
+          assign_to:           s(ord.assignee),
+          customer_phone:      s(cust.phone) || s(cust.customer_phone),
+          customer_name:       s(cust.name)  || s(cust.customer_name),
+          customer_address:    s(cust.address) || s(cust.customer_address),
+          persons:             n(ord.no_of_persons),
+          order_cancel_reason: s(ord.reason),
+          my_amount:           n(ord.core_total),
+          total_tax:           n(ord.tax_total),
+          discount:            n(ord.discount_total),
+          delivery_charge:     n(ord.delivery_charges),
+          container_charge:    n(ord.packaging_charge),
+          service_charge:      n(ord.service_charge),
+          additional_charge:   null,
+          deduction_charge:    null,
+          waived_off:          null,
+          round_off:           n(ord.round_off),
+          total:               n(ord.total),
+          outlet_id:           restaurant_id,
+          biller:              s(ord.biller),
+          pp_order_code:       s(ev.pp_order_id),
+          transaction_id:      s(ord.transaction_id),
+        };
+        // One Sales API row per OrderItem (same shape as the live-orders path).
+        // If the payload has no items (shouldn't happen in practice but be safe),
+        // emit a single order-level row so the cancellation still surfaces.
+        if (!itemsArr.length) {
+          rows.push({
+            ...base,
+            item_name:     "(no items)",
+            category_name: null,
+            sap_code:      null,
+            item_price:    null,
+            item_quantity: 0,
+            item_total:    null,
+            dish_id:       0,
+          });
+          continue;
+        }
+        for (const it of itemsArr) {
+          const nm = String(it.name || "");
+          if (search && !nm.toLowerCase().includes(search)) continue;
+          rows.push({
+            ...base,
+            item_name:     nm,
+            category_name: s(it.category_name),
+            sap_code:      s(it.sap_code),
+            item_price:    n(it.price),
+            item_quantity: n(it.quantity) ?? 0,
+            item_total:    n(it.total),
+            dish_id:       0,
+          });
+        }
+      }
+    } catch (ce) {
+      // Non-fatal: Sales API still returns live orders if the cancel-events
+      // merge errors (bad PostgREST syntax on an older Supabase, missing
+      // petpooja_events, etc.). Log so Vercel surfaces it.
+      // eslint-disable-next-line no-console
+      console.error("[outlet-invoices] cancel merge failed:", ce);
+    }
+
     // The row-build loop iterates `items` which comes back from fetchItemsFor
     // in Supabase's default order (order_items.id ASC within each 400-order
     // batch), NOT in orders DESC. So the "natural order" was wrong: the top
