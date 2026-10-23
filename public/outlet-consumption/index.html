@@ -807,29 +807,46 @@
    </div>
   </div>
 
-  <!-- Read-only "View saved snapshot" modal -->
+  <!-- Variance View modal — three paired columns per RM:
+       Ideal (what the formula says you should have left),
+       On Hand (the actual closing: Ideal minus the variance adjustment),
+       Variance (= Ideal − On Hand; +ve = excess, −ve = shortfall).
+       Each is split into Full / Loose using the RM's Loose Denomination mark. -->
   <div id="iiSavedViewModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedView()">
-   <div class="nmbody" style="max-width:1200px">
+   <div class="nmbody" style="max-width:1300px">
     <div class="nmhdr">
-     <h3 style="margin:0;flex:1">📋 Saved Snapshot — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
+     <h3 style="margin:0;flex:1">📋 Variance View — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
      <button class="btn" onclick="iiCloseSavedView()">✕</button>
     </div>
-    <div id="iiSavedViewMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
+    <div id="iiSavedViewMeta" class="mut" style="margin:8px 0 10px;font-size:13px;line-height:1.5"></div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+     <span style="font-size:12.5px;color:#374151">Sort by variance:</span>
+     <button class="btn" id="iiSortVarAsc"  onclick="iiSortSavedView('asc')"  title="Shortfalls first — most negative variance (red) on top">↓ Low → High</button>
+     <button class="btn" id="iiSortVarDesc" onclick="iiSortSavedView('desc')" title="Excess first — most positive variance (green) on top">↑ High → Low</button>
+     <button class="btn" id="iiSortVarNone" onclick="iiSortSavedView('none')" title="Reset to the snapshot's original order">↺ Original order</button>
+     <span class="mut" style="font-size:12px;margin-left:auto">+ green = excess · − red = shortfall</span>
+    </div>
     <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table>
-     <thead><tr>
-      <th>#</th>
-      <th>RM Code</th>
-      <th>Raw Material Name</th>
-      <th>Category</th>
-      <th>L1 UOM</th>
-      <th class="r">Opening (L1)</th>
-      <th class="r">Purchase (L1)</th>
-      <th class="r">Consumption (L1)</th>
-      <th class="r">Variance (L1)</th>
-      <th class="r">Ideal Closing (L1)</th>
-      <th class="r">Full</th>
-      <th class="r">Loose</th>
-     </tr></thead>
+     <thead>
+      <tr>
+       <th rowspan="2">#</th>
+       <th rowspan="2">RM Code</th>
+       <th rowspan="2">Item Name</th>
+       <th rowspan="2">Category</th>
+       <th rowspan="2">UOM</th>
+       <th colspan="2" class="r" style="background:#f1f5f9">Ideal</th>
+       <th colspan="2" class="r" style="background:#eff6ff">On Hand</th>
+       <th colspan="2" class="r" style="background:#fffbeb">Variance</th>
+      </tr>
+      <tr>
+       <th class="r" style="background:#f1f5f9">Full</th>
+       <th class="r" style="background:#f1f5f9">Loose</th>
+       <th class="r" style="background:#eff6ff">Full</th>
+       <th class="r" style="background:#eff6ff">Loose</th>
+       <th class="r" style="background:#fffbeb">Full</th>
+       <th class="r" style="background:#fffbeb">Loose</th>
+      </tr>
+     </thead>
      <tbody id="tbodyIiSavedView"></tbody>
     </table></div></div>
    </div>
@@ -858,15 +875,12 @@
     <th>Date &amp; Time</th>
     <th>Outlet</th>
     <th>IO #</th>
-    <th>Rows</th>
-    <th>Σ Variance</th>
-    <th>Status</th>
     <th>View</th>
     <th>Import</th>
     <th>Delete</th>
     <th>Approve</th>
    </tr></thead>
-   <tbody id="tbodyVa"><tr><td colspan="11" class="mut" style="padding:20px;text-align:center">Loading saved snapshots…</td></tr></tbody>
+   <tbody id="tbodyVa"><tr><td colspan="8" class="mut" style="padding:20px;text-align:center">Loading saved snapshots…</td></tr></tbody>
   </table></div></div>
  </div>  <!-- /tabVa -->
 
@@ -4753,33 +4767,134 @@ async function iiViewSaved(id){
       parts.push('<b>Saved:</b> ' + esc(fmtTime(snap.created_at || '')));
       meta.innerHTML = parts.join(' &nbsp;·&nbsp; ');
     }
-    const items = Array.isArray(snap.items) ? snap.items : [];
-    if(!items.length){
-      tb.innerHTML = '<tr><td colspan="12" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
-    } else {
-      tb.innerHTML = items.map((it, i) => {
-        const fullCell  = it.full_qty  == null ? '<span class="mut">—</span>' : qty(it.full_qty)  + ' <span class="mut" style="font-size:11px">' + esc(it.full_unit  || '') + '</span>';
-        const looseCell = it.loose_qty == null ? '<span class="mut">—</span>' : qty(it.loose_qty) + ' <span class="mut" style="font-size:11px">' + esc(it.loose_unit || '') + '</span>';
-        return '<tr>'
-          + '<td>' + (i + 1) + '</td>'
-          + '<td style="font-family:monospace;font-size:12px">' + esc(it.rm_code) + '</td>'
-          + '<td>' + esc(it.name) + '</td>'
-          + '<td>' + (typeof oiCategoryChip === 'function' ? oiCategoryChip(it.category) : esc(it.category || '')) + '</td>'
-          + '<td><span class="code">' + esc(it.l1_unit || '') + '</span></td>'
-          + '<td class="r">' + qty(it.opening_l1)     + '</td>'
-          + '<td class="r">' + qty(it.purchase_l1)    + '</td>'
-          + '<td class="r">' + qty(it.consumption_l1) + '</td>'
-          + '<td class="r">' + qty(it.variance_l1)    + '</td>'
-          + '<td class="r" style="font-weight:600">' + qty(it.closing_l1) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit || '') + '</span></td>'
-          + '<td class="r">' + fullCell  + '</td>'
-          + '<td class="r">' + looseCell + '</td>'
-        + '</tr>';
-      }).join('');
-    }
+    // Stash the snapshot's items on module-level state so the sort buttons
+    // can re-render without re-fetching from the server.
+    II_VIEW.snap = snap;
+    II_VIEW.sort = 'none';
+    iiRenderSavedView();
     modal.style.display = 'flex';
   } catch(e){
     toast('Could not open snapshot: ' + (e.message || e), 5000);
   }
+}
+
+// State for the Variance View modal — snapshot being viewed + the current
+// sort direction. Set by iiViewSaved and iiSortSavedView; read by
+// iiRenderSavedView to rebuild the table body in place.
+const II_VIEW = { snap: null, sort: 'none' };
+
+// Split an L1 figure into (full, loose) using the item's level units + the
+// Loose Denomination mark saved on the snapshot. Mirrors iiSplitClosing but
+// works off a snapshot item (which carries packScale/caseScale/l1_unit/
+// l2_unit/l3_unit directly) and signs the loose remainder to match the
+// Full value for a negative input (so a shortfall of -1,500 Gms shows as
+// -1 Kg / -500 Gms, not -1 Kg / 500 Gms).
+function iiSplitForView(item, l1){
+  const n = Number(l1 || 0);
+  const abs = Math.abs(n);
+  const sign = n < 0 ? -1 : 1;
+  const l1Unit = item.l1_unit || '';
+  const l2Unit = item.l2_unit || '';
+  const l3Unit = item.l3_unit || '';
+  const packScale = Number(item.packScale) || 0;
+  const caseScale = Number(item.caseScale) || 0;
+  // Loose level mark lives on the RM master, which the snapshot doesn't carry
+  // per-item. We fall back to the item's own full_unit (if set at save time)
+  // to decide which level the Full column is in; if that's not available we
+  // use L2 if we have a packScale, else L1.
+  const savedFullUnit = String(item.full_unit || '').toLowerCase().trim();
+  let fullDivisor = 0;
+  let fullUnit = l1Unit;
+  if(savedFullUnit && savedFullUnit === String(l3Unit).toLowerCase() && caseScale){
+    fullDivisor = caseScale; fullUnit = l3Unit;
+  } else if(savedFullUnit && savedFullUnit === String(l2Unit).toLowerCase() && packScale){
+    fullDivisor = packScale; fullUnit = l2Unit;
+  } else if(savedFullUnit && savedFullUnit === String(l1Unit).toLowerCase()){
+    // L1 mark — no further "full" level above
+    return { fullQty: null, fullUnit: '', looseQty: n, looseUnit: l1Unit };
+  } else if(caseScale){
+    fullDivisor = caseScale; fullUnit = l3Unit;
+  } else if(packScale){
+    fullDivisor = packScale; fullUnit = l2Unit;
+  }
+  if(!fullDivisor){
+    return { fullQty: n, fullUnit: l1Unit, looseQty: null, looseUnit: '' };
+  }
+  const full  = Math.floor(abs / fullDivisor);
+  const loose = abs - full * fullDivisor;
+  return { fullQty: full * sign, fullUnit, looseQty: loose * sign, looseUnit: l1Unit };
+}
+
+function iiFmtVarCell(qtyVal, unitLabel){
+  const n = Number(qtyVal || 0);
+  if(n === 0 || qtyVal == null){
+    return '<span class="mut">0' + (unitLabel ? ' <span style="font-size:11px">' + esc(unitLabel) + '</span>' : '') + '</span>';
+  }
+  const colour = n > 0 ? '#15803d' : '#b91c1c';
+  const sign   = n > 0 ? '+' : '−';
+  return '<span style="color:' + colour + ';font-weight:600">' + sign + qty(Math.abs(n)) + '</span>'
+       + (unitLabel ? ' <span class="mut" style="font-size:11px">' + esc(unitLabel) + '</span>' : '');
+}
+
+function iiSortSavedView(dir){
+  II_VIEW.sort = dir;
+  // Highlight the active sort chip for feedback.
+  for(const id of ['iiSortVarAsc', 'iiSortVarDesc', 'iiSortVarNone']){
+    const b = $(id); if(!b) continue;
+    b.classList.toggle('prim',
+      (dir === 'asc'  && id === 'iiSortVarAsc') ||
+      (dir === 'desc' && id === 'iiSortVarDesc') ||
+      (dir === 'none' && id === 'iiSortVarNone'));
+  }
+  iiRenderSavedView();
+}
+
+function iiRenderSavedView(){
+  const snap = II_VIEW.snap;
+  const tb = $('tbodyIiSavedView');
+  if(!snap || !tb) return;
+  const items = Array.isArray(snap.items) ? snap.items.slice() : [];
+  if(!items.length){
+    tb.innerHTML = '<tr><td colspan="11" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
+    return;
+  }
+  // Signed variance: + means Ideal > On Hand (excess), − means shortfall.
+  // Snapshot's variance_l1 is what the operator typed in the Ideal
+  // Inventory tab — same sign convention: positive is a shortfall subtracted
+  // from closing. Reverse the sign here so "+ green = excess" reads
+  // naturally.
+  const varianceOf = (it) => -1 * Number(it.variance_l1 || 0);
+  if(II_VIEW.sort === 'asc')  items.sort((a, b) => varianceOf(a) - varianceOf(b));
+  if(II_VIEW.sort === 'desc') items.sort((a, b) => varianceOf(b) - varianceOf(a));
+
+  tb.innerHTML = items.map((it, i) => {
+    // L1 figures for Ideal / On Hand / Variance.
+    //   Ideal   = Opening + Purchase − Consumption   (what SHOULD be left)
+    //   On Hand = Closing (= Ideal − Variance)       (actual stock)
+    //   Variance= Ideal − On Hand = -variance_l1     (+ = excess, − = short)
+    const idealL1   = Number(it.opening_l1 || 0) + Number(it.purchase_l1 || 0) - Number(it.consumption_l1 || 0);
+    const onHandL1  = Number(it.closing_l1 || 0);
+    const varL1     = idealL1 - onHandL1;
+    const sIdeal    = iiSplitForView(it, idealL1);
+    const sOnHand   = iiSplitForView(it, onHandL1);
+    const sVar      = iiSplitForView(it, varL1);
+    const catCell   = (typeof oiCategoryChip === 'function') ? oiCategoryChip(it.category) : esc(it.category || '');
+    const uomCell   = '<span class="code">' + esc(it.packing_uom || it.full_unit || it.l1_unit || '') + '</span>';
+    const fmtPlain  = (q, u) => (q == null) ? '<span class="mut">—</span>' : (qty(q) + (u ? ' <span class="mut" style="font-size:11px">' + esc(u) + '</span>' : ''));
+    return '<tr>'
+      + '<td>' + (i + 1) + '</td>'
+      + '<td style="font-family:monospace;font-size:12px">' + esc(it.rm_code) + '</td>'
+      + '<td>' + esc(it.name) + '</td>'
+      + '<td>' + catCell + '</td>'
+      + '<td>' + uomCell + '</td>'
+      + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.fullQty,  sIdeal.fullUnit)  + '</td>'
+      + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.looseQty, sIdeal.looseUnit) + '</td>'
+      + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.fullQty, sOnHand.fullUnit) + '</td>'
+      + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.looseQty,sOnHand.looseUnit)+ '</td>'
+      + '<td class="r" style="background:#fffbeb">' + iiFmtVarCell(sVar.fullQty,  sVar.fullUnit)  + '</td>'
+      + '<td class="r" style="background:#fffbeb">' + iiFmtVarCell(sVar.looseQty, sVar.looseUnit) + '</td>'
+    + '</tr>';
+  }).join('');
 }
 
 async function iiImportSaved(id){
@@ -4900,7 +5015,7 @@ function renderVa(){
     return true;
   });
   if(!list.length){
-    tb.innerHTML = '<tr><td colspan="11" class="mut" style="padding:20px;text-align:center">No snapshots match these filters. Save one from the Ideal Inventory tab to populate this list.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" class="mut" style="padding:20px;text-align:center">No snapshots match these filters. Save one from the Ideal Inventory tab to populate this list.</td></tr>';
     return;
   }
   tb.innerHTML = list.map((s, i) => {
@@ -4911,11 +5026,6 @@ function renderVa(){
       ? fmtTime(String(s.window_to).length === 16 ? s.window_to + '+05:30' : s.window_to)
       : (s.created_at ? fmtTime(s.created_at) : '—');
     const ord  = s.order_number != null ? ('#' + s.order_number) : '—';
-    const rows = s.total_items != null ? s.total_items : '—';
-    // Σ Variance isn't on the list payload (we omit items[] for payload
-    // size), so show a dash with a hint. View fetches the full snapshot
-    // and shows per-RM variances if the reviewer wants to see them.
-    const sumCell = '<span class="mut" title="Open the snapshot to see per-RM variance">—</span>';
     const approveBtn = s.approved_at
       ? '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Clear the approval">↶ Un-approve</button>'
       : '<button class="btn prim" onclick="vaApprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Approve the variances in this snapshot (shared password for now; email OTP next)">✓ Approve</button>';
@@ -4924,9 +5034,6 @@ function renderVa(){
       + '<td>' + esc(when) + '</td>'
       + '<td>' + nameEsc + '</td>'
       + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
-      + '<td class="r">' + rows + '</td>'
-      + '<td class="r">' + sumCell + '</td>'
-      + '<td>' + vaStatusChip(s) + '</td>'
       + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
       + '<td><button class="btn" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the Ideal Inventory tab">⬆ Import</button></td>'
       + '<td><button class="btn warn" onclick="vaDelete(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px">🗑 Delete</button></td>'
