@@ -121,11 +121,25 @@ async function setStatus(jobId, status, logText) {
   // status is the field the app/dashboard poll — this must succeed.
   const { error } = await sb.from('pact_jobs').update({ status, updated_at: now() }).eq('id', jobId);
   if (error) { log('status update failed:', error.message); return; }
-  // run_log is best-effort: the column may not exist on every deployment.
-  if (logText) {
-    const r = await sb.from('pact_jobs').update({ run_log: String(logText).slice(0, 6000) }).eq('id', jobId);
-    if (r.error) log('(run_log not stored:', r.error.message + ')');
+  if (!logText) return;
+  // On a FAILED job also stash the tail (or the SYNC FAILED line if present)
+  // into pact_jobs.error — the dashboard polls error, and this guarantees the
+  // reason surfaces even on deployments that haven't added the run_log column
+  // (verified 2026-10-23: run_log was missing in production, so every failed
+  // sync showed "(no reason returned by worker)" for weeks). Done BEFORE the
+  // run_log write so a missing column doesn't swallow the useful error.
+  if (status === 'failed') {
+    const tail = String(logText);
+    const m = tail.match(/SYNC FAILED:\s*(.+)/);
+    const short = (m ? m[1].trim() : tail.split(/\r?\n/).filter((l) => l.trim()).pop() || '').slice(0, 400);
+    if (short) {
+      const re = await sb.from('pact_jobs').update({ error: short }).eq('id', jobId);
+      if (re.error) log('(error field not stored:', re.error.message + ')');
+    }
   }
+  // run_log is best-effort: the column may not exist on every deployment.
+  const r = await sb.from('pact_jobs').update({ run_log: String(logText).slice(0, 6000) }).eq('id', jobId);
+  if (r.error) log('(run_log not stored:', r.error.message + ')');
 }
 
 async function tick() {
