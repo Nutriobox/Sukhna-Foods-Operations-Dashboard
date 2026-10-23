@@ -1259,12 +1259,21 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
       ? ('syncing… ' + s + 's')
       : ('waiting for worker (behind other jobs)… ' + s + 's');
   }, 400);
+  // Watch for job status in parallel with snapshot timestamp. If the
+  // pact-worker marks the job failed (even silently, with an empty error
+  // field), the snapshot never advances and the poll loop would spin for
+  // the full 10 minutes before giving up. Fail-fast when sync-status
+  // returns conclusion=failure with a timestamp newer than when we
+  // queued, so the user hears about it in seconds, not minutes.
+  const queuedAt = Date.now();
   try{
     const q = await fetch('/api/sync-costing?report='+report, {method:'POST'}).then(r => r.json()).catch(e => ({ok:false,error:String(e)}));
     if(!q.ok) throw new Error(q.error || 'queue failed');
-    const deadline = Date.now() + 600000;  // 10 min (was 3 min; too tight when queue has backlog)
+    const jobId = Array.isArray(q.queued) && q.queued[0] ? q.queued[0].jobId : null;
+    const deadline = Date.now() + 600000;  // 10 min
     while(Date.now() < deadline){
       await new Promise(r => setTimeout(r, 4000));
+      // 1) Did a new snapshot land?
       const j = await fetch('/api/costing/'+report, {cache:'no-store'}).then(r => r.json()).catch(()=>null);
       if(j && j.synced_at && j.synced_at !== baselineAt){
         await afterLoad();
@@ -1272,6 +1281,29 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
         stat.textContent = '✓ synced · ' + secs + 's';
         toast('Synced from PACT (' + secs + 's)');
         return;
+      }
+      // 2) Did the worker mark this job (or the latest job for this
+      //    report) as failed? sync-status is cheap, so we poll it on
+      //    every tick alongside the snapshot check.
+      let failedReason = '';
+      if(jobId){
+        const jr = await fetch('/api/pact-job?id=' + encodeURIComponent(jobId), {cache:'no-store'}).then(r => r.json()).catch(()=>null);
+        if(jr && jr.ok && jr.status === 'failed'){
+          failedReason = jr.message || '(no reason returned by worker)';
+        }
+      }
+      if(!failedReason){
+        const ss = await fetch('/api/sync-status?type=costing-'+report, {cache:'no-store'}).then(r => r.json()).catch(()=>null);
+        if(ss && ss.ok && ss.run && ss.run.status === 'completed' && ss.run.conclusion === 'failure'){
+          const t = Date.parse(ss.run.createdAt || '');
+          // Only treat as our failure if the completion is newer than when we queued.
+          if(isFinite(t) && t >= queuedAt - 2000){
+            failedReason = '(worker marked job failed, no error text)';
+          }
+        }
+      }
+      if(failedReason){
+        throw new Error('worker returned failed: ' + failedReason);
       }
     }
     // The job IS still queued and will run — the dashboard just stopped
