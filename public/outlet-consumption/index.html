@@ -288,6 +288,7 @@
    <div class="nmbody">
     <div class="nmhdr">
      <h3 style="margin:0;flex:1">⚠ Not Matching List</h3>
+     <button class="btn" onclick="imNmExportCsv()" title="Download the currently visible tab as a CSV">⬇ Export CSV</button>
      <button class="btn" onclick="imHideNotMatching()">✕</button>
     </div>
     <div class="tabs" style="margin:12px 0 10px">
@@ -5376,6 +5377,36 @@ function imNmTab(k){
   document.querySelectorAll('#imNmModal .tab').forEach(x => x.classList.toggle('on', x.dataset.nm === k));
   $('nmPactList').style.display = k === 'pact' ? '' : 'none';
   $('nmPpList').style.display   = k === 'pp'   ? '' : 'none';
+}
+// Export whichever Not Matching tab is active to CSV. The two tabs carry
+// different columns (PACT-only has BOM code, PetPooja-only has PetPooja
+// category), so we keep two separate shapes rather than forcing one grid.
+function imNmExportCsv(){
+  if(!IM.data){ toast('Data still loading…', 1500); return; }
+  const nm = IM.data.not_matching || { pact_only:[], petpooja_only:[] };
+  const activeTab = document.querySelector('#imNmModal .tab.on');
+  const which = activeTab && activeTab.dataset.nm === 'pp' ? 'pp' : 'pact';
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const today = new Date().toISOString().slice(0,10);
+  if(which === 'pact'){
+    if(!nm.pact_only.length){ toast('Nothing to export — list is empty.', 1800); return; }
+    const header = ['Mode','PACT Item Name','BOM Code'];
+    const lines = [header.map(esc2).join(',')];
+    for(const r of nm.pact_only){
+      lines.push([r.mode || '', r.name || '', r.bom_code || ''].map(esc2).join(','));
+    }
+    downloadBlob(lines.join('\n'), 'not-matching-pact-only-' + today + '.csv');
+    toast('Exported ' + nm.pact_only.length + ' PACT-only item(s)', 1800);
+  } else {
+    if(!nm.petpooja_only.length){ toast('Nothing to export — list is empty.', 1800); return; }
+    const header = ['Mode','PetPooja Dish Name','PetPooja Category'];
+    const lines = [header.map(esc2).join(',')];
+    for(const r of nm.petpooja_only){
+      lines.push([r.mode || '', r.name || '', r.category || ''].map(esc2).join(','));
+    }
+    downloadBlob(lines.join('\n'), 'not-matching-petpooja-only-' + today + '.csv');
+    toast('Exported ' + nm.petpooja_only.length + ' PetPooja-only dish(es)', 1800);
+  }
 }
 
 /* Cross-tab auto-refresh — when PM or BOM is synced from any tool (this one,
