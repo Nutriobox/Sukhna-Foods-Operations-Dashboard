@@ -778,81 +778,82 @@
 
   </div>  <!-- /iiResultsView -->
 
-  <!-- Modals live OUTSIDE both iiFormView and iiResultsView so clicking
-       "🗂 Saved inventories" from the form view still shows them (a nested
-       modal under a display:none ancestor would stay hidden). -->
-
-  <!-- Saved Inventories modal — password-gated list of snapshots -->
-  <div id="iiSavedModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedList()">
-   <div class="nmbody" style="max-width:1100px">
-    <div class="nmhdr">
-     <h3 style="margin:0;flex:1">🗂 Saved Ideal Inventories</h3>
-     <button class="btn" onclick="iiCloseSavedList()">✕</button>
-    </div>
-    <div id="iiSavedMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
-    <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table id="tblIiSaved">
-     <thead><tr>
-      <th>#</th>
-      <th>Date &amp; Time</th>
-      <th>Outlet</th>
-      <th>Order #</th>
-      <th>Opening Count</th>
-      <th>Rows</th>
-      <th>View</th>
-      <th>Import</th>
-      <th>Delete</th>
-     </tr></thead>
-     <tbody id="tbodyIiSaved"><tr><td colspan="9" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
-    </table></div></div>
-   </div>
-  </div>
-
-  <!-- Variance View modal — three paired columns per RM:
-       Ideal (what the formula says you should have left),
-       On Hand (the actual closing: Ideal minus the variance adjustment),
-       Variance (= Ideal − On Hand; +ve = excess, −ve = shortfall).
-       Each is split into Full / Loose using the RM's Loose Denomination mark. -->
-  <div id="iiSavedViewModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedView()">
-   <div class="nmbody" style="max-width:1300px">
-    <div class="nmhdr">
-     <h3 style="margin:0;flex:1">📋 Variance View — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
-     <button class="btn" onclick="iiCloseSavedView()">✕</button>
-    </div>
-    <div id="iiSavedViewMeta" class="mut" style="margin:8px 0 10px;font-size:13px;line-height:1.5"></div>
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-     <span style="font-size:12.5px;color:#374151">Sort by variance:</span>
-     <button class="btn" id="iiSortVarAsc"  onclick="iiSortSavedView('asc')"  title="Shortfalls first — most negative variance (red) on top">↓ Low → High</button>
-     <button class="btn" id="iiSortVarDesc" onclick="iiSortSavedView('desc')" title="Excess first — most positive variance (green) on top">↑ High → Low</button>
-     <button class="btn" id="iiSortVarNone" onclick="iiSortSavedView('none')" title="Reset to the snapshot's original order">↺ Original order</button>
-     <span class="mut" style="font-size:12px;margin-left:auto">+ green = excess · − red = shortfall</span>
-    </div>
-    <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table>
-     <thead>
-      <tr>
-       <th rowspan="2">#</th>
-       <th rowspan="2">RM Code</th>
-       <th rowspan="2">Item Name</th>
-       <th rowspan="2">Category</th>
-       <th rowspan="2">UOM</th>
-       <th colspan="2" class="r" style="background:#f1f5f9">Ideal</th>
-       <th colspan="2" class="r" style="background:#eff6ff">On Hand</th>
-       <th colspan="2" class="r" style="background:#fffbeb">Variance</th>
-      </tr>
-      <tr>
-       <th class="r" style="background:#f1f5f9">Full</th>
-       <th class="r" style="background:#f1f5f9">Loose</th>
-       <th class="r" style="background:#eff6ff">Full</th>
-       <th class="r" style="background:#eff6ff">Loose</th>
-       <th class="r" style="background:#fffbeb">Full</th>
-       <th class="r" style="background:#fffbeb">Loose</th>
-      </tr>
-     </thead>
-     <tbody id="tbodyIiSavedView"></tbody>
-    </table></div></div>
-   </div>
-  </div>
-
  </div>  <!-- /tabIi -->
+
+ <!-- Modals live OUTSIDE every tab container so they still render when
+      opened from a different tab. Previously nested inside tabIi, which
+      meant "View" on the Variance tab had nothing happen because tabIi
+      itself was display:none at that point and dragged the modal with it. -->
+
+ <!-- Saved Inventories modal — password-gated list of snapshots -->
+ <div id="iiSavedModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedList()">
+  <div class="nmbody" style="max-width:1100px">
+   <div class="nmhdr">
+    <h3 style="margin:0;flex:1">🗂 Saved Ideal Inventories</h3>
+    <button class="btn" onclick="iiCloseSavedList()">✕</button>
+   </div>
+   <div id="iiSavedMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
+   <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table id="tblIiSaved">
+    <thead><tr>
+     <th>#</th>
+     <th>Date &amp; Time</th>
+     <th>Outlet</th>
+     <th>Order #</th>
+     <th>Opening Count</th>
+     <th>Rows</th>
+     <th>View</th>
+     <th>Import</th>
+     <th>Delete</th>
+    </tr></thead>
+    <tbody id="tbodyIiSaved"><tr><td colspan="9" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
+   </table></div></div>
+  </div>
+ </div>
+
+ <!-- Variance View modal — three paired columns per RM:
+      Ideal (what the formula says you should have left),
+      On Hand (the actual closing: Ideal minus the variance adjustment),
+      Variance (= Ideal − On Hand; +ve = excess, −ve = shortfall).
+      Each is split into Full / Loose using the RM's Loose Denomination mark. -->
+ <div id="iiSavedViewModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedView()">
+  <div class="nmbody" style="max-width:1300px">
+   <div class="nmhdr">
+    <h3 style="margin:0;flex:1">📋 Variance View — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
+    <button class="btn" onclick="iiCloseSavedView()">✕</button>
+   </div>
+   <div id="iiSavedViewMeta" class="mut" style="margin:8px 0 10px;font-size:13px;line-height:1.5"></div>
+   <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+    <span style="font-size:12.5px;color:#374151">Sort by variance:</span>
+    <button class="btn" id="iiSortVarAsc"  onclick="iiSortSavedView('asc')"  title="Shortfalls first — most negative variance (red) on top">↓ Low → High</button>
+    <button class="btn" id="iiSortVarDesc" onclick="iiSortSavedView('desc')" title="Excess first — most positive variance (green) on top">↑ High → Low</button>
+    <button class="btn" id="iiSortVarNone" onclick="iiSortSavedView('none')" title="Reset to the snapshot's original order">↺ Original order</button>
+    <span class="mut" style="font-size:12px;margin-left:auto">+ green = excess · − red = shortfall</span>
+   </div>
+   <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table>
+    <thead>
+     <tr>
+      <th rowspan="2">#</th>
+      <th rowspan="2">RM Code</th>
+      <th rowspan="2">Item Name</th>
+      <th rowspan="2">Category</th>
+      <th rowspan="2">UOM</th>
+      <th colspan="2" class="r" style="background:#f1f5f9">Ideal</th>
+      <th colspan="2" class="r" style="background:#eff6ff">On Hand</th>
+      <th colspan="2" class="r" style="background:#fffbeb">Variance</th>
+     </tr>
+     <tr>
+      <th class="r" style="background:#f1f5f9">Full</th>
+      <th class="r" style="background:#f1f5f9">Loose</th>
+      <th class="r" style="background:#eff6ff">Full</th>
+      <th class="r" style="background:#eff6ff">Loose</th>
+      <th class="r" style="background:#fffbeb">Full</th>
+      <th class="r" style="background:#fffbeb">Loose</th>
+     </tr>
+    </thead>
+    <tbody id="tbodyIiSavedView"></tbody>
+   </table></div></div>
+  </div>
+ </div>
 
  <!-- ============== Variance tab — approval queue for saved snapshots ============== -->
  <div id="tabVa" style="display:none">
