@@ -175,15 +175,35 @@ export async function GET(req: Request) {
     const restaurants = await sbGet<Restaurant>(url, key, "restaurants?select=id,name,pp_rest_id&order=id.asc");
     const restByCode = new Map(restaurants.map((r) => [r.id, r]));
 
-    // outlet_name=... (substring, case-insensitive) resolves to outlet_id by
-    // matching restaurants.name on the server side. This keeps the Supabase
-    // orders query filtered to one outlet so a six-day window across all 10
-    // outlets doesn't need a 50k-row cap just to get one outlet's rows
-    // through. Dashboard uses outlet_name (short branch label like 'DLF
-    // Phase 2'); internal callers can still pass outlet_id directly.
+    // outlet_name=... resolves to outlet_id by matching restaurants.name on
+    // the server side. Keeps the Supabase orders query filtered to one outlet
+    // so a wide window doesn't need a 50k-row cap just to get one outlet's
+    // rows through. Dashboard uses outlet_name (short branch label like
+    // 'DLF Phase 2'); internal callers can still pass outlet_id directly.
+    //
+    // Resolution order — this matters when branch labels share a substring
+    // (e.g. "Noida" is contained in both "NutrioBox (Noida)" and "NutrioBox
+    // (Sector 63 Noida)"). A plain .includes() would silently pick whichever
+    // row appears first in id order, routing "Noida" requests to Sector 63
+    // Noida (id=3 vs id=7). Match in this priority instead:
+    //   1. Exact match on the branch label inside the parens
+    //      ("noida" == "noida" ✓; "sector 63 noida" ≠ "noida")
+    //   2. Exact match on the full name (case-insensitive)
+    //   3. Substring match on the full name — pick the row whose branch
+    //      label is shortest among the hits (shortest = most specific)
     if (!outletFilter && outletNameFilter) {
-      const needle = outletNameFilter.toLowerCase();
-      const match = restaurants.find((r) => (r.name || "").toLowerCase().includes(needle));
+      const needle = outletNameFilter.toLowerCase().trim();
+      const label = (r: Restaurant) => {
+        const m = (r.name || "").match(/\(([^)]+)\)/);
+        return (m ? m[1] : (r.name || "")).toLowerCase().trim();
+      };
+      let match = restaurants.find((r) => label(r) === needle);
+      if (!match) match = restaurants.find((r) => (r.name || "").toLowerCase().trim() === needle);
+      if (!match) {
+        const hits = restaurants.filter((r) => (r.name || "").toLowerCase().includes(needle));
+        hits.sort((a, b) => label(a).length - label(b).length);
+        match = hits[0];
+      }
       if (match) outletFilter = String(match.id);
     }
 
