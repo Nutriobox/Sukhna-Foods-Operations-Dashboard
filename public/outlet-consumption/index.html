@@ -3358,60 +3358,66 @@ function renderCn(){
   const typeF = ($('orderTypeCn') && $('orderTypeCn').value) || '';
   const tb = $('tbodyCn');
 
-  // Aggregate the raw sales rows by (match_key, order_type) once so each
-  // menu item × order_type lookup is O(1). match_key prefers dish_id for
-  // precision; falls back to lowercased name so sales from an item without
-  // a dish_id still match a menu entry by name. We ALSO capture the raw
-  // PetPooja item_name per dish_id (first-seen wins) so the row can show
-  // the PetPooja name alongside the PACT BOM name.
-  const salesByKey = new Map();  // "id:123||Dine In" -> qty
-  const petpoojaNameByDishId = new Map();  // dish_id -> PetPooja item_name (first seen)
-  const petpoojaNameByNameKey = new Map(); // lower(name) -> PetPooja item_name (first seen; identical in most cases)
-  const unmatchedByKey = new Map();  // key -> { name, category, order_type, qty }
+  // Build the menu first so we can resolve each sale directly to its menu
+  // entry (via dish_id OR name). The previous version aggregated into a
+  // single salesByKey map and used an idKey-first / nmKey-fallback rule —
+  // which read the right matrix number for a dish whose exact dish_id had
+  // sales but ALSO left same-named sister dish_ids (common when PetPooja
+  // menu profiles each have their own dish_id for one physical item) in
+  // the orphan sweep. Satvik 2026-10-23 (Rajinder Nagar "walnut br"): a
+  // DIN_BOM0018 Delivery=1 row AND an orphan Delivery=1 row with
+  // "PACT Code" showing 354 (that was a PetPooja dish_id, not a BOM) for
+  // the SAME Eggless Walnut Brownie — the two deliveries belonged to the
+  // same menu item but surfaced as two independent rows. Now:
+  //   1. Index the menu by both dish_id and name_key up front
+  //   2. For each sale, try dish_id first, then name_key — if either hits
+  //      a menu entry, fold the qty into THAT entry's bucket; only sales
+  //      with no menu match in either dimension become orphans
+  //   3. First-seen PetPooja item_name per menu entry wins for display
+  const menu = cnBuildMenuList();
+  const menuByDishId  = new Map();
+  const menuByNameKey = new Map();
+  for(const item of menu){
+    if(item.dish_id) menuByDishId.set(item.dish_id, item);
+    if(item.name_key && !menuByNameKey.has(item.name_key)) menuByNameKey.set(item.name_key, item);
+  }
+  // qtyByMenuKey keys by the menu entry's name_key + order_type (menu-side
+  // identity, so same-name sister dish_ids collapse into the same bucket).
+  const qtyByMenuKey = new Map();                 // name_key||ot -> qty
+  const petpoojaNameByMenuKey = new Map();        // name_key    -> first-seen PetPooja name
+  const orphans = new Map();                      // dish_id|name_key||ot -> {code,name,cat,ot,qty}
   for(const row of (CN.rows || [])){
     const ot = cnNormOrderType(row.order_type);
     if(!ot) continue;
-    const dishId = String(row.dish_id || '').trim();
-    const name   = String(row.item_name || '').trim();
+    const dishId  = String(row.dish_id || '').trim();
+    const name    = String(row.item_name || '').trim();
     if(!name) continue;
-    const kId   = dishId ? ('id:' + dishId)        : '';
-    const kName = ('nm:' + name.toLowerCase());
-    const qtyN = Number(row.item_quantity || 0);
-    if(kId){
-      salesByKey.set(kId + '||' + ot, (salesByKey.get(kId + '||' + ot) || 0) + qtyN);
-      if(!petpoojaNameByDishId.has(dishId)) petpoojaNameByDishId.set(dishId, name);
+    const nameKey = name.toLowerCase();
+    const qtyN   = Number(row.item_quantity || 0);
+    const menuMatch = (dishId && menuByDishId.get(dishId)) || menuByNameKey.get(nameKey);
+    if(menuMatch){
+      const mk = menuMatch.name_key + '||' + ot;
+      qtyByMenuKey.set(mk, (qtyByMenuKey.get(mk) || 0) + qtyN);
+      if(!petpoojaNameByMenuKey.has(menuMatch.name_key)) petpoojaNameByMenuKey.set(menuMatch.name_key, name);
+    } else {
+      const uk = (dishId ? 'id:' + dishId : 'nm:' + nameKey) + '||' + ot;
+      if(!orphans.has(uk)){
+        orphans.set(uk, { item_code: dishId || '—', item_name_pp: name, item_name_pact: '', category: row.category_name || '', order_type: ot, qty: 0 });
+      }
+      orphans.get(uk).qty += qtyN;
     }
-    salesByKey.set(kName + '||' + ot, (salesByKey.get(kName + '||' + ot) || 0) + qtyN);
-    if(!petpoojaNameByNameKey.has(name.toLowerCase())) petpoojaNameByNameKey.set(name.toLowerCase(), name);
-    // Also capture everything for the orphan sweep after the matrix is built.
-    const uk = (kId || kName) + '||' + ot;
-    if(!unmatchedByKey.has(uk)){
-      unmatchedByKey.set(uk, { item_code: dishId || '—', item_name_pp: name, item_name_pact: '', category: row.category_name || '', order_type: ot, qty: 0, _key: (kId || kName) });
-    }
-    unmatchedByKey.get(uk).qty += qtyN;
   }
 
   // Build the full matrix: every menu item × 3 order types, in IM order.
-  const menu = cnBuildMenuList();
   const rows = [];
-  const matched = new Set();  // keys we've drawn from the menu side
   for(const item of menu){
-    // Look up the PetPooja name for this menu entry. Prefer the dish_id
-    // match (what PetPooja's till actually sent); fall back to a name
-    // match; if the item hasn't sold in the window we just mirror the
-    // PACT BOM name so the column isn't blank.
-    const ppName = (item.dish_id && petpoojaNameByDishId.get(item.dish_id))
-                || petpoojaNameByNameKey.get(item.name_key)
-                || item.item_name_pact;
+    // Prefer the first PetPooja name we actually saw for this menu entry;
+    // fall back to the PACT BOM name so the column isn't blank for items
+    // that didn't sell in the window.
+    const ppName = petpoojaNameByMenuKey.get(item.name_key) || item.item_name_pact;
     for(const ot of CN_ORDER_TYPES){
-      const idKey = item.dish_id ? ('id:' + item.dish_id + '||' + ot) : '';
-      const nmKey = 'nm:' + item.name_key + '||' + ot;
-      const q1 = idKey ? (salesByKey.get(idKey) || 0) : 0;
-      const q2 = salesByKey.get(nmKey) || 0;
-      // Prefer dish_id match; fall back to name match. Don't double-count.
-      const qtyVal = idKey && salesByKey.has(idKey) ? q1 : q2;
-      if(idKey) matched.add('id:' + item.dish_id + '||' + ot);
-      matched.add('nm:' + item.name_key + '||' + ot);
+      const mk = item.name_key + '||' + ot;
+      const qtyVal = qtyByMenuKey.get(mk) || 0;
       rows.push({
         item_code:      item.item_code,
         item_name_pact: item.item_name_pact,   // what PACT's BOM calls it
@@ -3422,13 +3428,14 @@ function renderCn(){
       });
     }
   }
-  // Append any sold items that didn't match a menu entry (modifiers, retired
-  // items, name-spelling drift) so no sale disappears from the sheet. These
-  // land under a sentinel category sorted to the bottom.
-  for(const [uk, u] of unmatchedByKey.entries()){
-    if(matched.has(uk)) continue;
+  // Append any sold items that didn't match a menu entry by dish_id OR by
+  // name — modifiers, retired items, truly unlinked sales. These land under
+  // a sentinel category sorted to the bottom. "item_code" here is a
+  // PetPooja dish_id (not a PACT code) so we prefix it to make that
+  // obvious instead of pretending it's a BOM.
+  for(const [, u] of orphans.entries()){
     rows.push({
-      item_code:      u.item_code,
+      item_code:      u.item_code && u.item_code !== '—' ? ('PP:' + u.item_code) : '—',
       item_name_pact: '',                       // orphan — no PACT BOM
       item_name_pp:   u.item_name_pp,
       category:       u.category || 'Other / Modifiers',
