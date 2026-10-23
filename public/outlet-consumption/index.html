@@ -3266,9 +3266,20 @@ async function loadCn(fresh){
 // items appended at the end). One entry per unique item, in Item Master order
 // so the Consumption table sequence matches what people see on the Item Master
 // tab. Each entry: { item_code, item_name, category, dish_id, name_key }.
+// Dedupe is by BOTH dish_id and lower-cased name — a dish with separate
+// Dine In (DIN_BOM*) and Delivery (BOM_O*) BOMs appears twice in Item Master
+// (once per section) with DIFFERENT bom_codes and often DIFFERENT PetPooja
+// dish_ids, which used to leak through the dish_id-only guard and show up as
+// a 6-row block (3 order types × 2 BOMs). Satvik 2026-10-23: Eggless Walnut
+// Brownie, Gourmet Fruits Custard, Grandma's Best Hot Chocolate, Hot
+// Americano all read as duplicates for exactly this reason. First encountered
+// BOM for a name wins; dine_in is walked first so the Dine In BOM is the
+// chosen face of the dish, and the Delivery BOM's dish_id still folds into
+// the same row via the sales-match path in renderCn.
 function cnBuildMenuList(){
   const out = [];
-  const seen = new Set();  // dedupe by dish_id (preferred) or name (fallback)
+  const seenDishIds = new Set();   // dish_ids already placed
+  const seenNameKeys = new Set();  // normalised names already placed
   const addSection = (section) => {
     if(!section) return;
     for(const [catName, items] of Object.entries(section.categories || {})){
@@ -3283,9 +3294,15 @@ function cnBuildMenuList(){
         const namePact = String(it.name || '').trim();
         if(!namePact) continue;
         const dishId = String(it.petpooja_dish_id || '').trim();
-        const key = dishId ? ('id:' + dishId) : ('nm:' + namePact.toLowerCase());
-        if(seen.has(key)) continue;
-        seen.add(key);
+        const nameKey = namePact.toLowerCase();
+        // Skip when either identifier has already been placed. The dish_id
+        // guard catches true dish_id collisions; the name guard catches
+        // cross-section same-name BOMs (DIN_BOM vs BOM_O) that would
+        // otherwise read as duplicates.
+        if(dishId && seenDishIds.has(dishId)) continue;
+        if(seenNameKeys.has(nameKey)) continue;
+        if(dishId) seenDishIds.add(dishId);
+        seenNameKeys.add(nameKey);
         out.push({
           // Item Code: the BOM code shown on the right of the dish name in
           // Item Master (e.g. DIN_BOM0099). Satvik 2026-10-21 — the PetPooja
@@ -3296,7 +3313,7 @@ function cnBuildMenuList(){
           item_name_pp:   '',                // filled from a sales row at render time
           category:       it.petpooja_category || catName || '',
           dish_id:        dishId,
-          name_key:       namePact.toLowerCase(),
+          name_key:       nameKey,
         });
       }
     }
