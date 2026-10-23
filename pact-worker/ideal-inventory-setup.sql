@@ -23,10 +23,16 @@ create table if not exists public.ideal_inventory_snapshots (
   total_items    integer not null default 0,
   opening_count  jsonb,                                -- {id, filled_count, total_items} snapshot of the OI count that anchored the window
   items          jsonb not null default '[]'::jsonb,   -- array of per-RM rows (see note above)
+  approved_at    timestamptz,                          -- set when Variance tab's Approve action fires. Null = pending.
+  approved_by    text,                                 -- email or label of whoever approved it (OTP email once wired)
   created_by     text,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
+
+-- Backfill for repos that ran the earlier version of this migration.
+alter table public.ideal_inventory_snapshots add column if not exists approved_at timestamptz;
+alter table public.ideal_inventory_snapshots add column if not exists approved_by text;
 
 create index if not exists idx_ii_snap_outlet_order on public.ideal_inventory_snapshots (outlet, order_number desc);
 create index if not exists idx_ii_snap_created      on public.ideal_inventory_snapshots (created_at desc);

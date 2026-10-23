@@ -131,6 +131,7 @@
   <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Sales Summary</div>
   <div class="tab" data-t="rc" onclick="selTab('rc')">🥬 RM Consumption</div>
   <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
+  <div class="tab" data-t="va" onclick="selTab('va')">⚖ Variance</div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -700,7 +701,7 @@
   <div id="iiFormView">
    <div class="card" style="max-width:620px;margin:40px auto 20px;padding:28px 32px">
     <h2 style="margin:0 0 6px;font-size:18px">Ideal Inventory</h2>
-    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet. The next screen anchors the window to that outlet's <b>latest Opening Inventory count</b> on the left and <b>right now</b> on the right, then computes Opening + Purchase − Consumption + Variance per raw material.</p>
+    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet. The next screen anchors the window to that outlet's <b>latest Opening Inventory count</b> on the left and <b>right now</b> on the right, then computes Opening + Purchase − Consumption − Variance per raw material.</p>
 
     <label style="display:block;margin-bottom:22px">
      <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Outlet</span>
@@ -749,16 +750,6 @@
     <button class="btn prim" onclick="iiSavePrompt()" title="Save this snapshot (Opening + Purchase + Consumption + Variance + Closing per RM) to the cloud. Password protected.">💾 Save</button>
     <span id="syncStatIi" class="mut" style="font-size:12.5px"></span>
     <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Opening Inventory + GRNs + Sales × BOM + Variance</span>
-   </div>
-
-   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#f0f9ff;border-color:#bae6fd">
-    <div style="font-size:12.5px;color:#0c4a6e;line-height:1.5">
-     <b>Formula.</b> Everything is normalised to each RM's L1 base unit so the arithmetic is apples-to-apples.
-     <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) + Variance (L1).</b>
-     Consumption per RM = Σ (item qty sold × BOM raw qty per item, converted to L1) across every KOT in the window.
-     The <b>Full</b> and <b>Loose</b> columns on the right split the closing figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
-     <br><b>Data sources.</b> <b>Opening</b> is the latest Opening Inventory count saved for the selected outlet (also anchors the window start). <b>Purchase</b> is the sum of GRN line items for the outlet in the window (PACT Stock Outlet Outward). <b>Consumption</b> is sales × BOM over the window (PetPooja KOTs). <b>Variance</b> is manual — type it in each row to record a known gain or loss.
-    </div>
    </div>
 
    <div class="card"><div class="scroll"><table id="tblIi">
@@ -839,6 +830,39 @@
   </div>
 
  </div>  <!-- /tabIi -->
+
+ <!-- ============== Variance tab — approval queue for saved snapshots ============== -->
+ <div id="tabVa" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap;align-items:center">
+   <h2 style="margin:0;font-size:18px">⚖ Variance Approvals</h2>
+   <input id="qVa" class="search" placeholder="Search outlet or IO #…" oninput="renderVa()" style="min-width:220px">
+   <select id="statusVa" onchange="renderVa()" class="btn" style="padding-right:28px">
+    <option value="">All statuses</option>
+    <option value="pending">Pending approval</option>
+    <option value="approved">Approved</option>
+   </select>
+   <button class="btn" id="btnReloadVa" onclick="loadVa(true)" title="Re-pull the list from Supabase">↻ Reload</button>
+   <span id="syncStatVa" class="mut" style="font-size:12.5px"></span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Ideal Inventory snapshots saved from the Ideal Inventory tab</span>
+  </div>
+
+  <div class="card"><div class="scroll"><table id="tblVa">
+   <thead><tr>
+    <th>#</th>
+    <th>Date &amp; Time</th>
+    <th>Outlet</th>
+    <th>IO #</th>
+    <th>Rows</th>
+    <th>Σ Variance</th>
+    <th>Status</th>
+    <th>View</th>
+    <th>Import</th>
+    <th>Delete</th>
+    <th>Approve</th>
+   </tr></thead>
+   <tbody id="tbodyVa"><tr><td colspan="11" class="mut" style="padding:20px;text-align:center">Loading saved snapshots…</td></tr></tbody>
+  </table></div></div>
+ </div>  <!-- /tabVa -->
 
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
@@ -1074,6 +1098,7 @@ function selTab(t){
   $('tabCn').style.display = t === 'cn' ? '' : 'none';
   $('tabRc').style.display = t === 'rc' ? '' : 'none';
   $('tabIi').style.display = t === 'ii' ? '' : 'none';
+  $('tabVa').style.display = t === 'va' ? '' : 'none';
   // Leaving RM Master while Loose Denomination mode is on → silently exit the
   // mode so the user doesn't come back to a half-finished picker. Draft is lost.
   if(LD.mode && t !== 'rm') rmLooseModeCancel();
@@ -1086,6 +1111,7 @@ function selTab(t){
   if(t === 'cn') cnOnTabEnter();
   if(t === 'rc') rcOnTabEnter();
   if(t === 'ii') iiOnTabEnter();
+  if(t === 'va') vaOnTabEnter();
 }
 
 function updateHeaderStats(){
@@ -4404,7 +4430,7 @@ function renderIi(){
   const computedStyle = inputStyle + ';background:#f3f4f6;color:#374151';
   const varianceStyle = inputStyle + ';background:#fffbeb;border-color:#fde68a';
   tb.innerHTML = rows.map((it, i) => {
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) + (it.variance_l1 || 0);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
@@ -4433,7 +4459,7 @@ function exportCsvIi(){
   let i = 0;
   for(const it of IIv.items){
     i++;
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) + (it.variance_l1 || 0);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, it.variance_l1 || 0, closing, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
   }
@@ -4465,7 +4491,7 @@ function iiBuildSnapshotPayload(){
   // the exact per-RM numbers, Full/Loose split, and window context without
   // needing to re-walk the live sales + GRN + OI data.
   const items = IIv.items.map((it) => {
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) + (it.variance_l1 || 0);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     return {
       rm_code:         it.rm_code,
@@ -4683,6 +4709,161 @@ async function iiDeleteSaved(id, outletLabel){
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     toast('Deleted.', 2500);
     await iiOpenSavedList();  // refresh
+  } catch(e){
+    toast('Delete failed: ' + (e.message || e), 5000);
+  }
+}
+
+// ============================ VARIANCE (va) ============================
+// Approval queue for Ideal Inventory snapshots. Each row in
+// ideal_inventory_snapshots carries its own Variance (L1) per RM; this tab
+// lists every snapshot ever saved and lets a reviewer approve or reject
+// the variance package in one shot. Reuses the same View / Import / Delete
+// handlers the Ideal Inventory tab's "Saved inventories" button uses.
+//
+// Approve column: Satvik's spec called for email OTP approval. First pass
+// gates it behind the same shared password used for Save/Delete so the
+// workflow is testable end-to-end today; the OTP email send is a follow-up
+// — needs the provider (Resend / Postmark / SMTP) and the recipient list
+// settled first. The approved_at / approved_by columns on the snapshot
+// row are the real system of record either way, so switching to OTP later
+// is a server-side change the UI won't notice.
+
+const VA = { snapshots: [], loaded: false };
+
+function vaOnTabEnter(){
+  if(!VA.loaded) loadVa(false);
+  else renderVa();
+}
+
+async function loadVa(fresh){
+  const stat = $('syncStatVa');
+  if(stat) stat.textContent = fresh ? 'Refreshing…' : 'Loading…';
+  try {
+    const r = await fetch('/api/ideal-inventory', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    VA.snapshots = Array.isArray(j.snapshots) ? j.snapshots : [];
+    VA.loaded = true;
+    if(stat) stat.textContent = '✓ ' + VA.snapshots.length + ' snapshot' + (VA.snapshots.length === 1 ? '' : 's');
+    renderVa();
+  } catch(e){
+    if(stat) stat.textContent = '✗ ' + (e.message || e);
+    $('tbodyVa').innerHTML = '<tr><td colspan="11" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
+  }
+}
+
+function vaStatusChip(snap){
+  if(snap && snap.approved_at){
+    const when = fmtTime(snap.approved_at);
+    const who  = snap.approved_by ? (' by ' + esc(snap.approved_by)) : '';
+    return '<span class="sb" style="background:#dcfce7;color:#065f46" title="Approved ' + when + who + '">✓ Approved</span>';
+  }
+  return '<span class="sb" style="background:#fef3c7;color:#92400e">⏳ Pending</span>';
+}
+
+function renderVa(){
+  const tb = $('tbodyVa'); if(!tb) return;
+  const q = (($('qVa') && $('qVa').value) || '').trim().toLowerCase();
+  const statusF = ($('statusVa') && $('statusVa').value) || '';
+  const list = (VA.snapshots || []).filter(s => {
+    if(statusF === 'pending'  && s.approved_at) return false;
+    if(statusF === 'approved' && !s.approved_at) return false;
+    if(q){
+      const hay = ((s.outlet || '') + ' #' + (s.order_number || '')).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  if(!list.length){
+    tb.innerHTML = '<tr><td colspan="11" class="mut" style="padding:20px;text-align:center">No snapshots match these filters. Save one from the Ideal Inventory tab to populate this list.</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map((s, i) => {
+    const idEsc = esc(String(s.id || '')).replace(/'/g, "\\'");
+    const nameEsc = esc(s.outlet || '');
+    const nameJs = nameEsc.replace(/'/g, "\\'");
+    const when = s.window_to
+      ? fmtTime(String(s.window_to).length === 16 ? s.window_to + '+05:30' : s.window_to)
+      : (s.created_at ? fmtTime(s.created_at) : '—');
+    const ord  = s.order_number != null ? ('#' + s.order_number) : '—';
+    const rows = s.total_items != null ? s.total_items : '—';
+    // Σ Variance isn't on the list payload (we omit items[] for payload
+    // size), so show a dash with a hint. View fetches the full snapshot
+    // and shows per-RM variances if the reviewer wants to see them.
+    const sumCell = '<span class="mut" title="Open the snapshot to see per-RM variance">—</span>';
+    const approveBtn = s.approved_at
+      ? '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Clear the approval">↶ Un-approve</button>'
+      : '<button class="btn prim" onclick="vaApprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Approve the variances in this snapshot (shared password for now; email OTP next)">✓ Approve</button>';
+    return '<tr>'
+      + '<td>' + (i + 1) + '</td>'
+      + '<td>' + esc(when) + '</td>'
+      + '<td>' + nameEsc + '</td>'
+      + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
+      + '<td class="r">' + rows + '</td>'
+      + '<td class="r">' + sumCell + '</td>'
+      + '<td>' + vaStatusChip(s) + '</td>'
+      + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
+      + '<td><button class="btn" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the Ideal Inventory tab">⬆ Import</button></td>'
+      + '<td><button class="btn warn" onclick="vaDelete(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px">🗑 Delete</button></td>'
+      + '<td>' + approveBtn + '</td>'
+    + '</tr>';
+  }).join('');
+}
+
+async function vaApprove(id, outletLabel){
+  // First pass gating: shared password 1122. Replace with email-OTP once
+  // the provider + recipient are settled with Satvik.
+  const pwd = prompt('Approve the variances in this snapshot for ' + outletLabel + '?\nEnter password to confirm:');
+  if(pwd == null) return;
+  if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
+  const by = 'password-approver (OTP TBD)';
+  try {
+    const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'approve', approved_by: by }),
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    toast('Approved snapshot for ' + outletLabel, 3000);
+    await loadVa(true);
+  } catch(e){
+    toast('Approve failed: ' + (e.message || e), 5000);
+  }
+}
+
+async function vaUnapprove(id, outletLabel){
+  const pwd = prompt('Clear the approval on this snapshot for ' + outletLabel + '?\nEnter password to confirm:');
+  if(pwd == null) return;
+  if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
+  try {
+    const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'unapprove' }),
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    toast('Approval cleared.', 2500);
+    await loadVa(true);
+  } catch(e){
+    toast('Un-approve failed: ' + (e.message || e), 5000);
+  }
+}
+
+// Variance tab's Delete is a thin wrapper around the Ideal Inventory one so
+// after deletion we refresh THIS tab's list (not the saved-inventories modal).
+async function vaDelete(id, outletLabel){
+  const pwd = prompt('Delete the saved snapshot for ' + outletLabel + '?\nEnter password to confirm:');
+  if(pwd == null) return;
+  if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
+  try {
+    const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), { method: 'DELETE', cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    toast('Deleted.', 2500);
+    await loadVa(true);
   } catch(e){
     toast('Delete failed: ' + (e.message || e), 5000);
   }

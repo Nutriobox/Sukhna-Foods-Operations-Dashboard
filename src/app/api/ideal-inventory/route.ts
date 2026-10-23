@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "content-type",
 };
 
@@ -206,6 +206,61 @@ export async function POST(req: Request) {
       created_at: row?.created_at ?? payload.updated_at,
       total_items,
     }, { headers: CORS });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: CORS });
+  }
+}
+
+/**
+ * PATCH /api/ideal-inventory?id=<uuid>
+ *   body: { action: "approve", approved_by?: string }  -> stamp approved_at
+ *   body: { action: "unapprove" }                       -> clear approved_at
+ * Email-OTP integration is a follow-up — for now the Variance tab gates
+ * this behind the same shared password it uses for Save/Delete. Keeping
+ * approved_at + approved_by on the snapshot row means approvals survive
+ * dashboard restarts and show up on the Variance tab's Status column.
+ */
+export async function PATCH(req: Request) {
+  const { url, key } = sbEnv();
+  if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400, headers: CORS });
+
+  let body: { action?: unknown; approved_by?: unknown };
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400, headers: CORS }); }
+
+  const action = typeof body.action === "string" ? body.action.trim() : "";
+  const approvedBy = typeof body.approved_by === "string" ? body.approved_by.slice(0, 120) : null;
+
+  const patch: Record<string, string | null> = { updated_at: new Date().toISOString() };
+  if (action === "approve")        { patch.approved_at = new Date().toISOString(); patch.approved_by = approvedBy; }
+  else if (action === "unapprove") { patch.approved_at = null;                     patch.approved_by = null; }
+  else return NextResponse.json({ ok: false, error: "action must be 'approve' or 'unapprove'" }, { status: 400, headers: CORS });
+
+  try {
+    const r = await fetch(
+      `${url}/rest/v1/ideal_inventory_snapshots?id=eq.${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: {
+          apikey: key, Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify(patch),
+        cache: "no-store",
+      }
+    );
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
+    }
+    const rows = (await r.json()) as Array<{ id: string; approved_at: string | null; approved_by: string | null }>;
+    const row = rows[0];
+    if (!row) return NextResponse.json({ ok: false, error: "snapshot not found" }, { status: 404, headers: CORS });
+    return NextResponse.json({ ok: true, id: row.id, approved_at: row.approved_at, approved_by: row.approved_by }, { headers: CORS });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: CORS });
