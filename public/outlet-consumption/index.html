@@ -692,49 +692,76 @@
   </div>
  </div>
 
- <!-- ============== Ideal Inventory tab — closing = opening + purchase - consumption - variance, all in L1 ============== -->
+ <!-- ============== Ideal Inventory tab — closing = opening + purchase - consumption + variance, all in L1 ============== -->
  <div id="tabIi" style="display:none">
-  <div class="toolbar" style="flex-wrap:wrap">
-   <select id="outletIi" onchange="loadIi(true)" class="btn" style="padding-right:28px" title="Outlet to compute ideal inventory for. Picks the latest Opening Inventory count for this outlet and anchors the window there.">
-    <option value="">Select outlet…</option>
-    <option value="Rajinder Nagar">Rajinder Nagar</option>
-    <option value="DLF Phase 2">DLF Phase 2</option>
-    <option value="Sector 63 Noida">Sector 63 Noida</option>
-    <option value="Dwarka">Dwarka</option>
-    <option value="Janakpuri">Janakpuri</option>
-    <option value="Karkardooma">Karkardooma</option>
-    <option value="Noida">Noida</option>
-    <option value="Prashant Vihar">Prashant Vihar</option>
-    <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
-    <option value="Shivalik">Shivalik</option>
-   </select>
-   <input id="dateFromIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Window start (IST). Auto-set to the latest Opening Inventory count for this outlet. Purchase and Consumption only count events after this moment.">
-   <input id="dateToIi" type="datetime-local" onchange="loadIi(true)" class="btn" style="padding:7px 10px" title="Window end (IST). Closing is as of this moment.">
-   <select id="catIi" onchange="renderIi()" class="btn" style="padding-right:28px" title="Filter by storage category">
-    <option value="">All categories</option>
-    <option value="Frozen">Frozen</option>
-    <option value="Chiller">Chiller</option>
-    <option value="Vegetable">Vegetable</option>
-    <option value="Dry Store">Dry Store</option>
-    <option value="Packaging">Packaging</option>
-   </select>
-   <input id="qIi" class="search" placeholder="Search RM code or name…" oninput="renderIi()" style="min-width:200px">
-   <button class="btn" onclick="exportCsvIi()">⬇ Export CSV</button>
-   <span id="syncStatIi" class="mut" style="font-size:12.5px"></span>
-   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: computed from Opening + Purchase + Consumption + Variance</span>
-  </div>
 
-  <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#f0f9ff;border-color:#bae6fd">
-   <div style="font-size:12.5px;color:#0c4a6e;line-height:1.5">
-    <b>Formula.</b> Everything is normalised to each RM's L1 base unit so the arithmetic is apples-to-apples.
-    <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) + Variance (L1).</b>
-    Consumption per RM = Σ (item qty sold × BOM raw qty per item, converted to L1) across every KOT in the window.
-    The <b>Full</b> and <b>Loose</b> columns on the right split the closing figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
-    <br><b>Data sources.</b> <b>Opening</b> is the latest Opening Inventory count saved for the selected outlet (also anchors the window start). <b>Purchase</b> is the sum of GRN line items for the outlet in the window (PACT Stock Outlet Outward). <b>Consumption</b> is sales × BOM over the window (PetPooja KOTs). <b>Variance</b> is manual — type it in each row to record a known gain or loss.
+  <!-- Step 1 — form: pick an outlet. OK anchors the window to that outlet's
+       latest Opening Inventory count and current IST, then flips to results. -->
+  <div id="iiFormView">
+   <div class="card" style="max-width:620px;margin:40px auto 20px;padding:28px 32px">
+    <h2 style="margin:0 0 6px;font-size:18px">Ideal Inventory</h2>
+    <p class="mut" style="margin:0 0 22px;font-size:13px;line-height:1.5">Pick an outlet. The next screen anchors the window to that outlet's <b>latest Opening Inventory count</b> on the left and <b>right now</b> on the right, then computes Opening + Purchase − Consumption + Variance per raw material.</p>
+
+    <label style="display:block;margin-bottom:22px">
+     <span style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:4px">Outlet</span>
+     <select id="iiFormOutlet" class="btn" style="width:100%;padding:10px 14px;padding-right:28px">
+      <option value="">— Choose outlet —</option>
+      <option value="Rajinder Nagar">Rajinder Nagar</option>
+      <option value="DLF Phase 2">DLF Phase 2</option>
+      <option value="Sector 63 Noida">Sector 63 Noida</option>
+      <option value="Dwarka">Dwarka</option>
+      <option value="Janakpuri">Janakpuri</option>
+      <option value="Karkardooma">Karkardooma</option>
+      <option value="Noida">Noida</option>
+      <option value="Prashant Vihar">Prashant Vihar</option>
+      <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+      <option value="Shivalik">Shivalik</option>
+     </select>
+    </label>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+     <button class="btn prim" onclick="iiSubmitForm()" style="padding:10px 22px">OK</button>
+     <button class="btn" onclick="iiOpenSavedListPrompt()" title="View, re-import or delete inventories saved earlier. Protected — enter the password to continue.">🗂 Saved inventories</button>
+     <span id="iiFormErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
+    </div>
    </div>
   </div>
 
-  <div class="card"><div class="scroll"><table id="tblIi">
+  <!-- Step 2 — results: Opening/Current/Outlet context pills, filters,
+       Export, Save; underneath, the per-RM Opening/Purchase/Consumption/
+       Variance/Closing table. -->
+  <div id="iiResultsView" style="display:none">
+   <div class="toolbar" style="flex-wrap:wrap;align-items:center">
+    <button class="btn" onclick="iiBackToForm()" title="Return to the outlet picker">← Back</button>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">Opening: <b id="iiCtxFrom" style="margin-left:4px"></b></span>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">Current: <b id="iiCtxTo" style="margin-left:4px"></b></span>
+    <span class="pill" style="background:#eff6ff;color:#1e40af">Outlet: <b id="iiCtxOutlet" style="margin-left:4px"></b></span>
+    <select id="catIi" onchange="renderIi()" class="btn" style="padding-right:28px" title="Filter by storage category">
+     <option value="">All categories</option>
+     <option value="Frozen">Frozen</option>
+     <option value="Chiller">Chiller</option>
+     <option value="Vegetable">Vegetable</option>
+     <option value="Dry Store">Dry Store</option>
+     <option value="Packaging">Packaging</option>
+    </select>
+    <input id="qIi" class="search" placeholder="Search RM code or name…" oninput="renderIi()" style="min-width:220px">
+    <button class="btn" onclick="exportCsvIi()">⬇ Export CSV</button>
+    <button class="btn prim" onclick="iiSavePrompt()" title="Save this snapshot (Opening + Purchase + Consumption + Variance + Closing per RM) to the cloud. Password protected.">💾 Save</button>
+    <span id="syncStatIi" class="mut" style="font-size:12.5px"></span>
+    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Opening Inventory + GRNs + Sales × BOM + Variance</span>
+   </div>
+
+   <div class="card" style="padding:10px 14px;margin-bottom:10px;background:#f0f9ff;border-color:#bae6fd">
+    <div style="font-size:12.5px;color:#0c4a6e;line-height:1.5">
+     <b>Formula.</b> Everything is normalised to each RM's L1 base unit so the arithmetic is apples-to-apples.
+     <br><b>Ideal Closing (L1) = Opening (L1) + Purchase (L1) − Consumption (L1) + Variance (L1).</b>
+     Consumption per RM = Σ (item qty sold × BOM raw qty per item, converted to L1) across every KOT in the window.
+     The <b>Full</b> and <b>Loose</b> columns on the right split the closing figure using the Loose Denomination mark for that RM (Loose = remainder below one full pack in the loose UOM; Full = integer packs at the next level up).
+     <br><b>Data sources.</b> <b>Opening</b> is the latest Opening Inventory count saved for the selected outlet (also anchors the window start). <b>Purchase</b> is the sum of GRN line items for the outlet in the window (PACT Stock Outlet Outward). <b>Consumption</b> is sales × BOM over the window (PetPooja KOTs). <b>Variance</b> is manual — type it in each row to record a known gain or loss.
+    </div>
+   </div>
+
+   <div class="card"><div class="scroll"><table id="tblIi">
    <thead><tr>
     <th>#</th>
     <th>RM Code</th>
@@ -749,9 +776,69 @@
     <th class="r">Full</th>
     <th class="r">Loose</th>
    </tr></thead>
-   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Pick an outlet above. The window auto-anchors to the latest Opening Inventory count and the numbers compute on the fly as you change dates.</td></tr></tbody>
+   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
- </div>
+
+  </div>  <!-- /iiResultsView -->
+
+  <!-- Modals live OUTSIDE both iiFormView and iiResultsView so clicking
+       "🗂 Saved inventories" from the form view still shows them (a nested
+       modal under a display:none ancestor would stay hidden). -->
+
+  <!-- Saved Inventories modal — password-gated list of snapshots -->
+  <div id="iiSavedModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedList()">
+   <div class="nmbody" style="max-width:1100px">
+    <div class="nmhdr">
+     <h3 style="margin:0;flex:1">🗂 Saved Ideal Inventories</h3>
+     <button class="btn" onclick="iiCloseSavedList()">✕</button>
+    </div>
+    <div id="iiSavedMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
+    <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table id="tblIiSaved">
+     <thead><tr>
+      <th>#</th>
+      <th>Date &amp; Time</th>
+      <th>Outlet</th>
+      <th>Order #</th>
+      <th>Opening Count</th>
+      <th>Rows</th>
+      <th>View</th>
+      <th>Import</th>
+      <th>Delete</th>
+     </tr></thead>
+     <tbody id="tbodyIiSaved"><tr><td colspan="9" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
+    </table></div></div>
+   </div>
+  </div>
+
+  <!-- Read-only "View saved snapshot" modal -->
+  <div id="iiSavedViewModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedView()">
+   <div class="nmbody" style="max-width:1200px">
+    <div class="nmhdr">
+     <h3 style="margin:0;flex:1">📋 Saved Snapshot — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
+     <button class="btn" onclick="iiCloseSavedView()">✕</button>
+    </div>
+    <div id="iiSavedViewMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
+    <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table>
+     <thead><tr>
+      <th>#</th>
+      <th>RM Code</th>
+      <th>Raw Material Name</th>
+      <th>Category</th>
+      <th>L1 UOM</th>
+      <th class="r">Opening (L1)</th>
+      <th class="r">Purchase (L1)</th>
+      <th class="r">Consumption (L1)</th>
+      <th class="r">Variance (L1)</th>
+      <th class="r">Ideal Closing (L1)</th>
+      <th class="r">Full</th>
+      <th class="r">Loose</th>
+     </tr></thead>
+     <tbody id="tbodyIiSavedView"></tbody>
+    </table></div></div>
+   </div>
+  </div>
+
+ </div>  <!-- /tabIi -->
 
  <div class="footer">
   <span>Shared with: Factory Costing Dashboard · Outlet Dispatch · Sales-Order scanner · Bills verifier</span>
@@ -3833,29 +3920,65 @@ function rcExportCsv(){
                        Loose shows a dash. */
 
 function iiOnTabEnter(){
-  // First open: default date range = today's business day in IST so the
-  // consumption pull matches what the operator sees on the Consumption tab.
-  const fromInput = $('dateFromIi'), toInput = $('dateToIi');
-  if(!fromInput.value || !toInput.value){
-    const pad = (n) => String(n).padStart(2, '0');
-    const toLocal = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    const now = new Date();
-    const start = new Date(now);
-    if(now.getHours() < 2) start.setDate(start.getDate() - 1);
-    start.setHours(8, 0, 0, 0);
-    const end = new Date(start); end.setDate(end.getDate() + 1); end.setHours(1, 0, 0, 0);
-    if(!fromInput.value) fromInput.value = toLocal(start);
-    if(!toInput.value)   toInput.value   = toLocal(end);
-  }
-  // Build the per-RM scaffold from RM.items so the table paints immediately,
-  // even before the user picks an outlet. The compute step fills in the live
-  // columns the moment an outlet is picked (outlet onchange fires loadIi).
-  if(RM_LOADED.v && !IIv.items.length){
-    IIv.items = iiBuildItemsFromRm();
-    IIv.meta = { source: 'awaiting outlet', synced_at: new Date().toISOString(), count: IIv.items.length };
-    II_LOADED.v = true;
+  // Two-view flow (added 2026-10-23 at Satvik's ask): the first thing an
+  // operator sees is a tiny card asking which outlet. Click OK, we snapshot
+  // the window (OI count time → current IST) and flip to the results view.
+  // If the user has already run II in this session we bounce them straight
+  // back to results so a tab switch doesn't lose state.
+  if(IIv.outlet && IIv.from && IIv.to){
+    $('iiFormView').style.display = 'none';
+    $('iiResultsView').style.display = '';
+    if($('iiCtxFrom'))   $('iiCtxFrom').textContent   = (IIv.from || '').replace('T', ' ') + ' (last Opening Inventory count)';
+    if($('iiCtxTo'))     $('iiCtxTo').textContent     = (IIv.to   || '').replace('T', ' ') + ' (now)';
+    if($('iiCtxOutlet')) $('iiCtxOutlet').textContent = IIv.outlet;
+    if($('iiFormOutlet')) $('iiFormOutlet').value = IIv.outlet;
     renderIi();
+  } else {
+    $('iiFormView').style.display = '';
+    $('iiResultsView').style.display = 'none';
   }
+}
+
+async function iiSubmitForm(){
+  const outlet = ($('iiFormOutlet') && $('iiFormOutlet').value) || '';
+  const err    = $('iiFormErr');
+  if(err) err.textContent = '';
+  if(!outlet){ if(err) err.textContent = 'Pick an outlet.'; return; }
+  if(err) err.textContent = "Looking up this outlet's latest Opening Inventory count…";
+  // Reuse the RM Consumption tab's lookup — same endpoint, same shape.
+  let opening = null;
+  try {
+    const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    const list = Array.isArray(j.counts) ? j.counts : [];
+    opening = list[0] || null;
+  } catch(e){
+    if(err) err.textContent = 'Could not fetch Opening Inventory: ' + (e.message || e);
+    return;
+  }
+  if(!opening || !opening.dt_iso){
+    if(err) err.textContent = 'No Opening Inventory count has been saved for ' + outlet + ' yet. Save one on the Opening Inventory tab first.';
+    return;
+  }
+  if(err) err.textContent = '';
+  IIv.outlet = outlet;
+  IIv.from   = String(opening.dt_iso).slice(0, 16);
+  IIv.to     = iiNowIstDatetime();
+  IIv.openingMeta = { id: opening.id, filled_count: opening.filled_count, total_items: opening.total_items };
+  $('iiFormView').style.display = 'none';
+  $('iiResultsView').style.display = '';
+  if($('iiCtxFrom'))   $('iiCtxFrom').textContent   = IIv.from.replace('T', ' ') + ' (last Opening Inventory count)';
+  if($('iiCtxTo'))     $('iiCtxTo').textContent     = IIv.to.replace('T', ' ') + ' (now)';
+  if($('iiCtxOutlet')) $('iiCtxOutlet').textContent = outlet;
+  await loadIi(true);
+}
+
+function iiBackToForm(){
+  $('iiFormView').style.display = '';
+  $('iiResultsView').style.display = 'none';
+  if($('iiFormOutlet') && IIv.outlet) $('iiFormOutlet').value = IIv.outlet;
+  const err = $('iiFormErr'); if(err) err.textContent = '';
 }
 
 function iiBuildItemsFromRm(){
@@ -3944,27 +4067,26 @@ function iiGrnQtyToL1(item, qty, unitRaw){
 }
 
 async function loadIi(fresh){
+  // Reads window state from IIv (set by iiSubmitForm), not from DOM inputs —
+  // the editable datetime inputs were removed when the two-view flow landed.
   const stat = $('syncStatIi');
   if(stat) stat.textContent = fresh ? 'Recomputing…' : 'Loading…';
-  const outlet = ($('outletIi') && $('outletIi').value) || '';
-  const dToInput = ($('dateToIi') && $('dateToIi').value) || '';
-  IIv.outlet = outlet;
+  const outlet = IIv.outlet || '';
+  if(!outlet){
+    IIv.items = iiBuildItemsFromRm();
+    IIv.meta = { source: 'awaiting outlet', synced_at: new Date().toISOString(), count: IIv.items.length };
+    II_LOADED.v = true;
+    if(stat) stat.textContent = '';
+    renderIi();
+    if(CURTAB === 'ii') updateHeaderStats();
+    return;
+  }
 
   // Rebuild the per-RM scaffold so a late RM refresh is reflected, and
   // index by rm_code for O(1) lookups on the data passes.
   IIv.items = iiBuildItemsFromRm();
   const byCode = new Map();
   for(const it of IIv.items) byCode.set(String(it.rm_code).toUpperCase(), it);
-
-  if(!outlet){
-    IIv.from = ''; IIv.to = dToInput;
-    IIv.meta = { source: 'awaiting outlet', synced_at: new Date().toISOString(), count: IIv.items.length };
-    II_LOADED.v = true;
-    if(stat) stat.textContent = 'Pick an outlet to pull Opening / Purchase / Consumption.';
-    renderIi();
-    if(CURTAB === 'ii') updateHeaderStats();
-    return;
-  }
 
   // Make sure the three master datasets are loaded. These are independent.
   try {
@@ -4000,14 +4122,20 @@ async function loadIi(fresh){
     }
   } catch(_){ /* leave opening at 0 */ }
 
-  // Anchor the From input to the opening count's time (local-datetime
-  // string in IST). To defaults to right now if the user hasn't picked one.
+  // Window already anchored by iiSubmitForm (IIv.from = OI dt_iso, IIv.to =
+  // "now" at the moment OK was pressed). If the OI fetch above found a newer
+  // count than the one iiSubmitForm captured, we accept it silently.
+  if(openingDtIso){
+    const anchored = iiIsoToLocalDatetime(openingDtIso);
+    if(anchored) IIv.from = anchored;
+  }
   const dFromAuto = openingDtIso ? iiIsoToLocalDatetime(openingDtIso) : '';
-  const dFromFinal = dFromAuto || (($('dateFromIi') && $('dateFromIi').value) || '');
-  if(dFromAuto && $('dateFromIi')) $('dateFromIi').value = dFromAuto;
-  const dToFinal = dToInput || iiNowIstDatetime();
-  if(!dToInput && $('dateToIi')) $('dateToIi').value = dToFinal;
-  IIv.from = dFromFinal; IIv.to = dToFinal;
+  const dFromFinal = IIv.from || '';
+  const dToFinal   = IIv.to   || iiNowIstDatetime();
+  IIv.to = dToFinal;
+  // Keep the context pills in sync in case iiSubmitForm's values were updated.
+  if($('iiCtxFrom')) $('iiCtxFrom').textContent = (dFromFinal || '').replace('T', ' ') + ' (last Opening Inventory count)';
+  if($('iiCtxTo'))   $('iiCtxTo').textContent   = (dToFinal   || '').replace('T', ' ') + ' (now)';
 
   // 2) Purchases: per-RM aggregate from Stock Outlet Outward GRNs,
   //    outlet-filtered, date-bounded.
@@ -4312,6 +4440,252 @@ function exportCsvIi(){
   const today = (new Date()).toISOString().slice(0,10);
   const slug = (IIv.outlet || 'all').toLowerCase().replace(/\s+/g, '-');
   downloadBlob(lines.join('\n'), 'ideal-inventory-' + slug + '-' + today + '.csv');
+}
+
+// ---------------------------------------------------------------------------
+// Save / Saved Inventories list.
+//
+// Satvik's spec on 2026-10-23: the operator presses 💾 Save on the results
+// view; after a password check the current snapshot (one row per RM with
+// Opening / Purchase / Consumption / Variance / Closing in L1 + the Full/
+// Loose split) is sent to /api/ideal-inventory, which upserts a row in the
+// ideal_inventory_snapshots table. A separate 🗂 Saved inventories button
+// on the form view opens a password-gated list of every snapshot ever
+// saved, with View / Import / Delete actions.
+//
+// Password: same single-user shared one as Opening Inventory delete (1122).
+// Not pretending this is production auth — it's a speed-bump so a
+// mis-click doesn't nuke a saved snapshot or expose old numbers.
+// ---------------------------------------------------------------------------
+
+const II_PASSWORD = '1122';
+
+function iiBuildSnapshotPayload(){
+  // Full, self-contained payload — anyone opening a saved snapshot sees
+  // the exact per-RM numbers, Full/Loose split, and window context without
+  // needing to re-walk the live sales + GRN + OI data.
+  const items = IIv.items.map((it) => {
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) + (it.variance_l1 || 0);
+    const split = iiSplitClosing(it, closing);
+    return {
+      rm_code:         it.rm_code,
+      name:            it.name,
+      category:        it.category,
+      l1_unit:         it.l1_unit,
+      l2_unit:         it.l2_unit,
+      l3_unit:         it.l3_unit,
+      packing_uom:     it.packing_uom || '',
+      packScale:       it.packScale   || 0,
+      caseScale:       it.caseScale   || 0,
+      opening_l1:      Number(it.opening_l1    || 0),
+      purchase_l1:     Number(it.purchase_l1   || 0),
+      consumption_l1:  Number(it.consumption_l1|| 0),
+      variance_l1:     Number(it.variance_l1   || 0),
+      closing_l1:      Number(closing          || 0),
+      full_qty:        split.fullQty,
+      full_unit:       split.fullUnit || '',
+      loose_qty:       split.looseQty,
+      loose_unit:      split.looseUnit || '',
+    };
+  });
+  return {
+    outlet:          IIv.outlet || '',
+    window_from:     IIv.from   || '',
+    window_to:       IIv.to     || '',
+    opening_count:   IIv.openingMeta || null,
+    total_items:     items.length,
+    items,
+  };
+}
+
+async function iiSavePrompt(){
+  if(!IIv.outlet || !IIv.items.length){
+    toast('Nothing to save — pick an outlet and let the numbers compute first.'); return;
+  }
+  const pwd = prompt('Save this Ideal Inventory snapshot for ' + IIv.outlet + '?\nEnter password to confirm:');
+  if(pwd == null) return;
+  if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
+  const stat = $('syncStatIi');
+  if(stat) stat.textContent = 'Saving…';
+  try {
+    const payload = iiBuildSnapshotPayload();
+    const r = await fetch('/api/ideal-inventory', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    if(stat) stat.textContent = '✓ saved · ' + (j.order_number != null ? ('#' + j.order_number) : j.id);
+    toast('Saved snapshot for ' + IIv.outlet + (j.order_number != null ? ' (#' + j.order_number + ')' : ''), 4000);
+  } catch(e){
+    if(stat) stat.textContent = '✗ save failed: ' + (e.message || e);
+    toast('Save failed: ' + (e.message || e), 5000);
+  }
+}
+
+async function iiOpenSavedListPrompt(){
+  const pwd = prompt('Enter password to view saved Ideal Inventories:');
+  if(pwd == null) return;
+  if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
+  await iiOpenSavedList();
+}
+
+async function iiOpenSavedList(){
+  const modal = $('iiSavedModal');
+  const tb    = $('tbodyIiSaved');
+  const meta  = $('iiSavedMeta');
+  if(!modal || !tb) return;
+  modal.style.display = 'flex';
+  tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:14px;text-align:center">Loading saved snapshots…</td></tr>';
+  if(meta) meta.innerHTML = '';
+  try {
+    const r = await fetch('/api/ideal-inventory', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    const list = Array.isArray(j.snapshots) ? j.snapshots : [];
+    if(meta) meta.textContent = list.length + ' snapshot' + (list.length === 1 ? '' : 's') + ' saved.';
+    if(!list.length){
+      tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:14px;text-align:center">No snapshots yet. Compute an Ideal Inventory on the main screen, then click 💾 Save.</td></tr>';
+      return;
+    }
+    tb.innerHTML = list.map((row, i) => {
+      const idEsc = esc(String(row.id || '')).replace(/'/g, "\\'");
+      const nameEsc = esc(row.outlet || '');
+      const when = row.window_to ? fmtTime(String(row.window_to).length === 16 ? row.window_to + '+05:30' : row.window_to) : (row.created_at ? fmtTime(row.created_at) : '—');
+      const ord = row.order_number != null ? ('#' + row.order_number) : '—';
+      const openingLbl = row.opening_count && row.opening_count.filled_count != null
+        ? (row.opening_count.filled_count + ' / ' + row.opening_count.total_items)
+        : '—';
+      return '<tr>'
+        + '<td>' + (i + 1) + '</td>'
+        + '<td>' + esc(when) + '</td>'
+        + '<td>' + nameEsc + '</td>'
+        + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
+        + '<td>' + openingLbl + '</td>'
+        + '<td>' + (row.total_items || 0) + '</td>'
+        + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
+        + '<td><button class="btn prim" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the results view">⬆ Import</button></td>'
+        + '<td><button class="btn warn" onclick="iiDeleteSaved(\'' + idEsc + '\', \'' + nameEsc.replace(/'/g, "\\'") + '\')" style="padding:4px 10px;font-size:12px">🗑 Delete</button></td>'
+      + '</tr>';
+    }).join('');
+  } catch(e){
+    tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:14px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
+  }
+}
+
+function iiCloseSavedList(){ const m = $('iiSavedModal'); if(m) m.style.display = 'none'; }
+function iiCloseSavedView(){ const m = $('iiSavedViewModal'); if(m) m.style.display = 'none'; }
+
+async function iiFetchSnapshotById(id){
+  const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), { cache: 'no-store' });
+  const j = await r.json();
+  if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j.snapshot;
+}
+
+async function iiViewSaved(id){
+  try {
+    const snap = await iiFetchSnapshotById(id);
+    const modal = $('iiSavedViewModal');
+    const title = $('iiSavedViewTitle');
+    const meta  = $('iiSavedViewMeta');
+    const tb    = $('tbodyIiSavedView');
+    if(!modal || !tb) return;
+    if(title) title.textContent = (snap.outlet || '—') + (snap.order_number != null ? ' · #' + snap.order_number : '');
+    if(meta){
+      const parts = [];
+      parts.push('<b>Window:</b> ' + esc(snap.window_from || '—').replace('T',' ') + ' → ' + esc(snap.window_to || '—').replace('T',' '));
+      if(snap.opening_count && snap.opening_count.filled_count != null){
+        parts.push('<b>Opening count:</b> ' + snap.opening_count.filled_count + ' / ' + snap.opening_count.total_items);
+      }
+      parts.push('<b>Rows:</b> ' + (snap.total_items || 0));
+      parts.push('<b>Saved:</b> ' + esc(fmtTime(snap.created_at || '')));
+      meta.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+    }
+    const items = Array.isArray(snap.items) ? snap.items : [];
+    if(!items.length){
+      tb.innerHTML = '<tr><td colspan="12" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
+    } else {
+      tb.innerHTML = items.map((it, i) => {
+        const fullCell  = it.full_qty  == null ? '<span class="mut">—</span>' : qty(it.full_qty)  + ' <span class="mut" style="font-size:11px">' + esc(it.full_unit  || '') + '</span>';
+        const looseCell = it.loose_qty == null ? '<span class="mut">—</span>' : qty(it.loose_qty) + ' <span class="mut" style="font-size:11px">' + esc(it.loose_unit || '') + '</span>';
+        return '<tr>'
+          + '<td>' + (i + 1) + '</td>'
+          + '<td style="font-family:monospace;font-size:12px">' + esc(it.rm_code) + '</td>'
+          + '<td>' + esc(it.name) + '</td>'
+          + '<td>' + (typeof oiCategoryChip === 'function' ? oiCategoryChip(it.category) : esc(it.category || '')) + '</td>'
+          + '<td><span class="code">' + esc(it.l1_unit || '') + '</span></td>'
+          + '<td class="r">' + qty(it.opening_l1)     + '</td>'
+          + '<td class="r">' + qty(it.purchase_l1)    + '</td>'
+          + '<td class="r">' + qty(it.consumption_l1) + '</td>'
+          + '<td class="r">' + qty(it.variance_l1)    + '</td>'
+          + '<td class="r" style="font-weight:600">' + qty(it.closing_l1) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit || '') + '</span></td>'
+          + '<td class="r">' + fullCell  + '</td>'
+          + '<td class="r">' + looseCell + '</td>'
+        + '</tr>';
+      }).join('');
+    }
+    modal.style.display = 'flex';
+  } catch(e){
+    toast('Could not open snapshot: ' + (e.message || e), 5000);
+  }
+}
+
+async function iiImportSaved(id){
+  try {
+    const snap = await iiFetchSnapshotById(id);
+    const items = Array.isArray(snap.items) ? snap.items : [];
+    // Reconstruct IIv.items in the shape the live render expects.
+    IIv.outlet = snap.outlet || '';
+    IIv.from   = snap.window_from || '';
+    IIv.to     = snap.window_to   || '';
+    IIv.openingMeta = snap.opening_count || null;
+    IIv.items = items.map((it) => ({
+      rm_code:        it.rm_code || '',
+      name:           it.name    || '',
+      category:       it.category|| '',
+      l1_unit:        it.l1_unit || '',
+      l2_unit:        it.l2_unit || '',
+      l3_unit:        it.l3_unit || '',
+      packing_uom:    it.packing_uom || '',
+      packScale:      Number(it.packScale) || 0,
+      caseScale:      Number(it.caseScale) || 0,
+      opening_l1:     Number(it.opening_l1     || 0),
+      purchase_l1:    Number(it.purchase_l1    || 0),
+      consumption_l1: Number(it.consumption_l1 || 0),
+      variance_l1:    Number(it.variance_l1    || 0),
+    }));
+    IIv.meta = { source: 'imported snapshot #' + (snap.order_number != null ? snap.order_number : snap.id), synced_at: snap.created_at || null, count: IIv.items.length };
+    II_LOADED.v = true;
+    iiCloseSavedList();
+    $('iiFormView').style.display = 'none';
+    $('iiResultsView').style.display = '';
+    if($('iiCtxFrom'))   $('iiCtxFrom').textContent   = (IIv.from || '').replace('T', ' ') + ' (from saved snapshot)';
+    if($('iiCtxTo'))     $('iiCtxTo').textContent     = (IIv.to   || '').replace('T', ' ') + ' (from saved snapshot)';
+    if($('iiCtxOutlet')) $('iiCtxOutlet').textContent = IIv.outlet;
+    const stat = $('syncStatIi');
+    if(stat) stat.textContent = 'imported #' + (snap.order_number != null ? snap.order_number : snap.id);
+    renderIi();
+    toast('Imported snapshot for ' + IIv.outlet, 3500);
+  } catch(e){
+    toast('Import failed: ' + (e.message || e), 5000);
+  }
+}
+
+async function iiDeleteSaved(id, outletLabel){
+  const pwd = prompt('Delete the saved snapshot for ' + outletLabel + '?\nEnter password to confirm:');
+  if(pwd == null) return;
+  if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
+  try {
+    const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), { method: 'DELETE', cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    toast('Deleted.', 2500);
+    await iiOpenSavedList();  // refresh
+  } catch(e){
+    toast('Delete failed: ' + (e.message || e), 5000);
+  }
 }
 
 // Boot: load Raw Material Master first (visible tab) — it pulls PM
