@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NutrioBox Outlet Portal</title>
+<title>NutrioBox Outlet · On Hand</title>
 <link rel="icon" href="/logo.png">
 <style>
   :root{
@@ -12,29 +12,28 @@
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#111827;background:var(--bg)}
-  .wrap{max-width:1100px;margin:0 auto;padding:24px 20px}
-  .hdr{display:flex;align-items:center;gap:14px;margin-bottom:18px}
-  .hdr img{height:34px}
-  .hdr h1{margin:0;font-size:20px;font-weight:700;color:#111827}
-  .hdr .mut{color:var(--mut);font-size:13.5px}
-  .hdr .right{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mut)}
-  .btn{appearance:none;padding:8px 14px;border:1px solid var(--line);background:var(--card);border-radius:7px;cursor:pointer;font-weight:600;font-size:13.5px;color:#374151}
+  .wrap{max-width:1300px;margin:0 auto;padding:20px 18px}
+  .hdr{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+  .hdr img{height:36px}
+  .hdr h1{margin:0;font-size:19px;font-weight:700}
+  .hdr .sub{color:var(--mut);font-size:13px}
+  .hdr .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .btn{appearance:none;padding:8px 14px;border:1px solid var(--line);background:var(--card);border-radius:7px;cursor:pointer;font-weight:600;font-size:13px;color:#374151}
   .btn:hover{background:#f3f4f6}
   .btn.prim{background:var(--brand2);color:#fff;border-color:var(--brand2)}
   .btn.prim:hover{background:#3730a3}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-  th{background:#f1f5f9;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600;color:#334155;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
-  td{padding:10px 14px;border-bottom:1px solid var(--line)}
+  th{background:#f1f5f9;position:sticky;top:0;z-index:1;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);font-weight:600;color:#334155;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  td{padding:7px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
   tr:last-child td{border-bottom:0}
-  tr:hover td{background:#f8fafc}
   .r{text-align:right}
   .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#4338ca}
   .mut{color:var(--mut)}
   .err{color:#b91c1c;font-size:13px}
-  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:11.5px;font-weight:600}
-  .ok{background:#dcfce7;color:#166534}
-  .pending{background:#fef3c7;color:#92400e}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .cat-chip{background:#eef2ff;color:#4338ca}
 
   /* Login card */
   .login{max-width:380px;margin:60px auto;padding:28px 26px}
@@ -42,13 +41,27 @@
   .login .sub{color:var(--mut);font-size:13px;margin-bottom:20px}
   .login label{display:block;font-size:12.5px;color:#374151;font-weight:600;margin:12px 0 4px}
   .login input{width:100%;padding:9px 11px;border:1px solid #d1d5db;border-radius:7px;font-size:14px}
+  .login .outlet-pill{padding:9px 11px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:7px;font-weight:600;color:#4338ca;font-size:14px}
   .login .actions{display:flex;align-items:center;gap:10px;margin-top:18px}
 
-  /* Snapshot modal */
-  .modal{position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:100;display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
-  .modal.on{display:flex}
-  .modal .body{background:#fff;border-radius:12px;padding:20px 24px;max-width:1100px;width:100%;max-height:calc(100vh - 80px);overflow:auto}
-  .modal h3{margin:0 0 12px;font-size:17px}
+  /* Count inputs */
+  .num{width:100%;max-width:120px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;text-align:right;background:#fef3c7}
+  .num:focus{outline:none;border-color:var(--brand2);background:#fff}
+  .num.filled{background:#fff}
+  .scroll{overflow:auto;max-height:calc(100vh - 240px)}
+
+  /* Toolbar */
+  .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);background:#fff}
+  .toolbar input[type="datetime-local"]{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px}
+  .toolbar .search{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;min-width:220px}
+  .toolbar .cat-filter{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px}
+
+  @media (max-width: 640px) {
+    .wrap{padding:14px 12px}
+    .hdr h1{font-size:17px}
+    th, td{padding:7px 8px;font-size:12.5px}
+    .num{max-width:90px}
+  }
 </style>
 </head>
 <body>
@@ -56,11 +69,11 @@
   <div class="hdr">
     <img src="/logo.png" alt="NutrioBox" onerror="this.style.display='none'">
     <div>
-      <h1>Outlet Portal</h1>
-      <div class="mut" id="outletName">Sign in to view your Ideal Inventory snapshots.</div>
+      <h1 id="hdrTitle">On-Hand Entry</h1>
+      <div class="sub" id="outletName">Enter today's current on-hand count for your outlet.</div>
     </div>
     <div class="right">
-      <span id="whoami"></span>
+      <span id="whoami" class="mut" style="font-size:12.5px"></span>
       <button id="logoutBtn" class="btn" style="display:none" onclick="doLogout()">Sign out</button>
     </div>
   </div>
@@ -68,9 +81,9 @@
   <!-- Login form -->
   <div id="loginView" class="card login" style="display:none">
     <h2>Sign in</h2>
-    <div class="sub">Use the username and password you were issued for your outlet.</div>
-    <label for="u">Username</label>
-    <input id="u" type="text" autocomplete="username" placeholder="e.g. rajinder-nagar">
+    <div class="sub">Enter the password you were issued for your outlet.</div>
+    <label>Outlet</label>
+    <div class="outlet-pill" id="outletPill">—</div>
     <label for="p">Password</label>
     <input id="p" type="password" autocomplete="current-password" placeholder="••••">
     <div class="actions">
@@ -79,74 +92,89 @@
     </div>
   </div>
 
-  <!-- Snapshots list -->
-  <div id="snapshotsView" style="display:none">
-    <div class="card" style="margin-bottom:14px;padding:12px 16px;display:flex;align-items:center;gap:10px">
-      <strong style="font-size:14px">Saved Ideal Inventory snapshots</strong>
-      <span id="snapsCount" class="mut" style="font-size:12.5px"></span>
-      <button class="btn" style="margin-left:auto" onclick="refreshSnapshots()">↻ Refresh</button>
-    </div>
+  <!-- On-hand counting sheet -->
+  <div id="sheetView" style="display:none">
     <div class="card">
-      <div style="overflow:auto">
-        <table id="tblSnaps">
-          <thead><tr>
-            <th>#</th>
-            <th>Date &amp; Time</th>
-            <th>IO #</th>
-            <th class="r">Items</th>
-            <th class="r">Opening Count</th>
-            <th>Window</th>
-            <th>Status</th>
-            <th></th>
-          </tr></thead>
-          <tbody id="tbodySnaps"><tr><td colspan="8" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
-        </table>
+      <div class="toolbar">
+        <label style="font-size:12.5px;color:#374151;font-weight:600">Date & time:</label>
+        <input id="dtIso" type="datetime-local">
+        <input id="qSearch" class="search" placeholder="Search RM code or name…" oninput="renderSheet()">
+        <select id="catFilter" class="cat-filter" onchange="renderSheet()">
+          <option value="">All categories</option>
+        </select>
+        <span id="counterPill" class="mut" style="font-size:12.5px"></span>
+        <button class="btn" onclick="clearAll()" style="margin-left:auto">Clear sheet</button>
+        <button class="btn prim" id="saveBtn" onclick="saveSheet()">💾 Save on-hand count</button>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- Snapshot detail modal -->
-<div id="snapModal" class="modal" onclick="if(event.target===this)closeSnapModal()">
-  <div class="body">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-      <h3 id="snapTitle" style="margin:0;flex:1">Snapshot</h3>
-      <button class="btn" onclick="closeSnapModal()">✕</button>
-    </div>
-    <div id="snapMeta" class="mut" style="font-size:12.5px;margin-bottom:10px"></div>
-    <div style="overflow:auto">
-      <table id="tblSnap">
+      <div class="scroll"><table id="tblSheet">
         <thead><tr>
-          <th>RM Code</th>
-          <th>Raw Material</th>
-          <th>Category</th>
-          <th>UoM</th>
-          <th class="r">Opening</th>
-          <th class="r">Purchase</th>
-          <th class="r">Consumption</th>
-          <th class="r">Variance</th>
-          <th class="r">Ideal Closing</th>
+          <th style="width:48px" class="r">#</th>
+          <th style="width:110px">RM Code</th>
+          <th>Raw Material Name</th>
+          <th style="width:120px">Category</th>
+          <th style="width:90px">UOM</th>
+          <th style="width:140px" class="r">On Hand · Full</th>
+          <th style="width:140px" class="r">On Hand · Loose</th>
         </tr></thead>
-        <tbody id="tbodySnap"></tbody>
-      </table>
+        <tbody id="tbodySheet"><tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading raw-material list…</td></tr></tbody>
+      </table></div>
     </div>
   </div>
+
+  <div id="toast" style="position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13.5px;z-index:10;opacity:0;transition:opacity .2s;pointer-events:none"></div>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmtDT = (iso) => { if(!iso) return '—'; try { return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}); } catch { return iso; } };
-const fmtQty = (v) => (v == null || v === '' || isNaN(Number(v))) ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 });
+function toast(msg, ms){ const t=$('toast'); t.textContent=msg; t.style.opacity='1'; clearTimeout(toast._); toast._=setTimeout(()=>{t.style.opacity='0'}, ms||2600); }
+
+// --- Outlet detection from subdomain ----------------------------------------
+// Format we expect: <slug>.outlet-on-hand.nutriobox.com
+// If someone opens the portal on the ops-dashboard domain for testing, fall
+// back to a ?outlet= query param so we don't hard-fail.
+function detectSlug(){
+  const host = location.hostname.toLowerCase();
+  const m = host.match(/^([a-z0-9-]+)\.outlet-on-hand\.nutriobox\.com$/);
+  if(m) return m[1];
+  const q = new URLSearchParams(location.search).get('outlet');
+  if(q) return q.toLowerCase();
+  return null;
+}
+
+const SLUG = detectSlug();
+
+// Pretty outlet name derived from slug — "rajinder-nagar" → "Rajinder Nagar".
+// Replaced after login with the official outlet_name from Supabase.
+function slugToPretty(s){
+  if(!s) return '';
+  return s.split('-').map(x => x.charAt(0).toUpperCase() + x.slice(1)).join(' ');
+}
+
+// --- Session + login --------------------------------------------------------
 
 async function checkSession(){
+  // No slug detected → warn so operator doesn't type into a dead form.
+  if(!SLUG){
+    $('loginView').style.display = 'none';
+    $('sheetView').style.display = 'none';
+    document.body.innerHTML = '<div style="max-width:520px;margin:60px auto;padding:28px 26px;background:#fff;border:1px solid #fecaca;border-radius:12px;color:#991b1b;font-family:system-ui"><h2 style="margin:0 0 8px;font-size:19px">Outlet subdomain not recognised</h2><p style="margin:0;font-size:13.5px;color:#374151">This page needs a subdomain like <code>&lt;outlet&gt;.outlet-on-hand.nutriobox.com</code>, or a <code>?outlet=&lt;slug&gt;</code> query param. Current host: <code>' + esc(location.hostname) + '</code></p></div>';
+    return;
+  }
   try {
     const r = await fetch('/api/outlet-portal/me', { cache: 'no-store' });
     if(!r.ok) throw new Error('not signed in');
     const j = await r.json();
     if(!j.ok) throw new Error(j.error || 'not signed in');
-    showPortal(j.outlet_name, j.outlet_slug);
-    refreshSnapshots();
+    // Enforce: the signed-in slug must match the subdomain's outlet. Reject
+    // a cross-outlet cookie so one subdomain never accidentally shows
+    // another outlet's sheet.
+    if(j.outlet_slug !== SLUG){
+      await fetch('/api/outlet-portal/logout', { method: 'POST' }).catch(() => {});
+      showLogin();
+      return;
+    }
+    showSheet(j.outlet_name, j.outlet_slug);
   } catch (e) {
     showLogin();
   }
@@ -154,36 +182,31 @@ async function checkSession(){
 
 function showLogin(){
   $('loginView').style.display = '';
-  $('snapshotsView').style.display = 'none';
+  $('sheetView').style.display = 'none';
   $('logoutBtn').style.display = 'none';
   $('whoami').textContent = '';
-  $('outletName').textContent = 'Sign in to view your Ideal Inventory snapshots.';
-  setTimeout(() => $('u').focus(), 50);
-}
-
-function showPortal(name, slug){
-  $('loginView').style.display = 'none';
-  $('snapshotsView').style.display = '';
-  $('logoutBtn').style.display = '';
-  $('whoami').textContent = name;
-  $('outletName').textContent = name + ' — your saved snapshots are below.';
+  $('outletPill').textContent = slugToPretty(SLUG);
+  $('outletName').textContent = 'Signing in as ' + slugToPretty(SLUG) + '.';
+  setTimeout(() => $('p').focus(), 50);
 }
 
 async function doLogin(){
-  const u = ($('u').value || '').trim();
   const p = $('p').value || '';
   const err = $('loginErr'); if(err) err.textContent = '';
-  if(!u || !p){ if(err) err.textContent = 'Enter username and password.'; return; }
+  if(!p){ if(err) err.textContent = 'Enter your outlet password.'; return; }
   try {
     const r = await fetch('/api/outlet-portal/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: u, password: p }),
+      body: JSON.stringify({ username: SLUG, password: p }),
     });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || 'Sign-in failed');
-    showPortal(j.outlet_name, j.outlet_slug);
-    refreshSnapshots();
+    // Cross-check: the issued session must be for this subdomain.
+    if(j.outlet_slug !== SLUG){
+      throw new Error('These credentials are not for ' + slugToPretty(SLUG));
+    }
+    showSheet(j.outlet_name, j.outlet_slug);
     $('p').value = '';
   } catch (e) {
     if(err) err.textContent = e.message || String(e);
@@ -195,80 +218,156 @@ async function doLogout(){
   showLogin();
 }
 
-async function refreshSnapshots(){
-  const body = $('tbodySnaps');
-  body.innerHTML = '<tr><td colspan="8" class="mut" style="padding:20px;text-align:center">Loading…</td></tr>';
+// --- Sheet view -------------------------------------------------------------
+
+const SHEET = { items: [], outletName: '', outletSlug: '', qty: {}, qtyLoose: {} };
+
+function showSheet(outletName, outletSlug){
+  SHEET.outletName = outletName;
+  SHEET.outletSlug = outletSlug;
+  $('loginView').style.display = 'none';
+  $('sheetView').style.display = '';
+  $('logoutBtn').style.display = '';
+  $('whoami').textContent = outletName;
+  $('outletName').textContent = outletName + ' · Enter today\'s on-hand count below.';
+  // Pre-fill the datetime input with "now" (local time, truncated to minute).
+  const pad = (n) => String(n).padStart(2, '0');
+  const now = new Date();
+  $('dtIso').value = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+  loadRmList();
+}
+
+async function loadRmList(){
+  const body = $('tbodySheet');
+  body.innerHTML = '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading raw-material list…</td></tr>';
   try {
-    const r = await fetch('/api/outlet-portal/snapshots', { cache: 'no-store' });
+    // Product Master is the single source of truth. We filter client-side to
+    // RMs with idealStorage set — the same ones the main dashboard's Opening
+    // Inventory tab counts. Mirrors oiBuildItemsFromRm().
+    const r = await fetch('/api/product-master', { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || 'Load failed');
-    const snaps = Array.isArray(j.snapshots) ? j.snapshots : [];
-    $('snapsCount').textContent = snaps.length ? ('· ' + snaps.length + ' saved') : '· none yet';
-    if(!snaps.length){
-      body.innerHTML = '<tr><td colspan="8" class="mut" style="padding:20px;text-align:center">No saved snapshots yet.</td></tr>';
-      return;
-    }
-    body.innerHTML = snaps.map((s, i) => {
-      const approved = !!s.approved_at;
-      const status = approved
-        ? '<span class="pill ok">Approved</span>'
-        : '<span class="pill pending">Pending</span>';
-      const win = (s.window_from ? fmtDT(s.window_from) : '—') + ' → ' + (s.window_to ? fmtDT(s.window_to) : '—');
-      return '<tr>'
-        + '<td class="r">' + (i + 1) + '</td>'
-        + '<td>' + esc(fmtDT(s.created_at)) + '</td>'
-        + '<td class="code">#' + esc(s.order_number || '') + '</td>'
-        + '<td class="r">' + esc(s.total_items || 0) + '</td>'
-        + '<td class="r">' + esc(s.opening_count || 0) + '</td>'
-        + '<td class="mut" style="font-size:12.5px">' + esc(win) + '</td>'
-        + '<td>' + status + '</td>'
-        + '<td><button class="btn" onclick="viewSnapshot(\'' + esc(s.id) + '\')">View</button></td>'
-        + '</tr>';
-    }).join('');
+    const products = Array.isArray(j.products) ? j.products : [];
+    const CAT_ORDER = { 'Frozen':1, 'Chiller':2, 'Vegetable':3, 'Dry Store':4, 'Packaging':5 };
+    const items = products.filter(p => p.idealStorage && !p.isGhost).map(p => {
+      const L1 = (p.levels && p.levels.L1) || {};
+      return {
+        rm_code:     p.code || '',
+        name:        p.name || '',
+        category:    p.idealStorage || '',
+        packing_uom: p.idealUom || L1.u || '',
+      };
+    }).sort((a, b) => {
+      const ca = CAT_ORDER[a.category] || 99;
+      const cb = CAT_ORDER[b.category] || 99;
+      if(ca !== cb) return ca - cb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    SHEET.items = items;
+    SHEET.qty = {}; SHEET.qtyLoose = {};
+    // Populate the category filter from the actual categories seen.
+    const cats = [...new Set(items.map(it => it.category).filter(Boolean))].sort((a, b) => (CAT_ORDER[a] || 99) - (CAT_ORDER[b] || 99));
+    $('catFilter').innerHTML = '<option value="">All categories</option>' + cats.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+    renderSheet();
   } catch (e) {
-    if(/Not signed in/i.test(String(e.message))) { showLogin(); return; }
-    body.innerHTML = '<tr><td colspan="8" class="err" style="padding:20px;text-align:center">' + esc(e.message || e) + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="err" style="padding:20px;text-align:center">' + esc(e.message || e) + '</td></tr>';
   }
 }
 
-async function viewSnapshot(id){
+function renderSheet(){
+  const body = $('tbodySheet');
+  if(!SHEET.items.length){ body.innerHTML = '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">No raw-material list.</td></tr>'; return; }
+  const q = ($('qSearch').value || '').trim().toLowerCase();
+  const cat = $('catFilter').value || '';
+  const list = SHEET.items.filter(it => {
+    if(cat && it.category !== cat) return false;
+    if(!q) return true;
+    return (it.rm_code || '').toLowerCase().includes(q) || (it.name || '').toLowerCase().includes(q);
+  });
+  const rows = list.map((it, i) => {
+    const cell = (which) => {
+      const stored = (which === 'full') ? SHEET.qty[it.rm_code] : SHEET.qtyLoose[it.rm_code];
+      const v = stored != null ? stored : '';
+      const filled = v !== '' && Number(v) > 0;
+      return '<input type="number" step="any" min="0" class="num' + (filled ? ' filled' : '') + '" value="' + esc(String(v)) + '" '
+        + 'data-code="' + esc(it.rm_code) + '" data-which="' + which + '" '
+        + 'oninput="onCellInput(event)" placeholder="0">';
+    };
+    return '<tr>'
+      + '<td class="r mut">' + (i + 1) + '</td>'
+      + '<td class="code">' + esc(it.rm_code) + '</td>'
+      + '<td>' + esc(it.name) + '</td>'
+      + '<td><span class="pill cat-chip">' + esc(it.category) + '</span></td>'
+      + '<td>' + esc(it.packing_uom) + '</td>'
+      + '<td class="r">' + cell('full') + '</td>'
+      + '<td class="r">' + cell('loose') + '</td>'
+      + '</tr>';
+  }).join('');
+  body.innerHTML = rows || '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">No rows match the filter.</td></tr>';
+  updateCounter();
+}
+
+function onCellInput(e){
+  const el = e.target;
+  const code = el.dataset.code;
+  const which = el.dataset.which;
+  const raw = el.value;
+  const n = raw === '' ? null : Number(raw);
+  if(which === 'full'){
+    if(n == null || !isFinite(n)) delete SHEET.qty[code]; else SHEET.qty[code] = n;
+  } else {
+    if(n == null || !isFinite(n)) delete SHEET.qtyLoose[code]; else SHEET.qtyLoose[code] = n;
+  }
+  el.classList.toggle('filled', n != null && Number(n) > 0);
+  updateCounter();
+}
+
+function updateCounter(){
+  const filled = new Set([...Object.keys(SHEET.qty).filter(k => Number(SHEET.qty[k]) > 0), ...Object.keys(SHEET.qtyLoose).filter(k => Number(SHEET.qtyLoose[k]) > 0)]).size;
+  $('counterPill').textContent = filled + ' / ' + SHEET.items.length + ' filled';
+}
+
+function clearAll(){
+  if(!confirm('Clear every count on this sheet?')) return;
+  SHEET.qty = {}; SHEET.qtyLoose = {};
+  renderSheet();
+}
+
+async function saveSheet(){
+  if(!SHEET.items.length){ toast('Nothing to save.'); return; }
+  const dt = $('dtIso').value;
+  if(!dt){ toast('Pick a date & time.'); return; }
+  const btn = $('saveBtn'); btn.disabled = true;
+  const t0 = Date.now();
   try {
-    const r = await fetch('/api/outlet-portal/snapshots?id=' + encodeURIComponent(id), { cache: 'no-store' });
+    const payload = {
+      dt_iso: dt,
+      qty: SHEET.qty,
+      qty_loose: SHEET.qtyLoose,
+      total_items: SHEET.items.length,
+    };
+    const r = await fetch('/api/outlet-portal/submit-on-hand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     const j = await r.json();
-    if(!r.ok || !j.ok) throw new Error(j.error || 'Load failed');
-    const s = j.snapshot;
-    $('snapTitle').textContent = (s.outlet || '') + ' · #' + (s.order_number || '');
-    const win = (s.window_from ? fmtDT(s.window_from) : '—') + ' → ' + (s.window_to ? fmtDT(s.window_to) : '—');
-    $('snapMeta').textContent = 'Saved ' + fmtDT(s.created_at) + ' · window ' + win + ' · ' + (s.total_items || 0) + ' items'
-      + (s.approved_at ? (' · approved ' + fmtDT(s.approved_at) + (s.approved_by ? (' by ' + s.approved_by) : '')) : '');
-    const items = Array.isArray(s.items) ? s.items : [];
-    const body = $('tbodySnap');
-    if(!items.length){
-      body.innerHTML = '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center">No items in this snapshot.</td></tr>';
-    } else {
-      body.innerHTML = items.map((it) => '<tr>'
-        + '<td class="code">' + esc(it.rm_code || '') + '</td>'
-        + '<td>' + esc(it.rm_name || it.name || '') + '</td>'
-        + '<td>' + esc(it.category || '') + '</td>'
-        + '<td>' + esc(it.uom || it.packing_uom || '') + '</td>'
-        + '<td class="r">' + esc(fmtQty(it.opening)) + '</td>'
-        + '<td class="r">' + esc(fmtQty(it.purchase)) + '</td>'
-        + '<td class="r">' + esc(fmtQty(it.consumption)) + '</td>'
-        + '<td class="r">' + esc(fmtQty(it.variance)) + '</td>'
-        + '<td class="r" style="font-weight:600">' + esc(fmtQty(it.ideal_closing)) + '</td>'
-        + '</tr>').join('');
-    }
-    $('snapModal').classList.add('on');
+    if(!r.ok || !j.ok) throw new Error(j.error || 'Save failed');
+    const secs = Math.round((Date.now() - t0) / 100) / 10;
+    toast('✓ Saved · ' + j.filled_count + ' of ' + j.total_items + ' RMs · ' + secs + 's');
   } catch (e) {
-    alert(e.message || e);
+    if(/Not signed in/i.test(String(e.message))){ await doLogout(); return; }
+    toast('✗ ' + (e.message || e), 4000);
+  } finally {
+    btn.disabled = false;
   }
 }
-function closeSnapModal(){ $('snapModal').classList.remove('on'); }
 
 // Boot
 checkSession();
-// Enter-key submits the login form
-document.addEventListener('keydown', (e) => { if(e.key === 'Enter' && $('loginView').style.display !== 'none') doLogin(); });
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && $('loginView').style.display !== 'none') doLogin();
+});
 </script>
 </body>
 </html>
