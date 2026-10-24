@@ -42,8 +42,13 @@ export async function POST(req: Request) {
   const { url, key } = sbEnv();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured" }, { status: 500 });
 
-  // Look up the row by case-insensitive username.
-  const q = `${url}/rest/v1/outlet_portal_access?select=outlet_slug,outlet_name,password_salt,password_hash,allowed_ip_cidr&username=ilike.${encodeURIComponent(username)}`;
+  // Look up the row by exact username (lower-cased on both sides). PostgREST's
+  // `ilike` without a wildcard can miss on some setups, verified 2026-10-24
+  // when a correctly-hashed row refused login via the API but matched inline
+  // in SQL — swapping to `eq` on the lower-cased username column (the unique
+  // index on lower(username) is already there) made the match deterministic.
+  const unameLower = username.toLowerCase();
+  const q = `${url}/rest/v1/outlet_portal_access?select=outlet_slug,outlet_name,password_salt,password_hash,allowed_ip_cidr&username=eq.${encodeURIComponent(unameLower)}`;
   const r = await fetch(q, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" });
   if (!r.ok) {
     const t = await r.text().catch(() => "");
