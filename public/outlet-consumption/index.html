@@ -822,24 +822,27 @@
   </div>
  </div>
 
- <!-- Variance View modal — three paired columns per RM:
+ <!-- Variance View modal — two paired columns per RM:
       Ideal (what the formula says you should have left),
-      On Hand (the actual closing: Ideal minus the variance adjustment),
-      Variance (= Ideal − On Hand; +ve = excess, −ve = shortfall).
-      Each is split into Full / Loose using the RM's Loose Denomination mark. -->
+      On Hand (what the outlet manager submitted via the On-Hand portal
+      — opening_inventory_counts, the same table the portal writes to).
+      Variance column was removed 2026-10-24 at Satvik's ask (the on-hand
+      number itself is what the outlet manager owns; variance is the
+      head-office interpretation of it). Full / Loose split using the
+      RM's Loose Denomination mark. -->
  <div id="iiSavedViewModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedView()">
-  <div class="nmbody" style="max-width:1300px">
+  <div class="nmbody" style="max-width:1200px">
    <div class="nmhdr">
     <h3 style="margin:0;flex:1">📋 Variance View — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
     <button class="btn" onclick="iiCloseSavedView()">✕</button>
    </div>
    <div id="iiSavedViewMeta" class="mut" style="margin:8px 0 10px;font-size:13px;line-height:1.5"></div>
    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-    <span style="font-size:12.5px;color:#374151">Sort by variance:</span>
-    <button class="btn" id="iiSortVarAsc"  onclick="iiSortSavedView('asc')"  title="Shortfalls first — most negative variance (red) on top">↓ Low → High</button>
-    <button class="btn" id="iiSortVarDesc" onclick="iiSortSavedView('desc')" title="Excess first — most positive variance (green) on top">↑ High → Low</button>
+    <span style="font-size:12.5px;color:#374151">Sort by on-hand (full):</span>
+    <button class="btn" id="iiSortVarAsc"  onclick="iiSortSavedView('asc')"  title="Lowest on-hand first">↓ Low → High</button>
+    <button class="btn" id="iiSortVarDesc" onclick="iiSortSavedView('desc')" title="Highest on-hand first">↑ High → Low</button>
     <button class="btn" id="iiSortVarNone" onclick="iiSortSavedView('none')" title="Reset to the snapshot's original order">↺ Original order</button>
-    <span class="mut" style="font-size:12px;margin-left:auto">+ green = excess · − red = shortfall</span>
+    <span class="mut" style="font-size:12px;margin-left:auto">On-hand = whatever the outlet submitted via the outlet-on-hand portal</span>
    </div>
    <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table>
     <thead>
@@ -851,15 +854,12 @@
       <th rowspan="2">UOM</th>
       <th colspan="2" class="r" style="background:#f1f5f9">Ideal</th>
       <th colspan="2" class="r" style="background:#eff6ff">On Hand</th>
-      <th colspan="2" class="r" style="background:#fffbeb">Variance</th>
      </tr>
      <tr>
       <th class="r" style="background:#f1f5f9">Full</th>
       <th class="r" style="background:#f1f5f9">Loose</th>
       <th class="r" style="background:#eff6ff">Full</th>
       <th class="r" style="background:#eff6ff">Loose</th>
-      <th class="r" style="background:#fffbeb">Full</th>
-      <th class="r" style="background:#fffbeb">Loose</th>
      </tr>
     </thead>
     <tbody id="tbodyIiSavedView"></tbody>
@@ -5076,29 +5076,26 @@ function iiRenderSavedView(){
   if(!snap || !tb) return;
   const items = Array.isArray(snap.items) ? snap.items.slice() : [];
   if(!items.length){
-    tb.innerHTML = '<tr><td colspan="11" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
     return;
   }
-  // Signed variance: + means Ideal > On Hand (excess), − means shortfall.
-  // Snapshot's variance_l1 is what the operator typed in the Ideal
-  // Inventory tab — same sign convention: positive is a shortfall subtracted
-  // from closing. Reverse the sign here so "+ green = excess" reads
-  // naturally.
-  const varianceOf = (it) => -1 * Number(it.variance_l1 || 0);
-  if(II_VIEW.sort === 'asc')  items.sort((a, b) => varianceOf(a) - varianceOf(b));
-  if(II_VIEW.sort === 'desc') items.sort((a, b) => varianceOf(b) - varianceOf(a));
+  // Variance column was removed 2026-10-24 — Satvik wants this view to show
+  // only Ideal and the portal-submitted On Hand, side by side. Sort now runs
+  // on the On Hand (full-unit L1) value so the operator can see the biggest
+  // (or smallest) stock positions at the top.
+  const onHandOf = (it) => Number(it.closing_l1 || 0);
+  if(II_VIEW.sort === 'asc')  items.sort((a, b) => onHandOf(a) - onHandOf(b));
+  if(II_VIEW.sort === 'desc') items.sort((a, b) => onHandOf(b) - onHandOf(a));
 
   tb.innerHTML = items.map((it, i) => {
-    // L1 figures for Ideal / On Hand / Variance.
+    // L1 figures for Ideal and On Hand.
     //   Ideal   = Opening + Purchase − Consumption   (what SHOULD be left)
-    //   On Hand = Closing (= Ideal − Variance)       (actual stock)
-    //   Variance= Ideal − On Hand = -variance_l1     (+ = excess, − = short)
+    //   On Hand = Closing                             (what the outlet
+    //             submitted via the portal — opening_inventory_counts)
     const idealL1   = Number(it.opening_l1 || 0) + Number(it.purchase_l1 || 0) - Number(it.consumption_l1 || 0);
     const onHandL1  = Number(it.closing_l1 || 0);
-    const varL1     = idealL1 - onHandL1;
     const sIdeal    = iiSplitForView(it, idealL1);
     const sOnHand   = iiSplitForView(it, onHandL1);
-    const sVar      = iiSplitForView(it, varL1);
     const catCell   = (typeof oiCategoryChip === 'function') ? oiCategoryChip(it.category) : esc(it.category || '');
     const uomCell   = '<span class="code">' + esc(it.packing_uom || it.full_unit || it.l1_unit || '') + '</span>';
     const fmtPlain  = (q, u) => (q == null) ? '<span class="mut">—</span>' : (qty(q) + (u ? ' <span class="mut" style="font-size:11px">' + esc(u) + '</span>' : ''));
@@ -5112,8 +5109,6 @@ function iiRenderSavedView(){
       + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.looseQty, sIdeal.looseUnit) + '</td>'
       + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.fullQty, sOnHand.fullUnit) + '</td>'
       + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.looseQty,sOnHand.looseUnit)+ '</td>'
-      + '<td class="r" style="background:#fffbeb">' + iiFmtVarCell(sVar.fullQty,  sVar.fullUnit)  + '</td>'
-      + '<td class="r" style="background:#fffbeb">' + iiFmtVarCell(sVar.looseQty, sVar.looseUnit) + '</td>'
     + '</tr>';
   }).join('');
 }
