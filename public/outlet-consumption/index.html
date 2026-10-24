@@ -819,14 +819,12 @@
      <th>#</th>
      <th>Date &amp; Time</th>
      <th>Outlet</th>
-     <th>Order #</th>
-     <th>Opening Count</th>
      <th>Rows</th>
      <th>View</th>
      <th>Import</th>
      <th>Delete</th>
     </tr></thead>
-    <tbody id="tbodyIiSaved"><tr><td colspan="9" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
+    <tbody id="tbodyIiSaved"><tr><td colspan="7" class="mut" style="padding:14px;text-align:center">Loading…</td></tr></tbody>
    </table></div></div>
   </div>
  </div>
@@ -4977,7 +4975,7 @@ async function iiOpenSavedList(){
   const meta  = $('iiSavedMeta');
   if(!modal || !tb) return;
   modal.style.display = 'flex';
-  tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:14px;text-align:center">Loading saved snapshots…</td></tr>';
+  tb.innerHTML = '<tr><td colspan="7" class="mut" style="padding:14px;text-align:center">Loading saved snapshots…</td></tr>';
   if(meta) meta.innerHTML = '';
   try {
     const r = await fetch('/api/ideal-inventory', { cache: 'no-store' });
@@ -4986,23 +4984,20 @@ async function iiOpenSavedList(){
     const list = Array.isArray(j.snapshots) ? j.snapshots : [];
     if(meta) meta.textContent = list.length + ' snapshot' + (list.length === 1 ? '' : 's') + ' saved.';
     if(!list.length){
-      tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:14px;text-align:center">No snapshots yet. Compute an Ideal Inventory on the main screen, then click 💾 Save.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="7" class="mut" style="padding:14px;text-align:center">No snapshots yet. Compute an Ideal Inventory on the main screen, then click 💾 Save.</td></tr>';
       return;
     }
     tb.innerHTML = list.map((row, i) => {
       const idEsc = esc(String(row.id || '')).replace(/'/g, "\\'");
       const nameEsc = esc(row.outlet || '');
       const when = row.window_to ? fmtTime(String(row.window_to).length === 16 ? row.window_to + '+05:30' : row.window_to) : (row.created_at ? fmtTime(row.created_at) : '—');
-      const ord = row.order_number != null ? ('#' + row.order_number) : '—';
-      const openingLbl = row.opening_count && row.opening_count.filled_count != null
-        ? (row.opening_count.filled_count + ' / ' + row.opening_count.total_items)
-        : '—';
+      // Order # + Opening Count columns were removed 2026-10-24 — the Order #
+      // was redundant with the id used for actions, and Opening Count belongs
+      // in the Opening Inventory tab, not the snapshots list.
       return '<tr>'
         + '<td>' + (i + 1) + '</td>'
         + '<td>' + esc(when) + '</td>'
         + '<td>' + nameEsc + '</td>'
-        + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
-        + '<td>' + openingLbl + '</td>'
         + '<td>' + (row.total_items || 0) + '</td>'
         + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
         + '<td><button class="btn prim" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the results view">⬆ Import</button></td>'
@@ -5010,7 +5005,7 @@ async function iiOpenSavedList(){
       + '</tr>';
     }).join('');
   } catch(e){
-    tb.innerHTML = '<tr><td colspan="9" class="mut" style="padding:14px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="mut" style="padding:14px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
   }
 }
 
@@ -5047,6 +5042,24 @@ async function iiViewSaved(id){
     // can re-render without re-fetching from the server.
     II_VIEW.snap = snap;
     II_VIEW.sort = 'none';
+    // Fetch the outlet's latest portal On-Hand submission so the On Hand
+    // columns show the manager's live count instead of mirroring Ideal.
+    await iiLoadOnHandForOutlet(snap.outlet || '');
+    // Append the On-Hand source line to the modal meta so the operator can
+    // tell at a glance whether these numbers are from today, yesterday,
+    // or missing entirely.
+    if(meta){
+      const oh = II_VIEW.onHand;
+      let onHandLine;
+      if(oh && oh.source === 'portal' && oh.dt_iso){
+        const dtPretty = fmtTime(String(oh.dt_iso).length === 16 ? oh.dt_iso + '+05:30' : oh.dt_iso);
+        onHandLine = '<b>On-Hand submission:</b> ' + esc(dtPretty)
+                   + ' · ' + oh.filled_count + ' of ' + oh.total_items + ' RMs filled';
+      } else {
+        onHandLine = '<b>On-Hand submission:</b> <span style="color:#b45309">no submission yet — all rows show 0</span>';
+      }
+      meta.innerHTML += ' <br>' + onHandLine;
+    }
     iiRenderSavedView();
     modal.style.display = 'flex';
   } catch(e){
@@ -5055,9 +5068,50 @@ async function iiViewSaved(id){
 }
 
 // State for the Variance View modal — snapshot being viewed + the current
-// sort direction. Set by iiViewSaved and iiSortSavedView; read by
-// iiRenderSavedView to rebuild the table body in place.
-const II_VIEW = { snap: null, sort: 'none' };
+// sort direction + the LIVE on-hand submission from the outlet's portal.
+// On-hand is NOT part of the saved snapshot: it's fetched fresh each time
+// the modal opens, from the outlet's most recent /outlet-portal Submit
+// On-Hand submission (opening_inventory_counts rows with
+// created_by LIKE 'portal:%'). An outlet that hasn't submitted yet shows
+// zero on-hand for every RM, and a submission that only filled some RMs
+// shows zero for the rest — Satvik 2026-10-24.
+const II_VIEW = {
+  snap: null,
+  sort: 'none',
+  onHand: { qty: {}, qty_loose: {}, dt_iso: null, filled_count: 0, total_items: 0, source: 'none' },
+};
+
+// Fetch the most recent portal On-Hand submission for an outlet and stash
+// its qty + qty_loose maps on II_VIEW.onHand. Called by iiViewSaved before
+// the first render. Best-effort — any failure leaves the maps empty, which
+// renders every On-Hand cell as zero (which is correct for an outlet that
+// has never used the portal).
+async function iiLoadOnHandForOutlet(outlet){
+  II_VIEW.onHand = { qty: {}, qty_loose: {}, dt_iso: null, filled_count: 0, total_items: 0, source: 'none' };
+  if(!outlet) return;
+  try {
+    const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok || !Array.isArray(j.counts)) return;
+    // Prefer the latest row created BY THE PORTAL (created_by starts with
+    // 'portal:'). This separates the On-Hand portal submissions from the
+    // manual Opening Inventory tab counts, which share the same table.
+    const portalCounts = j.counts.filter(c => typeof c.created_by === 'string' && c.created_by.startsWith('portal:'));
+    const pick = portalCounts.length ? portalCounts[0] : null;
+    if(!pick){ II_VIEW.onHand.source = 'none'; return; }
+    const r2 = await fetch('/api/opening-inventory?id=' + encodeURIComponent(pick.id), { cache: 'no-store' });
+    const j2 = await r2.json();
+    if(!r2.ok || !j2.ok || !j2.count) return;
+    II_VIEW.onHand = {
+      qty:          j2.count.qty       || {},
+      qty_loose:    j2.count.qty_loose || {},
+      dt_iso:       j2.count.dt_iso    || null,
+      filled_count: Number(j2.count.filled_count || 0),
+      total_items:  Number(j2.count.total_items  || 0),
+      source:       'portal',
+    };
+  } catch(_){ /* leave maps empty */ }
+}
 
 // Split an L1 figure into (full, loose) using the item's level units + the
 // Loose Denomination mark saved on the snapshot. Mirrors iiSplitClosing but
@@ -5135,20 +5189,32 @@ function iiRenderSavedView(){
     return;
   }
   // Variance column was removed 2026-10-24 — Satvik wants this view to show
-  // only Ideal and the portal-submitted On Hand, side by side. Sort now runs
-  // on the On Hand (full-unit L1) value so the operator can see the biggest
-  // (or smallest) stock positions at the top.
-  const onHandOf = (it) => Number(it.closing_l1 || 0);
+  // only Ideal and the portal-submitted On Hand, side by side. On Hand now
+  // comes from II_VIEW.onHand (loaded by iiLoadOnHandForOutlet from the
+  // outlet's latest /outlet-portal Submit-On-Hand submission). Unfilled
+  // rows show zero. Sort runs on the actual on-hand L1 so the biggest or
+  // smallest positions float to the top.
+  const ohQty   = (II_VIEW.onHand && II_VIEW.onHand.qty)       || {};
+  const ohLoose = (II_VIEW.onHand && II_VIEW.onHand.qty_loose) || {};
+  // Precompute each row's on-hand L1 — expensive to redo inside sort comparator.
+  const onHandByCode = new Map();
+  for(const it of items){
+    const code = String(it.rm_code || '');
+    const qtyPack  = Number(ohQty[code]   || 0);
+    const qtyLoose = Number(ohLoose[code] || 0);
+    onHandByCode.set(code, (qtyPack || qtyLoose) ? iiOpeningToL1(it, qtyPack, qtyLoose) : 0);
+  }
+  const onHandOf = (it) => Number(onHandByCode.get(String(it.rm_code || '')) || 0);
   if(II_VIEW.sort === 'asc')  items.sort((a, b) => onHandOf(a) - onHandOf(b));
   if(II_VIEW.sort === 'desc') items.sort((a, b) => onHandOf(b) - onHandOf(a));
 
   tb.innerHTML = items.map((it, i) => {
     // L1 figures for Ideal and On Hand.
     //   Ideal   = Opening + Purchase − Consumption   (what SHOULD be left)
-    //   On Hand = Closing                             (what the outlet
-    //             submitted via the portal — opening_inventory_counts)
+    //   On Hand = latest portal Submit-On-Hand count for this RM; 0 when the
+    //             outlet hasn't submitted or didn't fill this row yet.
     const idealL1   = Number(it.opening_l1 || 0) + Number(it.purchase_l1 || 0) - Number(it.consumption_l1 || 0);
-    const onHandL1  = Number(it.closing_l1 || 0);
+    const onHandL1  = onHandOf(it);
     const sIdeal    = iiSplitForView(it, idealL1);
     const sOnHand   = iiSplitForView(it, onHandL1);
     const catCell   = (typeof oiCategoryChip === 'function') ? oiCategoryChip(it.category) : esc(it.category || '');
