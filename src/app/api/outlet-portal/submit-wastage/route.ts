@@ -32,6 +32,12 @@ async function outletNameForSlug(url: string, key: string, slug: string): Promis
   return rows[0]?.outlet_name || null;
 }
 
+/** See submit-on-hand/route.ts — strips "NutrioBox (…)" wrapper. */
+function toCountsOutletName(fullName: string): string {
+  const m = String(fullName || "").match(/^\s*NutrioBox\s*\(\s*(.+?)\s*\)\s*$/i);
+  return (m ? m[1] : fullName).trim();
+}
+
 export async function POST(req: Request) {
   const sess = readSessionFromRequest(req);
   if (!sess) return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
@@ -60,7 +66,7 @@ export async function POST(req: Request) {
   const filled    = Object.keys(qty).filter((k) => Number(qty[k]) > 0 || Number(qty_loose[k]) > 0).length;
 
   const payload = {
-    outlet:       outletName,
+    outlet:       toCountsOutletName(outletName),
     dt_iso,
     qty,
     qty_loose,

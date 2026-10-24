@@ -33,6 +33,19 @@ async function outletNameForSlug(url: string, key: string, slug: string): Promis
   return rows[0]?.outlet_name || null;
 }
 
+/**
+ * Strip the "NutrioBox (…)" brand wrapper so this row keys off the same
+ * short branch name the main dashboard uses in its outlet filter.
+ * "NutrioBox (Rajinder Nagar)" -> "Rajinder Nagar". Verified 2026-10-24
+ * when portal submissions landed in opening_inventory_counts but didn't
+ * surface in the Variance View because the dashboard queries
+ * outlet=eq.Rajinder Nagar.
+ */
+function toCountsOutletName(fullName: string): string {
+  const m = String(fullName || "").match(/^\s*NutrioBox\s*\(\s*(.+?)\s*\)\s*$/i);
+  return (m ? m[1] : fullName).trim();
+}
+
 export async function POST(req: Request) {
   const sess = readSessionFromRequest(req);
   if (!sess) return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
@@ -62,8 +75,11 @@ export async function POST(req: Request) {
   const filled    = Object.keys(qty).filter((k) => Number(qty[k]) > 0 || Number(qty_loose[k]) > 0).length;
 
   // Upsert on (outlet, dt_iso) — same convention the main dashboard uses.
+  // outlet is written as the SHORT branch name ("Rajinder Nagar"), not the
+  // branded form ("NutrioBox (Rajinder Nagar)"), so the main dashboard's
+  // outlet=eq.<name> queries hit these rows.
   const payload = {
-    outlet:       outletName,
+    outlet:       toCountsOutletName(outletName),
     dt_iso,
     qty,
     qty_loose,
