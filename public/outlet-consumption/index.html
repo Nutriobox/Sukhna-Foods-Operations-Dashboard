@@ -78,6 +78,14 @@
   .search{flex:1 1 280px;max-width:460px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0;overflow:hidden}
   .scroll{max-height:calc(100vh - 280px);overflow:auto}
+  /* Ideal Inventory specifically fits the whole table into the viewport — no
+     horizontal scroll (Satvik 2026-10-24). Columns tighten padding + inputs,
+     the Raw Material Name column allowed to wrap. */
+  .scroll.ii-fit{overflow-x:hidden}
+  .scroll.ii-fit table{table-layout:auto}
+  .scroll.ii-fit th, .scroll.ii-fit td{padding:7px 8px;font-size:12.5px}
+  .scroll.ii-fit td.nameCell{white-space:normal;line-height:1.3}
+  .scroll.ii-fit input.ii-num{width:72px;max-width:72px;padding:4px 6px;font-size:12.5px}
   table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
   th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;vertical-align:top}
   th:last-child,td:last-child{border-right:0}
@@ -767,10 +775,10 @@
     <button class="btn" onclick="exportCsvIi()">⬇ Export CSV</button>
     <button class="btn prim" onclick="iiSavePrompt()" title="Save this snapshot (Opening + Purchase + Consumption + Variance + Closing per RM) to the cloud. Password protected.">💾 Save</button>
     <span id="syncStatIi" class="mut" style="font-size:12.5px"></span>
-    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Opening Inventory + GRNs + Sales × BOM + Variance</span>
+    <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Opening Inventory + GRNs + Sales × BOM + Wastage submissions + Adjusted Variance</span>
    </div>
 
-   <div class="card"><div class="scroll"><table id="tblIi">
+   <div class="card"><div class="scroll ii-fit"><table id="tblIi">
    <thead><tr>
     <th>#</th>
     <th>RM Code</th>
@@ -780,12 +788,13 @@
     <th class="r">Opening (L1)</th>
     <th class="r">Purchase (L1)</th>
     <th class="r">Consumption (L1)</th>
-    <th class="r">Variance (L1)</th>
+    <th class="r" title="Sum of every Submit-Wastage count this outlet saved inside the window, converted to L1. Pulled live from each outlet's Submit Wastage portal.">Wastage (L1)</th>
     <th class="r">Ideal Closing (L1)</th>
+    <th class="r" title="Manual gain/loss AFTER wastage is accounted for. Positive = still-unexplained loss; negative = still-unexplained gain.">Adjusted Variance (L1)</th>
     <th class="r">Full</th>
     <th class="r">Loose</th>
    </tr></thead>
-   <tbody id="tbodyIi"><tr><td colspan="12" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodyIi"><tr><td colspan="13" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
 
   </div>  <!-- /iiResultsView -->
@@ -1169,10 +1178,14 @@ let RC = { outlet: '', from: '', to: '', aggregates: [], breakdownByRm: new Map(
 // Ideal Inventory: per-RM L1 arithmetic.
 //   items[i] = { rm_code, name, category, l1_unit, l2_unit, l3_unit,
 //                packScale, caseScale, opening_l1, purchase_l1,
-//                consumption_l1, variance_l1 }
-// Closing is computed at render time from the four buckets. opening/purchase/
-// variance are user-editable placeholders until their backends land;
-// consumption is derived from the live PetPooja feed × BOM.
+//                consumption_l1, wastage_l1, variance_l1 }
+// Closing is computed at render time from the five buckets:
+//   closing = opening + purchase - consumption - wastage - adj_variance
+// opening/purchase/consumption/wastage are auto-filled (live);
+// variance_l1 is the editable "Adjusted Variance" field — anything the
+// four auto-filled numbers don't explain. The 2026-10-24 wastage split
+// moved the measured loss (staff submits) out of variance_l1 into its
+// own wastage_l1 bucket, so variance_l1 is now a true residual.
 let IIv = { items: [], outlet: '', from: '', to: '', meta: {} };
 let II_LOADED = { v: false };
 const PM_LOADED = { v:false }, BOM_LOADED = { v:false }, OR_LOADED = { v:false }, RM_LOADED = { v:false }, SD_LOADED = { v:false }, IM_LOADED = { v:false }, PU_LOADED = { v:false }, OI_LOADED = { v:false }, CN_LOADED = { v:false }, RC_LOADED = { v:false };
@@ -4384,7 +4397,8 @@ function iiBuildItemsFromRm(){
       opening_l1:     0,
       purchase_l1:    0,
       consumption_l1: 0,
-      variance_l1:    0,
+      wastage_l1:     0,
+      variance_l1:    0,   // "Adjusted Variance" in the UI — residual after wastage
     }))
     .sort((a, b) => {
       const ca = OI_CAT_ORDER[a.category] || 99;
@@ -4668,6 +4682,33 @@ async function loadIi(fresh){
     IIv.meta = { source: 'opening + purchase done; consumption fetch failed', synced_at: new Date().toISOString(), count: IIv.items.length };
   }
 
+  // 4) Wastage: per-RM sum of every Submit-Wastage count the outlet saved
+  //    inside the window, converted to L1 via the same iiOpeningToL1 math
+  //    we use for Opening counts. IIv.from and IIv.to are already naive IST
+  //    ISO strings — the exact shape outlet_wastage_counts.dt_iso stores —
+  //    so no conversion is needed, PostgREST gte/lte compare them lexically.
+  //    Best-effort: if the aggregate call fails, wastage stays at 0.
+  try {
+    const qs = new URLSearchParams({
+      outlet: outlet, aggregate: 'rm',
+      from: IIv.from || '', to: IIv.to || '',
+    });
+    const r = await fetch('/api/outlet-wastage?' + qs.toString(), { cache: 'no-store' });
+    const j = await r.json();
+    if(r.ok && j.ok && Array.isArray(j.aggregates)){
+      let wastageMatched = 0;
+      for(const row of j.aggregates){
+        const code = String(row.rm_code || '').toUpperCase();
+        if(!code) continue;
+        const it = byCode.get(code);
+        if(!it) continue;
+        it.wastage_l1 = iiOpeningToL1(it, Number(row.qty_pack) || 0, Number(row.qty_loose) || 0);
+        if(it.wastage_l1) wastageMatched++;
+      }
+      IIv._wastage = { submissions: j.submissions || 0, matched: wastageMatched };
+    }
+  } catch(_){ /* leave wastage at 0 */ }
+
   II_LOADED.v = true;
   if(stat){
     const openingLbl = openingDtIso ? ('OI count ' + fmtTime(openingDtIso)) : 'no opening count yet';
@@ -4779,32 +4820,39 @@ function renderIi(){
   });
   const tb = $('tbodyIi');
   if(!rows.length){
-    tb.innerHTML = '<tr><td colspan="12" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="13" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>';
     return;
   }
-  const inputStyle    = 'width:90px;padding:5px 8px;text-align:right;border:1px solid #d1d5db;border-radius:6px';
+  const inputBase     = 'text-align:right;border:1px solid #d1d5db;border-radius:6px';
   // Auto-filled cells render in a subtler style so the operator can tell
   // what's live and what's manual at a glance. They stay editable so a
   // one-off override is still a single click away.
-  const computedStyle = inputStyle + ';background:#f3f4f6;color:#374151';
-  const varianceStyle = inputStyle + ';background:#fffbeb;border-color:#fde68a';
+  const computedStyle = inputBase + ';background:#f3f4f6;color:#374151';
+  const varianceStyle = inputBase + ';background:#fffbeb;border-color:#fde68a';
+  const wastageStyle  = inputBase + ';background:#fef2f2;border-color:#fecaca;color:#991b1b';
   tb.innerHTML = rows.map((it, i) => {
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    // Closing = Opening + Purchase − Consumption − Wastage − Adjusted Variance.
+    // Wastage comes from each outlet's Submit-Wastage submissions (summed in
+    // the window). Adjusted Variance is the manual residual left over after
+    // the four auto-filled buckets.
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
+                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
     const looseCell = split.looseQty == null ? '<span class="mut">—</span>' : qty(split.looseQty) + ' <span class="mut" style="font-size:11px">' + esc(split.looseUnit) + '</span>';
     return '<tr>' +
       '<td>' + (i + 1) + '</td>' +
-      '<td style="font-family:monospace;font-size:12.5px">' + esc(it.rm_code) + '</td>' +
-      '<td>' + esc(it.name) + '</td>' +
+      '<td style="font-family:monospace;font-size:12px">' + esc(it.rm_code) + '</td>' +
+      '<td class="nameCell">' + esc(it.name) + '</td>' +
       '<td>' + (typeof oiCategoryChip === 'function' ? oiCategoryChip(it.category) : esc(it.category)) + '</td>' +
       '<td><span class="code">' + esc(it.l1_unit) + '</span></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.opening_l1     || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + computedStyle + '" title="Auto-filled from the latest Opening Inventory count for this outlet (converted to ' + esc(it.l1_unit) + '). Editable if you need to override."></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.purchase_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + computedStyle + '" title="Auto-filled from GRNs posted to this outlet in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
-      '<td class="r"><input type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + computedStyle + '" title="Auto-filled from PetPooja sales × BOM in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
-      '<td class="r"><input type="number" step="0.001"        value="' + esc(it.variance_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + varianceStyle + '" title="Manual gain/loss in ' + esc(it.l1_unit) + ' (positive = unexplained gain, negative = loss)"></td>' +
+      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.opening_l1     || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + computedStyle + '" title="Auto-filled from the latest Opening Inventory count for this outlet (converted to ' + esc(it.l1_unit) + '). Editable if you need to override."></td>' +
+      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.purchase_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + computedStyle + '" title="Auto-filled from GRNs posted to this outlet in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
+      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + computedStyle + '" title="Auto-filled from PetPooja sales × BOM in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
+      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1     || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)"     style="' + wastageStyle  + '" title="Summed from this outlet\'s Submit-Wastage submissions in the window, in ' + esc(it.l1_unit) + '. Editable override."></td>' +
       '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
+      '<td class="r"><input class="ii-num" type="number" step="0.001"        value="' + esc(it.variance_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + varianceStyle + '" title="Manual residual after wastage in ' + esc(it.l1_unit) + ' (positive = still-unexplained loss, negative = still-unexplained gain)"></td>' +
       '<td class="r">' + fullCell  + '</td>' +
       '<td class="r">' + looseCell + '</td>' +
     '</tr>';
@@ -4814,13 +4862,18 @@ function renderIi(){
 function exportCsvIi(){
   if(!IIv.items.length){ toast('No ideal inventory rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Variance (L1),Ideal Closing (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
+  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Wastage (L1),Ideal Closing (L1),Adjusted Variance (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
   let i = 0;
   for(const it of IIv.items){
     i++;
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
+                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
-    lines.push([i, it.rm_code, it.name, it.category, it.l1_unit, it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0, it.variance_l1 || 0, closing, split.fullQty == null ? '' : split.fullQty, split.fullUnit, split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
+    lines.push([i, it.rm_code, it.name, it.category, it.l1_unit,
+                it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0,
+                it.wastage_l1 || 0, closing, it.variance_l1 || 0,
+                split.fullQty == null ? '' : split.fullQty, split.fullUnit,
+                split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
   }
   const today = (new Date()).toISOString().slice(0,10);
   const slug = (IIv.outlet || 'all').toLowerCase().replace(/\s+/g, '-');
@@ -4850,7 +4903,8 @@ function iiBuildSnapshotPayload(){
   // the exact per-RM numbers, Full/Loose split, and window context without
   // needing to re-walk the live sales + GRN + OI data.
   const items = IIv.items.map((it) => {
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0) - (it.consumption_l1 || 0) - (it.variance_l1 || 0);
+    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
+                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     return {
       rm_code:         it.rm_code,
@@ -4865,6 +4919,7 @@ function iiBuildSnapshotPayload(){
       opening_l1:      Number(it.opening_l1    || 0),
       purchase_l1:     Number(it.purchase_l1   || 0),
       consumption_l1:  Number(it.consumption_l1|| 0),
+      wastage_l1:      Number(it.wastage_l1    || 0),
       variance_l1:     Number(it.variance_l1   || 0),
       closing_l1:      Number(closing          || 0),
       full_qty:        split.fullQty,
@@ -5135,6 +5190,10 @@ async function iiImportSaved(id){
       opening_l1:     Number(it.opening_l1     || 0),
       purchase_l1:    Number(it.purchase_l1    || 0),
       consumption_l1: Number(it.consumption_l1 || 0),
+      // Pre-wastage-split snapshots don't have wastage_l1 — default to 0 so
+      // the imported variance stays attached to the single Adjusted Variance
+      // bucket (the historical total minus the four new auto-filled numbers).
+      wastage_l1:     Number(it.wastage_l1     || 0),
       variance_l1:    Number(it.variance_l1    || 0),
     }));
     IIv.meta = { source: 'imported snapshot #' + (snap.order_number != null ? snap.order_number : snap.id), synced_at: snap.created_at || null, count: IIv.items.length };

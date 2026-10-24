@@ -88,7 +88,7 @@ type SnapshotItem = {
   l1_unit: string; l2_unit?: string; l3_unit?: string;
   packing_uom?: string; packScale?: number; caseScale?: number;
   opening_l1: number; purchase_l1: number; consumption_l1: number;
-  variance_l1: number; closing_l1: number;
+  wastage_l1: number; variance_l1: number; closing_l1: number;
   full_qty: number | null; full_unit: string;
   loose_qty: number | null; loose_unit: string;
 };
@@ -121,7 +121,8 @@ function sanitiseItem(raw: unknown): SnapshotItem | null {
     opening_l1:     n(r.opening_l1),
     purchase_l1:    n(r.purchase_l1),
     consumption_l1: n(r.consumption_l1),
-    variance_l1:    n(r.variance_l1),
+    wastage_l1:     n(r.wastage_l1),       // 2026-10-24: measured wastage from each outlet's Submit-Wastage submissions
+    variance_l1:    n(r.variance_l1),      // residual after wastage ("Adjusted Variance" in the UI)
     closing_l1:     n(r.closing_l1),
     full_qty:       nn(r.full_qty),
     full_unit:      s(r.full_unit).slice(0, 24),

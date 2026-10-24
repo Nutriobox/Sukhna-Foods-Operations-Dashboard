@@ -15,6 +15,16 @@ import { NextResponse } from "next/server";
  *   GET  /api/outlet-wastage?outlet=<name>
  *     -> same list shape, filtered to that outlet
  *
+ *   GET  /api/outlet-wastage?outlet=<name>&from=<iso>&to=<iso>&aggregate=rm
+ *     -> { ok, aggregates: [{ rm_code, qty_pack, qty_loose }] }
+ *     Fetches every count for that outlet with dt_iso in [from, to], pulls
+ *     each one's qty + qty_loose maps, and SUMS per rm_code. The Ideal
+ *     Inventory tab calls this to populate the Wastage column — one request
+ *     per outlet-window instead of N+1 per-count fetches. The frontend then
+ *     converts (qty_pack × packing-UOM) + (qty_loose × loose-UOM) to the
+ *     item's L1 unit using the same iiOpeningToL1 math already used for
+ *     opening counts.
+ *
  *   DELETE /api/outlet-wastage?id=<uuid>
  *     -> { ok, deleted: id }
  *
@@ -45,6 +55,53 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const id     = u.searchParams.get("id");
   const outlet = u.searchParams.get("outlet");
+  const from   = u.searchParams.get("from");
+  const to     = u.searchParams.get("to");
+  const agg    = (u.searchParams.get("aggregate") || "").toLowerCase();
+
+  // Per-RM aggregation over a date window — used by Ideal Inventory.
+  if (agg === "rm" && outlet) {
+    const parts: string[] = [
+      "select=qty,qty_loose,dt_iso",
+      `outlet=eq.${encodeURIComponent(outlet)}`,
+      "order=dt_iso.asc",
+      "limit=1000",
+    ];
+    if (from) parts.push(`dt_iso=gte.${encodeURIComponent(from)}`);
+    if (to)   parts.push(`dt_iso=lte.${encodeURIComponent(to)}`);
+    const r = await fetch(
+      `${url}/rest/v1/outlet_wastage_counts?${parts.join("&")}`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
+    );
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      return NextResponse.json({ ok: false, error: `Aggregate failed: ${r.status} ${t}`.slice(0, 200) }, { status: 502, headers: CORS });
+    }
+    const rows = (await r.json()) as Array<{ qty?: Record<string, number> | null; qty_loose?: Record<string, number> | null; dt_iso?: string }>;
+    const sumPack: Record<string, number>  = {};
+    const sumLoose: Record<string, number> = {};
+    let windowCount = 0;
+    for (const row of rows) {
+      windowCount++;
+      const q  = row.qty       || {};
+      const qL = row.qty_loose || {};
+      for (const code of Object.keys(q)) {
+        const v = Number(q[code]) || 0;
+        if (v) sumPack[code] = (sumPack[code] || 0) + v;
+      }
+      for (const code of Object.keys(qL)) {
+        const v = Number(qL[code]) || 0;
+        if (v) sumLoose[code] = (sumLoose[code] || 0) + v;
+      }
+    }
+    const codes = new Set<string>([...Object.keys(sumPack), ...Object.keys(sumLoose)]);
+    const aggregates = Array.from(codes).map((code) => ({
+      rm_code: code,
+      qty_pack: Number((sumPack[code]  || 0).toFixed(4)),
+      qty_loose: Number((sumLoose[code] || 0).toFixed(4)),
+    }));
+    return NextResponse.json({ ok: true, outlet, from, to, aggregates, submissions: windowCount }, { headers: CORS });
+  }
 
   if (id) {
     const r = await fetch(
