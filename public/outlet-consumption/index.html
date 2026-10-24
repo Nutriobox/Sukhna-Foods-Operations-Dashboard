@@ -831,24 +831,29 @@
 
  <!-- Variance View modal — approval workspace for a saved Ideal Inv snapshot.
       Columns (2026-10-24, Satvik's spec):
+        Ideal    (F/L) = Opening + Purchase − Consumption, computed live
+                         from the snapshot's own L1 fields. (Satvik asked
+                         for Ideal back in the view after the first pass
+                         hid it — the operator wants Ideal visible next to
+                         On Hand / Wastage to eyeball the calc.)
         On Hand  (F/L) = portal Submit-On-Hand submission for the window
         Wastage  (F/L) = portal Submit-Wastage submission for the window.
-                        A "Pending" chip appears next to the number when the
-                        portal wastage hasn't been written back into the
-                        snapshot's own wastage_l1 bucket yet (i.e. not
-                        approved). Once approved, the chip is replaced by
-                        a muted "✓ Approved" marker.
-        Variance       = Ideal − On Hand − (Wastage picked for the calc)
-                         where Ideal = opening + purchase − consumption,
-                         computed live from the snapshot's own L1 fields.
-        Adjusted Variance = the final approved per-RM number persisted on
-                            the snapshot (ii_snapshot.adjusted_variance_l1,
-                            still to be wired). Shows em-dash until approved.
-      Ideal column is intentionally hidden — it's an internal input to the
-      variance calc, not an operator-facing column. Full / Loose split uses
-      the RM's packing_uom (iiSplitByPackingUom). -->
+                         "Pending" chip when the portal wastage hasn't
+                         been written back into the snapshot's own
+                         wastage_l1 bucket yet; "✓ Approved" when it has.
+        Variance (F/L) = Ideal − On Hand − Wastage, auto-calculated live.
+                         Same Full / Loose split as the input columns.
+        Adjusted Variance (F/L) = the final approved per-RM number
+                         persisted on the snapshot (adjusted_variance_l1,
+                         backend still to be wired). Em-dash until the
+                         variance row is approved. On approval, the
+                         portal wastage is also persisted into the
+                         snapshot's wastage_l1 and the Variance chip
+                         flips to "✓ Approved".
+      All five numeric blocks share the same packing_uom-driven Full /
+      Loose split (iiSplitByPackingUom) so columns line up vertically. -->
  <div id="iiSavedViewModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedView()">
-  <div class="nmbody" style="max-width:1280px">
+  <div class="nmbody" style="max-width:1480px">
    <div class="nmhdr">
     <h3 style="margin:0;flex:1">📋 Variance View — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
     <button class="btn" onclick="iiCloseSavedView()">✕</button>
@@ -861,7 +866,7 @@
     <button class="btn" id="iiSortVarNone" onclick="iiSortSavedView('none')" title="Reset to the snapshot's original order">↺ Original order</button>
     <span class="mut" style="font-size:12px;margin-left:auto">On-hand &amp; Wastage come from the outlet-portal submissions for this window</span>
    </div>
-   <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table>
+   <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh;overflow-x:auto"><table>
     <thead>
      <tr>
       <th rowspan="2">#</th>
@@ -869,16 +874,23 @@
       <th rowspan="2">Item Name</th>
       <th rowspan="2">Category</th>
       <th rowspan="2">UOM</th>
+      <th colspan="2" class="r" style="background:#f1f5f9">Ideal</th>
       <th colspan="2" class="r" style="background:#eff6ff">On Hand</th>
       <th colspan="2" class="r" style="background:#fff7ed">Wastage</th>
-      <th rowspan="2" class="r" style="background:#fef2f2;min-width:110px">Variance</th>
-      <th rowspan="2" class="r" style="background:#f0fdf4;min-width:130px">Adjusted Variance</th>
+      <th colspan="2" class="r" style="background:#fef2f2">Variance</th>
+      <th colspan="2" class="r" style="background:#f0fdf4">Adjusted Variance</th>
      </tr>
      <tr>
+      <th class="r" style="background:#f1f5f9">Full</th>
+      <th class="r" style="background:#f1f5f9">Loose</th>
       <th class="r" style="background:#eff6ff">Full</th>
       <th class="r" style="background:#eff6ff">Loose</th>
       <th class="r" style="background:#fff7ed">Full</th>
       <th class="r" style="background:#fff7ed">Loose</th>
+      <th class="r" style="background:#fef2f2">Full</th>
+      <th class="r" style="background:#fef2f2">Loose</th>
+      <th class="r" style="background:#f0fdf4">Full</th>
+      <th class="r" style="background:#f0fdf4">Loose</th>
      </tr>
     </thead>
     <tbody id="tbodyIiSavedView"></tbody>
@@ -5251,12 +5263,13 @@ function iiRenderSavedView(){
   if(!snap || !tb) return;
   const items = Array.isArray(snap.items) ? snap.items.slice() : [];
   if(!items.length){
-    tb.innerHTML = '<tr><td colspan="11" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="15" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
     return;
   }
-  // Columns (2026-10-24): #, RM Code, Item, Category, UOM, On Hand (F/L),
-  // Wastage (F/L), Variance, Adjusted Variance. Ideal is intentionally
-  // hidden — it's still an input to the Variance calc, just not shown.
+  // Columns (2026-10-24, final shape per Satvik): #, RM Code, Item, Cat,
+  // UOM, Ideal (F/L), On Hand (F/L), Wastage (F/L), Variance (F/L),
+  // Adjusted Variance (F/L). Every numeric block shares the same
+  // packing_uom-driven Full / Loose split so the columns line up.
   const ohQty      = (II_VIEW.onHand  && II_VIEW.onHand.qty)        || {};
   const ohLoose    = (II_VIEW.onHand  && II_VIEW.onHand.qty_loose)  || {};
   const wasteByRm  = (II_VIEW.wastage && II_VIEW.wastage.byRm)      || {};
@@ -5279,36 +5292,43 @@ function iiRenderSavedView(){
   if(II_VIEW.sort === 'asc')  items.sort((a, b) => onHandOf(a) - onHandOf(b));
   if(II_VIEW.sort === 'desc') items.sort((a, b) => onHandOf(b) - onHandOf(a));
 
+  // Signed Full/Loose cell renderer — keeps the +X / -Y colour treatment
+  // of iiFmtVarCell but splits the number into packing-UOM Full and Loose
+  // instead of showing it raw in L1. Returns [fullCellHtml, looseCellHtml].
+  const varSplitCells = (it, l1) => {
+    const s = iiSplitForView(it, l1);
+    return [ iiFmtVarCell(s.fullQty, s.fullUnit), iiFmtVarCell(s.looseQty, s.looseUnit) ];
+  };
+
   tb.innerHTML = items.map((it, i) => {
     // L1 figures. Ideal = Opening + Purchase − Consumption. Wastage prefers
-    // the live PORTAL submission (what the outlet claims right now); the
-    // snapshot's own wastage_l1 is used only as a fallback when the portal
-    // has nothing for this RM (so pre-portal snapshots still render a
-    // sensible number). The pending/approved chip is driven by the delta
-    // between the portal value and what the snapshot has committed.
+    // the live PORTAL submission; the snapshot's own wastage_l1 is used
+    // only as a fallback when the portal has nothing for this RM.
     const idealL1      = Number(it.opening_l1 || 0) + Number(it.purchase_l1 || 0) - Number(it.consumption_l1 || 0);
     const onHandL1     = onHandOf(it);
     const portalWaste  = wastageOf(it);
     const snapWaste    = Number(it.wastage_l1 || 0);
-    // Which wastage to use for the Variance calc: portal if present, snapshot otherwise.
     const wasteL1      = portalWaste || snapWaste;
     const varianceL1   = idealL1 - onHandL1 - wasteL1;
-    // Adjusted Variance = the finalized per-RM number persisted on the
-    // snapshot by an admin approval. Not wired to a backend yet; renders
-    // as em-dash. The field name is reserved on the row so a follow-up
-    // backend change can slot in without touching this template.
+    // Adjusted Variance: finalized per-RM number persisted on the snapshot
+    // by the Approve action (not wired yet — the field is reserved so the
+    // backend lights it up without touching this template).
     const adjVarL1     = (it.adjusted_variance_l1 == null) ? null : Number(it.adjusted_variance_l1);
+    const sIdeal       = iiSplitForView(it, idealL1);
     const sOnHand      = iiSplitForView(it, onHandL1);
     const sWaste       = iiSplitForView(it, wasteL1);
+    const [varFullHtml,  varLooseHtml ] = varSplitCells(it, varianceL1);
+    const [aVarFullHtml, aVarLooseHtml] = (adjVarL1 == null)
+      ? ['<span class="mut">—</span>', '<span class="mut">—</span>']
+      : varSplitCells(it, adjVarL1);
     const catCell      = (typeof oiCategoryChip === 'function') ? oiCategoryChip(it.category) : esc(it.category || '');
     const uomCell      = '<span class="code">' + esc(it.packing_uom || it.full_unit || it.l1_unit || '') + '</span>';
     const fmtPlain     = (q, u) => (q == null) ? '<span class="mut">—</span>' : (qty(q) + (u ? ' <span class="mut" style="font-size:11px">' + esc(u) + '</span>' : ''));
-    // Pending / Approved chip for the Wastage cell.
+    // Pending / Approved chip for the Wastage Full cell.
     //   Pending  — portal has a non-zero value AND snapshot's wastage_l1
     //              doesn't match it (within 0.001 L1 tolerance).
     //   Approved — portal and snapshot match (within tolerance) and the
-    //              value is non-zero. (A row with no wastage anywhere has
-    //              no chip, to keep the modal visually quiet.)
+    //              value is non-zero.
     let chip = '';
     const delta = Math.abs(portalWaste - snapWaste);
     if(portalWaste && delta > 0.001){
@@ -5322,12 +5342,16 @@ function iiRenderSavedView(){
       + '<td>' + esc(it.name) + '</td>'
       + '<td>' + catCell + '</td>'
       + '<td>' + uomCell + '</td>'
+      + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.fullQty,  sIdeal.fullUnit)  + '</td>'
+      + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.looseQty, sIdeal.looseUnit) + '</td>'
       + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.fullQty, sOnHand.fullUnit) + '</td>'
       + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.looseQty,sOnHand.looseUnit)+ '</td>'
       + '<td class="r" style="background:#fffaf0">' + fmtPlain(sWaste.fullQty,  sWaste.fullUnit) + chip + '</td>'
       + '<td class="r" style="background:#fffaf0">' + fmtPlain(sWaste.looseQty, sWaste.looseUnit) + '</td>'
-      + '<td class="r" style="background:#fef2f2">' + iiFmtVarCell(varianceL1, it.l1_unit || '') + '</td>'
-      + '<td class="r" style="background:#f0fdf4">' + ((adjVarL1 == null) ? '<span class="mut">—</span>' : iiFmtVarCell(adjVarL1, it.l1_unit || '')) + '</td>'
+      + '<td class="r" style="background:#fef2f2">' + varFullHtml  + '</td>'
+      + '<td class="r" style="background:#fef2f2">' + varLooseHtml + '</td>'
+      + '<td class="r" style="background:#f0fdf4">' + aVarFullHtml  + '</td>'
+      + '<td class="r" style="background:#f0fdf4">' + aVarLooseHtml + '</td>'
     + '</tr>';
   }).join('');
 }
