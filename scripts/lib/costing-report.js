@@ -630,10 +630,18 @@ async function runCostingReport({ report, headers, colmap, hashCaptionMap }) {
         return out;
       });
     }
-    if (bestSchema) {
+    // Schema mapping only runs for reports that explicitly signal they want
+    // it (hashCaptionMap set) — PM/BOM/SI resolve hash-keyed columns directly
+    // via their colmap candidates (verified 2026-10-24 after PM regressed
+    // because the positional fallback was renaming its hashes to captions
+    // that the pm colmap had no entry for).
+    if (hashCaptionMap && bestSchema) {
       src = applySchemaMapping(src, bestSchema);
-    } else if (bestColumnIds && bestColumnIds.length) {
-      // Only run DOM-caption fallback for columns still keyed by a hash.
+    } else if (hashCaptionMap && bestColumnIds && bestColumnIds.length) {
+      // DOM-caption fallback for any column still keyed by a hash after the
+      // hardcoded pass. Only runs when the report script opted in via
+      // hashCaptionMap, so a report whose colmap already carries hash
+      // candidates (PM/BOM/SI) stays untouched.
       const stillHashed = Object.keys(src[0]).some((k) => /^C[0-9a-f]{32}/i.test(k));
       if (stillHashed) {
         const gridCaptions = await grabCaptionsFromGrid();
