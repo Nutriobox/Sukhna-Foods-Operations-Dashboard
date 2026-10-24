@@ -59,16 +59,25 @@ const COLMAP = {
   'Issue No':         ['Issue No','IssueNo'],
   'Issue Units':      ['Issue Units','IssueUnits','IssueUnit'],
   'Issue Qty':        ['Issue Qty','IssueQty'],
-  // Backward-compat aliases for parsePF's legacy RM/PM/FG column names —
-  // they're served by the Request/Issue legs when the live report doesn't
-  // split them. parsePF already prefers Request/Issue qty when present.
+  // Backward-compat aliases for parsePF's legacy RM/PM/FG column names.
+  //
+  // Critical mapping (verified 2026-10-24 after a full capture ran clean):
+  // PACT's Process Flow Report splits every batch event into ~8 legs per
+  // row (Request / Issue / Receipt / RMIssue / WIP / PMIssue / FG / Excess
+  // / Secondary / Scrap). Only one leg is populated per row.
+  //   - RM issuance rows: Request leg filled, Receipt/FG columns = null
+  //   - FG receipt rows:  Receipt leg filled, Request/Issue columns = null
+  // parsePF's FG detection ("fgq>0 && r[iFn]") only fires when the FG leg
+  // is populated — but PACT NEVER populates the dedicated FG leg; FG qty
+  // and doc number live in the Receipt leg instead. Map FG No -> Receipt
+  // No and FG Qty -> Receipt Qty so parsePF catches the batch's FG output.
   'RM Units':         ['RM Units','Request Unit','RequestUnit'],
   'RM Qty':           ['RM Qty','Request Qty','RequestQty'],
   'PM Unit':          ['PM Unit','PMUnit','PackUnit'],
   'PM Qty':           ['PM Qty','PMQty','PackQty'],
-  'FG No':            ['FG No','Issue No','IssueNo'],
-  'FG Units':         ['FG Units','Issue Units','IssueUnits'],
-  'FG Qty':           ['FG Qty','Issue Qty','IssueQty'],
+  'FG No':            ['Receipt No','FG No','Issue No','IssueNo'],
+  'FG Units':         ['Receipt Units','FG Units','Issue Units','IssueUnits'],
+  'FG Qty':           ['Receipt Qty','FG Qty','Issue Qty','IssueQty'],
 };
 
 runCostingReport({ report: 'pf', headers: HEADERS, colmap: COLMAP, hashCaptionMap: HASH_TO_CAPTION });
