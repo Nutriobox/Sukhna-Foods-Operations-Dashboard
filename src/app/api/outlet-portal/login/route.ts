@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hashPassword, signSession, sessionCookieHeader } from "@/lib/outlet-portal-session";
+import { clientIpFromRequest, ipIsAllowed } from "@/lib/outlet-portal-ip";
 
 /**
  * POST /api/outlet-portal/login
@@ -23,13 +24,6 @@ function sbEnv() {
   const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   return { url, key: key as string | undefined };
-}
-
-function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for") || "";
-  const first = xff.split(",")[0]?.trim();
-  if (first) return first;
-  return req.headers.get("x-real-ip") || "";
 }
 
 export async function POST(req: Request) {
@@ -76,14 +70,12 @@ export async function POST(req: Request) {
     return generic;
   }
 
-  // IP geofencing. Simple exact-match on /32s for now (Satvik's follow-up:
-  // widen to CIDR once he supplies the ranges).
-  const ip = clientIp(req);
-  if (Array.isArray(row.allowed_ip_cidr) && row.allowed_ip_cidr.length) {
-    const allowed = row.allowed_ip_cidr.map((c) => c.split("/")[0]);
-    if (!ip || !allowed.includes(ip)) {
-      return NextResponse.json({ ok: false, error: "Not allowed from this network" }, { status: 403 });
-    }
+  // IP geofencing. Exact-match on /32s for now (follow-up: widen to CIDR).
+  // Empty / null allowed_ip_cidr means "not locked yet" — login succeeds and
+  // the manager can lock the network from inside the portal.
+  const ip = clientIpFromRequest(req);
+  if (!ipIsAllowed(ip, row.allowed_ip_cidr)) {
+    return NextResponse.json({ ok: false, error: "This network is not authorized for this outlet. Ask the admin to add " + (ip || "your IP") + " to the allow list." }, { status: 403 });
   }
 
   // Issue the session cookie.

@@ -49,6 +49,27 @@
 
   /* Landing — pick a workflow */
   .landing{max-width:720px;margin:40px auto;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .net-panel{grid-column:1 / -1;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:4px}
+  .net-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .net-title{font-size:14px;font-weight:700;color:#111827}
+  .net-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .net-pill.open{background:#fef3c7;color:#92400e}
+  .net-pill.locked{background:#dcfce7;color:#166534}
+  .net-pill.denied{background:#fee2e2;color:#991b1b}
+  .net-body{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .net-section .net-label{font-size:11.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;font-weight:600}
+  .net-ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:#111827;background:#f1f5f9;padding:5px 9px;border-radius:6px;display:inline-block}
+  .net-ip-note{color:var(--mut);font-size:12px;margin-top:4px}
+  .allowed-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;max-height:100px;overflow-y:auto}
+  .allowed-row{display:flex;align-items:center;justify-content:space-between;background:#f8fafc;padding:5px 10px;border-radius:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  .allowed-row .me{color:#166534;font-weight:600;font-family:-apple-system,sans-serif;font-size:10.5px;background:#dcfce7;padding:1px 6px;border-radius:999px;margin-left:6px}
+  .allowed-row .remove{background:transparent;border:0;color:#991b1b;font-size:12.5px;cursor:pointer;padding:0 4px}
+  .allowed-row .remove:hover{text-decoration:underline}
+  .allowed-empty{color:var(--mut);font-size:12.5px;font-style:italic;padding:6px 0}
+  .net-actions{display:flex;gap:8px;flex-wrap:wrap}
+  @media (max-width: 640px) {
+    .net-body{grid-template-columns:1fr}
+  }
   .pick-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 22px;background:#fff;border:1px solid var(--line);border-radius:12px;cursor:pointer;transition:transform .1s, box-shadow .1s;text-align:center}
   .pick-card:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(15,23,42,0.08)}
   .pick-card.on-hand{border-top:4px solid var(--on-hand)}
@@ -116,6 +137,27 @@
 
   <!-- Landing — pick which sheet to open -->
   <div id="landingView" class="landing" style="display:none">
+    <div class="net-panel">
+      <div class="net-head">
+        <div class="net-title">🔒 Network access</div>
+        <span id="netPill" class="net-pill open">Loading…</span>
+      </div>
+      <div class="net-body">
+        <div class="net-section">
+          <div class="net-label">You're connecting from</div>
+          <span id="currentIp" class="net-ip">—</span>
+          <div class="net-ip-note" id="currentIpNote"></div>
+        </div>
+        <div class="net-section">
+          <div class="net-label">Authorized networks</div>
+          <div id="allowedList" class="allowed-list"><span class="allowed-empty">Loading…</span></div>
+          <div class="net-actions">
+            <button id="lockBtn" class="btn prim" onclick="lockCurrentNetwork()" style="display:none">+ Lock this network</button>
+            <button id="clearBtn" class="btn" onclick="confirmClearNetwork()" style="display:none">Open to any network</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="pick-card on-hand" onclick="openSheet('on-hand')">
       <div class="pick-icon">📦</div>
       <div class="pick-title">Submit On-Hand Count</div>
@@ -285,6 +327,135 @@ function goLanding(outletName, outletSlug){
   $('whoami').textContent = SESSION.outletName;
   $('hdrTitle').textContent = SESSION.outletName;
   $('hdrSub').textContent = 'Choose what you\'d like to submit today.';
+  loadNetworkPanel();
+}
+
+// --- Network panel (IP allowlist management) --------------------------------
+// Shows the manager their current IP, the outlet's authorized networks, and
+// buttons to lock/unlock. An empty list means the outlet is "open" — the first
+// lock click flips it to "locked", refusing all other IPs from that point on.
+const NET = { ip: '', allowed_ips: [], locked: false, mine_allowed: false };
+
+async function loadNetworkPanel(){
+  try {
+    const r = await fetch('/api/outlet-portal/network', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'load failed');
+    NET.ip = j.ip || '';
+    NET.allowed_ips = Array.isArray(j.allowed_ips) ? j.allowed_ips : [];
+    NET.locked = !!j.locked;
+    NET.mine_allowed = !!j.allowed;
+    renderNetworkPanel();
+  } catch (e) {
+    $('netPill').className = 'net-pill denied';
+    $('netPill').textContent = 'Could not load';
+    $('currentIpNote').textContent = String(e && e.message || e);
+  }
+}
+
+function renderNetworkPanel(){
+  // Current IP
+  $('currentIp').textContent = NET.ip || '—';
+
+  // Status pill
+  const pill = $('netPill');
+  if(!NET.locked){
+    pill.className = 'net-pill open';
+    pill.textContent = '⚠ Open to any network';
+    $('currentIpNote').textContent = 'Nobody has locked this outlet to a network yet. Lock this one to limit sign-ins to this Wi-Fi.';
+  } else if(NET.mine_allowed){
+    pill.className = 'net-pill locked';
+    pill.textContent = '✓ Locked';
+    $('currentIpNote').textContent = 'This network is on the authorized list.';
+  } else {
+    pill.className = 'net-pill denied';
+    pill.textContent = '✗ Not authorized';
+    $('currentIpNote').textContent = 'This network is NOT on the authorized list. Submissions will be refused — ask the admin to add it.';
+  }
+
+  // Allowed list
+  const box = $('allowedList');
+  if(!NET.allowed_ips.length){
+    box.innerHTML = '<span class="allowed-empty">None yet — anyone with the password can sign in from any network.</span>';
+  } else {
+    box.innerHTML = NET.allowed_ips.map((ip) => {
+      const isMe = (ip === NET.ip);
+      return '<div class="allowed-row">'
+        + '<span>' + esc(ip) + (isMe ? '<span class="me">this network</span>' : '') + '</span>'
+        + '<button class="remove" onclick="unlockIp(' + JSON.stringify(ip).replace(/"/g, '&quot;') + ')">Remove</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Action buttons
+  const alreadyListed = NET.allowed_ips.includes(NET.ip);
+  $('lockBtn').style.display = (NET.ip && !alreadyListed) ? '' : 'none';
+  $('lockBtn').textContent = NET.locked ? '+ Also allow this network' : '+ Lock to this network';
+  $('clearBtn').style.display = NET.locked ? '' : 'none';
+}
+
+async function lockCurrentNetwork(){
+  if(!NET.ip){ toast('Could not detect your IP.'); return; }
+  const msg = NET.locked
+    ? 'Add ' + NET.ip + ' to the authorized networks for this outlet?'
+    : 'Lock this outlet to ' + NET.ip + '? After this, sign-ins from any other network will be refused.';
+  if(!confirm(msg)) return;
+  const btn = $('lockBtn'); btn.disabled = true;
+  try {
+    const r = await fetch('/api/outlet-portal/network', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'lock' }),
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'lock failed');
+    NET.allowed_ips = j.allowed_ips || [];
+    NET.locked = NET.allowed_ips.length > 0;
+    NET.mine_allowed = NET.allowed_ips.includes(NET.ip);
+    renderNetworkPanel();
+    toast('✓ Network locked');
+  } catch (e) {
+    toast('✗ ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function unlockIp(ip){
+  if(!confirm('Remove ' + ip + ' from the authorized networks for this outlet?')) return;
+  try {
+    const r = await fetch('/api/outlet-portal/network', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unlock', ip }),
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'unlock failed');
+    NET.allowed_ips = j.allowed_ips || [];
+    NET.locked = NET.allowed_ips.length > 0;
+    NET.mine_allowed = NET.allowed_ips.includes(NET.ip);
+    renderNetworkPanel();
+    toast('✓ Removed');
+  } catch (e) {
+    toast('✗ ' + (e.message || e));
+  }
+}
+
+async function confirmClearNetwork(){
+  if(!confirm('Open the portal to ANY network? Every authorized IP will be removed and anyone with the password can sign in from anywhere.')) return;
+  try {
+    const r = await fetch('/api/outlet-portal/network', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear' }),
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'clear failed');
+    NET.allowed_ips = [];
+    NET.locked = false;
+    NET.mine_allowed = true;
+    renderNetworkPanel();
+    toast('✓ Network lock removed');
+  } catch (e) {
+    toast('✗ ' + (e.message || e));
+  }
 }
 
 // --- Sheet view -------------------------------------------------------------

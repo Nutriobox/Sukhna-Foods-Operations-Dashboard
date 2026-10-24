@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readSessionFromRequest } from "@/lib/outlet-portal-session";
+import { clientIpFromRequest, ipIsAllowed, fetchAllowedIps } from "@/lib/outlet-portal-ip";
 
 /**
  * POST /api/outlet-portal/submit-on-hand
@@ -40,6 +41,15 @@ export async function POST(req: Request) {
 
   const outletName = await outletNameForSlug(url, key, sess.slug);
   if (!outletName) return NextResponse.json({ ok: false, error: "Account not found" }, { status: 404 });
+
+  // Defense-in-depth IP check: an IP allowlist edit between login and submit
+  // must take effect immediately. Session-valid + wrong-network submits are
+  // refused with 403 so the portal can bounce back to the login screen.
+  const allowed = await fetchAllowedIps(url, key, sess.slug);
+  const ip = clientIpFromRequest(req);
+  if (!ipIsAllowed(ip, allowed)) {
+    return NextResponse.json({ ok: false, error: "This network is no longer authorized for this outlet." }, { status: 403 });
+  }
 
   type Body = { dt_iso?: string; qty?: Record<string, number>; qty_loose?: Record<string, number>; total_items?: number };
   let body: Body = {};
