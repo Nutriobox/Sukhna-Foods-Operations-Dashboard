@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NutrioBox Outlet Portal</title>
+<link rel="icon" href="/logo.png">
+<style>
+  :root{
+    --brand:#1e40af; --brand2:#4338ca; --mut:#64748b; --line:#e5e7eb;
+    --card:#fff; --bg:#f8fafc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#111827;background:var(--bg)}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px 20px}
+  .hdr{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .hdr img{height:34px}
+  .hdr h1{margin:0;font-size:20px;font-weight:700;color:#111827}
+  .hdr .mut{color:var(--mut);font-size:13.5px}
+  .hdr .right{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mut)}
+  .btn{appearance:none;padding:8px 14px;border:1px solid var(--line);background:var(--card);border-radius:7px;cursor:pointer;font-weight:600;font-size:13.5px;color:#374151}
+  .btn:hover{background:#f3f4f6}
+  .btn.prim{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+  .btn.prim:hover{background:#3730a3}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+  th{background:#f1f5f9;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600;color:#334155;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  td{padding:10px 14px;border-bottom:1px solid var(--line)}
+  tr:last-child td{border-bottom:0}
+  tr:hover td{background:#f8fafc}
+  .r{text-align:right}
+  .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#4338ca}
+  .mut{color:var(--mut)}
+  .err{color:#b91c1c;font-size:13px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:11.5px;font-weight:600}
+  .ok{background:#dcfce7;color:#166534}
+  .pending{background:#fef3c7;color:#92400e}
+
+  /* Login card */
+  .login{max-width:380px;margin:60px auto;padding:28px 26px}
+  .login h2{margin:0 0 6px;font-size:20px;font-weight:700}
+  .login .sub{color:var(--mut);font-size:13px;margin-bottom:20px}
+  .login label{display:block;font-size:12.5px;color:#374151;font-weight:600;margin:12px 0 4px}
+  .login input{width:100%;padding:9px 11px;border:1px solid #d1d5db;border-radius:7px;font-size:14px}
+  .login .actions{display:flex;align-items:center;gap:10px;margin-top:18px}
+
+  /* Snapshot modal */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:100;display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+  .modal.on{display:flex}
+  .modal .body{background:#fff;border-radius:12px;padding:20px 24px;max-width:1100px;width:100%;max-height:calc(100vh - 80px);overflow:auto}
+  .modal h3{margin:0 0 12px;font-size:17px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <img src="/logo.png" alt="NutrioBox" onerror="this.style.display='none'">
+    <div>
+      <h1>Outlet Portal</h1>
+      <div class="mut" id="outletName">Sign in to view your Ideal Inventory snapshots.</div>
+    </div>
+    <div class="right">
+      <span id="whoami"></span>
+      <button id="logoutBtn" class="btn" style="display:none" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- Login form -->
+  <div id="loginView" class="card login" style="display:none">
+    <h2>Sign in</h2>
+    <div class="sub">Use the username and password you were issued for your outlet.</div>
+    <label for="u">Username</label>
+    <input id="u" type="text" autocomplete="username" placeholder="e.g. rajinder-nagar">
+    <label for="p">Password</label>
+    <input id="p" type="password" autocomplete="current-password" placeholder="••••">
+    <div class="actions">
+      <button class="btn prim" onclick="doLogin()">Sign in</button>
+      <span id="loginErr" class="err"></span>
+    </div>
+  </div>
+
+  <!-- Snapshots list -->
+  <div id="snapshotsView" style="display:none">
+    <div class="card" style="margin-bottom:14px;padding:12px 16px;display:flex;align-items:center;gap:10px">
+      <strong style="font-size:14px">Saved Ideal Inventory snapshots</strong>
+      <span id="snapsCount" class="mut" style="font-size:12.5px"></span>
+      <button class="btn" style="margin-left:auto" onclick="refreshSnapshots()">↻ Refresh</button>
+    </div>
+    <div class="card">
+      <div style="overflow:auto">
+        <table id="tblSnaps">
+          <thead><tr>
+            <th>#</th>
+            <th>Date &amp; Time</th>
+            <th>IO #</th>
+            <th class="r">Items</th>
+            <th class="r">Opening Count</th>
+            <th>Window</th>
+            <th>Status</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="tbodySnaps"><tr><td colspan="8" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Snapshot detail modal -->
+<div id="snapModal" class="modal" onclick="if(event.target===this)closeSnapModal()">
+  <div class="body">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <h3 id="snapTitle" style="margin:0;flex:1">Snapshot</h3>
+      <button class="btn" onclick="closeSnapModal()">✕</button>
+    </div>
+    <div id="snapMeta" class="mut" style="font-size:12.5px;margin-bottom:10px"></div>
+    <div style="overflow:auto">
+      <table id="tblSnap">
+        <thead><tr>
+          <th>RM Code</th>
+          <th>Raw Material</th>
+          <th>Category</th>
+          <th>UoM</th>
+          <th class="r">Opening</th>
+          <th class="r">Purchase</th>
+          <th class="r">Consumption</th>
+          <th class="r">Variance</th>
+          <th class="r">Ideal Closing</th>
+        </tr></thead>
+        <tbody id="tbodySnap"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDT = (iso) => { if(!iso) return '—'; try { return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}); } catch { return iso; } };
+const fmtQty = (v) => (v == null || v === '' || isNaN(Number(v))) ? '' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 });
+
+async function checkSession(){
+  try {
+    const r = await fetch('/api/outlet-portal/me', { cache: 'no-store' });
+    if(!r.ok) throw new Error('not signed in');
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error || 'not signed in');
+    showPortal(j.outlet_name, j.outlet_slug);
+    refreshSnapshots();
+  } catch (e) {
+    showLogin();
+  }
+}
+
+function showLogin(){
+  $('loginView').style.display = '';
+  $('snapshotsView').style.display = 'none';
+  $('logoutBtn').style.display = 'none';
+  $('whoami').textContent = '';
+  $('outletName').textContent = 'Sign in to view your Ideal Inventory snapshots.';
+  setTimeout(() => $('u').focus(), 50);
+}
+
+function showPortal(name, slug){
+  $('loginView').style.display = 'none';
+  $('snapshotsView').style.display = '';
+  $('logoutBtn').style.display = '';
+  $('whoami').textContent = name;
+  $('outletName').textContent = name + ' — your saved snapshots are below.';
+}
+
+async function doLogin(){
+  const u = ($('u').value || '').trim();
+  const p = $('p').value || '';
+  const err = $('loginErr'); if(err) err.textContent = '';
+  if(!u || !p){ if(err) err.textContent = 'Enter username and password.'; return; }
+  try {
+    const r = await fetch('/api/outlet-portal/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p }),
+    });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'Sign-in failed');
+    showPortal(j.outlet_name, j.outlet_slug);
+    refreshSnapshots();
+    $('p').value = '';
+  } catch (e) {
+    if(err) err.textContent = e.message || String(e);
+  }
+}
+
+async function doLogout(){
+  await fetch('/api/outlet-portal/logout', { method: 'POST' }).catch(() => {});
+  showLogin();
+}
+
+async function refreshSnapshots(){
+  const body = $('tbodySnaps');
+  body.innerHTML = '<tr><td colspan="8" class="mut" style="padding:20px;text-align:center">Loading…</td></tr>';
+  try {
+    const r = await fetch('/api/outlet-portal/snapshots', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'Load failed');
+    const snaps = Array.isArray(j.snapshots) ? j.snapshots : [];
+    $('snapsCount').textContent = snaps.length ? ('· ' + snaps.length + ' saved') : '· none yet';
+    if(!snaps.length){
+      body.innerHTML = '<tr><td colspan="8" class="mut" style="padding:20px;text-align:center">No saved snapshots yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = snaps.map((s, i) => {
+      const approved = !!s.approved_at;
+      const status = approved
+        ? '<span class="pill ok">Approved</span>'
+        : '<span class="pill pending">Pending</span>';
+      const win = (s.window_from ? fmtDT(s.window_from) : '—') + ' → ' + (s.window_to ? fmtDT(s.window_to) : '—');
+      return '<tr>'
+        + '<td class="r">' + (i + 1) + '</td>'
+        + '<td>' + esc(fmtDT(s.created_at)) + '</td>'
+        + '<td class="code">#' + esc(s.order_number || '') + '</td>'
+        + '<td class="r">' + esc(s.total_items || 0) + '</td>'
+        + '<td class="r">' + esc(s.opening_count || 0) + '</td>'
+        + '<td class="mut" style="font-size:12.5px">' + esc(win) + '</td>'
+        + '<td>' + status + '</td>'
+        + '<td><button class="btn" onclick="viewSnapshot(\'' + esc(s.id) + '\')">View</button></td>'
+        + '</tr>';
+    }).join('');
+  } catch (e) {
+    if(/Not signed in/i.test(String(e.message))) { showLogin(); return; }
+    body.innerHTML = '<tr><td colspan="8" class="err" style="padding:20px;text-align:center">' + esc(e.message || e) + '</td></tr>';
+  }
+}
+
+async function viewSnapshot(id){
+  try {
+    const r = await fetch('/api/outlet-portal/snapshots?id=' + encodeURIComponent(id), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'Load failed');
+    const s = j.snapshot;
+    $('snapTitle').textContent = (s.outlet || '') + ' · #' + (s.order_number || '');
+    const win = (s.window_from ? fmtDT(s.window_from) : '—') + ' → ' + (s.window_to ? fmtDT(s.window_to) : '—');
+    $('snapMeta').textContent = 'Saved ' + fmtDT(s.created_at) + ' · window ' + win + ' · ' + (s.total_items || 0) + ' items'
+      + (s.approved_at ? (' · approved ' + fmtDT(s.approved_at) + (s.approved_by ? (' by ' + s.approved_by) : '')) : '');
+    const items = Array.isArray(s.items) ? s.items : [];
+    const body = $('tbodySnap');
+    if(!items.length){
+      body.innerHTML = '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center">No items in this snapshot.</td></tr>';
+    } else {
+      body.innerHTML = items.map((it) => '<tr>'
+        + '<td class="code">' + esc(it.rm_code || '') + '</td>'
+        + '<td>' + esc(it.rm_name || it.name || '') + '</td>'
+        + '<td>' + esc(it.category || '') + '</td>'
+        + '<td>' + esc(it.uom || it.packing_uom || '') + '</td>'
+        + '<td class="r">' + esc(fmtQty(it.opening)) + '</td>'
+        + '<td class="r">' + esc(fmtQty(it.purchase)) + '</td>'
+        + '<td class="r">' + esc(fmtQty(it.consumption)) + '</td>'
+        + '<td class="r">' + esc(fmtQty(it.variance)) + '</td>'
+        + '<td class="r" style="font-weight:600">' + esc(fmtQty(it.ideal_closing)) + '</td>'
+        + '</tr>').join('');
+    }
+    $('snapModal').classList.add('on');
+  } catch (e) {
+    alert(e.message || e);
+  }
+}
+function closeSnapModal(){ $('snapModal').classList.remove('on'); }
+
+// Boot
+checkSession();
+// Enter-key submits the login form
+document.addEventListener('keydown', (e) => { if(e.key === 'Enter' && $('loginView').style.display !== 'none') doLogin(); });
+</script>
+</body>
+</html>
