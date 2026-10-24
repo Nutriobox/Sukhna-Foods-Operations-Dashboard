@@ -11,6 +11,10 @@
     {
       "path": "/api/sync-costing?report=si",
       "schedule": "25 * * * *"
+    },
+    {
+      "path": "/api/sync-costing?report=pm,bom,pf,si",
+      "schedule": "30 22 * * *"
     }
   ]
 }
