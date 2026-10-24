@@ -36,10 +36,16 @@ const norm = (s) => String(s).toLowerCase().replace(/[\s_/().-]+/g, '');
 const NAV = {
   // Report names as they appear in PACT's BI → List of Reports grid. The scraper
   // double-clicks the exact row with this name, so these MUST match PACT's current
-  // labels letter-for-letter. SI was wrong (verified 2026-10-17 via screenshot: the
-  // actual stock-inward report is "Stock Inward Lab Report", not "List Of Stock
-  // Inward Reports"). If PACT renames one, update it here.
-  si:  { search: 'stock inward',  report: 'Stock Inward Lab Report' },
+  // labels letter-for-letter. If PACT renames one, update it here.
+  //
+  // 2026-10-24: SI mapping corrected. An earlier edit pointed at "Stock Inward
+  // Lab Report" (verified 2026-10-24 run log: that row opens a 5-col stub with
+  // DocumentName/DocumentType/IsInventory/CNT and no date filter — nothing to
+  // scrape). The real report is "List Of Stock Inward Reports" (QueryCode
+  // RPT022, matches sync-costing-si.js BODY_B64 header). Search string widened
+  // to "list of stock inward" so PACT's search doesn't still land on the Lab
+  // Report row.
+  si:  { search: 'list of stock inward',  report: 'List Of Stock Inward Reports' },
   pm:  { search: 'product master', report: 'Product Master Report' },
   bom: { search: 'stage wise bom', report: 'Stage Wise BOM With Wastage Summary' },
   pf:  { search: 'process flow',  report: 'Process Flow Report' },
