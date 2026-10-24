@@ -47,11 +47,10 @@ const NAV = {
 
 // Reports that return only today's data by default and need a rolling date range.
 // Value = days back the range starts; the range ends today (IST).
-// 2026-10-24 (Satvik): Process Flow Report widened to a 10-day rolling window
-// so the dashboard always carries the most recent batch cycle plus a buffer
-// for late corrections. Stock Inward stays at 7 — stock receipts are logged
-// same-day in PACT so a wider window just scrapes stale rows.
-const DATE_DAYS = { si: 7, pf: 10 };
+// 2026-10-24 (Satvik): Process Flow Report widened to a 10-day rolling window.
+// Stock Inward also 10 days — matches the window Satvik wants in his PACT view
+// and lets a late-posted GRN still land in the dashboard for a week after.
+const DATE_DAYS = { si: 10, pf: 10 };
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fmtDate = (d) => d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
 function istRange(daysBack) {
