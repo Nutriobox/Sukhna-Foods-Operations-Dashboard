@@ -89,8 +89,11 @@ async function setDateRange(page, fromDisplay, toDisplay, fromISO, toISO) {
     };
     const dmy  = (iso) => { const [y, m, d] = iso.split('-'); return d + '/' + m + '/' + y; };
     const dmyD = (iso) => { const [y, m, d] = iso.split('-'); return d + '-' + m + '-' + y; };
-    const fromVariants = [fromDisplay, dmy(fromISO), dmyD(fromISO), fromISO];
-    const toVariants   = [toDisplay,   dmy(toISO),   dmyD(toISO),   toISO];
+    // DD/MM/YYYY first — verified from the Process Flow Report parameter screen
+    // (dbcol_dt1/dbcol_dt2 carry e.g. "01/04/2026" by default). Other variants
+    // kept as fallbacks for reports that use ISO or "DD MMM YYYY".
+    const fromVariants = [dmy(fromISO), dmyD(fromISO), fromDisplay, fromISO];
+    const toVariants   = [dmy(toISO),   dmyD(toISO),   toDisplay,   toISO];
 
     const inputs = [...document.querySelectorAll('input')];
     // Full dump so the log shows the real date UI even if the match misses.
@@ -102,14 +105,31 @@ async function setDateRange(page, fromDisplay, toDisplay, fromISO, toISO) {
       id: s.id || '', nm: s.name || '', v: (s.value || '').slice(0, 24),
     }));
 
-    // Score each input by how likely it is to be the From or To date. Highest
-    // signal wins. Running the match over a RANK rather than first-wins avoids
-    // picking up unrelated inputs ("to" in "customer").
+    // 2026-10-24 (Satvik): first look for PACT's dbcol_dt<N> inputs, which
+    // the Process Flow / Stock Inward parameter screens use for the date
+    // filter (dbcol_dt1 = From, dbcol_dt2 = To — verified from a live
+    // dateDiag log). When those exist we use them in numerical-suffix order
+    // and skip the heuristic ranker entirely.
+    const dbColInputs = inputs
+      .map((i, idx) => ({ i, idx, m: /^dbcol_dt(\d+)$/i.exec(i.id || '') }))
+      .filter((x) => x.m)
+      .sort((a, b) => Number(a.m[1]) - Number(b.m[1]));
+
+    let fromSet = null, toSet = null;
+    if (dbColInputs.length >= 2) {
+      const fRes = trySet(dbColInputs[0].i, fromVariants);
+      if (fRes) fromSet = dbColInputs[0].i.id + ' <- ' + fRes;
+      const tRes = trySet(dbColInputs[1].i, toVariants);
+      if (tRes) toSet   = dbColInputs[1].i.id + ' <- ' + tRes;
+    }
+
+    // Score each remaining input by how likely it is to be the From or To
+    // date, used when dbcol_dt<N> isn't present. Highest signal wins.
     const tag = (i) => ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '') + ' ' + (i.getAttribute('ng-reflect-name') || '')).toLowerCase();
     const rankFrom = (i) => {
       const s = tag(i);
       let r = 0;
-      if (/\bfromdate\b|\bdtfrom\b|\bdatefrom\b|\btxtfromdate\b|\bfrmdt\b/.test(s)) r += 10;
+      if (/\bfromdate\b|\bdtfrom\b|\bdatefrom\b|\btxtfromdate\b|\bfrmdt\b|\bdbcol_?dt1\b/.test(s)) r += 10;
       if (/\b(from|frm|w\.?e\.?f|start)\b/.test(s)) r += 4;
       if (i.type === 'date')                        r += 2;
       if (/\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '')) r += 1;
@@ -118,27 +138,32 @@ async function setDateRange(page, fromDisplay, toDisplay, fromISO, toISO) {
     const rankTo = (i) => {
       const s = tag(i);
       let r = 0;
-      if (/\btodate\b|\bdtto\b|\bdateto\b|\btxttodate\b|\btodt\b|\btill\b|\bupto\b/.test(s)) r += 10;
+      if (/\btodate\b|\bdtto\b|\bdateto\b|\btxttodate\b|\btodt\b|\btill\b|\bupto\b|\bdbcol_?dt2\b/.test(s)) r += 10;
       if (/(^|[^a-z])(to|till|upto|end)([^a-z]|$)/.test(s) && !/from/.test(s)) r += 4;
       if (i.type === 'date')                        r += 2;
       if (/\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '')) r += 1;
       return r;
     };
-    const fromCands = inputs.map((i, idx) => ({ i, idx, r: rankFrom(i) })).filter((x) => x.r > 0).sort((a, b) => b.r - a.r);
-    const toCands   = inputs.map((i, idx) => ({ i, idx, r: rankTo(i)   })).filter((x) => x.r > 0 && !fromCands.some((f) => f.idx === x.idx)).sort((a, b) => b.r - a.r);
-
-    let fromSet = null, toSet = null;
-    if (fromCands[0]) {
-      const r = trySet(fromCands[0].i, fromVariants);
-      if (r) fromSet = (fromCands[0].i.id || fromCands[0].i.placeholder || ('pos' + fromCands[0].idx)) + ' <- ' + r;
+    if (fromSet === null) {
+      const fromCands = inputs.map((i, idx) => ({ i, idx, r: rankFrom(i) })).filter((x) => x.r > 0).sort((a, b) => b.r - a.r);
+      if (fromCands[0]) {
+        const r = trySet(fromCands[0].i, fromVariants);
+        if (r) fromSet = (fromCands[0].i.id || fromCands[0].i.placeholder || ('pos' + fromCands[0].idx)) + ' <- ' + r;
+      }
     }
-    if (toCands[0]) {
-      const r = trySet(toCands[0].i, toVariants);
-      if (r) toSet = (toCands[0].i.id || toCands[0].i.placeholder || ('pos' + toCands[0].idx)) + ' <- ' + r;
+    if (toSet === null) {
+      const toCands = inputs.map((i, idx) => ({ i, idx, r: rankTo(i) })).filter((x) => x.r > 0).sort((a, b) => b.r - a.r);
+      if (toCands[0]) {
+        const r = trySet(toCands[0].i, toVariants);
+        if (r) toSet = (toCands[0].i.id || toCands[0].i.placeholder || ('pos' + toCands[0].idx)) + ' <- ' + r;
+      }
     }
-    // Fallback: two date-looking inputs by position if ranks found nothing.
+    // Last-ditch fallback — but ONLY among inputs that look like a date and
+    // explicitly skip the top-of-page search boxes that trapped the old
+    // heuristic (SearchByPage, "Search..." placeholders).
     if (fromSet === null || toSet === null) {
-      const looksDate = (i) => /date|from|to|frm|dt|period/i.test(tag(i)) || i.type === 'date' || /\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '');
+      const isSearch = (i) => /searchbypage|^search\.\.\.$|^search$/i.test(((i.id || '') + ' ' + (i.placeholder || '')).trim());
+      const looksDate = (i) => !isSearch(i) && (/date|from|to|frm|dt|period/i.test(tag(i)) || i.type === 'date' || /\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || ''));
       const di = inputs.filter(looksDate);
       if (fromSet === null && di[0]) { const r = trySet(di[0], fromVariants); if (r) fromSet = 'pos0 <- ' + r; }
       if (toSet   === null && di[1]) { const r = trySet(di[1], toVariants);   if (r) toSet   = 'pos1 <- ' + r; }
