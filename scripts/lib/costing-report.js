@@ -234,7 +234,7 @@ async function clickFirst(page, factories, label, timeout) {
   return false;
 }
 
-async function runCostingReport({ report, headers, colmap, hashCaptionMap }) {
+async function runCostingReport({ report, headers, colmap, hashCaptionMap, positionalCaptions }) {
   const fail = async (msg) => {
     log('SYNC FAILED: ' + msg.slice(0, 300));
     await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: 0, source: 'pact-browserdrive', status: 'failed', error: (msg + '\n--- log ---\n' + logTail()).slice(0, 3500), data: [] });
@@ -630,6 +630,33 @@ async function runCostingReport({ report, headers, colmap, hashCaptionMap }) {
         return out;
       });
     }
+    // Positional captions zipped with json.Columns[0] by index. Used by
+    // PF (where the DOM-caption fallback can't recover because PACT's grid
+    // ships 3 metadata captions in front of the real columns, shifting the
+    // zip by 3). The caller provides a known-good caption-per-position list.
+    // Only renames keys that are still hash-shaped — never overwrites a
+    // caption already assigned by the hardcoded pass.
+    if (positionalCaptions && Array.isArray(positionalCaptions) && bestColumnIds && bestColumnIds.length) {
+      const n = Math.min(bestColumnIds.length, positionalCaptions.length);
+      const map = new Map();
+      for (let i = 0; i < n; i++) {
+        const id = String(bestColumnIds[i] || '').trim();
+        const cap = String(positionalCaptions[i] || '').trim();
+        if (id && cap) map.set(id, cap);
+      }
+      log('[positional] applying ' + map.size + ' positional entries. sample: '
+        + [...map.entries()].slice(0, 6).map(([k, v]) => k.slice(0, 10) + '->' + v).join(' | '));
+      src = src.map((row) => {
+        const out = {};
+        for (const k of Object.keys(row)) {
+          // Only rename keys that are still hash-shaped; a key already
+          // mapped by hashCaptionMap must not be overwritten.
+          const isHash = /^C[0-9a-f]{32}/i.test(k);
+          out[(isHash && map.get(k)) || k] = row[k];
+        }
+        return out;
+      });
+    }
     // Schema mapping only runs for reports that explicitly signal they want
     // it (hashCaptionMap set) — PM/BOM/SI resolve hash-keyed columns directly
     // via their colmap candidates (verified 2026-10-24 after PM regressed
@@ -637,11 +664,9 @@ async function runCostingReport({ report, headers, colmap, hashCaptionMap }) {
     // that the pm colmap had no entry for).
     if (hashCaptionMap && bestSchema) {
       src = applySchemaMapping(src, bestSchema);
-    } else if (hashCaptionMap && bestColumnIds && bestColumnIds.length) {
-      // DOM-caption fallback for any column still keyed by a hash after the
-      // hardcoded pass. Only runs when the report script opted in via
-      // hashCaptionMap, so a report whose colmap already carries hash
-      // candidates (PM/BOM/SI) stays untouched.
+    } else if (hashCaptionMap && !positionalCaptions && bestColumnIds && bestColumnIds.length) {
+      // DOM-caption fallback — only when neither schema nor positionalCaptions
+      // provided. Not used by PF anymore, kept for future reports.
       const stillHashed = Object.keys(src[0]).some((k) => /^C[0-9a-f]{32}/i.test(k));
       if (stillHashed) {
         const gridCaptions = await grabCaptionsFromGrid();

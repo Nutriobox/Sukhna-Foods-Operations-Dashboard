@@ -26,10 +26,7 @@ const HEADERS = [
 ];
 
 // Hash -> caption map for the Process Flow Report's ReportDataSet columns.
-// The first 6 entries are confirmed from sample row values; positions 6-12
-// are derived from the ColumnsTypes pattern (Int32 Ver, String Unit,
-// Double Qty — Request leg at 7-9, Issue leg at 10-12). Add more as we
-// confirm them from logs.
+// The first 12 entries are confirmed hash IDs from sample row values.
 const HASH_TO_CAPTION = {
   'C2d5a5a8e333842e483179f38b98765b9':    'JOB',                 // String — "65 MASALA (1 KG) 21-10-2..."
   'C683b960c1bc541a898ad9625279df716':    'Production Date',     // DateTime — "2026-10-21T00:00:00"
@@ -43,8 +40,52 @@ const HASH_TO_CAPTION = {
   'C497eb3b21bd94e6ea2f23c45ac3ee766':    'Request Qty',         // Double
   'C262c31ad91e84b72a7de5cec6049a781':    'Issue No',            // String
   'Cb4e4428615ff4783b3ae0be8e2027c55':    'Issue Units',         // String
-  // Issue Qty + beyond — add once observed in diagnostic logs.
 };
+
+// Positional captions zipped with json.Columns[0]. Verified from the
+// 2026-10-24 full-row diagnostic log (sample row 0 captured every column
+// with its PACT label). This covers positions 12-36 — the FG columns live
+// at 25-27, and the Receipt leg (where FG receipt amounts land for FG
+// output rows) at 13-15.
+const POSITIONAL_CAPTIONS = [
+  'JOB',               // 0
+  'Production Date',   // 1
+  'Batch Allocation',  // 2
+  'Product Code',      // 3
+  'Product Name',      // 4
+  'Warehouse',         // 5
+  'Request No',        // 6
+  'Request No Ver',    // 7  (hidden Int32)
+  'Request Unit',      // 8
+  'Request Qty',       // 9
+  'Issue No',          // 10
+  'Issue Units',       // 11
+  'Issue Qty',         // 12
+  'Receipt No',        // 13  — PACT uses this leg for FG receipts
+  'Receipt Units',     // 14
+  'Receipt Qty',       // 15
+  'RM Issue No',       // 16
+  'RM Units',          // 17
+  'RM Qty',            // 18
+  'WIP No',            // 19
+  'WIP Unit',          // 20
+  'WIP Qty',           // 21
+  'PM Issue No',       // 22
+  'PM Unit',           // 23
+  'PM Qty',            // 24
+  'FG No',             // 25
+  'FG Units',          // 26
+  'FG Qty',            // 27
+  'Excess No',         // 28
+  'Excess Units',      // 29
+  'Excess Qty',        // 30
+  'Secondary No',      // 31
+  'Secondary Unit',    // 32
+  'Secondary Qty',     // 33
+  'Scrap No',          // 34
+  'Scrap Unit',        // 35
+  'Scrap Qty',         // 36
+];
 
 const COLMAP = {
   'JOB':              ['JOB','Job','JobNo'],
@@ -80,4 +121,4 @@ const COLMAP = {
   'FG Qty':           ['Receipt Qty','FG Qty','Issue Qty','IssueQty'],
 };
 
-runCostingReport({ report: 'pf', headers: HEADERS, colmap: COLMAP, hashCaptionMap: HASH_TO_CAPTION });
+runCostingReport({ report: 'pf', headers: HEADERS, colmap: COLMAP, hashCaptionMap: HASH_TO_CAPTION, positionalCaptions: POSITIONAL_CAPTIONS });
