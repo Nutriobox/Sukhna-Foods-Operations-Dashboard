@@ -5112,14 +5112,16 @@ async function iiViewSaved(id){
       meta.innerHTML += ' <br>' + onHandLine;
       const wa = II_VIEW.wastage;
       const wasteRmCount = wa && wa.byRm ? Object.keys(wa.byRm).length : 0;
-      const wasteSubs    = wa && wa.submissions ? wa.submissions : 0;
       let wasteLine;
       if(wa && wa.source === 'portal' && wa.has_rows){
-        wasteLine = '<b>Wastage submissions:</b> ' + wasteSubs + ' submission' + (wasteSubs === 1 ? '' : 's')
-                  + ' · ' + wasteRmCount + ' RM' + (wasteRmCount === 1 ? '' : 's')
-                  + ' since ' + esc(String(snap.window_from || '').replace('T', ' '));
+        const dtPretty = wa.dt_iso
+          ? fmtTime(String(wa.dt_iso).length === 16 ? wa.dt_iso + '+05:30' : wa.dt_iso)
+          : '—';
+        wasteLine = '<b>Wastage submission:</b> ' + esc(dtPretty)
+                  + ' · ' + wasteRmCount + ' RM' + (wasteRmCount === 1 ? '' : 's') + ' with wastage'
+                  + ' <span class="mut" style="font-size:11.5px">(latest portal submission wins — a re-submit replaces the previous one)</span>';
       } else {
-        wasteLine = '<b>Wastage submissions:</b> <span style="color:#b45309">none found since ' + esc(String(snap.window_from || '').replace('T', ' ')) + '</span>';
+        wasteLine = '<b>Wastage submission:</b> <span style="color:#b45309">no portal submission yet for this outlet</span>';
       }
       meta.innerHTML += ' <br>' + wasteLine;
     }
@@ -5192,35 +5194,47 @@ async function iiLoadOnHandForOutlet(outlet){
 // then shows zero wastage for every RM, which is correct for an outlet
 // that never used the portal to submit wastage.
 async function iiLoadWastageForSnapshot(outlet, from, to){
-  II_VIEW.wastage = { byRm: {}, has_rows: false, submissions: 0, source: 'none' };
-  if(!outlet || !from) return;
+  II_VIEW.wastage = { byRm: {}, has_rows: false, dt_iso: null, filled_count: 0, source: 'none' };
+  if(!outlet) return;
   try {
-    // 2026-10-24 (fix): the previous version passed `to = snap.window_to`,
-    // which silently dropped any wastage the outlet submitted AFTER the
-    // measurement window closed — the normal case, since staff typically
-    // report the day's wastage in the evening. We now pass only `from` (so
-    // wastage from earlier snapshots isn't double-counted) and let the API
-    // include everything up to NOW. If multiple snapshots share overlapping
-    // windows a wastage submission can appear in both; approval against
-    // either snapshot clears it.
-    const qs = new URLSearchParams({ outlet: outlet, from: from, aggregate: 'rm' });
-    const r = await fetch('/api/outlet-wastage?' + qs.toString(), { cache: 'no-store' });
+    // 2026-10-24: use the "latest portal submission wins" semantic
+    // (same as iiLoadOnHandForOutlet). Earlier passes SUMMED every
+    // portal submission in the window — correct for daily per-event
+    // wastage, but Satvik's intended model is "submission = current
+    // snapshot of my wastage so far", so a re-submit should REPLACE
+    // the previous one, not stack on top. We fetch the outlet's list,
+    // pick the newest row with created_by LIKE 'portal:%', then pull
+    // its full qty + qty_loose maps by id — exactly how on-hand works.
+    const r = await fetch('/api/outlet-wastage?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
     const j = await r.json();
-    if(!r.ok || !j.ok || !Array.isArray(j.aggregates)) return;
+    if(!r.ok || !j.ok || !Array.isArray(j.counts)) return;
+    const portalCounts = j.counts.filter(c => typeof c.created_by === 'string' && c.created_by.startsWith('portal:'));
+    const pick = portalCounts.length ? portalCounts[0] : null;
+    if(!pick) return;
+    // If a snapshot window_from is provided and the latest submission's
+    // dt_iso is before it, ignore it — the latest "current wastage" the
+    // outlet submitted belongs to an earlier window and isn't relevant
+    // to this snapshot. (This is intentionally string-compared; both
+    // sides are the same naive-local ISO shape "YYYY-MM-DDTHH:MM".)
+    if(from && pick.dt_iso && String(pick.dt_iso) < String(from)) return;
+    const r2 = await fetch('/api/outlet-wastage?id=' + encodeURIComponent(pick.id), { cache: 'no-store' });
+    const j2 = await r2.json();
+    if(!r2.ok || !j2.ok || !j2.count) return;
+    const qty      = j2.count.qty       || {};
+    const qtyLoose = j2.count.qty_loose || {};
     const byRm = {};
-    for(const row of j.aggregates){
-      const code = String(row.rm_code || '');
-      if(!code) continue;
-      byRm[code] = {
-        qty_pack:  Number(row.qty_pack)  || 0,
-        qty_loose: Number(row.qty_loose) || 0,
-      };
+    const codes = new Set([...Object.keys(qty), ...Object.keys(qtyLoose)]);
+    for(const code of codes){
+      const vPack  = Number(qty[code])      || 0;
+      const vLoose = Number(qtyLoose[code]) || 0;
+      if(vPack || vLoose) byRm[code] = { qty_pack: vPack, qty_loose: vLoose };
     }
     II_VIEW.wastage = {
-      byRm:        byRm,
-      has_rows:    j.aggregates.length > 0,
-      submissions: Number(j.submissions || 0),
-      source:      'portal',
+      byRm:         byRm,
+      has_rows:     Object.keys(byRm).length > 0,
+      dt_iso:       j2.count.dt_iso || null,
+      filled_count: Number(j2.count.filled_count || 0),
+      source:       'portal',
     };
   } catch(_){ /* leave empty */ }
 }
