@@ -52,14 +52,29 @@ export async function POST(req: Request) {
   const r = await fetch(q, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" });
   if (!r.ok) {
     const t = await r.text().catch(() => "");
+    console.error("[outlet-portal/login] REST lookup failed:", r.status, t.slice(0, 300));
     return NextResponse.json({ ok: false, error: `Lookup failed: ${r.status} ${t}`.slice(0, 200) }, { status: 502 });
   }
   const rows = (await r.json()) as Array<{ outlet_slug: string; outlet_name: string; password_salt: string; password_hash: string; allowed_ip_cidr: string[] | null }>;
   const row = rows[0];
-  // Generic error so a username probe can't tell "user not found" from "wrong password".
   const generic = NextResponse.json({ ok: false, error: "Invalid username or password" }, { status: 401 });
-  if (!row) return generic;
-  if (hashPassword(row.password_salt, password) !== row.password_hash) return generic;
+  if (!row) {
+    // One-time diagnostic to confirm whether REST is finding the row at all —
+    // Satvik 2026-10-24. Log the query shape (not the password) so we can see
+    // whether the server-side username lookup is actually missing. Remove this
+    // after we confirm login works.
+    console.error("[outlet-portal/login] no row for username=", JSON.stringify(unameLower), "rows_returned=", rows.length, "query_tail=", q.split("outlet_portal_access")[1]);
+    return generic;
+  }
+  const expected = hashPassword(row.password_salt, password);
+  if (expected !== row.password_hash) {
+    console.error("[outlet-portal/login] hash mismatch for slug=", row.outlet_slug,
+      "salt=", row.password_salt,
+      "pw_len=", password.length,
+      "expected_prefix=", expected.slice(0, 16),
+      "stored_prefix=", row.password_hash.slice(0, 16));
+    return generic;
+  }
 
   // IP geofencing. Simple exact-match on /32s for now (Satvik's follow-up:
   // widen to CIDR once he supplies the ranges).
