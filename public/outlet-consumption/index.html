@@ -918,14 +918,25 @@
    </div>
   </div>
 
-  <!-- Added FG entries -->
-  <div class="card" style="padding:10px 14px;margin-bottom:10px">
-   <div style="display:flex;align-items:center;margin-bottom:6px">
+  <!-- Added FG entries — proper table so Qty Sold is an actual column -->
+  <div class="card" style="padding:0;margin-bottom:10px">
+   <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)">
     <strong style="font-size:13px">Finished goods in this window</strong>
     <span id="fgEntriesCount" class="mut" style="font-size:12.5px;margin-left:8px"></span>
     <button class="btn" style="margin-left:auto" onclick="fgExportCsv()">⬇ Export CSV</button>
    </div>
-   <div id="fgEntriesList" style="font-size:13px;color:#374151">Pick an outlet + date range above and click <b>⚡ Compute</b> — the finished goods sold in that window and their raw-material consumption will show here. You can also add a BOM manually to layer a "what-if" scenario on top.</div>
+   <div class="scroll"><table id="tblFgEntries">
+    <thead><tr>
+     <th style="width:90px">Source</th>
+     <th style="width:140px">BOM Code</th>
+     <th>Finished Good</th>
+     <th class="r" style="width:120px">Qty Sold</th>
+     <th style="width:60px"></th>
+    </tr></thead>
+    <tbody id="fgEntriesBody">
+     <tr><td colspan="5" class="mut" style="padding:16px;text-align:center">Pick an outlet + date range above and click <b>⚡ Compute</b> — the finished goods sold in that window will auto-populate here with their qty from the Sales Summary feed. You can also add a BOM manually to layer a "what-if" scenario on top.</td></tr>
+    </tbody>
+   </table></div>
   </div>
 
   <!-- Aggregated RM consumption table -->
@@ -5452,31 +5463,46 @@ function fgComputeConsumption(){
 }
 
 function fgRender(){
-  // Entries list — chips distinguish auto-fetched Sales Summary entries
-  // (grey) from manual what-if entries (indigo) so the user can tell at a
-  // glance which numbers came from actual KOTs vs their own scenario.
-  const entriesEl = $('fgEntriesList');
-  const countEl   = $('fgEntriesCount');
+  // Finished-goods table — one row per entry with Qty Sold as a proper column.
+  // Rows carry a SOURCE pill distinguishing auto-fetched Sales Summary entries
+  // from manual what-if adds so the operator can tell actual KOT consumption
+  // from scenario math at a glance.
+  const body    = $('fgEntriesBody');
+  const countEl = $('fgEntriesCount');
   if(!FG.entries.length){
-    if(entriesEl) entriesEl.textContent = 'Pick an outlet + date range above and click ⚡ Compute — the finished goods sold in that window and their raw-material consumption will show here. You can also add a BOM manually to layer a "what-if" scenario on top.';
-    if(countEl)   countEl.textContent   = '';
+    if(body) body.innerHTML = '<tr><td colspan="5" class="mut" style="padding:16px;text-align:center">Pick an outlet + date range above and click <b>⚡ Compute</b> — the finished goods sold in that window will auto-populate here with their qty from the Sales Summary feed. You can also add a BOM manually to layer a "what-if" scenario on top.</td></tr>';
+    if(countEl) countEl.textContent = '';
   } else {
-    const chips = FG.entries.map((e, idx) => {
-      const isManual = e.source === 'manual';
-      const bg   = isManual ? '#eef2ff' : '#f1f5f9';
-      const brd  = isManual ? '#c7d2fe' : '#cbd5e1';
-      const tag  = isManual ? '<span style="font-size:10px;background:#4338ca;color:#fff;padding:1px 6px;border-radius:4px;margin-right:4px">MANUAL</span>'
-                            : '<span style="font-size:10px;background:#64748b;color:#fff;padding:1px 6px;border-radius:4px;margin-right:4px">SALES</span>';
-      return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;margin:3px;background:' + bg + ';border:1px solid ' + brd + ';border-radius:999px;font-size:12.5px">'
-        + tag + '<b>' + esc(e.bom_code) + '</b> · ' + esc(e.bom_name) + ' · <span style="color:#4338ca">' + qty(e.qty) + '</span>'
-        + ' <button class="btn" style="padding:2px 6px;font-size:11px;background:#fff" onclick="fgRemoveEntry(' + idx + ')">✕</button>'
-      + '</span>';
-    }).join('');
+    // Sort: auto-fetched first (biggest qty on top), then manual.
+    const sorted = FG.entries.map((e, i) => ({ e, i })).sort((a, b) => {
+      const sa = a.e.source === 'manual' ? 1 : 0, sb = b.e.source === 'manual' ? 1 : 0;
+      if(sa !== sb) return sa - sb;
+      return (b.e.qty || 0) - (a.e.qty || 0);
+    });
+    if(body){
+      body.innerHTML = sorted.map(({ e, i }) => {
+        const isManual = e.source === 'manual';
+        const pill = isManual
+          ? '<span style="font-size:10.5px;background:#4338ca;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600">MANUAL</span>'
+          : '<span style="font-size:10.5px;background:#64748b;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600">SALES</span>';
+        return '<tr>'
+          + '<td>' + pill + '</td>'
+          + '<td class="code">' + esc(e.bom_code || '') + '</td>'
+          + '<td>' + esc(e.bom_name || '') + '</td>'
+          + '<td class="r" style="font-weight:600">' + qty(e.qty) + '</td>'
+          + '<td><button class="btn" style="padding:3px 8px;font-size:11px" title="Remove this entry" onclick="fgRemoveEntry(' + i + ')">✕</button></td>'
+        + '</tr>';
+      }).join('');
+    }
     const salesN = FG.entries.filter(e => e.source !== 'manual').length;
     const manN   = FG.entries.length - salesN;
-    const summary = [salesN ? (salesN + ' from sales') : '', manN ? (manN + ' manual') : ''].filter(Boolean).join(' · ');
-    if(entriesEl) entriesEl.innerHTML = chips;
-    if(countEl)   countEl.textContent = '· ' + summary;
+    const totalQ = FG.entries.reduce((a, e) => a + (Number(e.qty) || 0), 0);
+    const summary = [
+      salesN ? (salesN + ' from sales') : '',
+      manN   ? (manN + ' manual')       : '',
+      totalQ ? ('total qty ' + qty(totalQ)) : '',
+    ].filter(Boolean).join(' · ');
+    if(countEl) countEl.textContent = '· ' + summary;
   }
 
   // Consumption table
