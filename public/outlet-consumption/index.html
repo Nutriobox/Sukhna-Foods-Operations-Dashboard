@@ -872,20 +872,48 @@
  <div id="tabFg" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap;align-items:center">
    <h2 style="margin:0;font-size:18px">🧮 Finished-Goods → Raw-Material Consumption</h2>
-   <button class="btn warn" onclick="fgOpenMismatchModal()" title="Show mismatches between RM Master, Opening-Inventory list and BOM raw materials"><span id="fgMismatchBadge">⚠</span> RM Mismatches</button>
-   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: PACT BOM × Raw Material Master</span>
+   <button class="btn warn" onclick="fgOpenMismatchModal()" title="Show mismatches between the Inventory / RM Master and BOM raw materials"><span id="fgMismatchBadge">⚠</span> RM Mismatches</button>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Sales Summary feed × PACT BOM</span>
   </div>
 
-  <!-- Input row: pick a BOM + qty, add to the list -->
+  <!-- Window + outlet filters — the same shape Sales Summary uses so the two
+       views line up. On "Compute" we pull sales from /api/outlet-invoices for
+       the window + outlet, map each sold item to its PACT BOM, and expand
+       into raw-material consumption. -->
   <div class="card" style="padding:12px 14px;margin-bottom:10px">
    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <label style="font-size:13px;color:#374151;font-weight:600">Finished Good:</label>
-    <input id="fgPickInput" list="fgBomList" placeholder="Search BOM name or code…" style="min-width:360px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px">
+    <label style="font-size:13px;color:#374151;font-weight:600">From:</label>
+    <input id="fgFrom" type="datetime-local" class="btn" style="padding:7px 10px">
+    <label style="font-size:13px;color:#374151;font-weight:600">To:</label>
+    <input id="fgTo" type="datetime-local" class="btn" style="padding:7px 10px">
+    <label style="font-size:13px;color:#374151;font-weight:600">Outlet:</label>
+    <select id="fgOutlet" class="btn" style="min-width:200px;padding-right:28px">
+     <option value="">All outlets</option>
+     <option value="Rajinder Nagar">Rajinder Nagar</option>
+     <option value="DLF Phase 2">DLF Phase 2</option>
+     <option value="Sector 63 Noida">Sector 63 Noida</option>
+     <option value="Dwarka">Dwarka</option>
+     <option value="Janakpuri">Janakpuri</option>
+     <option value="Karkardooma">Karkardooma</option>
+     <option value="Noida">Noida</option>
+     <option value="Prashant Vihar">Prashant Vihar</option>
+     <option value="Sector 15 Gurugram">Sector 15 Gurugram</option>
+     <option value="Shivalik">Shivalik</option>
+    </select>
+    <button class="btn prim" onclick="fgCompute()">⚡ Compute</button>
+    <button class="btn" onclick="fgClearAll()">Clear</button>
+    <span id="fgStat" class="mut" style="font-size:12.5px;color:#4338ca"></span>
+   </div>
+  </div>
+
+  <!-- Manual-add row (optional "what if" scenarios on top of the auto-fetched sales) -->
+  <div class="card" style="padding:12px 14px;margin-bottom:10px">
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <strong style="font-size:13px">Add a finished good manually (optional):</strong>
+    <input id="fgPickInput" list="fgBomList" placeholder="Search BOM name or code…" style="min-width:320px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px">
     <datalist id="fgBomList"></datalist>
-    <label style="font-size:13px;color:#374151;font-weight:600">Qty Sold:</label>
-    <input id="fgQtyInput" type="number" min="0" step="any" placeholder="e.g. 10" style="width:120px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px">
-    <button class="btn prim" onclick="fgAddEntry()">+ Add</button>
-    <button class="btn" onclick="fgClearAll()">Clear all</button>
+    <input id="fgQtyInput" type="number" min="0" step="any" placeholder="Qty" style="width:100px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px">
+    <button class="btn" onclick="fgAddEntry()">+ Add</button>
     <span id="fgAddErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
    </div>
   </div>
@@ -893,11 +921,11 @@
   <!-- Added FG entries -->
   <div class="card" style="padding:10px 14px;margin-bottom:10px">
    <div style="display:flex;align-items:center;margin-bottom:6px">
-    <strong style="font-size:13px">Added finished goods</strong>
+    <strong style="font-size:13px">Finished goods in this window</strong>
     <span id="fgEntriesCount" class="mut" style="font-size:12.5px;margin-left:8px"></span>
     <button class="btn" style="margin-left:auto" onclick="fgExportCsv()">⬇ Export CSV</button>
    </div>
-   <div id="fgEntriesList" style="font-size:13px;color:#374151">Nothing added yet. Pick a finished good above and click <b>+ Add</b>.</div>
+   <div id="fgEntriesList" style="font-size:13px;color:#374151">Pick an outlet + date range above and click <b>⚡ Compute</b> — the finished goods sold in that window and their raw-material consumption will show here. You can also add a BOM manually to layer a "what-if" scenario on top.</div>
   </div>
 
   <!-- Aggregated RM consumption table -->
@@ -907,10 +935,10 @@
     <th>Raw Material Name</th>
     <th>Category</th>
     <th>BOM UoM</th>
-    <th class="r" title="Weighted ideal qty for 1 unit of the mix of finished goods you added (sum(usage × fg_qty) / sum(fg_qty))">Ideal Qty / 1 FG</th>
-    <th class="r" title="Total raw material consumed: sum over every added finished good of (ideal usage per 1 FG × units sold)">Qty Consumed</th>
+    <th class="r" title="Weighted ideal qty for 1 unit of the mix of finished goods in this window (sum(usage × fg_qty) / sum(fg_qty))">Ideal Qty / 1 FG</th>
+    <th class="r" title="Total raw material consumed: sum over every finished good in the window of (ideal usage per 1 FG × units sold)">Qty Consumed</th>
    </tr></thead>
-   <tbody id="tbodyFg"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Add a finished good above to see its raw-material breakdown.</td></tr></tbody>
+   <tbody id="tbodyFg"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Pick an outlet + date range and click Compute to see raw-material consumption for the finished goods sold in that window.</td></tr></tbody>
   </table></div></div>
  </div>  <!-- /tabFg -->
 
@@ -923,15 +951,11 @@
     <button class="btn" onclick="fgCloseMismatchModal()">✕</button>
    </div>
    <div class="tabs" style="margin:12px 0 10px">
-    <div class="tab on" data-mm="bomNotRm" onclick="fgMmTab('bomNotRm')" title="Raw materials consumed by a BOM but missing from Raw Material Master">In BOM, not in RM Master <span id="mmBomNotRmCount" class="pill" style="margin-left:6px">0</span></div>
-    <div class="tab" data-mm="rmNotBom" onclick="fgMmTab('rmNotBom')" title="Raw materials in RM Master that no BOM consumes">In RM Master, not in BOM <span id="mmRmNotBomCount" class="pill" style="margin-left:6px">0</span></div>
-    <div class="tab" data-mm="invNotBom" onclick="fgMmTab('invNotBom')" title="Raw materials on the Opening-Inventory list that no BOM consumes">In Inventory, not in any BOM <span id="mmInvNotBomCount" class="pill" style="margin-left:6px">0</span></div>
-    <div class="tab" data-mm="bomNotInv" onclick="fgMmTab('bomNotInv')" title="Raw materials used in a BOM but not inventoried in the Opening-Inventory list">In BOM, not in Inventory <span id="mmBomNotInvCount" class="pill" style="margin-left:6px">0</span></div>
+    <div class="tab on" data-mm="rmNotBom" onclick="fgMmTab('rmNotBom')" title="Inventory / RM Master items that no BOM consumes">In Inventory / RM Master, not in BOM <span id="mmRmNotBomCount" class="pill" style="margin-left:6px">0</span></div>
+    <div class="tab" data-mm="bomNotRm" onclick="fgMmTab('bomNotRm')" title="Raw materials consumed by a BOM but missing from Inventory / RM Master">In BOM, not in Inventory / RM Master <span id="mmBomNotRmCount" class="pill" style="margin-left:6px">0</span></div>
    </div>
-   <div id="mmBomNotRmList"></div>
-   <div id="mmRmNotBomList" style="display:none"></div>
-   <div id="mmInvNotBomList" style="display:none"></div>
-   <div id="mmBomNotInvList" style="display:none"></div>
+   <div id="mmRmNotBomList"></div>
+   <div id="mmBomNotRmList" style="display:none"></div>
   </div>
  </div>
 
@@ -5174,15 +5198,121 @@ async function iiDeleteSaved(id, outletLabel){
    - Depends on BOM data already loaded (loadBom) — if the user lands on
      this tab before BOM has arrived, we trigger a load and render once it
      resolves. */
-const FG = { entries: [] };  // [{ bom_code, bom_name, qty }]
+// Each entry carries its source so the UI can show whether a line came
+// from the auto Sales-Summary fetch or was added manually, and so Clear /
+// Compute know which entries to wipe.
+const FG = { entries: [] };  // [{ bom_code, bom_name, qty, source: 'sales'|'manual' }]
 
 async function fgOnTabEnter(){
-  // Ensure BOM data is loaded — the dropdown + the breakdown both need it.
-  if(!BOM_LOADED.v){
-    try { await loadBom(false); } catch(e){ /* non-fatal; dropdown stays empty */ }
-  }
+  // Ensure BOM + Item Master are both ready — the dropdown needs BOM, and
+  // the sales-to-BOM mapping needs Item Master (PetPooja dish_id → BOM
+  // code via IM.data).
+  const waits = [];
+  if(!BOM_LOADED.v) waits.push(loadBom(false).catch(() => {}));
+  if(!IM_LOADED.v)  waits.push(loadIm(false).catch(() => {}));
+  if(waits.length) await Promise.all(waits);
   fgBuildBomDatalist();
+  // Default the date window to today (IST) if the inputs are empty, so
+  // Compute can be a one-click action.
+  const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const today = istNow.toISOString().slice(0, 10);
+  if($('fgFrom') && !$('fgFrom').value) $('fgFrom').value = today + 'T00:00';
+  if($('fgTo')   && !$('fgTo').value)   $('fgTo').value   = today + 'T23:59';
   fgRender();
+}
+
+// Walk Item Master and build an index: dish_id -> {bom_code, bom_name}, and
+// lower(name) -> {bom_code, bom_name}. Used by fgCompute to map sold items
+// back to their BOM.
+function fgBuildDishIndex(){
+  const byDishId = new Map();
+  const byName   = new Map();
+  const walk = (section) => {
+    if(!section) return;
+    const absorb = (item) => {
+      if(!item || !item.bom_code) return;
+      const entry = { bom_code: item.bom_code, bom_name: item.name || '' };
+      const did = String(item.petpooja_dish_id || '').trim();
+      if(did && !byDishId.has(did)) byDishId.set(did, entry);
+      const nm = String(item.name || '').toLowerCase().trim();
+      if(nm && !byName.has(nm)) byName.set(nm, entry);
+    };
+    for(const items of Object.values(section.categories || {})) for(const it of (items || [])) absorb(it);
+    for(const it of (section.add_ons || [])) absorb(it);
+  };
+  if(IM_LOADED.v && IM.data){ walk(IM.data.dine_in); walk(IM.data.delivery); }
+  return { byDishId, byName };
+}
+
+// Core "pull from Sales Summary" flow — same /api/outlet-invoices call the
+// Sales API + Sales Summary tabs use, with the same outlet + date filters.
+// Each sold item line is mapped to its BOM via Item Master, then aggregated
+// into FG.entries. If the same BOM appears for several sales rows, they
+// collapse into one entry carrying the summed qty.
+async function fgCompute(){
+  const stat = $('fgStat'); if(stat) stat.textContent = '';
+  const from   = $('fgFrom').value || '';
+  const to     = $('fgTo').value   || '';
+  const outlet = $('fgOutlet').value || '';
+  if(!from || !to){ if(stat){ stat.style.color = '#b91c1c'; stat.textContent = 'Pick a From and To date & time.'; } return; }
+  if(from >= to){   if(stat){ stat.style.color = '#b91c1c'; stat.textContent = 'From must be earlier than To.'; } return; }
+  if(stat){ stat.style.color = '#4338ca'; stat.textContent = 'Fetching sales…'; }
+  // Guarantee BOM + IM are loaded for the mapping that follows.
+  const waits = [];
+  if(!BOM_LOADED.v) waits.push(loadBom(false).catch(() => {}));
+  if(!IM_LOADED.v)  waits.push(loadIm(false).catch(() => {}));
+  if(waits.length) await Promise.all(waits);
+  try {
+    const params = new URLSearchParams();
+    params.set('from', from); params.set('to', to);
+    if(outlet) params.set('outlet_name', outlet);
+    params.set('limit_rows', '10000');
+    const t0 = Date.now();
+    const r = await fetch('/api/outlet-invoices?' + params.toString(), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    const sales = Array.isArray(j.rows) ? j.rows : [];
+    // Defensive outlet re-filter: /api/outlet-invoices resolves outlet_name
+    // server-side but if that lookup misses (name typo on AIFI side) we
+    // still want the picked outlet only.
+    const outletLc = outlet.toLowerCase();
+    const scoped = outlet ? sales.filter(s => (s.restaurant_name || '').toLowerCase().includes(outletLc)) : sales;
+
+    // Map each sold item to its BOM via Item Master.
+    const idx = fgBuildDishIndex();
+    const aggregated = new Map();  // bom_code -> { bom_code, bom_name, qty }
+    let matchedCount = 0, unmatchedCount = 0;
+    for(const row of scoped){
+      // Skip cancelled rows — they contributed nothing to kitchen output.
+      if(String(row.status || '').toLowerCase().includes('cancel')) continue;
+      const qtyN = Number(row.item_quantity || 0);
+      if(!qtyN) continue;
+      const did = String(row.dish_id || '').trim();
+      const nm  = String(row.item_name || '').toLowerCase().trim();
+      const hit = (did && idx.byDishId.get(did)) || (nm && idx.byName.get(nm));
+      if(!hit){ unmatchedCount++; continue; }
+      matchedCount++;
+      const key = hit.bom_code;
+      if(!aggregated.has(key)) aggregated.set(key, { bom_code: hit.bom_code, bom_name: hit.bom_name, qty: 0, source: 'sales' });
+      aggregated.get(key).qty += qtyN;
+    }
+
+    // Replace any previous auto-fetched entries with the new result, but
+    // keep manual entries so they don't disappear on Recompute.
+    FG.entries = FG.entries.filter(e => e.source !== 'sales');
+    for(const e of aggregated.values()) FG.entries.push(e);
+
+    if(stat){
+      stat.style.color = '#4338ca';
+      stat.textContent = '✓ ' + aggregated.size + ' finished goods · '
+        + matchedCount + ' sales matched'
+        + (unmatchedCount ? (' · ' + unmatchedCount + ' unmatched (no BOM in Item Master)') : '')
+        + ' · ' + Math.round((Date.now() - t0) / 100) / 10 + 's';
+    }
+    fgRender();
+  } catch (e){
+    if(stat){ stat.style.color = '#b91c1c'; stat.textContent = '✗ ' + (e.message || e); }
+  }
 }
 
 function fgBuildBomDatalist(){
@@ -5232,7 +5362,7 @@ function fgAddEntry(){
     if(err) err.textContent = 'Enter a positive quantity.';
     return;
   }
-  FG.entries.push({ bom_code: bom.code, bom_name: bom.name || '', qty });
+  FG.entries.push({ bom_code: bom.code, bom_name: bom.name || '', qty, source: 'manual' });
   $('fgPickInput').value = '';
   $('fgQtyInput').value = '';
   $('fgPickInput').focus();
@@ -5246,6 +5376,7 @@ function fgRemoveEntry(idx){
 
 function fgClearAll(){
   FG.entries = [];
+  const stat = $('fgStat'); if(stat) stat.textContent = '';
   fgRender();
 }
 
@@ -5321,21 +5452,31 @@ function fgComputeConsumption(){
 }
 
 function fgRender(){
-  // Entries list
+  // Entries list — chips distinguish auto-fetched Sales Summary entries
+  // (grey) from manual what-if entries (indigo) so the user can tell at a
+  // glance which numbers came from actual KOTs vs their own scenario.
   const entriesEl = $('fgEntriesList');
   const countEl   = $('fgEntriesCount');
   if(!FG.entries.length){
-    if(entriesEl) entriesEl.textContent = 'Nothing added yet. Pick a finished good above and click + Add.';
+    if(entriesEl) entriesEl.textContent = 'Pick an outlet + date range above and click ⚡ Compute — the finished goods sold in that window and their raw-material consumption will show here. You can also add a BOM manually to layer a "what-if" scenario on top.';
     if(countEl)   countEl.textContent   = '';
   } else {
-    const chips = FG.entries.map((e, idx) =>
-      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;margin:3px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;font-size:12.5px">'
-        + '<b>' + esc(e.bom_code) + '</b> · ' + esc(e.bom_name) + ' · <span style="color:#4338ca">' + qty(e.qty) + '</span>'
+    const chips = FG.entries.map((e, idx) => {
+      const isManual = e.source === 'manual';
+      const bg   = isManual ? '#eef2ff' : '#f1f5f9';
+      const brd  = isManual ? '#c7d2fe' : '#cbd5e1';
+      const tag  = isManual ? '<span style="font-size:10px;background:#4338ca;color:#fff;padding:1px 6px;border-radius:4px;margin-right:4px">MANUAL</span>'
+                            : '<span style="font-size:10px;background:#64748b;color:#fff;padding:1px 6px;border-radius:4px;margin-right:4px">SALES</span>';
+      return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;margin:3px;background:' + bg + ';border:1px solid ' + brd + ';border-radius:999px;font-size:12.5px">'
+        + tag + '<b>' + esc(e.bom_code) + '</b> · ' + esc(e.bom_name) + ' · <span style="color:#4338ca">' + qty(e.qty) + '</span>'
         + ' <button class="btn" style="padding:2px 6px;font-size:11px;background:#fff" onclick="fgRemoveEntry(' + idx + ')">✕</button>'
-      + '</span>'
-    ).join('');
+      + '</span>';
+    }).join('');
+    const salesN = FG.entries.filter(e => e.source !== 'manual').length;
+    const manN   = FG.entries.length - salesN;
+    const summary = [salesN ? (salesN + ' from sales') : '', manN ? (manN + ' manual') : ''].filter(Boolean).join(' · ');
     if(entriesEl) entriesEl.innerHTML = chips;
-    if(countEl)   countEl.textContent = '· ' + FG.entries.length + ' item' + (FG.entries.length === 1 ? '' : 's');
+    if(countEl)   countEl.textContent = '· ' + summary;
   }
 
   // Consumption table
@@ -5385,28 +5526,22 @@ function fgExportCsv(){
    PACT RM code. Name-based matching is deliberately NOT used here: a
    name typo in a BOM is itself the kind of mismatch this report should
    surface, not hide. */
-const MM = { current: 'bomNotRm', data: null };
+const MM = { current: 'rmNotBom', data: null };
 
 function fgComputeMismatches(){
-  // RM Master set — PACT product codes with isGhost=false. (We allow
-  // ghost items here because some BOMs still reference them historically
-  // and we want to see that too.)
+  // RM Master set — Satvik 2026-10-24: this IS the Inventory master as far
+  // as the dashboard is concerned (Opening Inventory is just RM Master
+  // filtered by idealStorage, which is built from the same PACT source).
+  // We index by product_code so a BOM typo (e.g. "RM0286 " vs "RM0286")
+  // still surfaces as a mismatch rather than a false match.
   const rmByCode = new Map();
   for(const r of (RM.items || [])){
     const code = String(r.code || '').trim().toUpperCase();
     if(!code) continue;
     if(!rmByCode.has(code)) rmByCode.set(code, r);
   }
-  // Opening Inventory set — RMs with idealStorage set, built by oiBuildItemsFromRm.
-  const invByCode = new Map();
-  const invList = (typeof oiBuildItemsFromRm === 'function') ? oiBuildItemsFromRm() : [];
-  for(const it of invList){
-    const code = String(it.rm_code || '').trim().toUpperCase();
-    if(!code) continue;
-    invByCode.set(code, it);
-  }
   // BOM RM set — every INPUT product_code across every BOM, with the first
-  // BOM that mentions it (so a mismatch row can show "where it came from").
+  // BOM that mentions it so the mismatch row can show "where it came from".
   const bomByCode = new Map();
   for(const b of (BOM.boms || [])){
     for(const s of b.stages.values()){
@@ -5419,36 +5554,20 @@ function fgComputeMismatches(){
       }
     }
   }
-  // Set operations
-  const bomNotRm = [];
-  for(const [code, b] of bomByCode){
-    if(rmByCode.has(code)) continue;
-    bomNotRm.push({ rm_code: code, name: b.name, unit: b.unit, note: b.first_bom });
-  }
-  // RM Master without any BOM reference — RMs the Product Master lists that no
-  // recipe actually consumes. Satvik 2026-10-23: "In RM Master, not in BOM"
-  // tab. Note shows the storage category + ideal unit so you can tell at a
-  // glance whether this is a packaging material (expected to be in some
-  // BOMs), a raw ingredient (expected to be in cooking BOMs), or something
-  // never meant to appear in any recipe.
+  // Two symmetric views only (Satvik 2026-10-24): what's in RM Master but
+  // nothing eats, and what BOMs eat but RM Master doesn't carry.
   const rmNotBom = [];
   for(const [code, r] of rmByCode){
     if(bomByCode.has(code)) continue;
     rmNotBom.push({ rm_code: code, name: r.name || '', unit: r.idealUom || r.baseUnit || '', note: r.idealStorage || r.group || '' });
   }
-  const invNotBom = [];
-  for(const [code, it] of invByCode){
-    if(bomByCode.has(code)) continue;
-    invNotBom.push({ rm_code: code, name: it.name, unit: it.packing_uom, note: it.category || '' });
-  }
-  const bomNotInv = [];
+  const bomNotRm = [];
   for(const [code, b] of bomByCode){
-    if(invByCode.has(code)) continue;
-    bomNotInv.push({ rm_code: code, name: b.name, unit: b.unit, note: b.first_bom });
+    if(rmByCode.has(code)) continue;
+    bomNotRm.push({ rm_code: code, name: b.name, unit: b.unit, note: b.first_bom });
   }
-  // Sort by name, case-insensitive
-  for(const arr of [bomNotRm, rmNotBom, invNotBom, bomNotInv]) arr.sort((a,b) => String(a.name).localeCompare(String(b.name)));
-  return { bomNotRm, rmNotBom, invNotBom, bomNotInv };
+  for(const arr of [rmNotBom, bomNotRm]) arr.sort((a,b) => String(a.name).localeCompare(String(b.name)));
+  return { rmNotBom, bomNotRm };
 }
 
 async function fgOpenMismatchModal(){
@@ -5458,19 +5577,17 @@ async function fgOpenMismatchModal(){
   if(!RM_LOADED.v)  waits.push(loadRm(false).catch(() => {}));
   if(waits.length) await Promise.all(waits);
   MM.data = fgComputeMismatches();
-  const bnr = $('mmBomNotRmCount');  if(bnr) bnr.textContent = MM.data.bomNotRm.length;
   const rnb = $('mmRmNotBomCount');  if(rnb) rnb.textContent = MM.data.rmNotBom.length;
-  const inb = $('mmInvNotBomCount'); if(inb) inb.textContent = MM.data.invNotBom.length;
-  const bni = $('mmBomNotInvCount'); if(bni) bni.textContent = MM.data.bomNotInv.length;
-  // Update the badge in the toolbar as well
+  const bnr = $('mmBomNotRmCount');  if(bnr) bnr.textContent = MM.data.bomNotRm.length;
+  // Toolbar badge sums both views so the operator sees total integrity debt
   const badge = $('fgMismatchBadge');
   if(badge){
-    const total = MM.data.bomNotRm.length + MM.data.rmNotBom.length + MM.data.invNotBom.length + MM.data.bomNotInv.length;
+    const total = MM.data.rmNotBom.length + MM.data.bomNotRm.length;
     badge.textContent = total ? ('⚠ ' + total) : '✓';
   }
   fgRenderMismatchLists();
   $('fgMismatchModal').style.display = 'flex';
-  fgMmTab('bomNotRm');
+  fgMmTab('rmNotBom');
 }
 
 function fgCloseMismatchModal(){ $('fgMismatchModal').style.display = 'none'; }
@@ -5478,10 +5595,8 @@ function fgCloseMismatchModal(){ $('fgMismatchModal').style.display = 'none'; }
 function fgMmTab(k){
   MM.current = k;
   document.querySelectorAll('#fgMismatchModal .tab').forEach(x => x.classList.toggle('on', x.dataset.mm === k));
-  $('mmBomNotRmList').style.display  = k === 'bomNotRm'  ? '' : 'none';
-  $('mmRmNotBomList').style.display  = k === 'rmNotBom'  ? '' : 'none';
-  $('mmInvNotBomList').style.display = k === 'invNotBom' ? '' : 'none';
-  $('mmBomNotInvList').style.display = k === 'bomNotInv' ? '' : 'none';
+  $('mmRmNotBomList').style.display  = k === 'rmNotBom' ? '' : 'none';
+  $('mmBomNotRmList').style.display  = k === 'bomNotRm' ? '' : 'none';
 }
 
 function fgRenderMismatchLists(){
@@ -5500,10 +5615,8 @@ function fgRenderMismatchLists(){
     out += '</div>';
     return out;
   };
-  $('mmBomNotRmList').innerHTML  = render(MM.data.bomNotRm,  'Every raw material used in a BOM is in Raw Material Master.');
-  $('mmRmNotBomList').innerHTML  = render(MM.data.rmNotBom,  'Every raw material in RM Master is consumed by at least one BOM.');
-  $('mmInvNotBomList').innerHTML = render(MM.data.invNotBom, 'Every item on the Opening-Inventory list is consumed by at least one BOM.');
-  $('mmBomNotInvList').innerHTML = render(MM.data.bomNotInv, 'Every raw material a BOM uses is on the Opening-Inventory list.');
+  $('mmRmNotBomList').innerHTML  = render(MM.data.rmNotBom, 'Every raw material in Inventory / RM Master is consumed by at least one BOM.');
+  $('mmBomNotRmList').innerHTML  = render(MM.data.bomNotRm, 'Every raw material used in a BOM is in Inventory / RM Master.');
 }
 
 function fgExportMismatchCsv(){
@@ -5511,10 +5624,8 @@ function fgExportMismatchCsv(){
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
   const which = MM.current;
   const map = {
-    bomNotRm:  { label: 'In BOM, not in RM Master',       hdr: ['RM Code','RM Name','BOM Unit','First BOM referencing it'], rows: MM.data.bomNotRm,  file: 'rm-mismatch-bom-not-in-rm-master-' },
-    rmNotBom:  { label: 'In RM Master, not in BOM',       hdr: ['RM Code','RM Name','Ideal UoM','Storage Category / Group'], rows: MM.data.rmNotBom,  file: 'rm-mismatch-rm-master-not-in-bom-' },
-    invNotBom: { label: 'In Inventory, not in any BOM',   hdr: ['RM Code','RM Name','Inventory UoM','Storage Category'],    rows: MM.data.invNotBom, file: 'rm-mismatch-inventory-not-in-bom-' },
-    bomNotInv: { label: 'In BOM, not in Inventory',       hdr: ['RM Code','RM Name','BOM Unit','First BOM referencing it'], rows: MM.data.bomNotInv, file: 'rm-mismatch-bom-not-in-inventory-' },
+    rmNotBom:  { label: 'In Inventory / RM Master, not in BOM', hdr: ['RM Code','RM Name','Ideal UoM','Storage Category / Group'], rows: MM.data.rmNotBom, file: 'rm-mismatch-rm-master-not-in-bom-' },
+    bomNotRm:  { label: 'In BOM, not in Inventory / RM Master', hdr: ['RM Code','RM Name','BOM Unit','First BOM referencing it'], rows: MM.data.bomNotRm, file: 'rm-mismatch-bom-not-in-rm-master-' },
   }[which];
   if(!map){ toast('Unknown mismatch view.', 1500); return; }
   if(!map.rows.length){ toast('Nothing to export — list is empty.', 1800); return; }
