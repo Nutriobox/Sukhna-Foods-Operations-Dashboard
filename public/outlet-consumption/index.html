@@ -5112,12 +5112,14 @@ async function iiViewSaved(id){
       meta.innerHTML += ' <br>' + onHandLine;
       const wa = II_VIEW.wastage;
       const wasteRmCount = wa && wa.byRm ? Object.keys(wa.byRm).length : 0;
+      const wasteSubs    = wa && wa.submissions ? wa.submissions : 0;
       let wasteLine;
       if(wa && wa.source === 'portal' && wa.has_rows){
-        wasteLine = '<b>Wastage submissions:</b> ' + wasteRmCount + ' RM' + (wasteRmCount === 1 ? '' : 's')
-                  + ' with portal entries in this window';
+        wasteLine = '<b>Wastage submissions:</b> ' + wasteSubs + ' submission' + (wasteSubs === 1 ? '' : 's')
+                  + ' · ' + wasteRmCount + ' RM' + (wasteRmCount === 1 ? '' : 's')
+                  + ' since ' + esc(String(snap.window_from || '').replace('T', ' '));
       } else {
-        wasteLine = '<b>Wastage submissions:</b> <span style="color:#b45309">none submitted in this window</span>';
+        wasteLine = '<b>Wastage submissions:</b> <span style="color:#b45309">none found since ' + esc(String(snap.window_from || '').replace('T', ' ')) + '</span>';
       }
       meta.innerHTML += ' <br>' + wasteLine;
     }
@@ -5190,10 +5192,18 @@ async function iiLoadOnHandForOutlet(outlet){
 // then shows zero wastage for every RM, which is correct for an outlet
 // that never used the portal to submit wastage.
 async function iiLoadWastageForSnapshot(outlet, from, to){
-  II_VIEW.wastage = { byRm: {}, has_rows: false, source: 'none' };
-  if(!outlet || !from || !to) return;
+  II_VIEW.wastage = { byRm: {}, has_rows: false, submissions: 0, source: 'none' };
+  if(!outlet || !from) return;
   try {
-    const qs = new URLSearchParams({ outlet: outlet, from: from, to: to, aggregate: 'rm' });
+    // 2026-10-24 (fix): the previous version passed `to = snap.window_to`,
+    // which silently dropped any wastage the outlet submitted AFTER the
+    // measurement window closed — the normal case, since staff typically
+    // report the day's wastage in the evening. We now pass only `from` (so
+    // wastage from earlier snapshots isn't double-counted) and let the API
+    // include everything up to NOW. If multiple snapshots share overlapping
+    // windows a wastage submission can appear in both; approval against
+    // either snapshot clears it.
+    const qs = new URLSearchParams({ outlet: outlet, from: from, aggregate: 'rm' });
     const r = await fetch('/api/outlet-wastage?' + qs.toString(), { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok || !Array.isArray(j.aggregates)) return;
@@ -5206,7 +5216,12 @@ async function iiLoadWastageForSnapshot(outlet, from, to){
         qty_loose: Number(row.qty_loose) || 0,
       };
     }
-    II_VIEW.wastage = { byRm: byRm, has_rows: j.aggregates.length > 0, source: 'portal' };
+    II_VIEW.wastage = {
+      byRm:        byRm,
+      has_rows:    j.aggregates.length > 0,
+      submissions: Number(j.submissions || 0),
+      source:      'portal',
+    };
   } catch(_){ /* leave empty */ }
 }
 
