@@ -277,14 +277,70 @@ async function runCostingReport({ report, headers, colmap }) {
     if (!body || body.length < 120) return;
     let json; try { json = JSON.parse(body); } catch { return; }
     const tables = (json && json.Tables) || [];
-    // Log any schema-shaped tables so we can see what fields they carry.
+
+    // The hash->caption mapping travels in json.Columns (sibling, not inside
+    // Tables). Verified 2026-10-24 Process Flow run: top-level JSON keys are
+    // Tables, Columns, ColumnsTypes, obj, AppColTypeAccess. We look at both
+    // Columns and ColumnsTypes just in case the id/caption fields are split
+    // across them. Each shape handled:
+    //   • Array of { ColumnID, Caption }-style rows -> rebuilt into a Map
+    //   • Plain object { "C2d5...": "JOB", ... }    -> used directly
+    //   • Nested in a key like .obj                 -> unwrap and retry
     let schemaHere = null;
-    for (const t of tables) {
-      if (isSchemaTable(t)) {
-        schemaHere = t;
-        const sample = t[0] || {};
-        log('[schema] candidate -> ' + t.length + ' rows, keys: ' + Object.keys(sample).join(',')
-          + ' | row[0]=' + JSON.stringify(sample).slice(0, 400));
+    const extractSchema = (val) => {
+      if (!val) return null;
+      // Shape: plain object { id: caption, ... }
+      if (!Array.isArray(val) && typeof val === 'object') {
+        const entries = Object.entries(val).filter(
+          ([k, v]) => typeof k === 'string' && (typeof v === 'string' || typeof v === 'number')
+            && k.length > 4 && String(v).length > 0 && String(v).length < 80
+        );
+        if (entries.length >= 3) {
+          return entries.map(([id, caption]) => ({ ColumnID: id, Caption: String(caption) }));
+        }
+      }
+      // Shape: array of row objects — reuse the Tables-schema detector.
+      if (Array.isArray(val) && val.length && typeof val[0] === 'object') {
+        if (isSchemaTable(val)) return val;
+      }
+      return null;
+    };
+    for (const siblingKey of ['Columns', 'ColumnsTypes', 'obj']) {
+      const raw = json && json[siblingKey];
+      if (raw != null) {
+        // Diagnostic: always log the raw shape of each sibling so we can see
+        // what PACT actually sends even if extractSchema can't normalise it.
+        if (Array.isArray(raw)) {
+          const row0 = raw[0];
+          log('[schema-raw] .' + siblingKey + ' is array[' + raw.length + ']'
+            + (row0 && typeof row0 === 'object' ? ' | row[0] keys: ' + Object.keys(row0).join(',') + ' | row[0]=' + JSON.stringify(row0).slice(0, 240) : ' | row[0]=' + JSON.stringify(row0).slice(0, 240)));
+        } else if (typeof raw === 'object') {
+          const entries = Object.entries(raw);
+          log('[schema-raw] .' + siblingKey + ' is object with ' + entries.length + ' entries'
+            + ' | sample: ' + entries.slice(0, 4).map(([k, v]) => k.slice(0, 10) + '=' + String(v).slice(0, 40)).join(' | '));
+        } else {
+          log('[schema-raw] .' + siblingKey + ' is ' + typeof raw + ' = ' + String(raw).slice(0, 80));
+        }
+      }
+      const found = extractSchema(raw);
+      if (found) {
+        schemaHere = found;
+        const sample = found[0] || {};
+        log('[schema] from .' + siblingKey + ' -> ' + found.length + ' entries | row[0]=' + JSON.stringify(sample).slice(0, 300));
+        break;
+      }
+    }
+    // Fall back to scanning Tables for a schema-shaped sibling (older
+    // behaviour, still supported in case PACT re-shapes between reports).
+    if (!schemaHere) {
+      for (const t of tables) {
+        if (isSchemaTable(t)) {
+          schemaHere = t;
+          const sample = t[0] || {};
+          log('[schema] candidate (in Tables) -> ' + t.length + ' rows, keys: ' + Object.keys(sample).join(',')
+            + ' | row[0]=' + JSON.stringify(sample).slice(0, 300));
+          break;
+        }
       }
     }
     for (const t of tables) {
