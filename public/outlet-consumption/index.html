@@ -4309,20 +4309,19 @@ function iiOnTabEnter(){
   // Two-view flow (added 2026-10-23 at Satvik's ask): the first thing an
   // operator sees is a tiny card asking which outlet. Click OK, we snapshot
   // the window (OI count time → current IST) and flip to the results view.
-  // If the user has already run II in this session we bounce them straight
-  // back to results so a tab switch doesn't lose state.
-  if(IIv.outlet && IIv.from && IIv.to){
-    $('iiFormView').style.display = 'none';
-    $('iiResultsView').style.display = '';
-    if($('iiCtxFrom'))   $('iiCtxFrom').textContent   = (IIv.from || '').replace('T', ' ') + ' (last Opening Inventory count)';
-    if($('iiCtxTo'))     $('iiCtxTo').textContent     = (IIv.to   || '').replace('T', ' ') + ' (now)';
-    if($('iiCtxOutlet')) $('iiCtxOutlet').textContent = IIv.outlet;
-    if($('iiFormOutlet')) $('iiFormOutlet').value = IIv.outlet;
-    renderIi();
-  } else {
-    $('iiFormView').style.display = '';
-    $('iiResultsView').style.display = 'none';
-  }
+  // Satvik 2026-10-24: every tab entry should RESET to the picker — stale
+  // state from a previous outlet pick was confusing when the operator
+  // switched outlets. We still keep IIv.outlet / from / to populated so
+  // the Back button on the results view can carry it, but the tab itself
+  // always lands on the picker. Clear IIv.outlet so an already-opened
+  // results view doesn't flash before the display:none kicks in.
+  IIv.outlet = '';
+  IIv.from   = '';
+  IIv.to     = '';
+  if($('iiFormView'))    $('iiFormView').style.display    = '';
+  if($('iiResultsView')) $('iiResultsView').style.display = 'none';
+  if($('iiFormOutlet'))  $('iiFormOutlet').value = '';
+  if($('iiFormErr'))     $('iiFormErr').textContent = '';
 }
 
 async function iiSubmitForm(){
