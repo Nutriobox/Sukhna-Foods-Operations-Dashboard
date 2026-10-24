@@ -257,11 +257,15 @@ async function runCostingReport({ report, headers, colmap }) {
   //
   // 2026-10-24 (Satvik): PACT's Process Flow Report ships its data columns
   // keyed by opaque hashes like "C2d5a5a8e333842e483179f38b98765b9" instead
-  // of readable captions, which left every data cell null in the parser. We
-  // now scan each response for a SCHEMA table (fewer rows, has Caption /
-  // ColumnID-shaped keys) alongside the data, and when found use it to
-  // rename the data table's keys to the captions the colmap expects.
-  let best = null, bestSchema = null, fallback = null, seen = 0;
+  // of readable captions. Verified from the live response:
+  //   • json.Columns      = [[hash0, hash1, ..., hash43]]   (positional ids)
+  //   • json.ColumnsTypes = [[type0, type1, ..., type43]]   (positional types)
+  //   • The captions themselves are NOT in the JSON — they live in the
+  //     rendered grid's <th> cells on the report page.
+  // After the report renders, grabCaptionsFromGrid() reads the grid headers
+  // and we zip them with bestColumnIds to build hash->caption, then apply
+  // it to the data before buildResolvers runs.
+  let best = null, bestSchema = null, bestColumnIds = null, fallback = null, seen = 0;
   const isSchemaTable = (t) => {
     if (!Array.isArray(t) || !t.length || t.length > 300) return false;
     const row0 = t[0] || {};
@@ -347,6 +351,12 @@ async function runCostingReport({ report, headers, colmap }) {
       if (isRealReport(t) && (!best || t.length > best.length)) {
         best = t;
         if (schemaHere) bestSchema = schemaHere;
+        // Store the positional id list travelling in json.Columns[0] so
+        // we can later zip it with the grid's visible captions.
+        if (json && Array.isArray(json.Columns) && Array.isArray(json.Columns[0])
+            && json.Columns[0].length === Object.keys(t[0]).length) {
+          bestColumnIds = json.Columns[0].slice();
+        }
         const sampleKeys = Object.keys(t[0]).slice(0, 6);
         const sampleVals = sampleKeys.map((k) => k.slice(0, 10) + '=' + String(t[0][k]).slice(0, 24)).join(' | ');
         log('[capture] REAL table -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols');
@@ -362,6 +372,74 @@ async function runCostingReport({ report, headers, colmap }) {
       const topKeys = Object.keys(json).slice(0, 10);
       log('[json] top-level keys: ' + topKeys.join(',') + ' | Tables.len=' + tables.length);
     }
+  };
+
+  // Pull the visible column captions from the report's grid header. PACT's
+  // response omits them (only hash IDs come across), so the only reliable
+  // source is the rendered DOM. We prefer <th> cells that live under the
+  // report body (not the global SearchByPage header); fall back to any
+  // non-empty <th>. Returns an array in the grid's column order.
+  const grabCaptionsFromGrid = async () => {
+    try {
+      const caps = await page.evaluate(() => {
+        // Candidate header containers, in rough preference order. The report
+        // page uses angular-material-style grids where columnheader is on a
+        // <th>, <mat-header-cell>, or an element with [role="columnheader"].
+        const roots = [
+          '.report-body table thead',
+          '.report-container table thead',
+          'mat-table mat-header-row',
+          '[role="rowgroup"] [role="row"]:first-child',
+          'table thead',
+          'thead',
+        ];
+        for (const sel of roots) {
+          const root = document.querySelector(sel);
+          if (!root) continue;
+          const cells = [...root.querySelectorAll('th, mat-header-cell, [role="columnheader"]')];
+          const texts = cells.map((c) => (c.innerText || c.textContent || '').replace(/\s+/g, ' ').trim())
+            .filter((t) => t && t.length < 80);
+          if (texts.length >= 6) return { sel, texts };
+        }
+        // Last-ditch: every <th> on the page, filtered.
+        const all = [...document.querySelectorAll('th, mat-header-cell, [role="columnheader"]')];
+        const texts = all.map((c) => (c.innerText || c.textContent || '').replace(/\s+/g, ' ').trim())
+          .filter((t) => t && t.length < 80 && !/^(check|select all|action|edit|delete)$/i.test(t));
+        return { sel: '*', texts };
+      });
+      log('[grid] caption sel=' + caps.sel + ' count=' + caps.texts.length
+        + ' | first: ' + caps.texts.slice(0, 12).join(' | '));
+      return caps.texts;
+    } catch (e) {
+      log('[grid] caption extract failed: ' + String(e.message).slice(0, 120));
+      return [];
+    }
+  };
+
+  // Rename columns in a captured table using a zip of PACT's positional
+  // column-id list and the grid's visible captions. Falls through to the
+  // schema-mapping path when a schema table was found instead.
+  const applyPositionalMapping = (data, ids, captions) => {
+    if (!data || !ids || !captions || !ids.length || !captions.length) return data;
+    // The grid may have an extra leading "#" / selector column that the data
+    // doesn't carry — if captions is one longer than ids, drop the first.
+    let caps = captions.slice();
+    if (caps.length === ids.length + 1) caps = caps.slice(1);
+    const n = Math.min(ids.length, caps.length);
+    const map = new Map();
+    for (let i = 0; i < n; i++) {
+      const id = String(ids[i] || '').trim();
+      const cap = String(caps[i] || '').trim();
+      if (id && cap) map.set(id, cap);
+    }
+    if (!map.size) return data;
+    log('[grid] positional mapping -> ' + map.size + ' entries. sample: '
+      + [...map.entries()].slice(0, 8).map(([k, v]) => k.slice(0, 10) + '->' + v).join(' | '));
+    return data.map((row) => {
+      const out = {};
+      for (const k of Object.keys(row)) out[map.get(k) || k] = row[k];
+      return out;
+    });
   };
 
   // Rename columns in a captured table from PACT's opaque hash IDs to
@@ -521,9 +599,23 @@ async function runCostingReport({ report, headers, colmap }) {
       throw new Error('No real ReportDataSet data captured for "' + report + '" (ReportDataSet responses seen=' + seen + ', min rows required=' + MIN_REAL_ROWS + ').' + fbInfo + ' Likely: PACT returned only an init stub — the OK/Refresh click never triggered the real report, or the double-click opened the wrong page.');
     }
 
-    // Rename hash-keyed columns to the captions the colmap understands, when
-    // a schema travelled with the data (Process Flow Report 2026-10-24).
-    const src = bestSchema ? applySchemaMapping(best, bestSchema) : best;
+    // Rename hash-keyed columns to the captions the colmap understands. Two
+    // paths available depending on what PACT shipped:
+    //   1. PACT bundled a schema table alongside the data (BOM, PM, SI) — use
+    //      applySchemaMapping (handles both {ColumnID, Caption}[] shape and
+    //      plain {hash: caption} object maps).
+    //   2. PACT ships only positional ids in json.Columns and leaves the
+    //      captions in the DOM (Process Flow 2026-10-24) — grab the grid's
+    //      <th> captions and zip them with bestColumnIds.
+    let src = best;
+    if (bestSchema) {
+      src = applySchemaMapping(src, bestSchema);
+    } else if (bestColumnIds && bestColumnIds.length) {
+      const gridCaptions = await grabCaptionsFromGrid();
+      if (gridCaptions.length >= Math.min(6, bestColumnIds.length)) {
+        src = applyPositionalMapping(src, bestColumnIds, gridCaptions);
+      }
+    }
     log('[report] captured ' + src.length + ' rows, keys: ' + Object.keys(src[0]).slice(0, 12).join(','));
     const resolvers = buildResolvers(headers, colmap, src.slice(0, 50));
     const unresolved = headers.filter((h) => !resolvers[h]);
