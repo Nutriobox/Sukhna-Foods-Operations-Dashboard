@@ -748,7 +748,6 @@
 
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
      <button class="btn prim" onclick="iiSubmitForm()" style="padding:10px 22px">OK</button>
-     <button class="btn" onclick="iiOpenSavedListPrompt()" title="View, re-import or delete inventories saved earlier. Protected — enter the password to continue.">🗂 Saved inventories</button>
      <span id="iiFormErr" class="mut" style="font-size:12.5px;color:#b91c1c"></span>
     </div>
    </div>
@@ -774,6 +773,7 @@
     <input id="qIi" class="search" placeholder="Search RM code or name…" oninput="renderIi()" style="min-width:220px">
     <button class="btn" onclick="exportCsvIi()">⬇ Export CSV</button>
     <button class="btn prim" onclick="iiSavePrompt()" title="Save this snapshot (Opening + Purchase + Consumption + Variance + Closing per RM) to the cloud. Password protected.">💾 Save</button>
+    <button class="btn" onclick="iiOpenSavedListPrompt()" title="View, re-import or delete inventories saved earlier. Protected — enter the password to continue.">🗂 Saved</button>
     <span id="syncStatIi" class="mut" style="font-size:12.5px"></span>
     <span class="mut" style="font-size:12.5px;margin-left:auto">Source: Opening Inventory + GRNs + Sales × BOM + Wastage submissions + Adjusted Variance</span>
    </div>
@@ -2766,22 +2766,25 @@ function oiBuildItemsFromRm(){
 // Called from selTab('oi') — resets the view to the form on first entry, keeps whatever
 // state the user had after. Pre-fills datetime with "now" so the common case is one click.
 function oiOnTabEnter(){
-  // If a count is in progress, keep showing it; otherwise show the form.
-  if(!OI.outlet){
-    $('oiFormView').style.display = '';
-    $('oiCountView').style.display = 'none';
-    // Pre-fill datetime with the current local time (truncated to minute).
-    const dt = new Date();
-    dt.setSeconds(0, 0);
-    // yyyy-MM-ddTHH:mm — what <input type=datetime-local> expects
-    const pad = (n) => String(n).padStart(2, '0');
-    const local = dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
-    if(!$('oiFormDt').value) $('oiFormDt').value = local;
-    $('oiFormErr').textContent = '';
-    // Fetch + render the saved-counts list under the form on every tab entry
-    // so returning to the form after a save shows the new row immediately.
-    oiListLoad();
-  }
+  // 2026-10-24 (Satvik): every entry resets to the picker — bouncing to
+  // another tab and back must always start fresh. We clear OI.outlet so
+  // the countView stays hidden regardless of prior state, and reset the
+  // dropdown + datetime so the manager picks consciously.
+  OI.outlet = '';
+  OI.dtIso  = '';
+  $('oiFormView').style.display = '';
+  $('oiCountView').style.display = 'none';
+  if($('oiFormOutlet')) $('oiFormOutlet').value = '';
+  // Pre-fill datetime with the current local time (truncated to minute).
+  const dt = new Date();
+  dt.setSeconds(0, 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  const local = dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+  if($('oiFormDt')) $('oiFormDt').value = local;
+  if($('oiFormErr')) $('oiFormErr').textContent = '';
+  // Fetch + render the saved-counts list under the form on every tab entry
+  // so returning to the form after a save shows the new row immediately.
+  oiListLoad();
   if(CURTAB === 'oi') updateHeaderStats();
 }
 
@@ -3250,26 +3253,22 @@ function rmLooseToggle(rmCode, level){
 // ------- Form helpers -------
 
 function cnOnTabEnter(){
-  // Default landing: form view. Keep whatever outlet / dates the user picked
-  // last time so bouncing back doesn't force a re-pick.
-  if(!CN.outlet){
-    $('cnFormView').style.display = '';
-    $('cnResultsView').style.display = 'none';
-    // Pre-fill To with "now" and From with "today 8am IST" so a first-time
-    // visitor can just click OK and see today's consumption.
-    const pad = (n) => String(n).padStart(2, '0');
-    const toLocal = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    const now = new Date();
-    if(!$('cnFormTo').value)   $('cnFormTo').value   = toLocal(now);
-    if(!$('cnFormFrom').value){
-      const s = new Date(now); s.setHours(8, 0, 0, 0);
-      $('cnFormFrom').value = toLocal(s);
-    }
-  } else {
-    // Already have a selection — show the results view immediately.
-    $('cnFormView').style.display = 'none';
-    $('cnResultsView').style.display = '';
-    cnPaintContextPills();
+  // 2026-10-24 (Satvik): always land on the picker, never resume a prior
+  // query. Clear CN state so the Back button on the results view (which
+  // can also set this) doesn't trip the else-branch below.
+  CN.outlet = ''; CN.from = ''; CN.to = '';
+  $('cnFormView').style.display = '';
+  $('cnResultsView').style.display = 'none';
+  if($('cnFormOutlet')) $('cnFormOutlet').value = '';
+  // Pre-fill To with "now" and From with "today 8am IST" so a first-time
+  // visitor can just click OK and see today's consumption.
+  const pad = (n) => String(n).padStart(2, '0');
+  const toLocal = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const now = new Date();
+  if($('cnFormTo'))   $('cnFormTo').value   = toLocal(now);
+  if($('cnFormFrom')){
+    const s = new Date(now); s.setHours(8, 0, 0, 0);
+    $('cnFormFrom').value = toLocal(s);
   }
 }
 
@@ -3741,19 +3740,11 @@ function rcNowIst(){
 }
 
 function rcOnTabEnter(){
-  // Bounce straight to results when the user has already run RC in this session.
-  if(RC.outlet && RC.from && RC.to){
-    $('rcFormView').style.display = 'none';
-    $('rcResultsView').style.display = '';
-    if($('rcCtxFrom'))   $('rcCtxFrom').textContent   = (RC.from || '').replace('T', ' ');
-    if($('rcCtxTo'))     $('rcCtxTo').textContent     = (RC.to   || '').replace('T', ' ');
-    if($('rcCtxOutlet')) $('rcCtxOutlet').textContent = RC.outlet;
-    if($('rcFormOutlet')) $('rcFormOutlet').value = RC.outlet;
-    renderRc();
-  } else {
-    $('rcFormView').style.display = '';
-    $('rcResultsView').style.display = 'none';
-  }
+  // 2026-10-24 (Satvik): always land on the picker, never resume.
+  RC.outlet = ''; RC.from = ''; RC.to = '';
+  $('rcFormView').style.display = '';
+  $('rcResultsView').style.display = 'none';
+  if($('rcFormOutlet')) $('rcFormOutlet').value = '';
 }
 
 // Fetch the latest Opening Inventory count for a specific outlet.
@@ -4773,24 +4764,54 @@ function iiPurchaseFromDate(openingLocal){
 // mark for this RM. Returns { fullQty, fullUnit, looseQty, looseUnit } or null
 // shapes when a dimension doesn't apply.
 function iiSplitClosing(item, closingL1){
-  const levels = (typeof ldLevelsFor === 'function') ? ldLevelsFor(item.rm_code) : [];
-  // Pick the loose level (lowest wins if multiple marked, since L1 > L2 > L3 in granularity).
-  const loose = levels.includes('L1') ? 'L1' : (levels.includes('L2') ? 'L2' : (levels.includes('L3') ? 'L3' : null));
-  if(loose === 'L1'){
-    return { fullQty: null, fullUnit: '', looseQty: closingL1, looseUnit: item.l1_unit || '' };
+  // 2026-10-24 (Satvik): Full/Loose split now follows the item's PACKING UOM
+  // — the same unit the operator ordered in and the outlet manager counts
+  // in. For Chicken Nuggets (packing_uom = Container, which holds 15 Pcs
+  // of 35 Gms each), Full is reported in Containers and Loose in the base
+  // L1 unit (Gms). The old behaviour used the Loose Denomination mark
+  // (ldLevelsFor), which gave the correct split for some items but left
+  // Full in an intermediate level (Pkt) for others instead of the top
+  // packaging level (Bunch, Container).
+  return iiSplitByPackingUom(item, closingL1);
+}
+
+// Shared split helper used by iiSplitClosing (live table) and iiSplitForView
+// (snapshot / Variance View modal). Expects item.packing_uom + l1/l2/l3_unit
+// + packScale/caseScale. If packing_uom doesn't name any of the three
+// levels, falls through to the top-most defined level so Full is still
+// at the highest packaging grain the RM master knows about.
+function iiSplitByPackingUom(item, l1){
+  const n = Number(l1 || 0);
+  const packLc = String(item.packing_uom || '').toLowerCase().trim();
+  const l1Lc   = String(item.l1_unit     || '').toLowerCase().trim();
+  const l2Lc   = String(item.l2_unit     || '').toLowerCase().trim();
+  const l3Lc   = String(item.l3_unit     || '').toLowerCase().trim();
+  const packScale = Number(item.packScale) || 0;
+  const caseScale = Number(item.caseScale) || 0;
+
+  // Determine which level packing_uom corresponds to.
+  let targetLevel = null;
+  if(packLc && packLc === l3Lc && caseScale > 0)      targetLevel = 'L3';
+  else if(packLc && packLc === l2Lc && packScale > 0) targetLevel = 'L2';
+  else if(packLc && packLc === l1Lc)                  targetLevel = 'L1';
+  // Fallback: no packing_uom match → use highest available.
+  else if(caseScale > 0)                              targetLevel = 'L3';
+  else if(packScale > 0)                              targetLevel = 'L2';
+  else                                                targetLevel = 'L1';
+
+  if(targetLevel === 'L1'){
+    // Nothing above L1 — the whole figure is Loose, no Full column.
+    return { fullQty: null, fullUnit: '', looseQty: n, looseUnit: item.l1_unit || '' };
   }
-  if(loose === 'L2' && item.packScale > 0){
-    const full = Math.floor(closingL1 / item.packScale);
-    const rem  = closingL1 - full * item.packScale;
+  if(targetLevel === 'L2'){
+    const full = Math.trunc(n / packScale);
+    const rem  = n - full * packScale;
     return { fullQty: full, fullUnit: item.l2_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
   }
-  if(loose === 'L3' && item.caseScale > 0){
-    const full = Math.floor(closingL1 / item.caseScale);
-    const rem  = closingL1 - full * item.caseScale;
-    return { fullQty: full, fullUnit: item.l3_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
-  }
-  // No loose mark set — show the straight L1 figure in Full, dash in Loose.
-  return { fullQty: closingL1, fullUnit: item.l1_unit || '', looseQty: null, looseUnit: '' };
+  // L3
+  const full = Math.trunc(n / caseScale);
+  const rem  = n - full * caseScale;
+  return { fullQty: full, fullUnit: item.l3_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
 }
 
 function iiSetField(code, field, value){
@@ -5113,46 +5134,27 @@ async function iiLoadOnHandForOutlet(outlet){
   } catch(_){ /* leave maps empty */ }
 }
 
-// Split an L1 figure into (full, loose) using the item's level units + the
-// Loose Denomination mark saved on the snapshot. Mirrors iiSplitClosing but
-// works off a snapshot item (which carries packScale/caseScale/l1_unit/
-// l2_unit/l3_unit directly) and signs the loose remainder to match the
-// Full value for a negative input (so a shortfall of -1,500 Gms shows as
-// -1 Kg / -500 Gms, not -1 Kg / 500 Gms).
+// Variance View modal split — mirrors iiSplitClosing's packing_uom logic so
+// Ideal and On Hand Full columns both land in the item's packaging unit
+// (Bunch, Container, Bottle, etc.) instead of an intermediate level. Signs
+// the loose remainder so negatives show as "-1 Kg / -500 Gms" rather than
+// "-1 Kg / 500 Gms". 2026-10-24: dropped the full_unit-saved cascade — the
+// snapshot's packing_uom is now the single source of truth for the split.
 function iiSplitForView(item, l1){
   const n = Number(l1 || 0);
   const abs = Math.abs(n);
   const sign = n < 0 ? -1 : 1;
-  const l1Unit = item.l1_unit || '';
-  const l2Unit = item.l2_unit || '';
-  const l3Unit = item.l3_unit || '';
-  const packScale = Number(item.packScale) || 0;
-  const caseScale = Number(item.caseScale) || 0;
-  // Loose level mark lives on the RM master, which the snapshot doesn't carry
-  // per-item. We fall back to the item's own full_unit (if set at save time)
-  // to decide which level the Full column is in; if that's not available we
-  // use L2 if we have a packScale, else L1.
-  const savedFullUnit = String(item.full_unit || '').toLowerCase().trim();
-  let fullDivisor = 0;
-  let fullUnit = l1Unit;
-  if(savedFullUnit && savedFullUnit === String(l3Unit).toLowerCase() && caseScale){
-    fullDivisor = caseScale; fullUnit = l3Unit;
-  } else if(savedFullUnit && savedFullUnit === String(l2Unit).toLowerCase() && packScale){
-    fullDivisor = packScale; fullUnit = l2Unit;
-  } else if(savedFullUnit && savedFullUnit === String(l1Unit).toLowerCase()){
-    // L1 mark — no further "full" level above
-    return { fullQty: null, fullUnit: '', looseQty: n, looseUnit: l1Unit };
-  } else if(caseScale){
-    fullDivisor = caseScale; fullUnit = l3Unit;
-  } else if(packScale){
-    fullDivisor = packScale; fullUnit = l2Unit;
+  const split = iiSplitByPackingUom(item, abs);
+  // No Full level (L1 or no packing_uom match) → mirror the sign onto Loose.
+  if(split.fullQty == null){
+    return { fullQty: null, fullUnit: '', looseQty: n, looseUnit: split.looseUnit };
   }
-  if(!fullDivisor){
-    return { fullQty: n, fullUnit: l1Unit, looseQty: null, looseUnit: '' };
-  }
-  const full  = Math.floor(abs / fullDivisor);
-  const loose = abs - full * fullDivisor;
-  return { fullQty: full * sign, fullUnit, looseQty: loose * sign, looseUnit: l1Unit };
+  return {
+    fullQty:   split.fullQty  * sign,
+    fullUnit:  split.fullUnit,
+    looseQty:  split.looseQty * sign,
+    looseUnit: split.looseUnit,
+  };
 }
 
 function iiFmtVarCell(qtyVal, unitLabel){
