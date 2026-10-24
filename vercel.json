@@ -5,8 +5,12 @@
       "schedule": "20 * * * *"
     },
     {
-      "path": "/api/sync-costing?report=pf,si",
-      "schedule": "15 */6 * * *"
+      "path": "/api/sync-costing?report=pf",
+      "schedule": "15 * * * *"
+    },
+    {
+      "path": "/api/sync-costing?report=si",
+      "schedule": "25 */6 * * *"
     }
   ]
 }

@@ -57,28 +57,94 @@ const fmtDate = (d) => d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.get
 function istRange(daysBack) {
   const now = new Date(Date.now() + 5.5 * 3600 * 1000);
   const from = new Date(now.getTime() - daysBack * 86400 * 1000);
-  return { fromStr: fmtDate(from), toStr: fmtDate(now) };
+  const iso = (d) => d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+  return { fromStr: fmtDate(from), toStr: fmtDate(now), fromISO: iso(from), toISO: iso(now) };
 }
 // Best-effort: fill the report's From/To date fields, and RETURN what fields
 // exist (so the log reveals the exact fields + their format even if the guess
-// misses). Tries id/placeholder/name matches first, then two date-looking inputs.
-async function setDateRange(page, fromStr, toStr) {
-  return await page.evaluate(({ fromStr, toStr }) => {
-    const setV = (el, val) => { const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; s.call(el, val); ['input', 'change', 'keyup', 'blur'].forEach((t) => el.dispatchEvent(new Event(t, { bubbles: true }))); };
+// misses). Writes the value in multiple formats so PACT's picker (which may
+// expect "DD MMM YYYY", "DD/MM/YYYY" or ISO) binds to at least one. Verifies
+// the stored value after dispatching events — if the picker reset the field
+// (common on bound widgets that reject out-of-pattern input), we try the next
+// format. Returns the format that actually stuck for each field.
+async function setDateRange(page, fromDisplay, toDisplay, fromISO, toISO) {
+  return await page.evaluate(({ fromDisplay, toDisplay, fromISO, toISO }) => {
+    const setV = (el, val) => {
+      const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      s.call(el, val);
+      ['input', 'change', 'keyup', 'blur'].forEach((t) => el.dispatchEvent(new Event(t, { bubbles: true })));
+    };
+    // Try several candidate formats in order; keep the first one the input
+    // actually retains after the events fire. PACT's angular-material pickers
+    // routinely reject "DD MMM YYYY" and bind "DD/MM/YYYY" (verified 2026-10-24
+    // for the Process Flow Report parameter screen).
+    const trySet = (el, variants) => {
+      for (const v of variants) {
+        try { setV(el, v); } catch { continue; }
+        // Read back — if the picker rewrote it (whitespace, slashes, blank), skip.
+        const after = (el.value || '').trim();
+        if (after && after.replace(/\s+/g, '').length >= 6) return v + ' -> ' + after;
+      }
+      return null;
+    };
+    const dmy  = (iso) => { const [y, m, d] = iso.split('-'); return d + '/' + m + '/' + y; };
+    const dmyD = (iso) => { const [y, m, d] = iso.split('-'); return d + '-' + m + '-' + y; };
+    const fromVariants = [fromDisplay, dmy(fromISO), dmyD(fromISO), fromISO];
+    const toVariants   = [toDisplay,   dmy(toISO),   dmyD(toISO),   toISO];
+
     const inputs = [...document.querySelectorAll('input')];
-    // Full dump of the report screen so the real date UI is visible in the log.
-    const allInputs = inputs.slice(0, 30).map((i) => ({ id: i.id || '', ph: i.placeholder || '', nm: i.name || '', ty: i.type || '', v: (i.value || '').slice(0, 16) }));
-    const selects = [...document.querySelectorAll('select')].slice(0, 12).map((s) => ({ id: s.id || '', nm: s.name || '', v: (s.value || '').slice(0, 16) }));
-    const dateEls = [...document.querySelectorAll('label,span,div,button,th,td,a,mat-label')].map((e) => ({ tag: e.tagName, t: (e.innerText || '').trim() }))
-      .filter((x) => x.t && x.t.length < 30 && /from|to date|todate|date|period|w\.?e\.?f|as on|calendar|duration|financial|month|year/i.test(x.t))
-      .filter((v, i, a) => a.findIndex((z) => z.t === v.t) === i).slice(0, 20);
-    const looksDate = (i) => /date|from|to|frm|dt|period/i.test((i.id || '') + (i.placeholder || '') + (i.name || '')) || i.type === 'date' || /\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '');
+    // Full dump so the log shows the real date UI even if the match misses.
+    const allInputs = inputs.slice(0, 30).map((i) => ({
+      id: i.id || '', ph: i.placeholder || '', nm: i.name || '', ty: i.type || '',
+      v: (i.value || '').slice(0, 24),
+    }));
+    const selects = [...document.querySelectorAll('select')].slice(0, 12).map((s) => ({
+      id: s.id || '', nm: s.name || '', v: (s.value || '').slice(0, 24),
+    }));
+
+    // Score each input by how likely it is to be the From or To date. Highest
+    // signal wins. Running the match over a RANK rather than first-wins avoids
+    // picking up unrelated inputs ("to" in "customer").
+    const tag = (i) => ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '') + ' ' + (i.getAttribute('ng-reflect-name') || '')).toLowerCase();
+    const rankFrom = (i) => {
+      const s = tag(i);
+      let r = 0;
+      if (/\bfromdate\b|\bdtfrom\b|\bdatefrom\b|\btxtfromdate\b|\bfrmdt\b/.test(s)) r += 10;
+      if (/\b(from|frm|w\.?e\.?f|start)\b/.test(s)) r += 4;
+      if (i.type === 'date')                        r += 2;
+      if (/\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '')) r += 1;
+      return r;
+    };
+    const rankTo = (i) => {
+      const s = tag(i);
+      let r = 0;
+      if (/\btodate\b|\bdtto\b|\bdateto\b|\btxttodate\b|\btodt\b|\btill\b|\bupto\b/.test(s)) r += 10;
+      if (/(^|[^a-z])(to|till|upto|end)([^a-z]|$)/.test(s) && !/from/.test(s)) r += 4;
+      if (i.type === 'date')                        r += 2;
+      if (/\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '')) r += 1;
+      return r;
+    };
+    const fromCands = inputs.map((i, idx) => ({ i, idx, r: rankFrom(i) })).filter((x) => x.r > 0).sort((a, b) => b.r - a.r);
+    const toCands   = inputs.map((i, idx) => ({ i, idx, r: rankTo(i)   })).filter((x) => x.r > 0 && !fromCands.some((f) => f.idx === x.idx)).sort((a, b) => b.r - a.r);
+
     let fromSet = null, toSet = null;
-    for (const i of inputs) { const tag = ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '')).toLowerCase(); if (fromSet === null && /(from|frm)/.test(tag)) { setV(i, fromStr); fromSet = i.id || i.placeholder || 'from'; } }
-    for (const i of inputs) { const tag = ((i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.name || '')).toLowerCase(); if (toSet === null && /(^|[^a-z])(to|till|upto)([^a-z]|$)/.test(tag) && !/from/.test(tag)) { setV(i, toStr); toSet = i.id || i.placeholder || 'to'; } }
-    if (fromSet === null || toSet === null) { const di = inputs.filter(looksDate); if (di.length >= 2) { if (fromSet === null) { setV(di[0], fromStr); fromSet = 'pos0'; } if (toSet === null) { setV(di[1], toStr); toSet = 'pos1'; } } }
-    return { totalInputs: inputs.length, allInputs, selects, dateEls, fromSet, toSet };
-  }, { fromStr, toStr });
+    if (fromCands[0]) {
+      const r = trySet(fromCands[0].i, fromVariants);
+      if (r) fromSet = (fromCands[0].i.id || fromCands[0].i.placeholder || ('pos' + fromCands[0].idx)) + ' <- ' + r;
+    }
+    if (toCands[0]) {
+      const r = trySet(toCands[0].i, toVariants);
+      if (r) toSet = (toCands[0].i.id || toCands[0].i.placeholder || ('pos' + toCands[0].idx)) + ' <- ' + r;
+    }
+    // Fallback: two date-looking inputs by position if ranks found nothing.
+    if (fromSet === null || toSet === null) {
+      const looksDate = (i) => /date|from|to|frm|dt|period/i.test(tag(i)) || i.type === 'date' || /\d{1,2}[ /-]\w{2,3}[ /-]\d{2,4}/.test(i.value || '');
+      const di = inputs.filter(looksDate);
+      if (fromSet === null && di[0]) { const r = trySet(di[0], fromVariants); if (r) fromSet = 'pos0 <- ' + r; }
+      if (toSet   === null && di[1]) { const r = trySet(di[1], toVariants);   if (r) toSet   = 'pos1 <- ' + r; }
+    }
+    return { totalInputs: inputs.length, allInputs, selects, fromSet, toSet };
+  }, { fromDisplay, toDisplay, fromISO, toISO });
 }
 
 // A ReportDataSet table is "real report data" only if its first row has more than
@@ -257,11 +323,11 @@ async function runCostingReport({ report, headers, colmap }) {
     let dateDiag = '';
     if (DATE_DAYS[report]) {
       await page.waitForTimeout(2500); // let the report/parameter screen render
-      const { fromStr, toStr } = istRange(DATE_DAYS[report]);
+      const { fromStr, toStr, fromISO, toISO } = istRange(DATE_DAYS[report]);
       try {
-        const dr = await setDateRange(page, fromStr, toStr);
+        const dr = await setDateRange(page, fromStr, toStr, fromISO, toISO);
         dateDiag = ('range ' + fromStr + '->' + toStr + ' from=' + dr.fromSet + ' to=' + dr.toSet + ' nIn=' + dr.totalInputs
-          + ' | IN=' + JSON.stringify(dr.allInputs) + ' | DATEELS=' + JSON.stringify(dr.dateEls) + ' | SEL=' + JSON.stringify(dr.selects)).slice(0, 1800);
+          + ' | IN=' + JSON.stringify(dr.allInputs) + ' | SEL=' + JSON.stringify(dr.selects)).slice(0, 2000);
         log('[date] ' + dateDiag);
       } catch (e) { dateDiag = 'date set error: ' + String(e.message).slice(0, 120); log('[date] ' + dateDiag); }
       await page.waitForTimeout(1000);
