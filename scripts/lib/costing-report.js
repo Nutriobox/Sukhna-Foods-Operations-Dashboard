@@ -234,7 +234,7 @@ async function clickFirst(page, factories, label, timeout) {
   return false;
 }
 
-async function runCostingReport({ report, headers, colmap }) {
+async function runCostingReport({ report, headers, colmap, hashCaptionMap }) {
   const fail = async (msg) => {
     log('SYNC FAILED: ' + msg.slice(0, 300));
     await writeSnapshot({ report, synced_at: new Date().toISOString(), row_count: 0, source: 'pact-browserdrive', status: 'failed', error: (msg + '\n--- log ---\n' + logTail()).slice(0, 3500), data: [] });
@@ -599,24 +599,51 @@ async function runCostingReport({ report, headers, colmap }) {
       throw new Error('No real ReportDataSet data captured for "' + report + '" (ReportDataSet responses seen=' + seen + ', min rows required=' + MIN_REAL_ROWS + ').' + fbInfo + ' Likely: PACT returned only an init stub — the OK/Refresh click never triggered the real report, or the double-click opened the wrong page.');
     }
 
-    // Rename hash-keyed columns to the captions the colmap understands. Two
+    // Rename hash-keyed columns to the captions the colmap understands. Three
     // paths available depending on what PACT shipped:
-    //   1. PACT bundled a schema table alongside the data (BOM, PM, SI) — use
-    //      applySchemaMapping (handles both {ColumnID, Caption}[] shape and
-    //      plain {hash: caption} object maps).
-    //   2. PACT ships only positional ids in json.Columns and leaves the
-    //      captions in the DOM (Process Flow 2026-10-24) — grab the grid's
-    //      <th> captions and zip them with bestColumnIds.
+    //   1. The report script passed hashCaptionMap — a hardcoded dictionary
+    //      of known hash -> caption pairs (Process Flow, where PACT ships
+    //      only positional hashes and the grid is virtualised so DOM
+    //      capture is unreliable). Applied first; untranslated keys fall
+    //      through to the next path.
+    //   2. PACT bundled a schema table alongside the data (BOM, PM, SI) —
+    //      use applySchemaMapping (both {ColumnID, Caption}[] and plain
+    //      {hash: caption} map shapes handled).
+    //   3. PACT ships only positional ids in json.Columns and leaves the
+    //      captions in the DOM — grab <th> captions and zip them with
+    //      bestColumnIds.
     let src = best;
+    const dumpFirstRowFull = () => {
+      try {
+        const row0 = src[0] || {};
+        const entries = Object.entries(row0);
+        const dump = entries.map(([k, v]) => k.slice(0, 10) + '=' + String(v === null ? 'null' : v).slice(0, 20)).join(' | ');
+        log('[sample] row0 FULL (' + entries.length + ' cols): ' + dump.slice(0, 2500));
+      } catch (e) { /* ignore */ }
+    };
+    if (hashCaptionMap && typeof hashCaptionMap === 'object') {
+      const keys = Object.keys(hashCaptionMap);
+      log('[hardcoded] applying ' + keys.length + ' hash->caption entries');
+      src = src.map((row) => {
+        const out = {};
+        for (const k of Object.keys(row)) out[hashCaptionMap[k] || k] = row[k];
+        return out;
+      });
+    }
     if (bestSchema) {
       src = applySchemaMapping(src, bestSchema);
     } else if (bestColumnIds && bestColumnIds.length) {
-      const gridCaptions = await grabCaptionsFromGrid();
-      if (gridCaptions.length >= Math.min(6, bestColumnIds.length)) {
-        src = applyPositionalMapping(src, bestColumnIds, gridCaptions);
+      // Only run DOM-caption fallback for columns still keyed by a hash.
+      const stillHashed = Object.keys(src[0]).some((k) => /^C[0-9a-f]{32}/i.test(k));
+      if (stillHashed) {
+        const gridCaptions = await grabCaptionsFromGrid();
+        if (gridCaptions.length >= Math.min(6, bestColumnIds.length)) {
+          src = applyPositionalMapping(src, bestColumnIds, gridCaptions);
+        }
       }
     }
-    log('[report] captured ' + src.length + ' rows, keys: ' + Object.keys(src[0]).slice(0, 12).join(','));
+    log('[report] captured ' + src.length + ' rows, keys: ' + Object.keys(src[0]).slice(0, 20).join(','));
+    dumpFirstRowFull();
     const resolvers = buildResolvers(headers, colmap, src.slice(0, 50));
     const unresolved = headers.filter((h) => !resolvers[h]);
     if (unresolved.length) log('[colmap] WARNING unresolved: ' + unresolved.join(', '));
