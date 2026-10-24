@@ -254,20 +254,86 @@ async function runCostingReport({ report, headers, colmap }) {
   //   `best`     — the largest table that passes isRealReport (>=10 rows).
   //   `fallback` — the largest table that is at least usable (>1 col, not stub)
   //                — used only if nothing bigger ever arrives.
-  let best = null, fallback = null, seen = 0;
+  //
+  // 2026-10-24 (Satvik): PACT's Process Flow Report ships its data columns
+  // keyed by opaque hashes like "C2d5a5a8e333842e483179f38b98765b9" instead
+  // of readable captions, which left every data cell null in the parser. We
+  // now scan each response for a SCHEMA table (fewer rows, has Caption /
+  // ColumnID-shaped keys) alongside the data, and when found use it to
+  // rename the data table's keys to the captions the colmap expects.
+  let best = null, bestSchema = null, fallback = null, seen = 0;
+  const isSchemaTable = (t) => {
+    if (!Array.isArray(t) || !t.length || t.length > 300) return false;
+    const row0 = t[0] || {};
+    const keys = Object.keys(row0);
+    // A schema row typically carries both a column identifier and a
+    // human caption. Match generously — PACT has used ColumnID, ColumnId,
+    // Name, DataField, FieldName, Alias in various reports.
+    const hasId      = keys.some((k) => /^(columnid|columnname|name|datafield|fieldname|alias|id)$/i.test(k));
+    const hasCaption = keys.some((k) => /^(caption|header|headertext|displayname|label|title)$/i.test(k));
+    return hasId && hasCaption;
+  };
   const consider = (body) => {
     if (!body || body.length < 120) return;
     let json; try { json = JSON.parse(body); } catch { return; }
     const tables = (json && json.Tables) || [];
+    // Log any schema-shaped tables so we can see what fields they carry.
+    let schemaHere = null;
+    for (const t of tables) {
+      if (isSchemaTable(t)) {
+        schemaHere = t;
+        const sample = t[0] || {};
+        log('[schema] candidate -> ' + t.length + ' rows, keys: ' + Object.keys(sample).join(',')
+          + ' | row[0]=' + JSON.stringify(sample).slice(0, 400));
+      }
+    }
     for (const t of tables) {
       if (isRealReport(t) && (!best || t.length > best.length)) {
         best = t;
+        if (schemaHere) bestSchema = schemaHere;
+        const sampleKeys = Object.keys(t[0]).slice(0, 6);
+        const sampleVals = sampleKeys.map((k) => k.slice(0, 10) + '=' + String(t[0][k]).slice(0, 24)).join(' | ');
         log('[capture] REAL table -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols');
+        log('[capture] sample row0: ' + sampleVals);
       } else if (isUsableReport(t) && (!fallback || t.length > fallback.length)) {
         fallback = t;
         log('[capture] fallback stub -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols');
       }
     }
+    // Also log top-level JSON shape when nothing resolved — useful if the
+    // schema travels in a sibling key instead of a Tables entry.
+    if (!best && json && typeof json === 'object') {
+      const topKeys = Object.keys(json).slice(0, 10);
+      log('[json] top-level keys: ' + topKeys.join(',') + ' | Tables.len=' + tables.length);
+    }
+  };
+
+  // Rename columns in a captured table from PACT's opaque hash IDs to
+  // human captions, using a schema table that carries both. Returns the
+  // same table reference with renamed keys when a mapping is found, or
+  // the input unchanged when no schema is available.
+  const applySchemaMapping = (data, schema) => {
+    if (!data || !schema || !schema.length) return data;
+    const row0 = schema[0] || {};
+    const keys = Object.keys(row0);
+    const idKey = keys.find((k) => /^(columnid|columnname|name|datafield|fieldname|alias|id)$/i.test(k));
+    const capKey = keys.find((k) => /^(caption|header|headertext|displayname|label|title)$/i.test(k));
+    if (!idKey || !capKey) return data;
+    const map = new Map();
+    for (const r of schema) {
+      const id = String(r[idKey] == null ? '' : r[idKey]).trim();
+      const cap = String(r[capKey] == null ? '' : r[capKey]).trim();
+      if (id && cap) map.set(id, cap);
+    }
+    if (!map.size) return data;
+    log('[schema] applying mapping, ' + map.size + ' entries. sample: '
+      + [...map.entries()].slice(0, 5).map(([k, v]) => k.slice(0, 10) + '->' + v).join(' | '));
+    const renamed = data.map((row) => {
+      const out = {};
+      for (const k of Object.keys(row)) out[map.get(k) || k] = row[k];
+      return out;
+    });
+    return renamed;
   };
   await page.route(/\/api\/Report\/ReportDataSet/i, async (route) => {
     if (route.request().method() !== 'POST') return route.continue().catch(() => {});
@@ -399,8 +465,10 @@ async function runCostingReport({ report, headers, colmap }) {
       throw new Error('No real ReportDataSet data captured for "' + report + '" (ReportDataSet responses seen=' + seen + ', min rows required=' + MIN_REAL_ROWS + ').' + fbInfo + ' Likely: PACT returned only an init stub — the OK/Refresh click never triggered the real report, or the double-click opened the wrong page.');
     }
 
-    const src = best;
-    log('[report] captured ' + src.length + ' rows, keys: ' + Object.keys(src[0]).slice(0, 10).join(','));
+    // Rename hash-keyed columns to the captions the colmap understands, when
+    // a schema travelled with the data (Process Flow Report 2026-10-24).
+    const src = bestSchema ? applySchemaMapping(best, bestSchema) : best;
+    log('[report] captured ' + src.length + ' rows, keys: ' + Object.keys(src[0]).slice(0, 12).join(','));
     const resolvers = buildResolvers(headers, colmap, src.slice(0, 50));
     const unresolved = headers.filter((h) => !resolvers[h]);
     if (unresolved.length) log('[colmap] WARNING unresolved: ' + unresolved.join(', '));
