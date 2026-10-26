@@ -401,7 +401,7 @@ let FINAL={};try{FINAL=JSON.parse(localStorage.getItem('final_price')||'{}');}ca
 function finalBase(code){const cd=String(code==null?'':code).trim(),e=(D.conv||{})[cd];if(!e)return null;const pm=rbase(e),l=lppOk(cd);
  if(FINAL[cd]!=null&&FINAL[cd]>0)return {rb:FINAL[cd],src:'edited',pm,lp:l?l[0]:null};
  if(l&&l[0]>pm)return {rb:l[0],src:'lpp',pm,lp:l[0]};return {rb:pm,src:'pm',pm,lp:l?l[0]:null};}
-function setFinal(code,v){if(v==null||v===''||isNaN(+v)||+v<=0)delete FINAL[code];else FINAL[code]=+v;try{localStorage.setItem('final_price',JSON.stringify(FINAL));}catch(e){}bump();}
+function setFinal(code,v){if(v==null||v===''||isNaN(+v)||+v<=0)delete FINAL[code];else FINAL[code]=+v;try{localStorage.setItem('final_price',JSON.stringify(FINAL));}catch(e){}if(typeof syncOverride==='function')syncOverride('final_price');bump();}
 function unitRate(name,code,unit,opts){const cd=String(code==null?'':code).trim(),e=(D.conv||{})[cd],useMax=!(opts&&opts.pmOnly);
  if(e){const [f,how]=baseFactor(e,unit,name),bu=baseU(e),u=unit||bu;let rb=rbase(e),src='',ed=false;const fb=useMax?finalBase(cd):null;
   if(fb){if(fb.src==='edited'){src=' [FINAL PRICE edited by you: ₹'+nfmt4(fb.rb)+' per '+bu+' (PM ₹'+nfmt4(fb.pm)+(fb.lp?', last purchase ₹'+nfmt4(fb.lp):'')+')]';rb=fb.rb;ed=true;}
@@ -432,6 +432,7 @@ function productKind(code,e){const g=e?(e[9]||''):'';if(g==='Factory')return 'fa
 let APPR={};try{APPR=JSON.parse(localStorage.getItem('bom_approved')||'{}');}catch(e){APPR={};}
 const isApproved=code=>!!APPR[code];
 function toggleApprove(code){if(APPR[code])delete APPR[code];else APPR[code]=new Date().toISOString();try{localStorage.setItem('bom_approved',JSON.stringify(APPR));}catch(e){}
+ if(typeof syncOverride==='function')syncOverride('bom_approved');
  const r=D.recipes.find(x=>x.code===code);if(r){const g=document.querySelector('#bomtbl tr.grp[data-code="'+cssEsc(code)+'"]');if(g){g.outerHTML=bomGrpRow(r,computeIdeal(r));}}
  markDirty();DIRTY[CUR]=0;if(CUR==='sum')renderSum();if(CUR==='ai')renderAI();renderRem();}
 const apprText=code=>APPR[code]?('Approved '+fmtD(APPR[code].slice(0,10))):'';
@@ -442,6 +443,7 @@ function setWtOvr(code,v){
   const n=+v;
   if(v===''||v==null||isNaN(n)||n<=0)delete WT_OVR[code];else WT_OVR[code]=n;
   try{localStorage.setItem('bom_wt_ovr',JSON.stringify(WT_OVR));}catch(e){}
+  if(typeof syncOverride==='function')syncOverride('bom_wt_ovr');
   if(typeof bump==='function')bump();     // invalidate computeIdeal cache
   markDirty();DIRTY[CUR]=0;refresh();
 }
@@ -449,19 +451,91 @@ function setSpkOvr(code,v){
   const n=+v;
   if(v===''||v==null||isNaN(n))delete SPK_OVR[code];else SPK_OVR[code]=n;
   try{localStorage.setItem('bom_spk_ovr',JSON.stringify(SPK_OVR));}catch(e){}
+  if(typeof syncOverride==='function')syncOverride('bom_spk_ovr');
   if(typeof bump==='function')bump();
   markDirty();DIRTY[CUR]=0;refresh();
 }
-// --- Active / Inactive BOM flag (dashboard-only, per-device) ----
+// --- Active / Inactive BOM flag ----
 let ACTIVE={};try{ACTIVE=JSON.parse(localStorage.getItem('bom_active')||'{}');}catch(e){ACTIVE={};}
 const isActive=code=>ACTIVE[code]!==false;   // default true until you turn it off
 function toggleActive(code){
   if(ACTIVE[code]===false)delete ACTIVE[code]; else ACTIVE[code]=false;
   try{localStorage.setItem('bom_active',JSON.stringify(ACTIVE));}catch(e){}
+  syncOverride('bom_active');
   const r=D.recipes.find(x=>x.code===code);
   if(r){const g=document.querySelector('#bomtbl tr.grp[data-code="'+cssEsc(code)+'"]');if(g)g.outerHTML=bomGrpRow(r,computeIdeal(r));}
   markDirty();DIRTY[CUR]=0;if(CUR==='sum')renderSum();if(CUR==='ai')renderAI();renderRem();
 }
+
+// ---------- Cross-device sync for FINAL / APPR / ACTIVE / WT_OVR / SPK_OVR ----
+// Until 2026-10-26 these five maps lived only in localStorage, so an
+// Approve / Mark Inactive / Wt-override made on one laptop never reached
+// another. This block rounds-trips them through /api/costing-overrides so
+// every laptop pulls the shared state on load and pushes its edits back.
+// localStorage stays in play as a working cache (keeps the dashboard
+// snappy and lets edits made while offline queue for the next push).
+//
+// Design: push is per-namespace, 400 ms debounced so a burst of toggles
+// collapses into one request. Pull runs on page load, when the browser
+// tab regains focus (so switching between the two laptops picks up the
+// other's edits immediately), and after every successful push (to
+// surface the server's post-merge timestamp back to the user).
+const SYNC_NS = {
+  bom_approved: () => APPR,
+  bom_active:   () => ACTIVE,
+  bom_wt_ovr:   () => WT_OVR,
+  bom_spk_ovr:  () => SPK_OVR,
+  final_price:  () => FINAL,
+};
+const _syncTimers = {};
+let _syncLastPull = 0;
+function syncOverride(key){
+  if(!SYNC_NS[key]) return;
+  clearTimeout(_syncTimers[key]);
+  _syncTimers[key] = setTimeout(() => {
+    const data = SYNC_NS[key]();
+    fetch('/api/costing-overrides', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: key, data: data || {}, updated_by: 'costing-dashboard' }),
+      cache: 'no-store',
+    }).catch(() => {
+      // Offline / 500 — leave the localStorage copy in place and
+      // retry on the next edit for this namespace.
+    });
+  }, 400);
+}
+async function pullOverrides(){
+  try {
+    const r = await fetch('/api/costing-overrides', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok || !j.overrides) return;
+    const o = j.overrides;
+    let changed = false;
+    if(o.bom_approved && typeof o.bom_approved === 'object'){ APPR   = o.bom_approved; try{localStorage.setItem('bom_approved',JSON.stringify(APPR));}catch(e){} changed = true; }
+    if(o.bom_active   && typeof o.bom_active   === 'object'){ ACTIVE = o.bom_active;   try{localStorage.setItem('bom_active',  JSON.stringify(ACTIVE));}catch(e){} changed = true; }
+    if(o.bom_wt_ovr   && typeof o.bom_wt_ovr   === 'object'){ WT_OVR = o.bom_wt_ovr;   try{localStorage.setItem('bom_wt_ovr',  JSON.stringify(WT_OVR));}catch(e){} changed = true; }
+    if(o.bom_spk_ovr  && typeof o.bom_spk_ovr  === 'object'){ SPK_OVR= o.bom_spk_ovr;  try{localStorage.setItem('bom_spk_ovr', JSON.stringify(SPK_OVR));}catch(e){} changed = true; }
+    if(o.final_price  && typeof o.final_price  === 'object'){ FINAL  = o.final_price;  try{localStorage.setItem('final_price', JSON.stringify(FINAL));}catch(e){} changed = true; }
+    if(changed){
+      if(typeof bump === 'function') bump();
+      // Re-render the current tab AND the two the shared state most often
+      // feeds (BOM group rows, Summary rows) so a laptop that just opened
+      // sees the other laptop's edits immediately.
+      if(typeof markDirty === 'function') markDirty();
+      if(typeof DIRTY === 'object'){ for(const k in DIRTY) DIRTY[k] = 1; }
+      if(typeof refresh === 'function') refresh(true);
+    }
+    _syncLastPull = Date.now();
+  } catch(_){ /* keep whatever's in localStorage */ }
+}
+// Re-pull when the tab regains focus — covers the "edited on laptop A,
+// switched to laptop B" case without needing an explicit reload.
+window.addEventListener('focus', () => {
+  // Rate-limit to one pull every 10 s to avoid hammering the server if
+  // the user is alt-tabbing rapidly between tabs.
+  if(Date.now() - _syncLastPull > 10000) pullOverrides();
+});
 const SEC={};
 function secRow(tbl,sec,label,cols){const open=!!SEC[tbl+'|'+sec];return `<tr class="grp secrow" data-sec="${sec}" onclick="secClick('${tbl}','${sec}',this)" ondblclick="secDbl('${tbl}','${sec}',this)"><td colspan="${cols}">${open?'▼':'▶'} ${label} — <small>${open?'click to close':'click / double-click to open'}</small></td></tr>`;}
 function secClick(tbl,sec,tr){clearTimeout(tr._t);tr._t=setTimeout(()=>toggleSec(tbl,sec),260);}
@@ -1577,7 +1651,7 @@ function migrateData(){let changed=0;
   else r.st.forEach(s=>s.i.forEach(it=>{if(it[4]==='W')return;const bk=isPkg(it[0],it[6])?'P':'F';if(it[4]!==bk){it[4]=bk;changed++;}}));});
  D.ver=DATA_VER;return changed;}
 function hasWarehouse(){return Object.values(D.conv||{}).some(e=>e&&e[10]);}
-IDB.get().then(v=>{if(v){try{D=JSON.parse(v);NAMECONV=null;const n=(D.ver!==DATA_VER)?migrateData():0;backfillData();rebuildIdx();bump();fillDates();renderSyncStat();refresh(true);if(n)toast('Synced data upgraded: '+n+' BOM lines re-classified Food / Packing (stage rule).',6000);}catch(e){}}}).finally(()=>{liveSyncPull(['pm','bom']);});
+IDB.get().then(v=>{if(v){try{D=JSON.parse(v);NAMECONV=null;const n=(D.ver!==DATA_VER)?migrateData():0;backfillData();rebuildIdx();bump();fillDates();renderSyncStat();refresh(true);if(n)toast('Synced data upgraded: '+n+' BOM lines re-classified Food / Packing (stage rule).',6000);}catch(e){}}}).finally(()=>{liveSyncPull(['pm','bom']);pullOverrides();});
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
