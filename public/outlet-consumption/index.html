@@ -6128,6 +6128,46 @@ function renderVa(){
   }).join('');
 }
 
+// Helper used by vaApprove: pull the latest portal Submit-On-Hand for
+// an outlet, filtered to submissions whose dt_iso is >= windowFrom (so
+// a stale submission from a previous window doesn't leak into this
+// snapshot's variance calc). Returns { qty, qty_loose } maps or empty
+// maps if nothing matches. Mirrors iiLoadOnHandForOutlet's logic.
+async function vaLatestPortalOnHand(outlet, windowFrom){
+  if(!outlet) return { qty: {}, qty_loose: {} };
+  try {
+    const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok || !Array.isArray(j.counts)) return { qty: {}, qty_loose: {} };
+    const portalCounts = j.counts.filter(c => typeof c.created_by === 'string' && c.created_by.startsWith('portal:'));
+    const pick = portalCounts.length ? portalCounts[0] : null;
+    if(!pick) return { qty: {}, qty_loose: {} };
+    if(windowFrom && pick.dt_iso && String(pick.dt_iso) < String(windowFrom)) return { qty: {}, qty_loose: {} };
+    const r2 = await fetch('/api/opening-inventory?id=' + encodeURIComponent(pick.id), { cache: 'no-store' });
+    const j2 = await r2.json();
+    if(!r2.ok || !j2.ok || !j2.count) return { qty: {}, qty_loose: {} };
+    return { qty: j2.count.qty || {}, qty_loose: j2.count.qty_loose || {} };
+  } catch(_){ return { qty: {}, qty_loose: {} }; }
+}
+
+// Same shape as vaLatestPortalOnHand, but reads outlet_wastage_counts.
+async function vaLatestPortalWastage(outlet, windowFrom){
+  if(!outlet) return { qty: {}, qty_loose: {} };
+  try {
+    const r = await fetch('/api/outlet-wastage?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok || !Array.isArray(j.counts)) return { qty: {}, qty_loose: {} };
+    const portalCounts = j.counts.filter(c => typeof c.created_by === 'string' && c.created_by.startsWith('portal:'));
+    const pick = portalCounts.length ? portalCounts[0] : null;
+    if(!pick) return { qty: {}, qty_loose: {} };
+    if(windowFrom && pick.dt_iso && String(pick.dt_iso) < String(windowFrom)) return { qty: {}, qty_loose: {} };
+    const r2 = await fetch('/api/outlet-wastage?id=' + encodeURIComponent(pick.id), { cache: 'no-store' });
+    const j2 = await r2.json();
+    if(!r2.ok || !j2.ok || !j2.count) return { qty: {}, qty_loose: {} };
+    return { qty: j2.count.qty || {}, qty_loose: j2.count.qty_loose || {} };
+  } catch(_){ return { qty: {}, qty_loose: {} }; }
+}
+
 async function vaApprove(id, outletLabel){
   // First pass gating: shared password 1122. Replace with email-OTP once
   // the provider + recipient are settled with Satvik.
@@ -6136,14 +6176,65 @@ async function vaApprove(id, outletLabel){
   if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
   const by = 'password-approver (OTP TBD)';
   try {
+    // Approval does three things in one PATCH:
+    //   1. Stamp approved_at + approved_by (existing behaviour).
+    //   2. Overwrite each item's wastage_l1 with the LATEST portal
+    //      wastage submission for this outlet (if the portal has one).
+    //   3. Set each item's adjusted_variance_l1 to the live Variance:
+    //      ideal − on-hand − wastage. This is what makes the modal's
+    //      "Adjusted Variance" column light up after approval.
+    //
+    // The complex packing_uom conversion lives on the client, so we do
+    // the math here and send the server a sparse { rm_code: {wastage_l1,
+    // adjusted_variance_l1 } } map. The server merges it into the
+    // snapshot's items array atomically with the approval stamp.
+    const snap = await iiFetchSnapshotById(id);
+    const items = Array.isArray(snap && snap.items) ? snap.items : [];
+    if(!items.length) throw new Error('Snapshot has no items');
+    const [oh, wa] = await Promise.all([
+      vaLatestPortalOnHand(snap.outlet || outletLabel, snap.window_from || null),
+      vaLatestPortalWastage(snap.outlet || outletLabel, snap.window_from || null),
+    ]);
+    const ohQty      = oh.qty       || {};
+    const ohLoose    = oh.qty_loose || {};
+    const waQty      = wa.qty       || {};
+    const waLoose    = wa.qty_loose || {};
+    const item_updates = {};
+    let withPortalWaste = 0;
+    for(const it of items){
+      const code = String(it.rm_code || '');
+      if(!code) continue;
+      // Wastage: prefer the portal submission; fall back to whatever the
+      // snapshot already had so an un-touched RM keeps its Save-time value.
+      const wPack  = Number(waQty[code])   || 0;
+      const wLoose = Number(waLoose[code]) || 0;
+      const hasPortalW = Boolean(wPack || wLoose);
+      const wasteL1 = hasPortalW
+        ? iiOpeningToL1(it, wPack, wLoose)
+        : Number(it.wastage_l1 || 0);
+      if(hasPortalW) withPortalWaste++;
+      // On-hand: zero if the outlet hasn't submitted for this RM.
+      const ohPack  = Number(ohQty[code])   || 0;
+      const ohLsx   = Number(ohLoose[code]) || 0;
+      const onHandL1 = (ohPack || ohLsx) ? iiOpeningToL1(it, ohPack, ohLsx) : 0;
+      // Ideal + Variance.
+      const idealL1    = Number(it.opening_l1 || 0) + Number(it.purchase_l1 || 0) - Number(it.consumption_l1 || 0);
+      const varianceL1 = idealL1 - onHandL1 - wasteL1;
+      const upd = { adjusted_variance_l1: varianceL1 };
+      if(hasPortalW) upd.wastage_l1 = wasteL1;
+      item_updates[code] = upd;
+    }
     const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', approved_by: by }),
+      body: JSON.stringify({ action: 'approve', approved_by: by, item_updates: item_updates }),
     });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    toast('Approved snapshot for ' + outletLabel, 3000);
+    const bits = ['Approved snapshot for ' + outletLabel];
+    if(withPortalWaste) bits.push('portal wastage applied for ' + withPortalWaste + ' RM' + (withPortalWaste === 1 ? '' : 's'));
+    bits.push('Adjusted Variance set on ' + items.length + ' row' + (items.length === 1 ? '' : 's'));
+    toast(bits.join(' · '), 4500);
     await loadVa(true);
   } catch(e){
     toast('Approve failed: ' + (e.message || e), 5000);

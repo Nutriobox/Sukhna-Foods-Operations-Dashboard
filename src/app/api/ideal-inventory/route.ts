@@ -215,12 +215,25 @@ export async function POST(req: Request) {
 
 /**
  * PATCH /api/ideal-inventory?id=<uuid>
- *   body: { action: "approve", approved_by?: string }  -> stamp approved_at
- *   body: { action: "unapprove" }                       -> clear approved_at
- * Email-OTP integration is a follow-up — for now the Variance tab gates
- * this behind the same shared password it uses for Save/Delete. Keeping
- * approved_at + approved_by on the snapshot row means approvals survive
- * dashboard restarts and show up on the Variance tab's Status column.
+ *   body: { action: "approve",   approved_by?: string, item_updates?: {...} } -> stamp approved_at + merge updates
+ *   body: { action: "unapprove"                                            } -> clear approved_at
+ *
+ * item_updates (optional, only honoured when action === "approve") lets the
+ * client write per-RM wastage_l1 and adjusted_variance_l1 into the snapshot
+ * atomically with the approval stamp. Shape:
+ *   { "<rm_code>": { wastage_l1?: number, adjusted_variance_l1?: number }, ... }
+ * The server fetches the snapshot's items array, overlays the two fields on
+ * the matching rm_code rows (leaving every other item field intact), writes
+ * the merged items array back, and stamps approved_at + approved_by in the
+ * same PATCH call. RMs the map doesn't name are untouched.
+ *
+ * The complex packing_uom / loose-denomination math lives in the browser
+ * (iiOpeningToL1 depends on ldLevelsFor which only loads on the client), so
+ * the client is the single source of truth for the L1 figures; the server's
+ * job here is just to persist what the client decided.
+ *
+ * Email-OTP integration is still a follow-up — for now the Variance tab
+ * gates this behind the shared password used for Save/Delete.
  */
 export async function PATCH(req: Request) {
   const { url, key } = sbEnv();
@@ -228,19 +241,64 @@ export async function PATCH(req: Request) {
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400, headers: CORS });
 
-  let body: { action?: unknown; approved_by?: unknown };
-  try { body = await req.json(); }
+  type ItemUpdate  = { wastage_l1?: number; adjusted_variance_l1?: number };
+  type SnapItem    = { rm_code?: string; wastage_l1?: number; adjusted_variance_l1?: number; [k: string]: unknown };
+  type PatchBody   = { action?: unknown; approved_by?: unknown; item_updates?: Record<string, ItemUpdate> };
+
+  let body: PatchBody;
+  try { body = (await req.json()) as PatchBody; }
   catch { return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400, headers: CORS }); }
 
   const action = typeof body.action === "string" ? body.action.trim() : "";
   const approvedBy = typeof body.approved_by === "string" ? body.approved_by.slice(0, 120) : null;
+  const itemUpdates: Record<string, ItemUpdate> = (action === "approve" && body.item_updates && typeof body.item_updates === "object")
+    ? body.item_updates : {};
+  const hasItemUpdates = Object.keys(itemUpdates).length > 0;
 
-  const patch: Record<string, string | null> = { updated_at: new Date().toISOString() };
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (action === "approve")        { patch.approved_at = new Date().toISOString(); patch.approved_by = approvedBy; }
   else if (action === "unapprove") { patch.approved_at = null;                     patch.approved_by = null; }
   else return NextResponse.json({ ok: false, error: "action must be 'approve' or 'unapprove'" }, { status: 400, headers: CORS });
 
   try {
+    // Fold item_updates into the snapshot's items array before PATCHing.
+    // Done as a GET → merge → PATCH round-trip. Supabase's PostgREST
+    // doesn't support partial jsonb-array edits per element, so we
+    // overwrite the full items[] with the merged version. The window
+    // between read and write is a few hundred ms — safe for an
+    // admin-only approval flow where concurrent writes aren't expected.
+    if (hasItemUpdates) {
+      const gr = await fetch(
+        `${url}/rest/v1/ideal_inventory_snapshots?select=items&id=eq.${encodeURIComponent(id)}`,
+        { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
+      );
+      if (!gr.ok) {
+        const t = await gr.text().catch(() => "");
+        return NextResponse.json({ ok: false, error: `Supabase read ${gr.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
+      }
+      const gRows = (await gr.json()) as Array<{ items: SnapItem[] | null }>;
+      if (!gRows[0]) return NextResponse.json({ ok: false, error: "snapshot not found" }, { status: 404, headers: CORS });
+      const items = Array.isArray(gRows[0].items) ? gRows[0].items : [];
+      let touched = 0;
+      const merged = items.map((it) => {
+        const code = typeof it.rm_code === "string" ? it.rm_code : "";
+        const upd = itemUpdates[code];
+        if (!upd) return it;
+        touched++;
+        const next: SnapItem = { ...it };
+        if (typeof upd.wastage_l1          === "number" && isFinite(upd.wastage_l1))          next.wastage_l1          = Number(upd.wastage_l1.toFixed(4));
+        if (typeof upd.adjusted_variance_l1 === "number" && isFinite(upd.adjusted_variance_l1)) next.adjusted_variance_l1 = Number(upd.adjusted_variance_l1.toFixed(4));
+        return next;
+      });
+      patch.items = merged;
+      // Guard against malformed updates referencing RMs that aren't in
+      // this snapshot — surface a warning header rather than failing the
+      // whole approval, since the approval stamp itself is still correct.
+      if (touched === 0) {
+        return NextResponse.json({ ok: false, error: "item_updates referenced no rm_code present in this snapshot" }, { status: 400, headers: CORS });
+      }
+    }
+
     const r = await fetch(
       `${url}/rest/v1/ideal_inventory_snapshots?id=eq.${encodeURIComponent(id)}`,
       {
@@ -261,7 +319,13 @@ export async function PATCH(req: Request) {
     const rows = (await r.json()) as Array<{ id: string; approved_at: string | null; approved_by: string | null }>;
     const row = rows[0];
     if (!row) return NextResponse.json({ ok: false, error: "snapshot not found" }, { status: 404, headers: CORS });
-    return NextResponse.json({ ok: true, id: row.id, approved_at: row.approved_at, approved_by: row.approved_by }, { headers: CORS });
+    return NextResponse.json({
+      ok: true,
+      id: row.id,
+      approved_at: row.approved_at,
+      approved_by: row.approved_by,
+      items_updated: hasItemUpdates ? Object.keys(itemUpdates).length : 0,
+    }, { headers: CORS });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: CORS });
