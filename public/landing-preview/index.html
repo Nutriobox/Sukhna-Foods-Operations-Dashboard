@@ -44,12 +44,20 @@
     max-width:1400px; margin:0 auto 56px; text-align:center;
   }
   .header-logo{
-    width:72px; height:72px; border-radius:50%;
-    display:inline-flex; align-items:center; justify-content:center;
+    width:116px; height:116px; border-radius:50%;
+    display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
     background:linear-gradient(135deg,#fb923c,#f97316); color:#fff;
-    font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:22px;
+    font-family:'Plus Jakarta Sans',sans-serif;
     box-shadow:0 10px 30px -10px rgba(249,115,22,.5);
-    margin-bottom:20px; letter-spacing:-.02em;
+    margin-bottom:20px;
+    text-align:center; line-height:1.05;
+  }
+  .header-logo .logo-main{
+    font-weight:800; font-size:22px; letter-spacing:-.02em;
+  }
+  .header-logo .logo-sub{
+    font-weight:700; font-size:15px; letter-spacing:.14em;
+    text-transform:uppercase; margin-top:2px; opacity:.95;
   }
   .header h1{
     font-family:'Plus Jakarta Sans','Inter',sans-serif;
@@ -171,7 +179,10 @@
 <div class="preview-ribbon">Preview · not yet live</div>
 
 <header class="header">
-  <div class="header-logo">SF</div>
+  <div class="header-logo">
+    <span class="logo-main">Sukhna</span>
+    <span class="logo-sub">Foods</span>
+  </div>
   <h1>Sukhna Foods Operations</h1>
   <div class="sub">Choose what you&rsquo;d like to work on.</div>
 </header>
