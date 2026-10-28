@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <style>
   :root{
+    color-scheme:light;
     --bg:#f4f6fa;
     --bg2:#e9edf3;
     --ink:#0f172a;
@@ -19,14 +20,6 @@
     --shadow-md:0 1px 3px rgba(15,23,42,.08),0 20px 40px -24px rgba(15,23,42,.25);
     --shadow-lg:0 1px 3px rgba(15,23,42,.1),0 30px 60px -24px rgba(15,23,42,.35);
     --radius:16px;
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      --bg:#0b1120; --bg2:#111827; --ink:#e5e7eb; --ink2:#9ca3af;
-      --muted:#6b7280; --line:#1f2937; --card:#111827;
-      --shadow-md:0 1px 3px rgba(0,0,0,.4),0 20px 40px -24px rgba(0,0,0,.6);
-      --shadow-lg:0 1px 3px rgba(0,0,0,.5),0 30px 60px -24px rgba(0,0,0,.7);
-    }
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
@@ -162,23 +155,6 @@
   .tile.salary        { --go:#4338ca; }
   .tile.salary .tile-band      { background:linear-gradient(90deg,#4f46e5 0%,#818cf8 100%); }
   .tile.salary .tile-ic        { background:#e0e7ff; color:#4338ca; }
-
-  @media (prefers-color-scheme: dark){
-    .tile.bill .tile-ic        { background:rgba(251,191,36,.15); color:#fbbf24; }
-    .tile.sales-create .tile-ic{ background:rgba(16,185,129,.15); color:#34d399; }
-    .tile.dispatch .tile-ic    { background:rgba(96,165,250,.15); color:#60a5fa; }
-    .tile.scan .tile-ic        { background:rgba(167,139,250,.15); color:#a78bfa; }
-    .tile.costing .tile-ic     { background:rgba(248,113,113,.15); color:#f87171; }
-    .tile.consumption .tile-ic { background:rgba(45,212,191,.15); color:#2dd4bf; }
-    .tile.salary .tile-ic      { background:rgba(129,140,248,.15); color:#818cf8; }
-    .tile.bill         { --go:#fbbf24; }
-    .tile.sales-create { --go:#34d399; }
-    .tile.dispatch     { --go:#60a5fa; }
-    .tile.scan         { --go:#a78bfa; }
-    .tile.costing      { --go:#f87171; }
-    .tile.consumption  { --go:#2dd4bf; }
-    .tile.salary       { --go:#818cf8; }
-  }
 
   .footer-note{
     max-width:1400px; margin:48px auto 0;
