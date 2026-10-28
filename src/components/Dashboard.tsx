@@ -1698,6 +1698,13 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
           <span className="tile-meta">Shared PACT product master</span>
           <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
         </a>
+        <a className="tile salary" href="/salary/index.html">
+          <span className="tile-ic"><Icon n="rupee" size={30} /></span>
+          <span className="tile-ttl">Salary Sheet</span>
+          <span className="tile-sub">Allsure salary structure &mdash; build take-home pay for an employee or import last month&rsquo;s register, generate slips, and keep every change saved in the shared cloud database.</span>
+          <span className="tile-meta">Shared · cloud-saved · PF &amp; ESIC aware</span>
+          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+        </a>
       </div>
     </div>
   );
