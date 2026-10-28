@@ -102,23 +102,47 @@ const COLMAP = {
   'Issue Qty':        ['Issue Qty','IssueQty'],
   // Backward-compat aliases for parsePF's legacy RM/PM/FG column names.
   //
-  // Critical mapping (verified 2026-10-24 after a full capture ran clean):
-  // PACT's Process Flow Report splits every batch event into ~8 legs per
-  // row (Request / Issue / Receipt / RMIssue / WIP / PMIssue / FG / Excess
-  // / Secondary / Scrap). Only one leg is populated per row.
-  //   - RM issuance rows: Request leg filled, Receipt/FG columns = null
-  //   - FG receipt rows:  Receipt leg filled, Request/Issue columns = null
-  // parsePF's FG detection ("fgq>0 && r[iFn]") only fires when the FG leg
-  // is populated — but PACT NEVER populates the dedicated FG leg; FG qty
-  // and doc number live in the Receipt leg instead. Map FG No -> Receipt
-  // No and FG Qty -> Receipt Qty so parsePF catches the batch's FG output.
+  // Mapping history:
+  //   2026-10-24: Mapped FG No -> Receipt No etc. because PACT NEVER
+  //   populates the dedicated FG leg; FG qty + doc number live in the
+  //   Receipt leg instead. That got parsePF to see FG output again.
+  //
+  //   2026-10-28 (Satvik, "wrong and incomplete data"): the Saturday
+  //   mapping over-captured — PACT's Receipt leg carries BOTH kinds of
+  //   voucher per row:
+  //     * On a Finished-Good row (Product Code like FG0*): Receipt leg
+  //       holds the real FG RECEIPT voucher (DCV / GRN against the FG).
+  //     * On a Raw-Material / Semi-Finished / Packing / WIP row
+  //       (Product Code like RM0*, SF*, PM0*, WP0*): Receipt leg holds
+  //       the CONSUMPTION voucher (DCV posting the RM/PM into the batch).
+  //   The old mapping captured both indiscriminately, so every batch's
+  //   "FG Qty" was being summed with the full RM + PM + WIP consumption
+  //   on top of the real FG receipt — inflating totals by several times
+  //   and burying the real FG receipt row in noise.
+  //
+  //   Fix: gate the FG* columns on the row's Product Code prefix. Only
+  //   rows that are plausibly FG receipts (anything NOT prefixed
+  //   RM/SF/PM/WP) populate the FG columns; RM/SF/PM/WP rows leave FG
+  //   empty, so parsePF's `fgq>0 && r[iFn]` detection fires only on
+  //   genuine FG receipt rows.
   'RM Units':         ['RM Units','Request Unit','RequestUnit'],
   'RM Qty':           ['RM Qty','Request Qty','RequestQty'],
   'PM Unit':          ['PM Unit','PMUnit','PackUnit'],
   'PM Qty':           ['PM Qty','PMQty','PackQty'],
-  'FG No':            ['Receipt No','FG No','Issue No','IssueNo'],
-  'FG Units':         ['Receipt Units','FG Units','Issue Units','IssueUnits'],
-  'FG Qty':           ['Receipt Qty','FG Qty','Issue Qty','IssueQty'],
+  'FG No':            (r) => _isFgRow(r) ? (r['Receipt No']    ?? r['FG No']    ?? '') : '',
+  'FG Units':         (r) => _isFgRow(r) ? (r['Receipt Units'] ?? r['FG Units'] ?? '') : '',
+  'FG Qty':           (r) => _isFgRow(r) ? Number(r['Receipt Qty'] ?? r['FG Qty'] ?? 0) || 0 : 0,
 };
+
+// Row-level predicate used by the FG* COLMAP entries above. Returns false
+// for rows whose Product Code marks them as RAW-material / SEMI-finished /
+// PACKAGING-material / WORK-in-progress lines inside the batch, because
+// their Receipt-leg voucher is a CONSUMPTION posting against the batch,
+// not a Finished-Good receipt. Everything else (FG0*, any output code
+// without a reserved prefix) is treated as a possible FG receipt row.
+function _isFgRow(r){
+  const code = String((r && (r['Product Code'] || r['ProductCode'] || r['Code'])) || '').trim().toUpperCase();
+  return !/^(RM|SF|PM|WP)\d*/.test(code);
+}
 
 runCostingReport({ report: 'pf', headers: HEADERS, colmap: COLMAP, hashCaptionMap: HASH_TO_CAPTION, positionalCaptions: POSITIONAL_CAPTIONS });
