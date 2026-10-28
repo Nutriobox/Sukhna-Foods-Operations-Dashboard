@@ -1646,64 +1646,154 @@ function SalesOrderScan({ onClose }: { onClose?: () => void }) {
   );
 }
 
+// Inline SVG icons for the landing-page tiles.  Chosen to match each tool's
+// actual work (receipt for bills, clipboard for order creation, truck for
+// dispatch, barcode bars for the scanner, rising bar chart for costing,
+// stacked boxes for inventory, person + ₹ for salary).  Rendered as plain
+// SVG — the global CSS at .tile-ic svg sets stroke:currentColor, width,
+// height and stroke-width, so each path/circle inherits the tile's hue.
+const TileSvg = {
+  bill: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M5 3h11a2 2 0 0 1 2 2v16l-2.5-1.5L13 21l-2.5-1.5L8 21l-2.5-1.5L3 21V5a2 2 0 0 1 2-2z"/>
+      <path d="M8 9h7"/><path d="M8 12h7"/><path d="M8 15h3"/>
+    </svg>
+  ),
+  clipboard: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1z"/>
+      <path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/>
+      <path d="M9 11h6"/><path d="M9 15h6"/><path d="M9 19h3"/>
+    </svg>
+  ),
+  truck: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M1 7h13v10H1z"/>
+      <path d="M14 10h4l3 3v4h-7"/>
+      <circle cx="6" cy="18" r="2"/>
+      <circle cx="17.5" cy="18" r="2"/>
+    </svg>
+  ),
+  barcode: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M3 5v14"/>
+      <path d="M6 5v14" strokeWidth={2.5}/>
+      <path d="M9 5v14"/>
+      <path d="M12 5v14" strokeWidth={2.5}/>
+      <path d="M15 5v14"/>
+      <path d="M18 5v14" strokeWidth={2.5}/>
+      <path d="M21 5v14"/>
+    </svg>
+  ),
+  chart: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M3 21h18"/><path d="M6 17v-5"/><path d="M10 17V9"/>
+      <path d="M14 17v-7"/><path d="M18 17V5"/>
+    </svg>
+  ),
+  boxes: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M12 2l9 5v10l-9 5-9-5V7l9-5z"/>
+      <path d="M3 7l9 5 9-5"/>
+      <path d="M12 12v10"/>
+    </svg>
+  ),
+  salary: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <circle cx="9" cy="7" r="3.5"/>
+      <path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7"/>
+      <path d="M15 7h5"/><path d="M15 10h5"/>
+      <path d="M15.5 7c0 2.5 2 3.5 4 3.5l-3 3.5"/>
+    </svg>
+  ),
+  arrow: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M5 12h14M13 6l6 6-6 6"/>
+    </svg>
+  ),
+};
+
 function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "salesorder") => void; counts: { bills: number; so: number } }) {
   return (
     <div className="home">
       <div className="home-head">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="home-logo" src="/logo.png" alt="Sukhna Foods" />
+        <div className="home-logo" aria-label="Sukhna Foods">
+          <span className="logo-main">Sukhna</span>
+          <span className="logo-sub">Foods</span>
+        </div>
         <h1>Sukhna Foods Operations</h1>
         <p>Choose what you&rsquo;d like to work on.</p>
       </div>
       <div className="tiles">
         <button className="tile stock" onClick={() => onOpen("stock")}>
-          <span className="tile-ic"><Icon n="inbox" size={30} /></span>
-          <span className="tile-ttl">Stock Inward &amp; Bill Uploader</span>
-          <span className="tile-sub">Review incoming bills, verify entries, print PACT labels and push stock inward.</span>
-          <span className="tile-meta">{counts.bills} bill{counts.bills === 1 ? "" : "s"} in inbox</span>
-          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.bill}</span>
+            <span className="tile-ttl">Stock Inward &amp; Bill Uploader</span>
+            <span className="tile-sub">Review incoming bills, verify entries, print PACT labels and push stock inward.</span>
+            <span className="tile-meta">{counts.bills} bill{counts.bills === 1 ? "" : "s"} in inbox</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
         </button>
         <button className="tile sales" onClick={() => onOpen("sales")}>
-          <span className="tile-ic"><Icon n="file" size={30} /></span>
-          <span className="tile-ttl">Sales Order Creation</span>
-          <span className="tile-sub">Upload a sales order, view it full-screen in a table, and save it to your database.</span>
-          <span className="tile-meta">{counts.so} sales order{counts.so === 1 ? "" : "s"} saved</span>
-          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.clipboard}</span>
+            <span className="tile-ttl">Sales Order Creation</span>
+            <span className="tile-sub">Upload a sales order, view it full-screen in a table, and save it to your database.</span>
+            <span className="tile-meta">{counts.so} sales order{counts.so === 1 ? "" : "s"} saved</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
         </button>
         <a className="tile dispatch" href="/outlet-dispatch/index.html">
-          <span className="tile-ic"><Icon n="truck" size={30} /></span>
-          <span className="tile-ttl">Outlet Dispatch Tool</span>
-          <span className="tile-sub">Build the day&rsquo;s outlet dispatch challans and the PACT ERP upload from the order sheets. Fully manual.</span>
-          <span className="tile-meta">Manual · opens the dispatch app</span>
-          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.truck}</span>
+            <span className="tile-ttl">Outlet Dispatch Tool</span>
+            <span className="tile-sub">Build the day&rsquo;s outlet dispatch challans and the PACT ERP upload from the order sheets. Fully manual.</span>
+            <span className="tile-meta">Manual · opens the dispatch app</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
         </a>
         <button className="tile salesorder" onClick={() => onOpen("salesorder")}>
-          <span className="tile-ic"><Icon n="inbox" size={30} /></span>
-          <span className="tile-ttl">Sales Order</span>
-          <span className="tile-sub">Scan food-item barcodes (Honeywell) against live PACT inventory — batch, warehouse, quantity, price &amp; expiry per line.</span>
-          <span className="tile-meta">Barcode scan · live inventory</span>
-          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.barcode}</span>
+            <span className="tile-ttl">Sales Order</span>
+            <span className="tile-sub">Scan food-item barcodes (Honeywell) against live PACT inventory — batch, warehouse, quantity, price &amp; expiry per line.</span>
+            <span className="tile-meta">Barcode scan · live inventory</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
         </button>
         <a className="tile costing" href="/costing/index.html">
-          <span className="tile-ic"><Icon n="rupee" size={30} /></span>
-          <span className="tile-ttl">Factory Costing Dashboard</span>
-          <span className="tile-sub">Rates, ideal BOM costing, and actual batch costing built from PACT reports.</span>
-          <span className="tile-meta">Sync PACT reports</span>
-          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.chart}</span>
+            <span className="tile-ttl">Factory Costing Dashboard</span>
+            <span className="tile-sub">Rates, ideal BOM costing, and actual batch costing built from PACT reports.</span>
+            <span className="tile-meta">Sync PACT reports</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
         </a>
         <a className="tile consumption" href="/outlet-consumption/index.html">
-          <span className="tile-ic"><Icon n="file" size={30} /></span>
-          <span className="tile-ttl">Outlet Consumption</span>
-          <span className="tile-sub">PACT Product Master &mdash; browse, search and sync the single Product Master every tool reads from.</span>
-          <span className="tile-meta">Shared PACT product master</span>
-          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.boxes}</span>
+            <span className="tile-ttl">Outlet Consumption</span>
+            <span className="tile-sub">PACT Product Master &mdash; browse, search and sync the single Product Master every tool reads from.</span>
+            <span className="tile-meta">Shared PACT product master</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
         </a>
         <a className="tile salary" href="/salary/index.html">
-          <span className="tile-ic"><Icon n="rupee" size={30} /></span>
-          <span className="tile-ttl">Salary Sheet</span>
-          <span className="tile-sub">Allsure salary structure &mdash; build take-home pay for an employee or import last month&rsquo;s register, generate slips, and keep every change saved in the shared cloud database.</span>
-          <span className="tile-meta">Shared · cloud-saved · PF &amp; ESIC aware</span>
-          <span className="tile-go">Open <Icon n="arrowRight" size={15} /></span>
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.salary}</span>
+            <span className="tile-ttl">Salary Sheet</span>
+            <span className="tile-sub">Allsure salary structure &mdash; build take-home pay for an employee or import last month&rsquo;s register, generate slips, and keep every change saved in the shared cloud database.</span>
+            <span className="tile-meta">Shared · cloud-saved · PF &amp; ESIC aware</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
         </a>
       </div>
     </div>

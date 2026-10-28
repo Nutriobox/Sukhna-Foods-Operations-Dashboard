@@ -443,30 +443,53 @@
   .pmtable tr:hover td{background:var(--surface-2)}
   .pmmore{padding:12px 14px;text-align:center;color:var(--faint);font-size:12px}
 
-  /* ===== Home screen (two tiles) ===== */
-  .home{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;background:radial-gradient(1200px 600px at 50% -10%,var(--brand-soft),transparent 60%),var(--bg)}
-  .home-head{text-align:center;margin-bottom:38px}
-  .home-logo{height:56px;width:auto;object-fit:contain;margin-bottom:16px}
-  .home-head h1{font-size:30px;font-weight:800;color:var(--ink);letter-spacing:-.01em;margin:0}
-  .home-head p{font-size:15px;color:var(--muted);margin:8px 0 0}
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px;width:100%;max-width:1120px}
+  /* ===== Home screen (redesigned 2026-10-28 — rectangular aligned tiles,
+         per-tile hue, inline SVG icons matched to the real work) ===== */
+  .home{color-scheme:light;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 24px 80px;background:linear-gradient(180deg,#f4f6fa 0%,#e9edf3 100%)}
+  .home-head{max-width:1400px;margin:0 auto 48px;text-align:center}
+  .home-logo{width:116px;height:116px;border-radius:50%;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#fb923c,#f97316);color:#fff;font-family:'Plus Jakarta Sans','Inter',sans-serif;box-shadow:0 10px 30px -10px rgba(249,115,22,.5);margin-bottom:20px;text-align:center;line-height:1.05}
+  .home-logo .logo-main{font-weight:800;font-size:22px;letter-spacing:-.02em}
+  .home-logo .logo-sub{font-weight:700;font-size:15px;letter-spacing:.14em;text-transform:uppercase;margin-top:2px;opacity:.95}
+  .home-head h1{font-family:'Plus Jakarta Sans','Inter',sans-serif;font-size:34px;font-weight:800;letter-spacing:-.025em;line-height:1.15;color:#0f172a;margin:0}
+  .home-head p{color:#475569;font-size:15px;margin:10px 0 0}
+  .tiles{max-width:1400px;width:100%;margin:0 auto;display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  @media (min-width:1180px){.tiles{grid-template-columns:repeat(4,1fr)}}
   @media (max-width:720px){.tiles{grid-template-columns:1fr}}
-  .tile{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px 26px;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(15,23,42,.06);transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
-  .tile:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(15,23,42,.12);border-color:#c7ecdd}
-  .tile-ic{display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:15px;margin-bottom:6px}
-  .tile.stock .tile-ic{background:#e0f2fe}
-  .tile.stock .tile-ic svg{stroke:#0284c7}
-  .tile.sales .tile-ic{background:var(--brand-soft)}
-  .tile.sales .tile-ic svg{stroke:#059669}
-  a.tile{text-decoration:none;color:inherit}
-  .tile.dispatch .tile-ic{background:#fde7d6}
-  .tile.dispatch .tile-ic svg{stroke:#c2621a}
-  .tile-ttl{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
-  .tile-sub{font-size:13px;color:var(--muted);line-height:1.55;min-height:42px}
-  .tile-meta{font-size:12px;font-weight:700;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 12px}
-  .tile-go{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:13px;font-weight:800;color:#059669}
-  .tile-go svg{stroke:#059669;transition:transform .14s ease}
+  .tile{display:flex;flex-direction:column;background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 3px rgba(15,23,42,.06);overflow:hidden;cursor:pointer;font-family:inherit;color:inherit;text-align:left;padding:0;min-height:280px;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+  a.tile{text-decoration:none}
+  .tile:hover{transform:translateY(-4px);box-shadow:0 1px 3px rgba(15,23,42,.1),0 30px 60px -24px rgba(15,23,42,.35);border-color:transparent}
+  .tile-band{display:block;height:6px;width:100%}
+  .tile-body{padding:22px 22px 20px;display:flex;flex-direction:column;flex:1 1 auto}
+  .tile-ic{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:12px;margin:0 0 18px 0}
+  .tile-ic svg{width:28px;height:28px;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;fill:none}
+  .tile-ttl{font-family:'Plus Jakarta Sans','Inter',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.015em;line-height:1.3;margin-bottom:8px;color:#0f172a}
+  .tile-sub{color:#475569;font-size:13.5px;line-height:1.55;margin-bottom:14px}
+  .tile-meta{display:inline-flex;align-items:center;background:#e9edf3;color:#475569;font-size:12px;font-weight:500;padding:5px 10px;border-radius:999px;width:fit-content;margin-top:auto;margin-bottom:14px;border:none}
+  .tile-go{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--go,#059669)}
+  .tile-go svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:transform .14s ease}
   .tile:hover .tile-go svg{transform:translateX(3px)}
+  /* Per-tile hue — colored band + icon chip + arrow colour. */
+  .tile.stock{--go:#b45309}
+  .tile.stock .tile-band{background:linear-gradient(90deg,#f59e0b 0%,#fbbf24 100%)}
+  .tile.stock .tile-ic{background:#fef3c7;color:#b45309}
+  .tile.sales{--go:#047857}
+  .tile.sales .tile-band{background:linear-gradient(90deg,#059669 0%,#10b981 100%)}
+  .tile.sales .tile-ic{background:#d1fae5;color:#047857}
+  .tile.dispatch{--go:#1d4ed8}
+  .tile.dispatch .tile-band{background:linear-gradient(90deg,#2563eb 0%,#60a5fa 100%)}
+  .tile.dispatch .tile-ic{background:#dbeafe;color:#1d4ed8}
+  .tile.salesorder{--go:#6d28d9}
+  .tile.salesorder .tile-band{background:linear-gradient(90deg,#7c3aed 0%,#a78bfa 100%)}
+  .tile.salesorder .tile-ic{background:#ede9fe;color:#6d28d9}
+  .tile.costing{--go:#b91c1c}
+  .tile.costing .tile-band{background:linear-gradient(90deg,#dc2626 0%,#f87171 100%)}
+  .tile.costing .tile-ic{background:#fee2e2;color:#b91c1c}
+  .tile.consumption{--go:#0f766e}
+  .tile.consumption .tile-band{background:linear-gradient(90deg,#0d9488 0%,#2dd4bf 100%)}
+  .tile.consumption .tile-ic{background:#ccfbf1;color:#0f766e}
+  .tile.salary{--go:#4338ca}
+  .tile.salary .tile-band{background:linear-gradient(90deg,#4f46e5 0%,#818cf8 100%)}
+  .tile.salary .tile-ic{background:#e0e7ff;color:#4338ca}
 
   /* ===== Home button in topbar ===== */
   .homebtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink-2)}
@@ -680,12 +703,7 @@
 .flowhow span { font-size: 12px; line-height: 1.55; color: var(--ink); }
 
 /* ---- Sales Order — Scan & Inventory (4th tile + Item→Batch→Qty tree) ---- */
-.tile.salesorder .tile-ic { background: #ede9fe; }
-.tile.salesorder .tile-ic svg { stroke: #7c3aed; }
-.tile.costing .tile-ic { background: #fef3c7; }
-.tile.costing .tile-ic svg { stroke: #b45309; }
-.tile.consumption .tile-ic { background: #dbeafe; }
-.tile.consumption .tile-ic svg { stroke: #1d4ed8; }
+/* Per-tile hues now live in the main .home block above (2026-10-28). */
 .soscan { display: flex; flex-direction: column; gap: 16px; }
 .soscan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .soscan-head h2 { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
