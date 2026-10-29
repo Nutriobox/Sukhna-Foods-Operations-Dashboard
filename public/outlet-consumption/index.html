@@ -1660,14 +1660,25 @@ async function syncReport(report, btnId, statId, baselineAt, afterLoad){
       // 2) Did the worker mark this job (or the latest job for this
       //    report) as failed? sync-status is cheap, so we poll it on
       //    every tick alongside the snapshot check.
+      //
+      // 2026-10-29 (Satvik's #2 — "sync fail in another P.C."):
+      // when two laptops click sync near-simultaneously, the worker
+      // processes them sequentially. If job X (laptop A's) fails and
+      // writes updated_at = now, laptop B's sync-status poll sees X
+      // as "the latest for this invoice" and — because B.queuedAt is
+      // older than X's completion time — incorrectly flagged B's
+      // still-queued job as failed, aborting B's sync. Fix: when we
+      // have a jobId we only trust pact-job for THAT job and skip
+      // the sync-status fallback (which cannot tell our job apart
+      // from someone else's). sync-status remains a fallback for the
+      // (older) code paths that don't surface a jobId.
       let failedReason = '';
       if(jobId){
         const jr = await fetch('/api/pact-job?id=' + encodeURIComponent(jobId), {cache:'no-store'}).then(r => r.json()).catch(()=>null);
         if(jr && jr.ok && jr.status === 'failed'){
           failedReason = jr.message || '(no reason returned by worker)';
         }
-      }
-      if(!failedReason){
+      } else {
         const ss = await fetch('/api/sync-status?type=costing-'+report, {cache:'no-store'}).then(r => r.json()).catch(()=>null);
         if(ss && ss.ok && ss.run && ss.run.status === 'completed' && ss.run.conclusion === 'failure'){
           const t = Date.parse(ss.run.createdAt || '');
@@ -6281,9 +6292,19 @@ function renderVa(){
       ? fmtTime(String(s.window_to).length === 16 ? s.window_to + '+05:30' : s.window_to)
       : (s.created_at ? fmtTime(s.created_at) : '—');
     const ord  = s.order_number != null ? ('#' + s.order_number) : '—';
+    // 2026-10-29 (Satvik's Variance E): split the single Approve into
+    // TWO independent slices so Closing Stock and Portal Wastage can be
+    // signed off separately. Approve C/S applies on-hand → Adjusted
+    // Variance only; Approve Wastage promotes the latest portal
+    // Submit-Wastage into wastage_l1 only. Either slice stamps the
+    // snapshot's approved_at; Un-approve clears the stamp without
+    // touching the merged values (same as before).
     const approveBtn = s.approved_at
-      ? '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Clear the approval">↶ Un-approve</button>'
-      : '<button class="btn prim" onclick="vaApprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Approve the variances in this snapshot (shared password for now; email OTP next)">✓ Approve</button>';
+      ? '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Clear the approval stamp — the merged closing stock, wastage and Adjusted Variance stay as they are">↶ Un-approve</button>'
+      : '<span style="display:inline-flex;gap:4px">'
+          + '<button class="btn prim" onclick="vaApproveCs(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px" title="Approve CLOSING STOCK + ADJUSTED VARIANCE only. Portal wastage stays pending.">✓ C/S</button>'
+          + '<button class="btn" onclick="vaApproveWastage(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px;background:#fef3c7;border-color:#fde68a;color:#92400e;font-weight:600" title="Approve PORTAL WASTAGE only. Closing stock stays as entered.">✓ Wastage</button>'
+        + '</span>';
     return '<tr>'
       + '<td>' + (i + 1) + '</td>'
       + '<td>' + esc(when) + '</td>'
@@ -6391,32 +6412,34 @@ function vaCloseApproval(pwd){
   if(window._vaApproveResolve){ window._vaApproveResolve(pwd); window._vaApproveResolve = null; }
 }
 
-async function vaApprove(id, outletLabel){
-  // First pass gating: shared password 1122 via inline modal (replaces the
-  // prompt() path that silently broke in some browser configs).
-  const pwd = await vaPromptPassword(outletLabel, 'Approve this snapshot — closing stock, portal wastage and the computed Variance all land on the snapshot in a single write.');
+// Shared engine for the two slice-approvals (vaApproveCs + vaApproveWastage).
+// slice === 'cs'      → applies on-hand → adjusted_variance_l1 only
+// slice === 'wastage' → promotes portal wastage into wastage_l1 only
+// slice === 'all'     → applies both (kept for the legacy vaApprove entry
+//                       point and the "Approve both" paths that still call it)
+// Each slice stamps the snapshot's approved_at + approved_by. Called twice
+// (once per slice) the stamp just refreshes — Satvik's intent is independent
+// sign-off; a schema-level split (approved_cs_at vs approved_wastage_at)
+// comes next.
+async function vaApproveSlice(id, outletLabel, slice){
+  const note = slice === 'cs'
+    ? 'Approve CLOSING STOCK + ADJUSTED VARIANCE for this snapshot. Portal wastage is NOT touched; it stays pending until you Approve Wastage separately.'
+    : slice === 'wastage'
+    ? 'Approve PORTAL WASTAGE for this snapshot. The latest Submit-Wastage total for each RM is promoted into the snapshot\'s wastage_l1 bucket. Closing Stock + Adjusted Variance are NOT touched.'
+    : 'Approve this snapshot — closing stock, portal wastage and the computed Variance all land in one write.';
+  const pwd = await vaPromptPassword(outletLabel, note);
   if(pwd == null) return;
   if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
   const by = 'password-approver (OTP TBD)';
   try {
-    // Approval does three things in one PATCH:
-    //   1. Stamp approved_at + approved_by (existing behaviour).
-    //   2. Overwrite each item's wastage_l1 with the LATEST portal
-    //      wastage submission for this outlet (if the portal has one).
-    //   3. Set each item's adjusted_variance_l1 to the live Variance:
-    //      ideal − on-hand − wastage. This is what makes the modal's
-    //      "Adjusted Variance" column light up after approval.
-    //
-    // The complex packing_uom conversion lives on the client, so we do
-    // the math here and send the server a sparse { rm_code: {wastage_l1,
-    // adjusted_variance_l1 } } map. The server merges it into the
-    // snapshot's items array atomically with the approval stamp.
     const snap = await iiFetchSnapshotById(id);
     const items = Array.isArray(snap && snap.items) ? snap.items : [];
     if(!items.length) throw new Error('Snapshot has no items');
+    const needsOnHand  = (slice === 'cs' || slice === 'all');
+    const needsWastage = (slice === 'wastage' || slice === 'all');
     const [oh, wa] = await Promise.all([
-      vaLatestPortalOnHand(snap.outlet || outletLabel, snap.window_from || null),
-      vaLatestPortalWastage(snap.outlet || outletLabel, snap.window_from || null),
+      needsOnHand  ? vaLatestPortalOnHand(snap.outlet || outletLabel, snap.window_from || null) : Promise.resolve({ qty:{}, qty_loose:{} }),
+      needsWastage ? vaLatestPortalWastage(snap.outlet || outletLabel, snap.window_from || null) : Promise.resolve({ qty:{}, qty_loose:{} }),
     ]);
     const ohQty      = oh.qty       || {};
     const ohLoose    = oh.qty_loose || {};
@@ -6427,25 +6450,27 @@ async function vaApprove(id, outletLabel){
     for(const it of items){
       const code = String(it.rm_code || '');
       if(!code) continue;
-      // Wastage: prefer the portal submission; fall back to whatever the
-      // snapshot already had so an un-touched RM keeps its Save-time value.
-      const wPack  = Number(waQty[code])   || 0;
-      const wLoose = Number(waLoose[code]) || 0;
-      const hasPortalW = Boolean(wPack || wLoose);
-      const wasteL1 = hasPortalW
-        ? iiOpeningToL1(it, wPack, wLoose)
-        : Number(it.wastage_l1 || 0);
-      if(hasPortalW) withPortalWaste++;
-      // On-hand: zero if the outlet hasn't submitted for this RM.
-      const ohPack  = Number(ohQty[code])   || 0;
-      const ohLsx   = Number(ohLoose[code]) || 0;
-      const onHandL1 = (ohPack || ohLsx) ? iiOpeningToL1(it, ohPack, ohLsx) : 0;
-      // Ideal + Variance.
-      const idealL1    = Number(it.opening_l1 || 0) + Number(it.purchase_l1 || 0) - Number(it.consumption_l1 || 0);
-      const varianceL1 = idealL1 - onHandL1 - wasteL1;
-      const upd = { adjusted_variance_l1: varianceL1 };
-      if(hasPortalW) upd.wastage_l1 = wasteL1;
-      item_updates[code] = upd;
+      const upd = {};
+      if(needsWastage){
+        const wPack  = Number(waQty[code])   || 0;
+        const wLoose = Number(waLoose[code]) || 0;
+        if(wPack || wLoose){
+          upd.wastage_l1 = iiOpeningToL1(it, wPack, wLoose);
+          withPortalWaste++;
+        }
+      }
+      if(needsOnHand){
+        const ohPack  = Number(ohQty[code])   || 0;
+        const ohLsx   = Number(ohLoose[code]) || 0;
+        const onHandL1 = (ohPack || ohLsx) ? iiOpeningToL1(it, ohPack, ohLsx) : 0;
+        // When this is a cs-only approval and the snapshot already carries
+        // an admin-approved wastage_l1, use THAT in the variance math; the
+        // live portal number is intentionally ignored on a C/S-only pass.
+        const wasteForMath = Number(upd.wastage_l1 != null ? upd.wastage_l1 : (it.wastage_l1 || 0));
+        const idealL1    = Number(it.opening_l1 || 0) + Number(it.purchase_l1 || 0) - Number(it.consumption_l1 || 0);
+        upd.adjusted_variance_l1 = idealL1 - onHandL1 - wasteForMath;
+      }
+      if(Object.keys(upd).length) item_updates[code] = upd;
     }
     const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), {
       method: 'PATCH',
@@ -6454,15 +6479,23 @@ async function vaApprove(id, outletLabel){
     });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    const bits = ['Approved snapshot for ' + outletLabel];
-    if(withPortalWaste) bits.push('portal wastage applied for ' + withPortalWaste + ' RM' + (withPortalWaste === 1 ? '' : 's'));
-    bits.push('Adjusted Variance set on ' + items.length + ' row' + (items.length === 1 ? '' : 's'));
+    const label = slice === 'cs' ? 'Closing Stock' : slice === 'wastage' ? 'Portal Wastage' : 'Snapshot';
+    const bits = ['✓ ' + label + ' approved for ' + outletLabel];
+    if(needsWastage && withPortalWaste) bits.push('portal wastage applied for ' + withPortalWaste + ' RM' + (withPortalWaste === 1 ? '' : 's'));
+    if(needsOnHand) bits.push('Adjusted Variance set on ' + items.length + ' row' + (items.length === 1 ? '' : 's'));
     toast(bits.join(' · '), 4500);
     await loadVa(true);
   } catch(e){
     toast('Approve failed: ' + (e.message || e), 5000);
   }
 }
+
+// Entry points used by the per-row buttons on the Variance tab.
+function vaApproveCs(id, outletLabel){      return vaApproveSlice(id, outletLabel, 'cs'); }
+function vaApproveWastage(id, outletLabel){ return vaApproveSlice(id, outletLabel, 'wastage'); }
+// Legacy entry — kept so an older bookmark or call path still works. The
+// row-level UI calls vaApproveCs / vaApproveWastage directly.
+function vaApprove(id, outletLabel){        return vaApproveSlice(id, outletLabel, 'all'); }
 
 async function vaUnapprove(id, outletLabel){
   const pwd = await vaPromptPassword(outletLabel, 'Clear the approval on this snapshot? Closing stock, wastage and Adjusted Variance stay as they are — only the approval stamp is cleared so a reviewer can re-approve.');
