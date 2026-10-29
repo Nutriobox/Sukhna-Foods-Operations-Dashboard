@@ -3346,22 +3346,45 @@ function cnOnTabEnter(){
   }
 }
 
-function cnFromOpening(){
-  // Fill From with the OI datetime for the picked outlet, and To with "now".
-  // OI state is in-session only right now (the Save Count backend isn't wired
-  // yet), so we read OI.dtIso directly. When the outlet differs from the one
-  // OI was counted on, flag that in the error line so the user doesn't fire
-  // a mismatched query.
+async function cnFromOpening(){
+  // 2026-10-29 (Satvik's #6 — Sales Summary "From Opening Inventory"
+  // button): the old implementation only read the in-session OI.dtIso,
+  // which is empty on a fresh page load even when a count has been
+  // saved on the server. The button looked broken whenever anyone
+  // opened the tab without first running the Opening Inventory flow.
+  // Fixed by fetching the latest ADMIN-saved opening count for the
+  // picked outlet from /api/opening-inventory (same admin-vs-portal
+  // filter as the Ideal Inventory lookup) and using its dt_iso. Falls
+  // back to OI.dtIso when the API has nothing, so the pre-server flow
+  // still works for the current browsing session.
   const outlet = $('cnFormOutlet').value || '';
   const err = $('cnFormErr'); if(err) err.textContent = '';
-  if(!OI.dtIso){
-    if(err) err.textContent = 'Save an Opening Inventory count first; its datetime will fill in here.';
+  if(!outlet){
+    if(err) err.textContent = 'Pick an outlet first — the Opening Inventory count is per-outlet.';
     return;
   }
-  if(outlet && OI.outlet && outlet !== OI.outlet){
-    if(err) err.textContent = 'Last Opening Inventory was for ' + OI.outlet + ' (' + OI.dtIso.replace('T', ' ') + '). Filling anyway — pick that outlet above if you want a matched window.';
+  if(err) err.textContent = "Looking up this outlet's latest Opening Inventory count…";
+  let dtIso = '';
+  try {
+    const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
+    const j = await r.json();
+    if(r.ok && j.ok && Array.isArray(j.counts) && j.counts.length){
+      const adminList = j.counts.filter((c) =>
+        typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
+      );
+      const pick = adminList.length ? adminList[0] : j.counts[0];
+      if(pick && pick.dt_iso) dtIso = String(pick.dt_iso).slice(0, 16);
+    }
+  } catch(_){ /* fall through to in-session fallback */ }
+  if(!dtIso && OI.dtIso && (!OI.outlet || OI.outlet === outlet)){
+    dtIso = OI.dtIso;
   }
-  $('cnFormFrom').value = OI.dtIso;
+  if(!dtIso){
+    if(err) err.textContent = 'No Opening Inventory count has been saved for ' + outlet + ' yet. Save one on the Opening Inventory tab first.';
+    return;
+  }
+  if(err) err.textContent = '';
+  $('cnFormFrom').value = dtIso;
   cnToNow();
 }
 
@@ -3825,6 +3848,12 @@ function rcOnTabEnter(){
 
 // Fetch the latest Opening Inventory count for a specific outlet.
 // Returns { dt_iso, filled_count, total_items, id } or null if none exists.
+// 2026-10-29 (Satvik's Ideal Inv A — opening lock, Reconciliation side):
+// matches the Ideal Inv tab's logic — prefer the newest ADMIN-saved count
+// (created_by not starting with "portal:") so an outlet Submit-On-Hand
+// cannot shift Reconciliation's "From" cutoff off the admin's locked
+// opening. Falls back to the newest portal submission only when no
+// admin save exists.
 async function rcLatestOpeningForOutlet(outletName){
   if(!outletName) return null;
   // The /api/opening-inventory endpoint returns rows ordered by updated_at desc.
@@ -3836,7 +3865,10 @@ async function rcLatestOpeningForOutlet(outletName){
   if(!j.ok) throw new Error(j.error || 'Opening Inventory API returned not-ok');
   const list = Array.isArray(j.counts) ? j.counts : [];
   if(!list.length) return null;
-  return list[0];
+  const adminList = list.filter((c) =>
+    typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
+  );
+  return adminList.length ? adminList[0] : list[0];
 }
 
 async function rcSubmitForm(){
@@ -4409,13 +4441,22 @@ async function iiSubmitForm(){
   if(!outlet){ if(err) err.textContent = 'Pick an outlet.'; return; }
   if(err) err.textContent = "Looking up this outlet's latest Opening Inventory count…";
   // Reuse the RM Consumption tab's lookup — same endpoint, same shape.
+  // 2026-10-29 (Satvik's Ideal Inv A — opening lock, picker side): same
+  // admin-vs-portal preference as the loader uses. Fixes #5 "Opening Inv
+  // showing various dates" — the From-cutoff chip here used to flip to
+  // whichever portal Submit-On-Hand happened last, making the admin's
+  // saved opening date disappear from the "last Opening Inventory count"
+  // label even though that count was still the source of truth.
   let opening = null;
   try {
     const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     const list = Array.isArray(j.counts) ? j.counts : [];
-    opening = list[0] || null;
+    const adminList = list.filter((c) =>
+      typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
+    );
+    opening = (adminList.length ? adminList[0] : list[0]) || null;
   } catch(e){
     if(err) err.textContent = 'Could not fetch Opening Inventory: ' + (e.message || e);
     return;
