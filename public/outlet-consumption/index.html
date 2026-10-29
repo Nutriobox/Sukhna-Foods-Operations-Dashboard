@@ -4463,6 +4463,11 @@ function iiBuildItemsFromRm(){
       purchase_l1:    0,
       consumption_l1: 0,
       wastage_l1:     0,
+      // 2026-10-29 (Satvik's Ideal Inv B): side-channel for portal
+      // Submit-Wastage totals in the window. Not folded into closing
+      // until the admin clicks Approve on the pending chip beside the
+      // Wastage cell.
+      portal_wastage_l1: 0,
       variance_l1:    0,   // "Adjusted Variance" in the UI — residual after wastage
     }))
     .sort((a, b) => {
@@ -4569,8 +4574,19 @@ async function loadIi(fresh){
     const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
     const j = await r.json();
     if(r.ok && j.ok && Array.isArray(j.counts) && j.counts.length){
-      // GET lists updated_at.desc; take the first (= most recent) count.
-      const latest = j.counts[0];
+      // 2026-10-29 (Satvik's Ideal Inv A — opening-data lock): previously
+      // this took counts[0] (= most recent updated_at), so a portal
+      // Submit-On-Hand that happened AFTER the admin saved the opening
+      // silently overwrote the admin's locked opening value. Fixed by
+      // preferring the ADMIN-saved count (any row whose created_by is
+      // not a portal: slug) over any portal submission. If no admin
+      // save exists for the outlet, fall back to the most-recent portal
+      // submission so new outlets without an admin lock still display
+      // something sensible.
+      const adminCounts = j.counts.filter((c) =>
+        typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
+      );
+      const latest = adminCounts.length ? adminCounts[0] : j.counts[0];
       openingDtIso = latest.dt_iso || '';
       // Load its qty maps.
       const r2 = await fetch('/api/opening-inventory?id=' + encodeURIComponent(latest.id), { cache: 'no-store' });
@@ -4767,8 +4783,19 @@ async function loadIi(fresh){
         if(!code) continue;
         const it = byCode.get(code);
         if(!it) continue;
-        it.wastage_l1 = iiOpeningToL1(it, Number(row.qty_pack) || 0, Number(row.qty_loose) || 0);
-        if(it.wastage_l1) wastageMatched++;
+        // 2026-10-29 (Satvik's Ideal Inv B — approval-gated wastage):
+        // portal Submit-Wastage used to populate it.wastage_l1 directly,
+        // so the Wastage column (and the Closing / Adjusted Variance math
+        // downstream) silently reflected pending outlet submissions as if
+        // the admin had already approved them. Now we stash the portal
+        // total on it.portal_wastage_l1 and leave it.wastage_l1 at 0 so
+        // the admin's manual value (or an explicit Apply action) is what
+        // flows into closing + variance. The row-renderer surfaces the
+        // pending portal total next to the Wastage input with a one-click
+        // Apply affordance that promotes it into wastage_l1.
+        const portalL1 = iiOpeningToL1(it, Number(row.qty_pack) || 0, Number(row.qty_loose) || 0);
+        it.portal_wastage_l1 = portalL1;
+        if(portalL1) wastageMatched++;
       }
       IIv._wastage = { submissions: j.submissions || 0, matched: wastageMatched };
     }
@@ -4923,6 +4950,23 @@ function iiSetField(code, field, value){
   renderIi();
 }
 
+// 2026-10-29 (Satvik's Ideal Inv B): one-click approval that promotes
+// a pending portal wastage total into the admin-approved wastage_l1
+// bucket. Previously that promotion happened silently at load time; now
+// it is an explicit admin action so Closing / Adjusted Variance only
+// reflect wastage the admin has actually accepted.
+function iiApplyPortalWastage(code){
+  for(const it of IIv.items){
+    if(it.rm_code === code){
+      const pending = Number(it.portal_wastage_l1) || 0;
+      if(pending <= 0) return;
+      it.wastage_l1 = pending;
+      break;
+    }
+  }
+  renderIi();
+}
+
 function renderIi(){
   if(!II_LOADED.v) return;
   const q = (($('qIi') && $('qIi').value) || '').trim().toLowerCase();
@@ -4967,7 +5011,19 @@ function renderIi(){
       '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.opening_l1     || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + computedStyle + '" title="Auto-filled from the latest Opening Inventory count for this outlet (converted to ' + esc(it.l1_unit) + '). Editable if you need to override."></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.purchase_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + computedStyle + '" title="Auto-filled from GRNs posted to this outlet in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + computedStyle + '" title="Auto-filled from PetPooja sales × BOM in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
-      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1     || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)"     style="' + wastageStyle  + '" title="Summed from this outlet\'s Submit-Wastage submissions in the window, in ' + esc(it.l1_unit) + '. Editable override."></td>' +
+      '<td class="r">' +
+        '<input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)" style="' + wastageStyle + '" title="Approved wastage in ' + esc(it.l1_unit) + '. Portal submissions are now shown as pending beside this cell; approve them to apply.">' +
+        // 2026-10-29 (Satvik's Ideal Inv B): pending-portal chip + Apply.
+        // Portal submissions no longer auto-fill wastage_l1 — they land
+        // in it.portal_wastage_l1 and this chip surfaces the pending
+        // total so the admin can approve it with one click.
+        ((Number(it.portal_wastage_l1) || 0) > 0 && Math.abs((Number(it.portal_wastage_l1) || 0) - (Number(it.wastage_l1) || 0)) > 1e-6
+          ? '<div style="margin-top:4px;font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;padding:2px 6px;display:inline-flex;gap:6px;align-items:center" title="Outlet submitted this wastage via /outlet-portal. It will NOT be included in Closing / Adjusted Variance until you Approve.">' +
+              '<span>Pending: ' + qty(it.portal_wastage_l1) + ' ' + esc(it.l1_unit) + '</span>' +
+              '<button type="button" onclick="iiApplyPortalWastage(\'' + codeEsc + '\')" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #92400e;background:#fff;color:#92400e;cursor:pointer;font-weight:600">Approve</button>' +
+            '</div>'
+          : '') +
+      '</td>' +
       '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001"        value="' + esc(it.variance_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + varianceStyle + '" title="Manual residual after wastage in ' + esc(it.l1_unit) + ' (positive = still-unexplained loss, negative = still-unexplained gain)"></td>' +
       '<td class="r">' + fullCell  + '</td>' +
