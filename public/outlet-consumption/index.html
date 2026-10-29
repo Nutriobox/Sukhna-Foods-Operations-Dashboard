@@ -4829,13 +4829,35 @@ function iiSplitByPackingUom(item, l1){
     return { fullQty: null, fullUnit: '', looseQty: n, looseUnit: item.l1_unit || '' };
   }
   if(targetLevel === 'L2'){
+    // Packed at L2 (e.g. Pkt). Full in L2, Loose stays in L1 (base units) —
+    // there's no finer level above L1, so this leg is unchanged.
     const full = Math.trunc(n / packScale);
     const rem  = n - full * packScale;
     return { fullQty: full, fullUnit: item.l2_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
   }
-  // L3
+  // L3 — packed at the case level (e.g. Bunch, Carton).
+  // 2026-10-29 (Satvik's punch list, Ideal Inv fix C): Full / Loose should
+  // split L3 and L2, NOT L3 and L1. Previously the Loose column dropped the
+  // remainder straight to the base unit (Gms, ML), which read as misleadingly
+  // precise when the RM is actually packed in L2 (Pkt). Now the sub-case
+  // remainder is expressed in L2 units — whole packs when it divides evenly,
+  // two-decimal fraction otherwise — matching how the RM master defines the
+  // packaging hierarchy for the item.
   const full = Math.trunc(n / caseScale);
   const rem  = n - full * caseScale;
+  if(packScale > 0 && item.l2_unit){
+    const looseInL2raw = rem / packScale;
+    // Snap to a whole number when the division comes out clean within a
+    // tiny tolerance; otherwise show two decimals so the ragged remainder
+    // is still visible.
+    const looseInL2 = (Math.abs(looseInL2raw - Math.round(looseInL2raw)) < 1e-6)
+      ? Math.round(looseInL2raw)
+      : Math.round(looseInL2raw * 100) / 100;
+    return { fullQty: full, fullUnit: item.l3_unit || '', looseQty: looseInL2, looseUnit: item.l2_unit || '' };
+  }
+  // Fallback: L2 is not defined for this RM (shouldn't normally happen for
+  // L3-packed items), so keep the old L3+L1 split so the row is at least
+  // mathematically correct.
   return { fullQty: full, fullUnit: item.l3_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
 }
 
