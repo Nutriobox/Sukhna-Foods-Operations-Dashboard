@@ -183,10 +183,11 @@
     <option value="Delivery">Delivery</option>
     <option value="Pick Up">Pick Up</option>
    </select>
-   <select id="statusSd" onchange="renderSd()" class="btn" style="padding-right:28px" title="PetPooja billing status (Success / Cancelled)">
+   <select id="statusSd" onchange="renderSd()" class="btn" style="padding-right:28px" title="PetPooja billing status (Success / Cancelled / Failed)">
     <option value="">All statuses</option>
     <option value="success">Success only</option>
     <option value="cancelled">Cancelled only</option>
+    <option value="failed">Failed only</option>
    </select>
    <input id="qSd" class="search" placeholder="Search product name or invoice no…" oninput="renderSd()" style="min-width:220px">
    <button class="btn" onclick="exportCsvSd()">⬇ Export CSV</button>
@@ -2354,15 +2355,20 @@ async function loadSd(fresh){
 function renderSd(){
   const q = ($('qSd').value || '').trim().toLowerCase();
   const statusFilter = (($('statusSd') && $('statusSd').value) || '').toLowerCase();
-  // Normalise PetPooja's status so "Success"/"success" and "Cancelled"/
-  // "Cancel"/"cancelled" all land in two stable buckets for the filter.
-  // Anything else (null, "Pending", etc.) is treated as neither bucket, so
-  // the user never silently loses rows they wouldn't expect to lose.
+  // Normalise PetPooja's status so "Success"/"success", "Cancelled"/
+  // "Cancel"/"cancelled", "Fail"/"failed"/"error" all land in three stable
+  // buckets for the filter. Anything else (null, "Pending", etc.) stays
+  // in a neutral bucket so the user never silently loses rows they
+  // wouldn't expect to lose.
+  // 2026-10-29 (Satvik punch list #4): added the Failed bucket so the
+  // Status filter dropdown's three options line up with Success/Cancel/
+  // Fail as PetPooja now reports them.
   const statusBucket = (v) => {
     const s = String(v || '').toLowerCase();
     if(!s) return '';
     if(s.includes('cancel')) return 'cancelled';
     if(s.includes('success')) return 'success';
+    if(s.includes('fail') || s.includes('error') || s === 'fail' || s === 'failed') return 'failed';
     return s;
   };
   const list = SD.rows.filter(r => {
@@ -2383,8 +2389,8 @@ function renderSd(){
   const statusPill = (v) => {
     if(v == null || v === '') return dash;
     const b = statusBucket(v);
-    const bg = b === 'cancelled' ? '#fee2e2' : b === 'success' ? '#dcfce7' : '#e5e7eb';
-    const fg = b === 'cancelled' ? '#b91c1c' : b === 'success' ? '#166534' : '#374151';
+    const bg = b === 'cancelled' ? '#fee2e2' : b === 'success' ? '#dcfce7' : b === 'failed' ? '#fef3c7' : '#e5e7eb';
+    const fg = b === 'cancelled' ? '#b91c1c' : b === 'success' ? '#166534' : b === 'failed' ? '#92400e' : '#374151';
     return `<span class="sb" style="background:${bg};color:${fg}">${esc(String(v))}</span>`;
   };
   const rows = list.slice(0, 5000).map(r => `
