@@ -225,13 +225,14 @@
     <th class="r">Round Off</th>
     <th class="r" title="Final billed amount for the whole order">Total</th>
     <th>Item</th>
+    <th title="Yes if the item is detected as an add-on (dip, sauce, scoop, extra, beverage, etc.) based on PetPooja's addon vocabulary; No otherwise. 2026-10-29 Satvik punch list #7.">Add-on?</th>
     <th>Category</th>
     <th>SAP Code</th>
     <th class="r" title="PetPooja 'item_price'">Unit MRP</th>
     <th class="r">Qty</th>
     <th class="r" title="PetPooja 'item_total'">Item Total</th>
    </tr></thead>
-   <tbody id="tbodySd"><tr><td colspan="32" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodySd"><tr><td colspan="33" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>
 
@@ -612,10 +613,11 @@
      <th>PetPooja Item Name</th>
      <th class="cn-col-pact-name">PACT Item Name (BOM)</th>
      <th>Category</th>
+     <th title="Yes if this item is detected as an add-on. 2026-10-29 Satvik punch list #7.">Add-on?</th>
      <th>Order Type</th>
      <th class="r">Quantity</th>
     </tr></thead>
-    <tbody id="tbodyCn"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+    <tbody id="tbodyCn"><tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
    </table></div></div>
   </div>
  </div>
@@ -1236,8 +1238,48 @@ const OR_ADDON_EXPLICIT = /\b(add[\s-]?on|add[\s-]?ons|addon|take[\s-]?away add|
 const OR_ADDON_BEVERAGE = /\b(coke|coca[\s-]?cola|pepsi|sprite|fanta|7[\s-]?up|limca|thums ?up|lemonade|iced tea|cold brew|latte|cappuccino|espresso|mocha|americano|coffee|chai|tea|water|juice|smoothie|lassi|soda|beverage|drink|milkshake|shake|energy drink|redbull|mojito|cooler)\b/i;
 const OR_ADDON_SIDE = /\b(fries|chips|crisps|side|sauce|dip|chutney|mayo|mayonnaise|ketchup|salsa|hummus|dressing|extra|topping|garnish|bread|biscuit|cookie|cracker|nugget|wedge)\b/i;
 
+// 2026-10-29 Satvik punch list #7: a boolean "Add-on?" column on Sales API
+// and Sales Summary. We derive it from the item name + category rather than
+// a dedicated flag because the webhook payload doesn't carry one. Explicit
+// vocabulary (addon/add-on/take-away add/delivery-add) is the strongest
+// signal; a PetPooja category of "Add-Ons" / "Extras" / "Beverages" counts
+// too. The looser beverage/side regexes are intentionally NOT used here
+// because they match main-dish names like "Chicken Nugget" — too many
+// false positives when the user wants to spot genuine add-ons.
+function isAddonItem(name, category){
+  const nm = String(name || '').toLowerCase();
+  const ct = String(category || '').toLowerCase();
+  if(OR_ADDON_EXPLICIT.test(nm) || OR_ADDON_EXPLICIT.test(ct)) return true;
+  if(/\b(add[\s-]?ons?|extras?)\b/.test(ct)) return true;
+  return false;
+}
+function addonCell(name, category){
+  if(!name) return '<span class="mut">—</span>';
+  const yes = isAddonItem(name, category);
+  const bg = yes ? '#fef3c7' : '#f1f5f9';
+  const fg = yes ? '#92400e' : '#64748b';
+  const label = yes ? 'Yes · add-on' : 'No';
+  return `<span class="sb" style="background:${bg};color:${fg};font-size:11px;font-weight:600">${label}</span>`;
+}
+
 function toast(msg, ms){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._); toast._=setTimeout(()=>t.classList.remove('on'), ms||2400); }
-function fmtTime(iso){ if(!iso)return '—'; try{ return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}); }catch(e){ return iso; } }
+function fmtTime(iso){
+  if(!iso) return '—';
+  try {
+    // 2026-10-29 (Satvik's punch list #1): PACT's doc_date / voucher_date
+    // fields are DATE-only (no time). new Date("2026-10-29") lands at UTC
+    // midnight, which renders as "05:30 am" in IST — looked like the
+    // Voucher sheet was fetching bogus times. Short-circuit date-only
+    // strings so they render as just a date and keep the datetime branch
+    // for actual timestamps.
+    const s = String(iso).trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+      const d = new Date(s + 'T12:00:00');  // noon avoids DST edge-cases
+      return d.toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    }
+    return new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+  } catch(e){ return iso; }
+}
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function qty(n){ if(n==null||isNaN(Number(n))||n==='')return ''; return Number(n).toLocaleString('en-IN',{maximumFractionDigits:3}); }
 // Higher-precision formatter for sub-decimal values: for a per-unit RM
@@ -2422,6 +2464,7 @@ function renderSd(){
       <td class="r">${money(r.round_off)}</td>
       <td class="r" style="font-weight:600">${money(r.total ?? r.order_total)}</td>
       <td>${txt(r.item_name || r.product_name)}</td>
+      <td>${addonCell(r.item_name || r.product_name, r.category_name || r.category)}</td>
       <td>${r.category_name || r.category ? `<span class="mut">${esc(r.category_name || r.category)}</span>` : dash}</td>
       <td class="code">${txt(r.sap_code)}</td>
       <td class="r">${money(r.item_price ?? r.unit_mrp)}</td>
@@ -2429,10 +2472,10 @@ function renderSd(){
       <td class="r">${money(r.item_total)}</td>
     </tr>`).join('');
   const extra = list.length > 5000
-    ? `<tr><td colspan="32" class="mut" style="padding:14px;text-align:center">… ${list.length-5000} more — refine the search to see them</td></tr>`
+    ? `<tr><td colspan="33" class="mut" style="padding:14px;text-align:center">… ${list.length-5000} more — refine the search to see them</td></tr>`
     : '';
   $('tbodySd').innerHTML = (rows
-    || '<tr><td colspan="32" class="mut" style="padding:20px;text-align:center">No sales rows — try changing the date range or uploading a PetPooja report.</td></tr>') + extra;
+    || '<tr><td colspan="33" class="mut" style="padding:20px;text-align:center">No sales rows — try changing the date range or uploading a PetPooja report.</td></tr>') + extra;
 }
 
 // ── PetPooja CSV upload (Order Summary Item Report) ──────────────────────────
@@ -3678,7 +3721,7 @@ function renderCn(){
   });
 
   if(!list.length){
-    tb.innerHTML = '<tr><td colspan="' + (showPact ? 6 : 4) + '" class="mut" style="padding:20px;text-align:center">'
+    tb.innerHTML = '<tr><td colspan="' + (showPact ? 7 : 5) + '" class="mut" style="padding:20px;text-align:center">'
       + (IM_LOADED.v ? 'No consumption rows match these filters.' : 'Loading item master…')
       + '</td></tr>';
     if(CURTAB === 'cn') updateHeaderStats();
@@ -3721,6 +3764,7 @@ function renderCn(){
       + '<td>' + esc(x.item_name_pp || x.item_name_pact || '') + '</td>'
       + pactCell
       + '<td>' + catChip(x.category) + '</td>'
+      + '<td>' + addonCell(x.item_name_pp || x.item_name_pact, x.category) + '</td>'
       + '<td>' + esc(x.order_type) + '</td>'
       + qCell
     + '</tr>';
@@ -3735,9 +3779,10 @@ function exportCsvCn(){
   // against PetPooja's own Sales report OR against PACT's BOM list). The "Show
   // PACT details" toggle on the UI only affects display; the CSV always has
   // both columns.
-  const lines = ['PACT Code,PetPooja Item Name,PACT Item Name (BOM),Category,Order Type,Quantity'];
+  const lines = ['PACT Code,PetPooja Item Name,PACT Item Name (BOM),Category,Add-on?,Order Type,Quantity'];
   for(const x of CN.items){
-    lines.push([x.item_code, (x.item_name_pp || ''), (x.item_name_pact || ''), x.category, x.order_type, x.qty].map(esc2).join(','));
+    const addon = isAddonItem(x.item_name_pp || x.item_name_pact, x.category) ? 'Yes' : 'No';
+    lines.push([x.item_code, (x.item_name_pp || ''), (x.item_name_pact || ''), x.category, addon, x.order_type, x.qty].map(esc2).join(','));
   }
   const slug = (CN.outlet || 'outlet').toLowerCase().replace(/\s+/g, '-');
   const today = (new Date()).toISOString().slice(0,10);
