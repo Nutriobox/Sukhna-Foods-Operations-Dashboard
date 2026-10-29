@@ -6241,10 +6241,63 @@ async function vaLatestPortalWastage(outlet, windowFrom){
   } catch(_){ return { qty: {}, qty_loose: {} }; }
 }
 
+// 2026-10-29 (Satvik punch list D+E): Approve button was broken in two
+// ways. (1) prompt() is unreliable — Chrome and Edge both block or auto-
+// dismiss it in some window configurations, so the button looked like a
+// no-op; and (2) there was a parallel "wastage approval" affordance in
+// the Variance View modal that could be confused with the snapshot-level
+// Approve on this list. Both are now routed through a single
+// vaOpenApprovalModal() inline modal that gates the one atomic approve
+// action (closing stock + wastage + Adjusted Variance in a single
+// server call), replacing the prompt() calls.
+function vaPromptPassword(outletLabel, note){
+  return new Promise((resolve) => {
+    // Build modal lazily so we don't clutter the DOM until first use.
+    let m = document.getElementById('vaApproveModal');
+    if(!m){
+      m = document.createElement('div');
+      m.id = 'vaApproveModal';
+      m.className = 'nmmodal';
+      m.style.display = 'none';
+      m.innerHTML =
+        '<div class="nmbody" style="max-width:420px">' +
+          '<div class="nmhdr">' +
+            '<h3 style="margin:0;flex:1">✓ Approve snapshot — <span id="vaApproveLabel" style="color:#4338ca"></span></h3>' +
+            '<button class="btn" onclick="vaCloseApproval(null)">✕</button>' +
+          '</div>' +
+          '<p id="vaApproveNote" class="mut" style="font-size:13px;margin:10px 0 16px;line-height:1.5"></p>' +
+          '<form id="vaApproveForm" onsubmit="event.preventDefault();vaCloseApproval(document.getElementById(\'vaApprovePwd\').value||null)">' +
+            '<input id="vaApprovePwd" type="password" autocomplete="off" placeholder="Shared password" style="width:100%;padding:11px 14px;border:1px solid #cbd5e1;border-radius:9px;font-size:14px;font-family:inherit;outline:none;margin-bottom:8px">' +
+            '<div id="vaApproveErr" style="color:#dc2626;font-size:12px;min-height:16px;margin-bottom:10px"></div>' +
+            '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+              '<button type="button" class="btn" onclick="vaCloseApproval(null)">Cancel</button>' +
+              '<button type="submit" class="btn prim">✓ Approve</button>' +
+            '</div>' +
+          '</form>' +
+        '</div>';
+      document.body.appendChild(m);
+    }
+    document.getElementById('vaApproveLabel').textContent = outletLabel || '';
+    document.getElementById('vaApproveNote').textContent = note || 'Approve this snapshot — closing stock, wastage and the computed variance all land in one write.';
+    document.getElementById('vaApproveErr').textContent = '';
+    const inp = document.getElementById('vaApprovePwd');
+    inp.value = '';
+    m.style.display = 'flex';
+    setTimeout(() => inp.focus(), 50);
+    // Stash the resolver so vaCloseApproval can call it.
+    window._vaApproveResolve = resolve;
+  });
+}
+function vaCloseApproval(pwd){
+  const m = document.getElementById('vaApproveModal');
+  if(m) m.style.display = 'none';
+  if(window._vaApproveResolve){ window._vaApproveResolve(pwd); window._vaApproveResolve = null; }
+}
+
 async function vaApprove(id, outletLabel){
-  // First pass gating: shared password 1122. Replace with email-OTP once
-  // the provider + recipient are settled with Satvik.
-  const pwd = prompt('Approve the variances in this snapshot for ' + outletLabel + '?\nEnter password to confirm:');
+  // First pass gating: shared password 1122 via inline modal (replaces the
+  // prompt() path that silently broke in some browser configs).
+  const pwd = await vaPromptPassword(outletLabel, 'Approve this snapshot — closing stock, portal wastage and the computed Variance all land on the snapshot in a single write.');
   if(pwd == null) return;
   if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
   const by = 'password-approver (OTP TBD)';
@@ -6315,7 +6368,7 @@ async function vaApprove(id, outletLabel){
 }
 
 async function vaUnapprove(id, outletLabel){
-  const pwd = prompt('Clear the approval on this snapshot for ' + outletLabel + '?\nEnter password to confirm:');
+  const pwd = await vaPromptPassword(outletLabel, 'Clear the approval on this snapshot? Closing stock, wastage and Adjusted Variance stay as they are — only the approval stamp is cleared so a reviewer can re-approve.');
   if(pwd == null) return;
   if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
   try {
@@ -6336,7 +6389,7 @@ async function vaUnapprove(id, outletLabel){
 // Variance tab's Delete is a thin wrapper around the Ideal Inventory one so
 // after deletion we refresh THIS tab's list (not the saved-inventories modal).
 async function vaDelete(id, outletLabel){
-  const pwd = prompt('Delete the saved snapshot for ' + outletLabel + '?\nEnter password to confirm:');
+  const pwd = await vaPromptPassword(outletLabel, 'Delete this saved snapshot? This is irreversible — the opening / purchase / consumption / wastage / variance for this window will be gone.');
   if(pwd == null) return;
   if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
   try {
