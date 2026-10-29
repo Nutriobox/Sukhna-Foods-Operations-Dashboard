@@ -39,7 +39,10 @@
   'use strict';
 
   var CHANNEL        = 'ops-dashboard-sync-v1';
-  var SAFETY_POLL_MS = 5 * 60 * 1000;
+  // 2026-10-29 (Satvik: "sync from other laptop doesn't show up"): dropped
+  // the safety poll from 5 min to 45 s so even if Realtime is DOA on a given
+  // laptop, cross-device changes land within a minute instead of five.
+  var SAFETY_POLL_MS = 45 * 1000;
   var FIRST_POLL_MS  = 15 * 1000;
 
   // ─── 1. BroadcastChannel (same-browser instant) ──────────────────────────
@@ -152,17 +155,58 @@
       }
     );
 
+    // Reconnect logic — WebSockets drop (sleep, lock screen, flaky WiFi,
+    // Supabase keepalive timeout) and supabase-js's auto-reconnect sometimes
+    // misses CHANNEL_ERROR / CLOSED. Without this, a laptop that was awake
+    // when the subscription dropped silently stops seeing other laptops'
+    // syncs forever. Reconnect with exponential backoff on CLOSED /
+    // CHANNEL_ERROR / TIMED_OUT, and also kick a reconnect when the tab
+    // regains focus so a sleeping laptop catches up the moment it wakes.
+    var reconnectAttempt = 0;
+    var reconnectTimer   = null;
+    function scheduleReconnect(reason) {
+      if (reconnectTimer) return;
+      reconnectAttempt++;
+      var delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempt - 1));
+      console.warn('[OpsSync] Reconnecting Realtime in ' + delay + 'ms (' + reason + ', attempt ' + reconnectAttempt + ')');
+      reconnectTimer = setTimeout(function () {
+        reconnectTimer = null;
+        try { ch.unsubscribe(); } catch (e) { /* ignore */ }
+        try { client.removeChannel(ch); } catch (e) { /* ignore */ }
+        startRealtime();
+      }, delay);
+    }
     ch.subscribe(function (status) {
       realtimeStatus = status;
-      if (status === 'SUBSCRIBED') console.log('[OpsSync] Realtime subscribed — listening for costing_snapshots + inventory_snapshots INSERTs.');
-      else if (status === 'CHANNEL_ERROR') console.warn('[OpsSync] Realtime channel error — safety poll will cover.');
-      else if (status === 'TIMED_OUT')     console.warn('[OpsSync] Realtime timed out — reconnecting…');
-      else if (status === 'CLOSED')         console.warn('[OpsSync] Realtime channel closed.');
+      if (status === 'SUBSCRIBED') {
+        reconnectAttempt = 0;
+        console.log('[OpsSync] Realtime subscribed — listening for costing_snapshots + inventory_snapshots INSERTs.');
+      }
+      else if (status === 'CHANNEL_ERROR') { console.warn('[OpsSync] Realtime channel error — reconnecting.'); scheduleReconnect('CHANNEL_ERROR'); }
+      else if (status === 'TIMED_OUT')     { console.warn('[OpsSync] Realtime timed out — reconnecting.');     scheduleReconnect('TIMED_OUT'); }
+      else if (status === 'CLOSED')        { console.warn('[OpsSync] Realtime channel closed — reconnecting.'); scheduleReconnect('CLOSED'); }
     });
 
     window.OpsSync._client  = client;
     window.OpsSync._channel = ch;
   }
+
+  // Tab regained focus / became visible: a laptop that was asleep almost
+  // certainly dropped its WebSocket. Force a resubscribe AND a safety-poll
+  // pass right now so the UI catches up without waiting on the 45 s timer.
+  function onWakeOrFocus() {
+    if (realtimeStatus !== 'SUBSCRIBED') {
+      console.log('[OpsSync] Tab active, Realtime not healthy (' + realtimeStatus + ') — rebooting subscription.');
+      try { if (window.OpsSync && window.OpsSync._channel) window.OpsSync._channel.unsubscribe(); } catch (e) {}
+      try { if (window.OpsSync && window.OpsSync._client  && window.OpsSync._channel) window.OpsSync._client.removeChannel(window.OpsSync._channel); } catch (e) {}
+      startRealtime();
+    }
+    safetyPoll();
+  }
+  window.addEventListener('focus', onWakeOrFocus);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') onWakeOrFocus();
+  });
 
   // ─── 3. Safety poll (every 5 min — catches missed Realtime drops) ────────
   async function safetyPoll() {
