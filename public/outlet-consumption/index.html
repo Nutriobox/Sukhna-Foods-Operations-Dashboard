@@ -3077,8 +3077,24 @@ async function oiListLoad(){
     const r = await fetch('/api/opening-inventory', { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    const rows = (j.counts || []).slice();
-    if(cnt) cnt.textContent = rows.length ? ('· ' + rows.length + ' saved') : '· none yet';
+    // 2026-10-29 (Satvik's #5 — "opening stock on various dates"): the
+    // list used to show EVERY row in opening_inventory_counts, including
+    // portal Submit-On-Hand submissions (which are outlets' CLOSING stock
+    // snapshots, not admin opening counts). Those portal rows gave the
+    // same outlet several entries with different dates and read as
+    // "various dates". This list is now scoped to admin-saved counts
+    // (created_by not a "portal:" slug). Portal c/s submissions still
+    // flow into the Ideal Inventory snapshot via the Variance tab's
+    // Approve-Wastage path; they don't belong here.
+    const rows = (j.counts || []).filter((c) =>
+      typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
+    );
+    const portalHidden = (j.counts || []).length - rows.length;
+    if(cnt){
+      let label = rows.length ? ('· ' + rows.length + ' saved') : '· none yet';
+      if(portalHidden > 0) label += ' · ' + portalHidden + ' portal submission' + (portalHidden === 1 ? '' : 's') + ' hidden';
+      cnt.textContent = label;
+    }
     if(!rows.length){
       tb.innerHTML = '<tr><td colspan="4" class="mut" style="padding:14px;text-align:center">No opening-inventory counts saved yet. Submit the form above to create your first one.</td></tr>';
       return;
