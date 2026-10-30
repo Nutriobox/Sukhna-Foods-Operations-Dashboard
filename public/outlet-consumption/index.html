@@ -6248,7 +6248,7 @@ function fgExportMismatchCsv(){
   toast('Exported ' + map.rows.length + ' row(s) — ' + map.label, 1800);
 }
 
-const VA = { snapshots: [], loaded: false };
+const VA = { snapshots: [], loaded: false, _sig: '' };
 
 function vaOnTabEnter(){
   if(!VA.loaded) loadVa(false);
@@ -6264,6 +6264,7 @@ async function loadVa(fresh){
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     VA.snapshots = Array.isArray(j.snapshots) ? j.snapshots : [];
     VA.loaded = true;
+    VA._sig = vaSnapSig(VA.snapshots);
     if(stat) stat.textContent = '✓ ' + VA.snapshots.length + ' snapshot' + (VA.snapshots.length === 1 ? '' : 's');
     // Render once immediately so the list isn't blank while the wastage
     // decoration lands, then kick off per-snapshot wastage lookups in
@@ -6275,6 +6276,35 @@ async function loadVa(fresh){
     $('tbodyVa').innerHTML = '<tr><td colspan="9" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
   }
 }
+
+// 2026-10-30 (Satvik): the global sync-refresh (js/sync-refresh.js) only
+// subscribes to the costing + inventory tables, so the Variance list never
+// got a push when a snapshot was saved or approved — it only updated on a
+// manual Reload, which is why new rows felt 15–20 min late. Poll the
+// (items-less, lightweight) snapshot list every 20s while the Variance tab is
+// active and the page is visible, and re-render ONLY when something actually
+// changed (id / approval stamps / updated_at). Silent — no "Refreshing…"
+// flash — so it doesn't read as the page constantly refreshing.
+function vaSnapSig(snaps){
+  return (snaps || []).map(function(s){
+    return (s.id || '') + ':' + (s.approved_at || '') + ':' + (s.wastage_approved_at || '') + ':' + (s.updated_at || '');
+  }).join('|');
+}
+async function vaAutoRefreshTick(){
+  if(typeof CURTAB === 'undefined' || CURTAB !== 'va') return;
+  if(typeof document !== 'undefined' && document.hidden) return;
+  if(!VA.loaded) return;
+  try {
+    const r = await fetch('/api/ideal-inventory', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok || !Array.isArray(j.snapshots)) return;
+    if(vaSnapSig(j.snapshots) !== VA._sig) loadVa(true);
+  } catch(_){ /* transient; the next tick retries */ }
+}
+try {
+  setInterval(vaAutoRefreshTick, 20000);
+  window.addEventListener('focus', vaAutoRefreshTick);
+} catch(_){ /* non-browser / unsupported */ }
 
 // For every snapshot in VA.snapshots, look up the LATEST portal wastage
 // submission for that outlet and stash a derived { status, dt_iso, rm_count }
