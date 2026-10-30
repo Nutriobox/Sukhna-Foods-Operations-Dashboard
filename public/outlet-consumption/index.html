@@ -4967,9 +4967,17 @@ function iiSplitClosing(item, closingL1){
 
 // Shared split helper used by iiSplitClosing (live table) and iiSplitForView
 // (snapshot / Variance View modal). Expects item.packing_uom + l1/l2/l3_unit
-// + packScale/caseScale. If packing_uom doesn't name any of the three
-// levels, falls through to the top-most defined level so Full is still
-// at the highest packaging grain the RM master knows about.
+// + packScale/caseScale.
+//
+// Rules (2026-10-30 — Satvik's #4 denomination fix):
+//  • FULL  = the item's PACKING UOM (idealUom from RM master). Unambiguous:
+//    whatever level packing_uom names is where Full is reported.
+//  • LOOSE = the DEEPEST level the user has marked in Loose Denomination
+//    for that RM (LD.denom[rm_code]). If the user marked only L2, the
+//    sub-case remainder stays in L2 units; if they marked L1, it drops to
+//    the base unit. Falls back to the previous "one level below packing"
+//    automatic behaviour when nothing is marked — a sensible default so
+//    Full/Loose still line up for RMs the user hasn't touched yet.
 function iiSplitByPackingUom(item, l1){
   const n = Number(l1 || 0);
   const packLc = String(item.packing_uom || '').toLowerCase().trim();
@@ -4979,7 +4987,7 @@ function iiSplitByPackingUom(item, l1){
   const packScale = Number(item.packScale) || 0;
   const caseScale = Number(item.caseScale) || 0;
 
-  // Determine which level packing_uom corresponds to.
+  // Determine which level packing_uom corresponds to (Full's level).
   let targetLevel = null;
   if(packLc && packLc === l3Lc && caseScale > 0)      targetLevel = 'L3';
   else if(packLc && packLc === l2Lc && packScale > 0) targetLevel = 'L2';
@@ -4989,40 +4997,41 @@ function iiSplitByPackingUom(item, l1){
   else if(packScale > 0)                              targetLevel = 'L2';
   else                                                targetLevel = 'L1';
 
+  // Loose level comes from the user's Loose Denomination selection for
+  // this RM when available. ldLevelsFor returns ['L3','L2','L1']-shape
+  // array with whichever levels the user ticked, in L3-first order.
+  // "Deepest marked" wins — the finer unit for the remainder.
+  const marks = (typeof ldLevelsFor === 'function' && item.rm_code)
+    ? ldLevelsFor(item.rm_code)
+    : [];
+  const prefersL1 = marks.includes('L1');
+  const prefersL2 = marks.includes('L2');
+
   if(targetLevel === 'L1'){
     // Nothing above L1 — the whole figure is Loose, no Full column.
     return { fullQty: null, fullUnit: '', looseQty: n, looseUnit: item.l1_unit || '' };
   }
   if(targetLevel === 'L2'){
     // Packed at L2 (e.g. Pkt). Full in L2, Loose stays in L1 (base units) —
-    // there's no finer level above L1, so this leg is unchanged.
+    // there's no finer level above L1 to prefer.
     const full = Math.trunc(n / packScale);
     const rem  = n - full * packScale;
     return { fullQty: full, fullUnit: item.l2_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
   }
   // L3 — packed at the case level (e.g. Bunch, Carton).
-  // 2026-10-29 (Satvik's punch list, Ideal Inv fix C): Full / Loose should
-  // split L3 and L2, NOT L3 and L1. Previously the Loose column dropped the
-  // remainder straight to the base unit (Gms, ML), which read as misleadingly
-  // precise when the RM is actually packed in L2 (Pkt). Now the sub-case
-  // remainder is expressed in L2 units — whole packs when it divides evenly,
-  // two-decimal fraction otherwise — matching how the RM master defines the
-  // packaging hierarchy for the item.
   const full = Math.trunc(n / caseScale);
   const rem  = n - full * caseScale;
-  if(packScale > 0 && item.l2_unit){
+  // Loose unit choice: user's LD selection wins; otherwise default to
+  // L2 (the 2026-10-29 Ideal Inv C automatic fallback).
+  const dropToL1 = prefersL1 && !prefersL2;
+  if(!dropToL1 && packScale > 0 && item.l2_unit){
     const looseInL2raw = rem / packScale;
-    // Snap to a whole number when the division comes out clean within a
-    // tiny tolerance; otherwise show two decimals so the ragged remainder
-    // is still visible.
     const looseInL2 = (Math.abs(looseInL2raw - Math.round(looseInL2raw)) < 1e-6)
       ? Math.round(looseInL2raw)
       : Math.round(looseInL2raw * 100) / 100;
     return { fullQty: full, fullUnit: item.l3_unit || '', looseQty: looseInL2, looseUnit: item.l2_unit || '' };
   }
-  // Fallback: L2 is not defined for this RM (shouldn't normally happen for
-  // L3-packed items), so keep the old L3+L1 split so the row is at least
-  // mathematically correct.
+  // User explicitly wants loose in L1 (base unit), or L2 isn't defined.
   return { fullQty: full, fullUnit: item.l3_unit || '', looseQty: rem, looseUnit: item.l1_unit || '' };
 }
 
@@ -6334,13 +6343,24 @@ function renderVa(){
     // Submit-Wastage into wastage_l1 only. Either slice stamps the
     // snapshot's approved_at; Un-approve clears the stamp without
     // touching the merged values (same as before).
-    const approveBtn = s.approved_at
-      ? '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px" title="Clear the approval stamp — the merged closing stock, wastage and Adjusted Variance stay as they are">↶ Un-approve</button>'
+    // 2026-10-30 (Satvik's #4 — "when approved, mark as approved and
+    // green color"): paint the whole row green when the snapshot is
+    // approved and swap the two approve buttons for a single green
+    // "✓ Approved" chip + Un-approve action, so the state is unmistakable
+    // on a long list and the user never second-guesses whether their
+    // click landed.
+    const isApproved = Boolean(s.approved_at);
+    const approveBtn = isApproved
+      ? '<span style="display:inline-flex;gap:6px;align-items:center">'
+          + '<span class="sb" style="background:#166534;color:#fff;font-weight:700" title="This snapshot has been approved — closing stock, wastage and Adjusted Variance are locked.">✓ Approved</span>'
+          + '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:3px 8px;font-size:11px" title="Clear the approval stamp">↶ Un-approve</button>'
+        + '</span>'
       : '<span style="display:inline-flex;gap:4px">'
           + '<button class="btn prim" onclick="vaApproveCs(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px" title="Approve CLOSING STOCK + ADJUSTED VARIANCE only. Portal wastage stays pending.">✓ C/S</button>'
           + '<button class="btn" onclick="vaApproveWastage(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px;background:#fef3c7;border-color:#fde68a;color:#92400e;font-weight:600" title="Approve PORTAL WASTAGE only. Closing stock stays as entered.">✓ Wastage</button>'
         + '</span>';
-    return '<tr>'
+    const rowStyle = isApproved ? ' style="background:#f0fdf4"' : '';
+    return '<tr' + rowStyle + '>'
       + '<td>' + (i + 1) + '</td>'
       + '<td>' + esc(when) + '</td>'
       + '<td>' + nameEsc + '</td>'
