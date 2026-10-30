@@ -45,7 +45,16 @@ create index if not exists idx_pact_sotout_date_outlet on public.pact_stock_outl
 -- category rolled up as the MOST COMMON Outlet Issue Type across that doc's
 -- line items (SOT docs are usually single-category in practice, so this is
 -- just picking the one). line_count is handy for the UI.
-create or replace view public.pact_stock_outlet_outward_docs as
+-- 2026-10-30: adding doc_time to the view in the middle of the column
+-- list fails on the Postgres CREATE OR REPLACE VIEW rule
+-- ("42P16: cannot change name of view column") because that path can
+-- only APPEND columns. DROP the view first so the recreate is clean.
+-- There is nothing downstream that stores view-derived state, so the
+-- drop is safe. (The hotfix in the API falls back to a doc_time-less
+-- SELECT, so a brief window where the view is being recreated keeps
+-- rendering date-only rows instead of 500ing.)
+drop view if exists public.pact_stock_outlet_outward_docs;
+create view public.pact_stock_outlet_outward_docs as
   with per_doc_cat as (
     select
       doc_no,
