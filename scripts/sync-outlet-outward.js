@@ -40,6 +40,14 @@ const { login } = require('../src/lib/pact/login');
 const C = {
   doc_no:            'C6eaf2c1718724b5695d4188c9639eeb0',
   doc_date:          'Ccc334cab7d154f7f93b37cf5939e3d50',
+  // 2026-10-30 (Satvik's #1): PACT's SOT BI report added a "Created
+  // Time" column (e.g. "08:36:00"). Hash not pinned yet — leave empty
+  // so the first run auto-detects via classifyColumn + fallback, logs
+  // the hash, and we paste it in here on the next pass to lock the
+  // mapping. If PACT ever drops the column, the detection just doesn't
+  // fire and doc_time stays NULL in Supabase; the UI falls back to
+  // date-only.
+  doc_time:          '',
   transfer_location: 'C46fa7a64d72945f8b8f62e7c196733c1',
   product_name:      'C4b0092c636c3470889bc640d8b6095e9',
   unit:              'Cec13213b195e44d4a3b8eeec133d1ee3',
@@ -92,6 +100,12 @@ function classifyColumn(sampleValues) {
   if (/^\/Date\(\d+([+-]\d+)?\)\/$/.test(first)) return 'doc_date';
   // Unix epoch: 10-digit seconds (post-2001) or 13-digit ms (post-2001)
   if (/^1[6-9]\d{8}$/.test(first) || /^1[6-9]\d{11}$/.test(first)) return 'doc_date';
+  // 2026-10-30 (Satvik's #1): Created Time column — bare HH:MM or HH:MM:SS
+  // in 24-hour form (e.g. "08:36:00", "17:08"). Must come AFTER all the
+  // date shapes above so a datetime isn't mis-classified here.
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(first) && sv.every((v) => /^\d{1,2}:\d{2}(:\d{2})?$/.test(String(v).trim()))) {
+    return 'doc_time';
+  }
   // Transfer Location: starts with Nutribox / Nutriobox
   if (/^nutri[o]?box\b/i.test(first)) return 'transfer_location';
   // Outlet Issue Type: one of the five storage categories
@@ -481,9 +495,17 @@ async function setDateRange(page) {
         }
         continue;
       }
+      // 2026-10-30 (Satvik's #1): pull "Created Time" when present and
+      // the row carries it. PACT serialises as "HH:MM:SS" (24-hour) or
+      // "HH:MM"; stored verbatim in doc_time so the frontend can join
+      // it with doc_date and format in IST. NULL when absent so legacy
+      // rows and partial reports still parse.
+      const docTimeRaw = map.doc_time ? r[map.doc_time] : null;
+      const docTime    = docTimeRaw ? str(docTimeRaw) : null;
       parsed.push({
         doc_no:             docNo,
         doc_date:           docDate,
+        doc_time:           docTime,
         transfer_location:  transfer,
         outlet_name:        normalizeOutletName(transfer),
         product_name:       product,
