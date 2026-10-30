@@ -177,6 +177,15 @@ export async function POST(req: Request) {
       }
     } catch { /* fall back to 1 */ }
 
+    // 2026-10-30 (Satvik's #4): stamp the outlet's 2-hour submission
+    // window at save time. The outlet-portal submit-on-hand / submit-
+    // wastage routes gate on submission_window_closes_at > now(), so
+    // this snapshot "opens" the portal for exactly 2 hours. Admin can
+    // extend by saving a new snapshot; nothing in the UI lets the
+    // outlet keep writing after the window closes.
+    const nowIso = new Date().toISOString();
+    const closesIso = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+
     const payload = {
       outlet,
       order_number: orderNumber,
@@ -186,7 +195,9 @@ export async function POST(req: Request) {
       opening_count,
       items,
       created_by,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
+      submission_window_opens_at:  nowIso,
+      submission_window_closes_at: closesIso,
     };
     const r = await fetch(`${url}/rest/v1/ideal_inventory_snapshots`, {
       method: "POST",

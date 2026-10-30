@@ -34,6 +34,26 @@ create table if not exists public.ideal_inventory_snapshots (
 alter table public.ideal_inventory_snapshots add column if not exists approved_at timestamptz;
 alter table public.ideal_inventory_snapshots add column if not exists approved_by text;
 
+-- 2026-10-30 (Satvik's #4 — outlet 2-hour submission window): when the
+-- admin saves an Ideal Inventory snapshot, the outlet gets a bounded
+-- window in which to submit closing stock + wastage via the portal.
+-- The portal submit-on-hand + submit-wastage routes gate on
+-- submission_window_closes_at > now(); past that the outlet is locked
+-- out and the admin either approves what they already submitted or
+-- rolls forward a new snapshot. opens_at is pinned at the server-side
+-- save time so a laptop clock drift doesn't shorten or extend the
+-- window.
+alter table public.ideal_inventory_snapshots
+  add column if not exists submission_window_opens_at  timestamptz;
+alter table public.ideal_inventory_snapshots
+  add column if not exists submission_window_closes_at timestamptz;
+
+-- Fast lookup for the outlet-portal gate: "latest snapshot for THIS
+-- outlet whose window is still open." Ordered desc so the first row
+-- is the one we read.
+create index if not exists idx_ii_snap_outlet_window
+  on public.ideal_inventory_snapshots (outlet, submission_window_closes_at desc nulls last);
+
 create index if not exists idx_ii_snap_outlet_order on public.ideal_inventory_snapshots (outlet, order_number desc);
 create index if not exists idx_ii_snap_created      on public.ideal_inventory_snapshots (created_at desc);
 
