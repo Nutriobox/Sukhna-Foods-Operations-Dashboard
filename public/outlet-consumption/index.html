@@ -5107,19 +5107,14 @@ function renderIi(){
       '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.opening_l1     || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'opening_l1\',this.value)"     style="' + computedStyle + '" title="Auto-filled from the latest Opening Inventory count for this outlet (converted to ' + esc(it.l1_unit) + '). Editable if you need to override."></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.purchase_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'purchase_l1\',this.value)"    style="' + computedStyle + '" title="Auto-filled from GRNs posted to this outlet in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.consumption_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'consumption_l1\',this.value)" style="' + computedStyle + '" title="Auto-filled from PetPooja sales × BOM in the window, in ' + esc(it.l1_unit) + '. Editable."></td>' +
-      '<td class="r">' +
-        '<input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)" style="' + wastageStyle + '" title="Approved wastage in ' + esc(it.l1_unit) + '. Portal submissions are now shown as pending beside this cell; approve them to apply.">' +
-        // 2026-10-29 (Satvik's Ideal Inv B): pending-portal chip + Apply.
-        // Portal submissions no longer auto-fill wastage_l1 — they land
-        // in it.portal_wastage_l1 and this chip surfaces the pending
-        // total so the admin can approve it with one click.
-        ((Number(it.portal_wastage_l1) || 0) > 0 && Math.abs((Number(it.portal_wastage_l1) || 0) - (Number(it.wastage_l1) || 0)) > 1e-6
-          ? '<div style="margin-top:4px;font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;padding:2px 6px;display:inline-flex;gap:6px;align-items:center" title="Outlet submitted this wastage via /outlet-portal. It will NOT be included in Closing / Adjusted Variance until you Approve.">' +
-              '<span>Pending: ' + qty(it.portal_wastage_l1) + ' ' + esc(it.l1_unit) + '</span>' +
-              '<button type="button" onclick="iiApplyPortalWastage(\'' + codeEsc + '\')" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #92400e;background:#fff;color:#92400e;cursor:pointer;font-weight:600">Approve</button>' +
-            '</div>'
-          : '') +
-      '</td>' +
+      // 2026-10-30 (Satvik's clarification): wastage approval lives ONLY
+      // on the Variance tab (the per-snapshot "✓ Wastage" split button
+      // added in 07c1c46). The pending-portal chip + Approve button that
+      // used to render here were removed so the Ideal Inventory tab is
+      // read-only for portal wastage. The underlying it.portal_wastage_l1
+      // is still populated at load time so Variance's approval math has
+      // the live value when the admin signs it off.
+      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)" style="' + wastageStyle + '" title="Approved wastage in ' + esc(it.l1_unit) + '. Portal submissions are approved from the Variance tab, not here."></td>' +
       '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001"        value="' + esc(it.variance_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + varianceStyle + '" title="Manual residual after wastage in ' + esc(it.l1_unit) + ' (positive = still-unexplained loss, negative = still-unexplained gain)"></td>' +
       '<td class="r">' + fullCell  + '</td>' +
