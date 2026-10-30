@@ -143,19 +143,32 @@ export async function GET(req: Request) {
 
     // Per-doc detail: all line items for one Doc No.
     if (docNo) {
-      const r = await fetch(
-        // 2026-10-30 (Satvik's #1): return doc_time so the Voucher Sheet
-        // can show PACT's Created Time next to Doc Date instead of just
-        // a bare date.
-        `${url}/rest/v1/pact_stock_outlet_outward?doc_no=eq.${encodeURIComponent(docNo)}&select=doc_no,doc_date,doc_time,outlet_name,transfer_location,product_name,rm_code,unit,outlet_qty,batch_no,outlet_issue_type,narration&order=product_name.asc`,
+      // 2026-10-30: same fallback as the list view — SELECT with doc_time
+      // first; on a 42703 undefined_column retry without it so the detail
+      // modal keeps opening during the migration.
+      const buildDetailSelect = (includeDocTime: boolean) =>
+        includeDocTime
+          ? "select=doc_no,doc_date,doc_time,outlet_name,transfer_location,product_name,rm_code,unit,outlet_qty,batch_no,outlet_issue_type,narration"
+          : "select=doc_no,doc_date,outlet_name,transfer_location,product_name,rm_code,unit,outlet_qty,batch_no,outlet_issue_type,narration";
+      let r = await fetch(
+        `${url}/rest/v1/pact_stock_outlet_outward?doc_no=eq.${encodeURIComponent(docNo)}&${buildDetailSelect(true)}&order=product_name.asc`,
         { headers: h, cache: "no-store" }
       );
+      if (!r.ok && r.status === 400) {
+        const peek = await r.clone().text().catch(() => "");
+        if (peek.includes("42703") || peek.includes("doc_time")) {
+          r = await fetch(
+            `${url}/rest/v1/pact_stock_outlet_outward?doc_no=eq.${encodeURIComponent(docNo)}&${buildDetailSelect(false)}&order=product_name.asc`,
+            { headers: h, cache: "no-store" }
+          );
+        }
+      }
       if (!r.ok) {
         const t = await r.text().catch(() => "");
         return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
       }
       const rows = (await r.json()) as Array<{
-        doc_no: string; doc_date: string; doc_time: string | null;
+        doc_no: string; doc_date: string; doc_time?: string | null;
         outlet_name: string | null; transfer_location: string | null;
         product_name: string; rm_code: string | null; unit: string | null; outlet_qty: number | null;
         batch_no: string | null; outlet_issue_type: string | null; narration: string | null;
@@ -191,28 +204,48 @@ export async function GET(req: Request) {
     const categoryFilter = (sp.get("category") || "").trim();
     const limit = Math.min(Math.max(1, Number(sp.get("limit") || 500)), 5000);
 
-    const filters: string[] = [
-      // 2026-10-30 (Satvik's #1): include doc_time so the list view can
-      // render Date + Time together on each row.
-      "select=doc_no,doc_date,doc_time,outlet_name,transfer_location,category,line_count,total_qty,scraped_at",
-      `doc_date=gte.${encodeURIComponent(from)}`,
-      `doc_date=lte.${encodeURIComponent(to)}`,
-      `order=doc_date.desc,doc_no.desc`,
-      `limit=${limit}`,
-    ];
-    if (outletFilter)   filters.push(`outlet_name=ilike.${encodeURIComponent("%" + outletFilter + "%")}`);
-    if (categoryFilter) filters.push(`category=eq.${encodeURIComponent(categoryFilter)}`);
+    // 2026-10-30 (hotfix for the broken Purchase tab): include doc_time
+    // only when the view has that column. The 2026-10-30 migration adds
+    // it, but if a prod DB hasn't been migrated yet the SELECT 400s with
+    // "column does not exist" and the whole Purchase list disappears.
+    // Try with doc_time first; on a 42703 (undefined_column) retry the
+    // SELECT without it so the list keeps working during the migration.
+    const buildFilters = (includeDocTime: boolean): string[] => {
+      const selectCols = includeDocTime
+        ? "select=doc_no,doc_date,doc_time,outlet_name,transfer_location,category,line_count,total_qty,scraped_at"
+        : "select=doc_no,doc_date,outlet_name,transfer_location,category,line_count,total_qty,scraped_at";
+      const f = [
+        selectCols,
+        `doc_date=gte.${encodeURIComponent(from)}`,
+        `doc_date=lte.${encodeURIComponent(to)}`,
+        `order=doc_date.desc,doc_no.desc`,
+        `limit=${limit}`,
+      ];
+      if (outletFilter)   f.push(`outlet_name=ilike.${encodeURIComponent("%" + outletFilter + "%")}`);
+      if (categoryFilter) f.push(`category=eq.${encodeURIComponent(categoryFilter)}`);
+      return f;
+    };
 
-    const r = await fetch(
-      `${url}/rest/v1/pact_stock_outlet_outward_docs?${filters.join("&")}`,
+    let r = await fetch(
+      `${url}/rest/v1/pact_stock_outlet_outward_docs?${buildFilters(true).join("&")}`,
       { headers: h, cache: "no-store" }
     );
+    // Retry without doc_time when the column isn't there yet.
+    if (!r.ok && r.status === 400) {
+      const peek = await r.clone().text().catch(() => "");
+      if (peek.includes("42703") || peek.includes("doc_time")) {
+        r = await fetch(
+          `${url}/rest/v1/pact_stock_outlet_outward_docs?${buildFilters(false).join("&")}`,
+          { headers: h, cache: "no-store" }
+        );
+      }
+    }
     if (!r.ok) {
       const t = await r.text().catch(() => "");
       return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
     }
     const raw = (await r.json()) as Array<{
-      doc_no: string; doc_date: string; doc_time: string | null;
+      doc_no: string; doc_date: string; doc_time?: string | null;
       outlet_name: string | null; transfer_location: string | null;
       category: string | null; line_count: number | null; total_qty: number | null; scraped_at: string | null;
     }>;
