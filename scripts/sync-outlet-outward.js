@@ -40,14 +40,14 @@ const { login } = require('../src/lib/pact/login');
 const C = {
   doc_no:            'C6eaf2c1718724b5695d4188c9639eeb0',
   doc_date:          'Ccc334cab7d154f7f93b37cf5939e3d50',
-  // 2026-10-30 (Satvik's #1): PACT's SOT BI report added a "Created
-  // Time" column (e.g. "08:36:00"). Hash not pinned yet — leave empty
-  // so the first run auto-detects via classifyColumn + fallback, logs
-  // the hash, and we paste it in here on the next pass to lock the
-  // mapping. If PACT ever drops the column, the detection just doesn't
-  // fire and doc_time stays NULL in Supabase; the UI falls back to
-  // date-only.
-  doc_time:          '',
+  // 2026-10-30 (Satvik's #1): PACT's SOT BI report carries a "Created
+  // Time" column, but it serialises as a FULL datetime (e.g.
+  // "2026-09-30T09:08:55.02"), not a bare "HH:MM". classifyColumn reads
+  // that shape as a date, so auto-detect never maps it — pin the hash
+  // here. normalizeDocTime() below extracts the time-of-day. If PACT
+  // re-hashes its column keys, re-pin from the inventory dump
+  // (the Created-Time column is the one with a non-midnight time).
+  doc_time:          'C1d3d15a24f2445218ead31888a268413',
   transfer_location: 'C46fa7a64d72945f8b8f62e7c196733c1',
   product_name:      'C4b0092c636c3470889bc640d8b6095e9',
   unit:              'Cec13213b195e44d4a3b8eeec133d1ee3',
@@ -68,6 +68,19 @@ const DRY_RUN   = String(process.env.OUTWARD_DRY_RUN  ?? 'false').toLowerCase() 
 const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; };
 const str = (v) => { const s = String(v == null ? '' : v).trim(); return (s === 'None') ? '' : s; };
 const log = (...a) => console.log.apply(console, a);
+
+// Extract time-of-day (HH:MM:SS) from PACT's Created Time value. PACT serves it
+// as a full datetime ("2026-09-30T09:08:55.02") or a bare time ("09:08:55" /
+// "09:08"); either way we store just the clock time so the frontend can join it
+// onto doc_date. Returns null when there's no usable time.
+function normalizeDocTime(v) {
+  const s = str(v);
+  if (!s) return null;
+  const m = s.match(/[T\s](\d{1,2}:\d{2}(?::\d{2})?)/) || s.match(/^(\d{1,2}:\d{2}(?::\d{2})?)$/);
+  if (!m) return null;
+  const [h, mi, se] = m[1].split(':');
+  return h.padStart(2, '0') + ':' + mi + ':' + (se || '00');
+}
 
 // Dashboard-friendly branch label stripped from PACT's "Nutribox (Prashant
 // Vihar)" style. Keep the raw transfer_location too; this is a convenience
@@ -495,13 +508,14 @@ async function setDateRange(page) {
         }
         continue;
       }
-      // 2026-10-30 (Satvik's #1): pull "Created Time" when present and
-      // the row carries it. PACT serialises as "HH:MM:SS" (24-hour) or
-      // "HH:MM"; stored verbatim in doc_time so the frontend can join
-      // it with doc_date and format in IST. NULL when absent so legacy
-      // rows and partial reports still parse.
+      // 2026-10-30 (Satvik's #1): pull "Created Time" when present. PACT
+      // serialises it as a full datetime ("2026-09-30T09:08:55.02") or
+      // occasionally a bare time ("09:08:55" / "09:08"). Store time-of-day
+      // only (HH:MM:SS) in doc_time so the frontend can join it onto
+      // doc_date and format in IST. NULL when absent so legacy rows and
+      // partial reports still parse.
       const docTimeRaw = map.doc_time ? r[map.doc_time] : null;
-      const docTime    = docTimeRaw ? str(docTimeRaw) : null;
+      const docTime    = normalizeDocTime(docTimeRaw);
       parsed.push({
         doc_no:             docNo,
         doc_date:           docDate,
