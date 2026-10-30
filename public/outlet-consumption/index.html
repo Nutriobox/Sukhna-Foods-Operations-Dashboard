@@ -4888,6 +4888,38 @@ async function loadIi(fresh){
     }
   } catch(_){ /* leave wastage at 0 */ }
 
+  // 2026-10-30 (Satvik's #4): overlay the latest APPROVED snapshot's Wastage
+  // and Adjusted Variance onto the live rows. Approval (Variance tab) writes
+  // these onto the saved snapshot via /api/ideal-inventory (action:"approve"),
+  // but this live recompute never read them back, so the Wastage and Adjusted
+  // Variance columns stayed empty here after approving. Display-only overlay:
+  // the stored snapshot stays the source of truth; approved rows render green.
+  IIv._approved = null;
+  try {
+    const lr = await fetch('/api/ideal-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
+    const lj = await lr.json();
+    if(lr.ok && lj.ok && Array.isArray(lj.snapshots)){
+      // snapshots come back newest-first (created_at.desc); take the latest approved one.
+      const approvedSnap = lj.snapshots.find((s) => s && s.approved_at);
+      if(approvedSnap){
+        const snap = await iiFetchSnapshotById(approvedSnap.id);
+        const sItems = (snap && Array.isArray(snap.items)) ? snap.items : [];
+        let overlaid = 0;
+        for(const si of sItems){
+          const it = byCode.get(String(si.rm_code || '').toUpperCase());
+          if(!it) continue;
+          const w  = Number(si.wastage_l1);
+          const av = Number(si.adjusted_variance_l1);
+          if(Number.isFinite(w))  it.wastage_l1  = w;   // approved wastage
+          if(Number.isFinite(av)) it.variance_l1 = av;  // approved Adjusted Variance
+          it.approved = true;
+          overlaid++;
+        }
+        IIv._approved = { id: approvedSnap.id, order_number: approvedSnap.order_number, approved_at: approvedSnap.approved_at, overlaid };
+      }
+    }
+  } catch(_){ /* no approved overlay; the live recompute stands */ }
+
   II_LOADED.v = true;
   if(stat){
     const openingLbl = openingDtIso ? ('OI count ' + fmtTime(openingDtIso)) : 'no opening count yet';
@@ -4896,7 +4928,10 @@ async function loadIi(fresh){
       ? ('purchase ' + pm.from + '→' + pm.to + ' · ' + pm.matched + ' matched'
          + (pm.unmatched ? ', ' + pm.unmatched + ' unmatched' : ''))
       : '';
-    stat.textContent = '✓ computed · ' + openingLbl + (purchaseLbl ? ' · ' + purchaseLbl : '');
+    const approvedLbl = (IIv._approved && IIv._approved.order_number)
+      ? ' · showing approved #' + IIv._approved.order_number
+      : '';
+    stat.textContent = '✓ computed · ' + openingLbl + (purchaseLbl ? ' · ' + purchaseLbl : '') + approvedLbl;
   }
   renderIi();
   if(CURTAB === 'ii') updateHeaderStats();
@@ -5098,7 +5133,7 @@ function renderIi(){
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
     const looseCell = split.looseQty == null ? '<span class="mut">—</span>' : qty(split.looseQty) + ' <span class="mut" style="font-size:11px">' + esc(split.looseUnit) + '</span>';
-    return '<tr>' +
+    return '<tr' + (it.approved ? ' style="background:#ecfdf5"' : '') + '>' +
       '<td>' + (i + 1) + '</td>' +
       '<td style="font-family:monospace;font-size:12px">' + esc(it.rm_code) + '</td>' +
       '<td class="nameCell">' + esc(it.name) + '</td>' +
