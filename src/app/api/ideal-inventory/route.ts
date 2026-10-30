@@ -68,7 +68,10 @@ export async function GET(req: Request) {
     // List view omits items[] (potentially large) so the list query stays small.
     const outletFilter = outlet ? `&outlet=eq.${encodeURIComponent(outlet)}` : "";
     const r = await fetch(
-      `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,order_number,window_from,window_to,total_items,opening_count,created_by,created_at,updated_at&order=created_at.desc${outletFilter}`,
+      // 2026-10-30 (Satvik's #4): include the submission-window stamps
+      // and approved_at so the Variance tab can show window / approved
+      // state at the row level without a per-snapshot fetch.
+      `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,order_number,window_from,window_to,total_items,opening_count,created_by,created_at,updated_at,approved_at,approved_by,submission_window_opens_at,submission_window_closes_at&order=created_at.desc${outletFilter}`,
       { headers: h, cache: "no-store" }
     );
     if (!r.ok) {
