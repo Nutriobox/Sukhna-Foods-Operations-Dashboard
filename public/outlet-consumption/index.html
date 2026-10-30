@@ -177,11 +177,12 @@
     <option value="Swiggy">Swiggy</option>
     <option value="Zomato">Zomato</option>
    </select>
-   <select id="orderTypeSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Order type (Dine In / Delivery / Pick Up — PetPooja 'order_type')">
+   <select id="orderTypeSd" onchange="loadSd(true)" class="btn" style="padding-right:28px" title="Order type (Dine In / Delivery / Pick Up — PetPooja 'order_type'). Add-on items only is a client-side filter — it keeps items the Add-on? column flags Yes.">
     <option value="">All order types</option>
     <option value="Dine In">Dine In</option>
     <option value="Delivery">Delivery</option>
     <option value="Pick Up">Pick Up</option>
+    <option value="__addon">Add-on items only</option>
    </select>
    <select id="statusSd" onchange="renderSd()" class="btn" style="padding-right:28px" title="PetPooja billing status (Success / Cancelled / Failed)">
     <option value="">All statuses</option>
@@ -2355,7 +2356,11 @@ async function loadSd(fresh){
   const orderType = $('orderTypeSd') ? $('orderTypeSd').value : '';
   if(outlet)    params.set('outlet_id',  outlet);
   if(channel)   params.set('channel',    channel);
-  if(orderType) params.set('order_type', orderType);
+  // 2026-10-30 (Satvik's #3 — "add-on filter missing"): "Add-on items
+  // only" is a client-side filter on isAddonItem(name, category) — we
+  // deliberately skip it on the server round-trip and strip it in
+  // renderSd instead so the API still receives the full result set.
+  if(orderType && orderType !== '__addon') params.set('order_type', orderType);
   // 10,000 is the API's hard cap. The old 3000 silently clipped the oldest
   // rows (the API returns newest-first) — a 17-hour window across 10
   // outlets routinely has >3000 line items, so morning data was dropping
@@ -2408,6 +2413,12 @@ async function loadSd(fresh){
 function renderSd(){
   const q = ($('qSd').value || '').trim().toLowerCase();
   const statusFilter = (($('statusSd') && $('statusSd').value) || '').toLowerCase();
+  // 2026-10-30 (Satvik's #3): "Add-on items only" is the 4th option in
+  // the order-type dropdown and is kept entirely client-side so the
+  // API doesn't need to understand it. Matches rows whose name or
+  // category is flagged by isAddonItem().
+  const orderTypeFilter = (($('orderTypeSd') && $('orderTypeSd').value) || '');
+  const addonOnly = orderTypeFilter === '__addon';
   // Normalise PetPooja's status so "Success"/"success", "Cancelled"/
   // "Cancel"/"cancelled", "Fail"/"failed"/"error" all land in three stable
   // buckets for the filter. Anything else (null, "Pending", etc.) stays
@@ -2426,6 +2437,7 @@ function renderSd(){
   };
   const list = SD.rows.filter(r => {
     if(statusFilter && statusBucket(r.status) !== statusFilter) return false;
+    if(addonOnly && !isAddonItem(r.item_name || r.product_name || '', r.category_name || r.category || '')) return false;
     if(!q) return true;
     const nm = String(r.item_name || r.product_name || '').toLowerCase();
     const inv = String(r.invoice_no || r.doc_no || '').toLowerCase();
@@ -2744,6 +2756,11 @@ async function openGrnDetail(docNo){
     if(d.outlet)             headParts.push('<b>Outlet:</b> ' + esc(d.outlet));
     if(d.transfer_location && d.transfer_location !== d.outlet) headParts.push('<b>Transfer Location:</b> ' + esc(d.transfer_location));
     if(d.doc_date)           headParts.push('<b>Doc Date:</b> ' + esc(d.doc_date));
+    // 2026-10-30 (Satvik's #1): PACT's SOT report now carries a "Created
+    // Time" column. Scraper writes it to pact_stock_outlet_outward.doc_time;
+    // show it next to Doc Date so the voucher-sheet drill-down has the
+    // full voucher timestamp instead of a date-only field.
+    if(d.doc_time)           headParts.push('<b>Created Time:</b> ' + esc(d.doc_time));
     if(d.category)           headParts.push('<b>Category:</b> ' + esc(d.category));
     $('puGrnMeta').innerHTML = headParts.join(' &nbsp;·&nbsp; ');
     const lines = d.lines || [];
@@ -2752,7 +2769,9 @@ async function openGrnDetail(docNo){
     // doc_no and doc_date are repeated on every row so each line is a
     // self-contained record if the user exports or copies the table.
     const docDate = d.doc_date || '';
-    const dtDisplay = fmtTime(docDate);
+    const docTime = d.doc_time || '';
+    // When Created Time is present, join as ISO so fmtTime renders both.
+    const dtDisplay = docTime ? fmtTime(docDate + 'T' + docTime) : fmtTime(docDate);
     $('tbodyPuGrn').innerHTML = lines.length
       ? lines.map((ln) => (
           '<tr>' +

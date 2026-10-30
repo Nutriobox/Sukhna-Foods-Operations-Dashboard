@@ -144,7 +144,10 @@ export async function GET(req: Request) {
     // Per-doc detail: all line items for one Doc No.
     if (docNo) {
       const r = await fetch(
-        `${url}/rest/v1/pact_stock_outlet_outward?doc_no=eq.${encodeURIComponent(docNo)}&select=doc_no,doc_date,outlet_name,transfer_location,product_name,rm_code,unit,outlet_qty,batch_no,outlet_issue_type,narration&order=product_name.asc`,
+        // 2026-10-30 (Satvik's #1): return doc_time so the Voucher Sheet
+        // can show PACT's Created Time next to Doc Date instead of just
+        // a bare date.
+        `${url}/rest/v1/pact_stock_outlet_outward?doc_no=eq.${encodeURIComponent(docNo)}&select=doc_no,doc_date,doc_time,outlet_name,transfer_location,product_name,rm_code,unit,outlet_qty,batch_no,outlet_issue_type,narration&order=product_name.asc`,
         { headers: h, cache: "no-store" }
       );
       if (!r.ok) {
@@ -152,7 +155,8 @@ export async function GET(req: Request) {
         return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
       }
       const rows = (await r.json()) as Array<{
-        doc_no: string; doc_date: string; outlet_name: string | null; transfer_location: string | null;
+        doc_no: string; doc_date: string; doc_time: string | null;
+        outlet_name: string | null; transfer_location: string | null;
         product_name: string; rm_code: string | null; unit: string | null; outlet_qty: number | null;
         batch_no: string | null; outlet_issue_type: string | null; narration: string | null;
       }>;
@@ -171,6 +175,7 @@ export async function GET(req: Request) {
         detail: {
           doc_no:   first.doc_no,
           doc_date: first.doc_date,
+          doc_time: first.doc_time,
           outlet:   first.outlet_name || first.transfer_location || "",
           transfer_location: first.transfer_location,
           category: first.outlet_issue_type,
@@ -187,7 +192,9 @@ export async function GET(req: Request) {
     const limit = Math.min(Math.max(1, Number(sp.get("limit") || 500)), 5000);
 
     const filters: string[] = [
-      "select=doc_no,doc_date,outlet_name,transfer_location,category,line_count,total_qty,scraped_at",
+      // 2026-10-30 (Satvik's #1): include doc_time so the list view can
+      // render Date + Time together on each row.
+      "select=doc_no,doc_date,doc_time,outlet_name,transfer_location,category,line_count,total_qty,scraped_at",
       `doc_date=gte.${encodeURIComponent(from)}`,
       `doc_date=lte.${encodeURIComponent(to)}`,
       `order=doc_date.desc,doc_no.desc`,
@@ -205,11 +212,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
     }
     const raw = (await r.json()) as Array<{
-      doc_no: string; doc_date: string; outlet_name: string | null; transfer_location: string | null;
+      doc_no: string; doc_date: string; doc_time: string | null;
+      outlet_name: string | null; transfer_location: string | null;
       category: string | null; line_count: number | null; total_qty: number | null; scraped_at: string | null;
     }>;
     const rows = raw.map((o) => ({
-      date_time:  o.doc_date,                                 // no time in the PACT report; frontend formats it
+      // 2026-10-30 (Satvik's #1): date_time now carries PACT's doc_date
+      // AND Created Time (doc_time) when the scraper has one. Falls back
+      // to the bare date so historical rows still render.
+      date_time:  o.doc_time ? `${o.doc_date}T${o.doc_time}` : o.doc_date,
       doc_no:     o.doc_no,
       outlet:     o.outlet_name || o.transfer_location || "",
       category:   o.category || "",

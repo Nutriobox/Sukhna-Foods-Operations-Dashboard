@@ -13,6 +13,11 @@ create table if not exists public.pact_stock_outlet_outward (
   id                 bigserial primary key,
   doc_no             text not null,
   doc_date           date not null,
+  -- 2026-10-30 (Satvik's #1): PACT's SOT report now carries a "Created
+  -- Time" column (e.g. "08:36:00"). Stored as text so an ambiguous or
+  -- missing value doesn't poison the row; the scraper pulls it verbatim
+  -- from the report, and the frontend formats with doc_date for display.
+  doc_time           text,
   transfer_location  text not null,
   outlet_name        text,                 -- normalised branch label
   product_name       text not null,
@@ -25,6 +30,11 @@ create table if not exists public.pact_stock_outlet_outward (
   scraped_at         timestamptz not null default now(),
   unique (doc_no, product_name, batch_no, unit)
 );
+
+-- Idempotent migration: on an existing database the column is added
+-- without rewriting the table.
+alter table public.pact_stock_outlet_outward
+  add column if not exists doc_time text;
 
 -- Per-doc index for the detail drawer.
 create index if not exists idx_pact_sotout_doc on public.pact_stock_outlet_outward (doc_no);
@@ -50,6 +60,11 @@ create or replace view public.pact_stock_outlet_outward_docs as
   select
     o.doc_no,
     max(o.doc_date)         as doc_date,
+    -- 2026-10-30 (Satvik's #1): roll up Created Time with min() so the
+    -- earliest line's time stands for the doc's time (the scraper fills
+    -- doc_time per line, but every line of one SOT voucher shares one
+    -- Created Time in PACT's report).
+    min(o.doc_time)         as doc_time,
     max(o.outlet_name)      as outlet_name,
     max(o.transfer_location) as transfer_location,
     (select outlet_issue_type from per_doc_cat c where c.doc_no = o.doc_no and c.rk = 1) as category,
