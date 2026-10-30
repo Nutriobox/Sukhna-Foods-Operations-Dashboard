@@ -153,6 +153,10 @@
      <span>🧮</span><span>FG → RM</span>
      <span class="mut" style="font-size:11.5px;font-weight:400;margin-left:auto">Consumption calculator + RM mismatches</span>
     </div>
+    <div class="moreItem" onclick="openOutletLogins();closeMoreMenu()" style="padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:600;color:#374151;display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)">
+     <span>🔑</span><span>Outlet Logins</span>
+     <span class="mut" style="font-size:11.5px;font-weight:400;margin-left:auto">Portal URLs, usernames &amp; passwords</span>
+    </div>
    </div>
   </div>
  </div>
@@ -1041,6 +1045,27 @@
  </div>
 </div>
 
+ <!-- Outlet Logins — quick reference for the per-outlet portal credentials. -->
+ <div id="outletLoginsModal" class="nmmodal" style="display:none" onclick="if(event.target===this)closeOutletLogins()">
+  <div class="nmbody" style="max-width:860px">
+   <div class="nmhdr">
+    <h3 style="margin:0;flex:1">🔑 Outlet Portal Logins</h3>
+    <button class="btn" onclick="closeOutletLogins()">✕</button>
+   </div>
+   <div class="mut" style="margin:8px 0 14px;font-size:12.5px;line-height:1.5">Each outlet signs in at its own subdomain. Password shown is the default (<code>1122</code>); if an outlet's password was changed it can't be read back and must be reset.</div>
+   <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table id="tblOutletLogins">
+    <thead><tr>
+     <th>#</th>
+     <th>Outlet</th>
+     <th>Login URL</th>
+     <th>Username</th>
+     <th>Password</th>
+    </tr></thead>
+    <tbody id="outletLoginsBody"></tbody>
+   </table></div></div>
+  </div>
+ </div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -1310,6 +1335,41 @@ function toggleMoreMenu(e){
   el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 function closeMoreMenu(){ const el = $('moreMenu'); if(el) el.style.display = 'none'; }
+
+// 2026-10-30 (Satvik): Outlet Logins quick-reference (More ▾ → Outlet Logins).
+// All 10 outlet portal accounts share the seed default password 1122; the
+// username is the slug and each has its own subdomain. Passwords are hashed
+// server-side and can't be read back, so this shows the default — reset the
+// row in outlet_portal_access if an outlet's password was changed.
+const OUTLET_LOGINS = [
+  { name: 'Rajinder Nagar',     slug: 'rajinder-nagar' },
+  { name: 'DLF Phase 2',        slug: 'dlf-phase-2' },
+  { name: 'Sector 63 Noida',    slug: 'sector-63-noida' },
+  { name: 'Dwarka',             slug: 'dwarka' },
+  { name: 'Janakpuri',          slug: 'janakpuri' },
+  { name: 'Karkardooma',        slug: 'karkardooma' },
+  { name: 'Noida',              slug: 'noida' },
+  { name: 'Prashant Vihar',     slug: 'prashant-vihar' },
+  { name: 'Sector 15 Gurugram', slug: 'sector-15-gurugram' },
+  { name: 'Shivalik',           slug: 'shivalik' },
+];
+function openOutletLogins(){
+  const body = $('outletLoginsBody');
+  if(body){
+    body.innerHTML = OUTLET_LOGINS.map((o, i) => {
+      const host = o.slug + '.outlet-on-hand.nutriobox.com';
+      return '<tr>'
+        + '<td>' + (i + 1) + '</td>'
+        + '<td>' + esc(o.name) + '</td>'
+        + '<td><a href="https://' + host + '" target="_blank" rel="noopener" style="color:#2563eb;text-decoration:none">' + host + '</a></td>'
+        + '<td style="font-family:monospace;font-size:12.5px">' + esc(o.slug) + '</td>'
+        + '<td style="font-family:monospace;font-size:12.5px">1122</td>'
+      + '</tr>';
+    }).join('');
+  }
+  const m = $('outletLoginsModal'); if(m) m.style.display = '';
+}
+function closeOutletLogins(){ const m = $('outletLoginsModal'); if(m) m.style.display = 'none'; }
 document.addEventListener('click', (e) => {
   // Click anywhere outside the More menu or its button closes it.
   const wrap = document.getElementById('moreMenuWrap');
