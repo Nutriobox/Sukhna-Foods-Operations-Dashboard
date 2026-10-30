@@ -194,14 +194,29 @@
   // Tab regained focus / became visible: a laptop that was asleep almost
   // certainly dropped its WebSocket. Force a resubscribe AND a safety-poll
   // pass right now so the UI catches up without waiting on the 45 s timer.
+  //
+  // 2026-10-30 (traffic-flood guard): earlier revision called safetyPoll on
+  // EVERY focus / visibilitychange, which chattered under rapid alt-tab
+  // and Chrome's power-saver visibility ticks — contributing to the 1.5M-
+  // requests-per-day spike Satvik saw at Vercel's firewall. We now cap
+  // the extra safety-poll to one per 30 s, and reboot the subscription
+  // only when it's actually been >15 s since we last tried. The scheduled
+  // SAFETY_POLL_MS timer is unaffected.
+  var lastWakeSafetyMs    = 0;
+  var lastSubscribeRebootMs = 0;
   function onWakeOrFocus() {
-    if (realtimeStatus !== 'SUBSCRIBED') {
+    var now = Date.now();
+    if (realtimeStatus !== 'SUBSCRIBED' && (now - lastSubscribeRebootMs) > 15000) {
+      lastSubscribeRebootMs = now;
       console.log('[OpsSync] Tab active, Realtime not healthy (' + realtimeStatus + ') — rebooting subscription.');
       try { if (window.OpsSync && window.OpsSync._channel) window.OpsSync._channel.unsubscribe(); } catch (e) {}
       try { if (window.OpsSync && window.OpsSync._client  && window.OpsSync._channel) window.OpsSync._client.removeChannel(window.OpsSync._channel); } catch (e) {}
       startRealtime();
     }
-    safetyPoll();
+    if ((now - lastWakeSafetyMs) > 30000) {
+      lastWakeSafetyMs = now;
+      safetyPoll();
+    }
   }
   window.addEventListener('focus', onWakeOrFocus);
   document.addEventListener('visibilitychange', function () {
