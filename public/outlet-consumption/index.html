@@ -29,6 +29,9 @@
   .btn.prim:hover{background:#1e40af}
   .btn:disabled{opacity:.6;cursor:not-allowed}
   .tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+  /* Variance View modal shows Wastage columns in wastage mode, Variance columns in variance mode. */
+  [data-vmode="variance"] .vcol-waste{display:none}
+  [data-vmode="wastage"] .vcol-var{display:none}
   .tab{flex:0 0 auto;padding:11px 20px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:pointer;font-weight:600;color:var(--mut);text-align:center;font-size:14px}
   .tab.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
   .moreItem:hover{background:#f3f4f6}
@@ -852,7 +855,7 @@
  <div id="iiSavedViewModal" class="nmmodal" style="display:none" onclick="if(event.target===this)iiCloseSavedView()">
   <div class="nmbody" style="max-width:1480px">
    <div class="nmhdr">
-    <h3 style="margin:0;flex:1">📋 Variance View — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
+    <h3 style="margin:0;flex:1">📋 <span id="iiSavedViewKind">Variance View</span> — <span id="iiSavedViewTitle" style="font-weight:600;color:#1e40af"></span></h3>
     <button class="btn" onclick="iiCloseSavedView()">✕</button>
    </div>
    <div id="iiSavedViewMeta" class="mut" style="margin:8px 0 10px;font-size:13px;line-height:1.5"></div>
@@ -873,21 +876,18 @@
       <th rowspan="2">UOM</th>
       <th colspan="2" class="r" style="background:#f1f5f9">Ideal</th>
       <th colspan="2" class="r" style="background:#eff6ff">On Hand</th>
-      <th colspan="2" class="r" style="background:#fff7ed">Wastage</th>
-      <th colspan="2" class="r" style="background:#fef2f2">Variance</th>
-      <th colspan="2" class="r" style="background:#f0fdf4">Adjusted Variance</th>
+      <th colspan="2" class="r vcol-waste" style="background:#fff7ed">Wastage</th>
+      <th colspan="2" class="r vcol-var" style="background:#fef2f2">Variance</th>
      </tr>
      <tr>
       <th class="r" style="background:#f1f5f9">Full</th>
       <th class="r" style="background:#f1f5f9">Loose</th>
       <th class="r" style="background:#eff6ff">Full</th>
       <th class="r" style="background:#eff6ff">Loose</th>
-      <th class="r" style="background:#fff7ed">Full</th>
-      <th class="r" style="background:#fff7ed">Loose</th>
-      <th class="r" style="background:#fef2f2">Full</th>
-      <th class="r" style="background:#fef2f2">Loose</th>
-      <th class="r" style="background:#f0fdf4">Full</th>
-      <th class="r" style="background:#f0fdf4">Loose</th>
+      <th class="r vcol-waste" style="background:#fff7ed">Full</th>
+      <th class="r vcol-waste" style="background:#fff7ed">Loose</th>
+      <th class="r vcol-var" style="background:#fef2f2">Full</th>
+      <th class="r vcol-var" style="background:#fef2f2">Loose</th>
      </tr>
     </thead>
     <tbody id="tbodyIiSavedView"></tbody>
@@ -1018,7 +1018,7 @@
     <th>Date &amp; Time</th>
     <th>Outlet</th>
     <th>IO #</th>
-    <th title="Each snapshot has two rows: Wastage, then Closing Stock. Approve wastage first; the closing-stock approval unlocks after that.">Stage / Status</th>
+    <th>Closing Stock</th>
     <th>View</th>
     <th>Import</th>
     <th>Delete</th>
@@ -1030,21 +1030,22 @@
 
  <div id="tabWs" style="display:none">
   <div class="toolbar" style="flex-wrap:wrap;align-items:center">
-   <h2 style="margin:0;font-size:18px">🗑 Wastage Submissions</h2>
-   <input id="qWs" class="search" placeholder="Search outlet…" oninput="renderWs()" style="min-width:220px">
+   <h2 style="margin:0;font-size:18px">🗑 Wastage Approvals</h2>
+   <input id="qWs" class="search" placeholder="Search outlet or IO #…" oninput="renderWs()" style="min-width:220px">
    <button class="btn" id="btnReloadWs" onclick="loadWs(true)" title="Re-pull from Supabase">↻ Reload</button>
    <span id="syncStatWs" class="mut" style="font-size:12.5px"></span>
-   <span class="mut" style="font-size:12.5px;margin-left:auto">Outlets submit wastage from their portal · approve it on the Variance tab</span>
+   <span class="mut" style="font-size:12.5px;margin-left:auto">Outlets submit wastage from their portal · approve each here (closing stock stays on Variance)</span>
   </div>
   <div class="card"><div class="scroll"><table id="tblWs">
    <thead><tr>
     <th>#</th>
     <th>Date &amp; Time</th>
     <th>Outlet</th>
-    <th class="r">RMs filled</th>
-    <th>View</th>
+    <th>IO #</th>
+    <th>Wastage</th>
+    <th>Actions</th>
    </tr></thead>
-   <tbody id="tbodyWs"><tr><td colspan="5" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodyWs"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>  <!-- /tabWs -->
 
@@ -5393,10 +5394,14 @@ async function iiFetchSnapshotById(id){
   return j.snapshot;
 }
 
-async function iiViewSaved(id){
+async function iiViewSaved(id, mode){
   try {
     const snap = await iiFetchSnapshotById(id);
     const modal = $('iiSavedViewModal');
+    // variance mode shows Ideal/On Hand/Variance; wastage mode shows
+    // Ideal/On Hand/Wastage. (Satvik 2026-10-30 — wastage moved to its own tab.)
+    if(modal) modal.dataset.vmode = (mode === 'wastage' ? 'wastage' : 'variance');
+    const kindEl = $('iiSavedViewKind'); if(kindEl) kindEl.textContent = (mode === 'wastage' ? 'Wastage View' : 'Variance View');
     const title = $('iiSavedViewTitle');
     const meta  = $('iiSavedViewMeta');
     const tb    = $('tbodyIiSavedView');
@@ -5704,12 +5709,10 @@ function iiRenderSavedView(){
       + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.looseQty, sIdeal.looseUnit) + '</td>'
       + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.fullQty, sOnHand.fullUnit) + '</td>'
       + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.looseQty,sOnHand.looseUnit)+ '</td>'
-      + '<td class="r" style="background:#fffaf0">' + fmtPlain(sWaste.fullQty,  sWaste.fullUnit) + chip + '</td>'
-      + '<td class="r" style="background:#fffaf0">' + fmtPlain(sWaste.looseQty, sWaste.looseUnit) + '</td>'
-      + '<td class="r" style="background:#fef2f2">' + varFullHtml  + '</td>'
-      + '<td class="r" style="background:#fef2f2">' + varLooseHtml + '</td>'
-      + '<td class="r" style="background:#f0fdf4">' + aVarFullHtml  + '</td>'
-      + '<td class="r" style="background:#f0fdf4">' + aVarLooseHtml + '</td>'
+      + '<td class="r vcol-waste" style="background:#fffaf0">' + fmtPlain(sWaste.fullQty,  sWaste.fullUnit) + chip + '</td>'
+      + '<td class="r vcol-waste" style="background:#fffaf0">' + fmtPlain(sWaste.looseQty, sWaste.looseUnit) + '</td>'
+      + '<td class="r vcol-var" style="background:#fef2f2">' + varFullHtml  + '</td>'
+      + '<td class="r vcol-var" style="background:#fef2f2">' + varLooseHtml + '</td>'
     + '</tr>';
   }).join('');
 }
@@ -6294,58 +6297,83 @@ async function loadVa(fresh){
 // Read-only overview of outlet portal wastage submissions (outlet_wastage_
 // counts), newest first, so the team can track what each outlet sent in.
 // Approval still happens on the Variance tab's Wastage row — this is tracking.
-const WS = { rows: [], loaded: false, meta: { source: 'Outlet wastage submissions', synced_at: '', count: 0 } };
+// 2026-10-30 (Satvik): the Wastage tab is now the wastage-approval workspace.
+// It lists the same Ideal Inventory snapshots as Variance, but focused on the
+// wastage stage: approve each outlet's portal-submitted wastage here (one-way).
+// Closing-stock approval stays on the Variance tab and unlocks after this.
+const WS = { snapshots: [], loaded: false, _sig: '', meta: { source: 'Ideal Inventory snapshots · portal wastage', synced_at: '', count: 0 } };
 function wsOnTabEnter(){ if(!WS.loaded) loadWs(false); }
 async function loadWs(fresh){
   const stat = $('syncStatWs');
   if(stat) stat.textContent = fresh ? 'Refreshing…' : 'Loading…';
   try {
-    const r = await fetch('/api/outlet-wastage', { cache: 'no-store' });
+    const r = await fetch('/api/ideal-inventory', { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    const counts = Array.isArray(j.counts) ? j.counts : [];
-    WS.rows = counts.filter(c => typeof c.created_by === 'string' && c.created_by.startsWith('portal:'));
+    WS.snapshots = Array.isArray(j.snapshots) ? j.snapshots : [];
     WS.loaded = true;
-    WS.meta = { source: 'Outlet portal wastage submissions', synced_at: new Date().toISOString(), count: WS.rows.length };
-    if(stat) stat.textContent = '✓ ' + WS.rows.length + ' submission' + (WS.rows.length === 1 ? '' : 's');
+    WS._sig = vaSnapSig(WS.snapshots);
+    WS.meta = { source: 'Ideal Inventory snapshots · portal wastage', synced_at: new Date().toISOString(), count: WS.snapshots.length };
+    if(stat) stat.textContent = '✓ ' + WS.snapshots.length + ' snapshot' + (WS.snapshots.length === 1 ? '' : 's');
     renderWs();
+    wsDecorateWastage().then(() => renderWs());
     if(CURTAB === 'ws') updateHeaderStats();
   } catch(e){
     if(stat) stat.textContent = '✗ ' + (e.message || e);
-    const tb = $('tbodyWs'); if(tb) tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
+    const tb = $('tbodyWs'); if(tb) tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
   }
+}
+// Per-snapshot portal-wastage status: approved (one-way stamp), pending (portal
+// submitted but not yet approved), or none. Reuses vaLatestPortalWastage.
+async function wsDecorateWastage(){
+  const snaps = WS.snapshots || [];
+  await Promise.all(snaps.map(async (s) => {
+    if(s.wastage_approved_at){ s._wsStatus = 'approved'; s._wsCount = 0; return; }
+    try {
+      const wa = await vaLatestPortalWastage(s.outlet || '', s.window_from || null);
+      const qmap = (wa && wa.qty) || {};
+      const ql   = (wa && wa.qty_loose) || {};
+      const n = new Set(Object.keys(qmap).concat(Object.keys(ql)).filter(k => (Number(qmap[k]) || 0) || (Number(ql[k]) || 0))).size;
+      s._wsStatus = n > 0 ? 'pending' : 'none';
+      s._wsCount = n;
+    } catch(_){ s._wsStatus = 'none'; s._wsCount = 0; }
+  }));
 }
 function renderWs(){
   const tb = $('tbodyWs'); if(!tb) return;
   const q = (($('qWs') && $('qWs').value) || '').trim().toLowerCase();
-  const rows = WS.rows.filter(r => !q || String(r.outlet || '').toLowerCase().includes(q));
-  if(!rows.length){
-    tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:20px;text-align:center">No wastage submissions' + (q ? ' match this filter.' : ' yet — outlets submit wastage from their portal.') + '</td></tr>';
+  const list = (WS.snapshots || []).filter(s => !q || ((s.outlet || '') + ' #' + (s.order_number || '')).toLowerCase().includes(q));
+  if(!list.length){
+    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No snapshots' + (q ? ' match this filter.' : ' yet — save one from Ideal Inventory, then outlets submit wastage from their portal.') + '</td></tr>';
     return;
   }
-  tb.innerHTML = rows.map((r, i) => {
-    const when = r.dt_iso ? fmtTime(String(r.dt_iso).length === 16 ? r.dt_iso + '+05:30' : r.dt_iso) : (r.created_at ? fmtTime(r.created_at) : '—');
-    const filled = (r.filled_count != null ? r.filled_count : '—');
-    const total  = (r.total_items  != null ? (' / ' + r.total_items) : '');
-    const idEsc = esc(String(r.id || '')).replace(/'/g, "\\'");
-    return '<tr>'
+  tb.innerHTML = list.map((s, i) => {
+    const idEsc = esc(String(s.id || '')).replace(/'/g, "\\'");
+    const nameJs = esc(s.outlet || '').replace(/'/g, "\\'");
+    const when = s.window_to ? fmtTime(String(s.window_to).length === 16 ? s.window_to + '+05:30' : s.window_to) : (s.created_at ? fmtTime(s.created_at) : '—');
+    const ord = s.order_number != null ? ('#' + s.order_number) : '—';
+    const approved = Boolean(s.wastage_approved_at);
+    const st = approved ? 'approved' : (s._wsStatus || 'none');
+    const statusChip = approved
+      ? '<span class="sb" style="background:#dcfce7;color:#166534;font-weight:600">✓ Approved</span>'
+      : (st === 'pending'
+          ? '<span class="sb" style="background:#fef3c7;color:#92400e;font-weight:600">⏳ Pending</span>' + (s._wsCount ? ' <span class="mut" style="font-size:11px">' + s._wsCount + ' RM' + (s._wsCount === 1 ? '' : 's') + '</span>' : '')
+          : '<span class="mut" style="font-size:12px">No portal submission yet</span>');
+    const approveBtn = approved
+      ? '<span class="sb" style="background:#166534;color:#fff;font-weight:700" title="Wastage approved — final, cannot be undone.">✓ Approved</span>'
+      : (st === 'pending'
+          ? '<button class="btn" onclick="vaApproveWastage(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px;background:#fef3c7;border-color:#fde68a;color:#92400e;font-weight:600" title="Approve this outlet\'s submitted wastage. Final — it cannot be undone or re-approved.">✓ Approve Wastage</button>'
+          : '<button class="btn" disabled style="padding:4px 8px;font-size:12px;opacity:0.45;cursor:not-allowed" title="No portal wastage for this window yet.">✓ Approve Wastage</button>');
+    const rowStyle = approved ? ' style="background:#f0fdf4"' : '';
+    return '<tr' + rowStyle + '>'
       + '<td>' + (i + 1) + '</td>'
       + '<td>' + esc(when) + '</td>'
-      + '<td>' + esc(r.outlet || '') + '</td>'
-      + '<td class="r">' + esc(String(filled)) + esc(total) + '</td>'
-      + '<td><button class="btn" onclick="wsView(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
+      + '<td>' + esc(s.outlet || '') + '</td>'
+      + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
+      + '<td>' + statusChip + '</td>'
+      + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\', \'wastage\')" style="padding:4px 10px;font-size:12px">👁 View</button> &nbsp; ' + approveBtn + '</td>'
     + '</tr>';
   }).join('');
-}
-async function wsView(id){
-  try {
-    const r = await fetch('/api/outlet-wastage?id=' + encodeURIComponent(id), { cache: 'no-store' });
-    const j = await r.json();
-    if(!r.ok || !j.ok || !j.count){ toast('Could not load that submission.', 3000); return; }
-    const qmap = j.count.qty || {};
-    const n = Object.keys(qmap).filter(k => Number(qmap[k])).length;
-    toast('Wastage by ' + (j.count.outlet || 'outlet') + ' · ' + n + ' RM' + (n === 1 ? '' : 's') + '. Approve it on the Variance tab.', 4500);
-  } catch(e){ toast('View failed: ' + (e.message || e), 3000); }
 }
 // 2026-10-30 (Satvik): the global sync-refresh (js/sync-refresh.js) only
 // subscribes to the costing + inventory tables, so the Variance list never
@@ -6361,14 +6389,16 @@ function vaSnapSig(snaps){
   }).join('|');
 }
 async function vaAutoRefreshTick(){
-  if(typeof CURTAB === 'undefined' || CURTAB !== 'va') return;
+  const active = (typeof CURTAB !== 'undefined') ? CURTAB : '';
+  if(active !== 'va' && active !== 'ws') return;
   if(typeof document !== 'undefined' && document.hidden) return;
-  if(!VA.loaded) return;
   try {
     const r = await fetch('/api/ideal-inventory', { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok || !Array.isArray(j.snapshots)) return;
-    if(vaSnapSig(j.snapshots) !== VA._sig) loadVa(true);
+    const sig = vaSnapSig(j.snapshots);
+    if(active === 'va' && VA.loaded && sig !== VA._sig) loadVa(true);
+    if(active === 'ws' && WS.loaded && sig !== (WS._sig || '')) loadWs(true);
   } catch(_){ /* transient; the next tick retries */ }
 }
 try {
@@ -6554,7 +6584,7 @@ function renderVa(){
       ? '<span class="sb" style="background:#dcfce7;color:#166534;font-weight:600">Approved</span>'
       : (wApproved
           ? '<span class="sb" style="background:#fef3c7;color:#92400e;font-weight:600">⏳ Awaiting approval</span>'
-          : '<span class="mut" style="font-size:12px">Locked — approve wastage first</span>');
+          : '<span class="mut" style="font-size:12px">Locked — approve wastage in the Wastage tab first</span>');
 
     const wastageBtn = wApproved
       ? '<span class="sb" style="background:#166534;color:#fff;font-weight:700" title="Wastage is approved — this is final and cannot be undone.">✓ Approved</span>'
@@ -6568,19 +6598,17 @@ function renderVa(){
           : '<button class="btn" disabled style="padding:4px 8px;font-size:12px;opacity:0.45;cursor:not-allowed" title="Approve wastage first — the closing-stock approval unlocks after that.">✓ Approve C/S</button>');
 
     const rowStyle = csApproved ? ' style="background:#f0fdf4"' : (wApproved ? ' style="background:#fffbeb"' : '');
+    // 2026-10-30 (Satvik): wastage approval moved to the Wastage tab, so the
+    // Variance list is Closing Stock only — one row per snapshot.
     return '<tr' + rowStyle + '>'
-      + '<td rowspan="2">' + (i + 1) + '</td>'
-      + '<td rowspan="2">' + esc(when) + '</td>'
-      + '<td rowspan="2">' + nameEsc + '</td>'
-      + '<td rowspan="2" style="font-family:monospace;font-size:12px">' + ord + '</td>'
-      + '<td><b>Wastage</b> &nbsp; ' + wastageStatus + '</td>'
-      + '<td rowspan="2"><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
-      + '<td rowspan="2"><button class="btn" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the Ideal Inventory tab">⬆ Import</button></td>'
-      + '<td rowspan="2"><button class="btn warn" onclick="vaDelete(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px">🗑 Delete</button></td>'
-      + '<td>' + wastageBtn + '</td>'
-    + '</tr>'
-    + '<tr' + rowStyle + '>'
+      + '<td>' + (i + 1) + '</td>'
+      + '<td>' + esc(when) + '</td>'
+      + '<td>' + nameEsc + '</td>'
+      + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
       + '<td><b>Closing Stock</b> &nbsp; ' + csStatus + '</td>'
+      + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
+      + '<td><button class="btn" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the Ideal Inventory tab">⬆ Import</button></td>'
+      + '<td><button class="btn warn" onclick="vaDelete(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px">🗑 Delete</button></td>'
       + '<td>' + csBtn + '</td>'
     + '</tr>';
   }).join('');
@@ -6752,6 +6780,7 @@ async function vaApproveSlice(id, outletLabel, slice){
     if(needsOnHand) bits.push('Adjusted Variance set on ' + items.length + ' row' + (items.length === 1 ? '' : 's'));
     toast(bits.join(' · '), 4500);
     await loadVa(true);
+    if(typeof loadWs === "function" && WS.loaded) loadWs(true);
   } catch(e){
     toast('Approve failed: ' + (e.message || e), 5000);
   }
@@ -6778,6 +6807,7 @@ async function vaUnapprove(id, outletLabel){
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     toast('Approval cleared.', 2500);
     await loadVa(true);
+    if(typeof loadWs === "function" && WS.loaded) loadWs(true);
   } catch(e){
     toast('Un-approve failed: ' + (e.message || e), 5000);
   }
@@ -6795,6 +6825,7 @@ async function vaDelete(id, outletLabel){
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     toast('Deleted.', 2500);
     await loadVa(true);
+    if(typeof loadWs === "function" && WS.loaded) loadWs(true);
   } catch(e){
     toast('Delete failed: ' + (e.message || e), 5000);
   }
