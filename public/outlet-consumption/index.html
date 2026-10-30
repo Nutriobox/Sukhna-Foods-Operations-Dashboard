@@ -1025,7 +1025,7 @@
     <th>Date &amp; Time</th>
     <th>Outlet</th>
     <th>IO #</th>
-    <th title="Portal wastage status — ⏳ Pending when the outlet has submitted wastage via /outlet-portal but it hasn't been applied to this snapshot yet. View the snapshot to see the per-RM breakdown.">Wastage</th>
+    <th title="Each snapshot has two rows: Wastage, then Closing Stock. Approve wastage first; the closing-stock approval unlocks after that.">Stage / Status</th>
     <th>View</th>
     <th>Import</th>
     <th>Delete</th>
@@ -6379,27 +6379,49 @@ function renderVa(){
     // "✓ Approved" chip + Un-approve action, so the state is unmistakable
     // on a long list and the user never second-guesses whether their
     // click landed.
-    const isApproved = Boolean(s.approved_at);
-    const approveBtn = isApproved
-      ? '<span style="display:inline-flex;gap:6px;align-items:center">'
-          + '<span class="sb" style="background:#166534;color:#fff;font-weight:700" title="This snapshot has been approved — closing stock, wastage and Adjusted Variance are locked.">✓ Approved</span>'
-          + '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:3px 8px;font-size:11px" title="Clear the approval stamp">↶ Un-approve</button>'
+    // 2026-10-30 (Satvik's #4): two-stage approval rendered as TWO rows per
+    // snapshot — Wastage first, then Closing Stock. Wastage is one-way; the
+    // C/S approve button stays disabled until Wastage is approved. On C/S
+    // approval the Adjusted Variance lands in the Ideal Inventory view.
+    const wApproved  = Boolean(s.wastage_approved_at);
+    const csApproved = Boolean(s.approved_at);
+
+    const approvedChip = '<span class="sb" style="background:#166534;color:#fff;font-weight:700">✓ Approved</span>';
+    const wastageStatus = wApproved
+      ? '<span class="sb" style="background:#dcfce7;color:#166534;font-weight:600">Approved</span>'
+      : vaWastageChip(s);
+    const csStatus = csApproved
+      ? '<span class="sb" style="background:#dcfce7;color:#166534;font-weight:600">Approved</span>'
+      : (wApproved
+          ? '<span class="sb" style="background:#fef3c7;color:#92400e;font-weight:600">⏳ Awaiting approval</span>'
+          : '<span class="mut" style="font-size:12px">Locked — approve wastage first</span>');
+
+    const wastageBtn = wApproved
+      ? '<span class="sb" style="background:#166534;color:#fff;font-weight:700" title="Wastage is approved — this is final and cannot be undone.">✓ Approved</span>'
+      : '<button class="btn" onclick="vaApproveWastage(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px;background:#fef3c7;border-color:#fde68a;color:#92400e;font-weight:600" title="Approve the outlet\'s submitted wastage. This is final — it cannot be undone or re-approved.">✓ Approve Wastage</button>';
+    const csBtn = csApproved
+      ? '<span style="display:inline-flex;gap:6px;align-items:center">' + approvedChip
+          + '<button class="btn" onclick="vaUnapprove(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:3px 8px;font-size:11px" title="Clear the closing-stock approval and its Adjusted Variance">↶ Un-approve</button>'
         + '</span>'
-      : '<span style="display:inline-flex;gap:4px">'
-          + '<button class="btn prim" onclick="vaApproveCs(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px" title="Approve CLOSING STOCK + ADJUSTED VARIANCE only. Portal wastage stays pending.">✓ C/S</button>'
-          + '<button class="btn" onclick="vaApproveWastage(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px;background:#fef3c7;border-color:#fde68a;color:#92400e;font-weight:600" title="Approve PORTAL WASTAGE only. Closing stock stays as entered.">✓ Wastage</button>'
-        + '</span>';
-    const rowStyle = isApproved ? ' style="background:#f0fdf4"' : '';
+      : (wApproved
+          ? '<button class="btn prim" onclick="vaApproveCs(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 8px;font-size:12px" title="Approve closing stock. Adjusted Variance = Ideal Closing − Closing Stock, shown in the Ideal Inventory view.">✓ Approve C/S</button>'
+          : '<button class="btn" disabled style="padding:4px 8px;font-size:12px;opacity:0.45;cursor:not-allowed" title="Approve wastage first — the closing-stock approval unlocks after that.">✓ Approve C/S</button>');
+
+    const rowStyle = csApproved ? ' style="background:#f0fdf4"' : (wApproved ? ' style="background:#fffbeb"' : '');
     return '<tr' + rowStyle + '>'
-      + '<td>' + (i + 1) + '</td>'
-      + '<td>' + esc(when) + '</td>'
-      + '<td>' + nameEsc + '</td>'
-      + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
-      + '<td>' + vaWastageChip(s) + '</td>'
-      + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
-      + '<td><button class="btn" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the Ideal Inventory tab">⬆ Import</button></td>'
-      + '<td><button class="btn warn" onclick="vaDelete(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px">🗑 Delete</button></td>'
-      + '<td>' + approveBtn + '</td>'
+      + '<td rowspan="2">' + (i + 1) + '</td>'
+      + '<td rowspan="2">' + esc(when) + '</td>'
+      + '<td rowspan="2">' + nameEsc + '</td>'
+      + '<td rowspan="2" style="font-family:monospace;font-size:12px">' + ord + '</td>'
+      + '<td><b>Wastage</b> &nbsp; ' + wastageStatus + '</td>'
+      + '<td rowspan="2"><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px">👁 View</button></td>'
+      + '<td rowspan="2"><button class="btn" onclick="iiImportSaved(\'' + idEsc + '\')" style="padding:4px 10px;font-size:12px" title="Load this snapshot into the Ideal Inventory tab">⬆ Import</button></td>'
+      + '<td rowspan="2"><button class="btn warn" onclick="vaDelete(\'' + idEsc + '\', \'' + nameJs + '\')" style="padding:4px 10px;font-size:12px">🗑 Delete</button></td>'
+      + '<td>' + wastageBtn + '</td>'
+    + '</tr>'
+    + '<tr' + rowStyle + '>'
+      + '<td><b>Closing Stock</b> &nbsp; ' + csStatus + '</td>'
+      + '<td>' + csBtn + '</td>'
     + '</tr>';
   }).join('');
 }
@@ -6560,7 +6582,7 @@ async function vaApproveSlice(id, outletLabel, slice){
     const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', approved_by: by, item_updates: item_updates }),
+      body: JSON.stringify({ action: 'approve', approved_by: by, stage: (slice === 'wastage' ? 'wastage' : 'cs'), item_updates: item_updates }),
     });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
