@@ -71,7 +71,7 @@ export async function GET(req: Request) {
       // 2026-10-30 (Satvik's #4): include the submission-window stamps
       // and approved_at so the Variance tab can show window / approved
       // state at the row level without a per-snapshot fetch.
-      `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,order_number,window_from,window_to,total_items,opening_count,created_by,created_at,updated_at,approved_at,approved_by,submission_window_opens_at,submission_window_closes_at&order=created_at.desc${outletFilter}`,
+      `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,order_number,window_from,window_to,total_items,opening_count,created_by,created_at,updated_at,approved_at,approved_by,wastage_approved_at,wastage_approved_by,submission_window_opens_at,submission_window_closes_at&order=created_at.desc${outletFilter}`,
       { headers: h, cache: "no-store" }
     );
     if (!r.ok) {
@@ -257,22 +257,54 @@ export async function PATCH(req: Request) {
 
   type ItemUpdate  = { wastage_l1?: number; adjusted_variance_l1?: number };
   type SnapItem    = { rm_code?: string; wastage_l1?: number; adjusted_variance_l1?: number; [k: string]: unknown };
-  type PatchBody   = { action?: unknown; approved_by?: unknown; item_updates?: Record<string, ItemUpdate> };
+  type PatchBody   = { action?: unknown; approved_by?: unknown; stage?: unknown; item_updates?: Record<string, ItemUpdate> };
 
   let body: PatchBody;
   try { body = (await req.json()) as PatchBody; }
   catch { return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400, headers: CORS }); }
 
   const action = typeof body.action === "string" ? body.action.trim() : "";
+  // 2026-10-30 (Satvik's #4 two-stage approval): wastage and closing stock are
+  // approved separately. "wastage" sets wastage_approved_at (one-way — it can
+  // never be undone); "cs" (the default / final approval) sets approved_at and
+  // is only allowed once wastage is approved.
+  const stage = body.stage === "wastage" ? "wastage" : "cs";
   const approvedBy = typeof body.approved_by === "string" ? body.approved_by.slice(0, 120) : null;
   const itemUpdates: Record<string, ItemUpdate> = (action === "approve" && body.item_updates && typeof body.item_updates === "object")
     ? body.item_updates : {};
   const hasItemUpdates = Object.keys(itemUpdates).length > 0;
 
+  // Current approval stamps, needed to enforce the two-stage gating.
+  let cur: { wastage_approved_at: string | null; approved_at: string | null } = { wastage_approved_at: null, approved_at: null };
+  try {
+    const cr = await fetch(
+      `${url}/rest/v1/ideal_inventory_snapshots?select=wastage_approved_at,approved_at&id=eq.${encodeURIComponent(id)}`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
+    );
+    if (cr.ok) {
+      const rr = (await cr.json()) as Array<{ wastage_approved_at: string | null; approved_at: string | null }>;
+      if (rr[0]) cur = rr[0];
+    }
+  } catch { /* best-effort; guards below simply won't fire if this read fails */ }
+
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (action === "approve")        { patch.approved_at = new Date().toISOString(); patch.approved_by = approvedBy; }
-  else if (action === "unapprove") { patch.approved_at = null;                     patch.approved_by = null; }
-  else return NextResponse.json({ ok: false, error: "action must be 'approve' or 'unapprove'" }, { status: 400, headers: CORS });
+  if (action === "approve") {
+    if (stage === "wastage") {
+      if (cur.wastage_approved_at) return NextResponse.json({ ok: false, error: "Wastage is already approved and cannot be re-approved." }, { status: 409, headers: CORS });
+      patch.wastage_approved_at = new Date().toISOString();
+      patch.wastage_approved_by = approvedBy;
+    } else {
+      if (!cur.wastage_approved_at) return NextResponse.json({ ok: false, error: "Approve wastage before approving closing stock." }, { status: 409, headers: CORS });
+      patch.approved_at = new Date().toISOString();
+      patch.approved_by = approvedBy;
+    }
+  } else if (action === "unapprove") {
+    if (stage === "wastage") return NextResponse.json({ ok: false, error: "Wastage approval is final and cannot be undone." }, { status: 409, headers: CORS });
+    patch.approved_at = null;
+    patch.approved_by = null;
+  } else {
+    return NextResponse.json({ ok: false, error: "action must be 'approve' or 'unapprove'" }, { status: 400, headers: CORS });
+  }
 
   try {
     // Fold item_updates into the snapshot's items array before PATCHing.
@@ -330,14 +362,16 @@ export async function PATCH(req: Request) {
       const t = await r.text().catch(() => "");
       return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
     }
-    const rows = (await r.json()) as Array<{ id: string; approved_at: string | null; approved_by: string | null }>;
+    const rows = (await r.json()) as Array<{ id: string; approved_at: string | null; approved_by: string | null; wastage_approved_at?: string | null }>;
     const row = rows[0];
     if (!row) return NextResponse.json({ ok: false, error: "snapshot not found" }, { status: 404, headers: CORS });
     return NextResponse.json({
       ok: true,
       id: row.id,
+      stage,
       approved_at: row.approved_at,
       approved_by: row.approved_by,
+      wastage_approved_at: row.wastage_approved_at ?? null,
       items_updated: hasItemUpdates ? Object.keys(itemUpdates).length : 0,
     }, { headers: CORS });
   } catch (e) {

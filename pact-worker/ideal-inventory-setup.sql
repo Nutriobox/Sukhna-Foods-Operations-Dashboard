@@ -34,6 +34,13 @@ create table if not exists public.ideal_inventory_snapshots (
 alter table public.ideal_inventory_snapshots add column if not exists approved_at timestamptz;
 alter table public.ideal_inventory_snapshots add column if not exists approved_by text;
 
+-- 2026-10-30 (Satvik's #4 two-stage approval): wastage is approved first and
+-- is one-way (never un-approved); closing stock (approved_at) can only be
+-- approved after wastage. Track the wastage stamp separately so the Variance
+-- tab can gate the C/S approval behind it.
+alter table public.ideal_inventory_snapshots add column if not exists wastage_approved_at timestamptz;
+alter table public.ideal_inventory_snapshots add column if not exists wastage_approved_by text;
+
 -- 2026-10-30 (Satvik's #4 — outlet 2-hour submission window): when the
 -- admin saves an Ideal Inventory snapshot, the outlet gets a bounded
 -- window in which to submit closing stock + wastage via the portal.
