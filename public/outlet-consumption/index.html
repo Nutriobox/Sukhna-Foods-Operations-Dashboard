@@ -32,6 +32,7 @@
   /* Variance View modal shows Wastage columns in wastage mode, Variance columns in variance mode. */
   [data-vmode="variance"] .vcol-waste{display:none}
   [data-vmode="wastage"] .vcol-var{display:none}
+  [data-vmode="wastage"] .vcol-io{display:none}
   .tab{flex:0 0 auto;padding:11px 20px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:pointer;font-weight:600;color:var(--mut);text-align:center;font-size:14px}
   .tab.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
   .moreItem:hover{background:#f3f4f6}
@@ -875,16 +876,16 @@
       <th rowspan="2">Item Name</th>
       <th rowspan="2">Category</th>
       <th rowspan="2">UOM</th>
-      <th colspan="2" class="r" style="background:#f1f5f9">Ideal</th>
-      <th colspan="2" class="r" style="background:#eff6ff">On Hand</th>
+      <th colspan="2" class="r vcol-io" style="background:#f1f5f9">Ideal</th>
+      <th colspan="2" class="r vcol-io" style="background:#eff6ff">On Hand</th>
       <th colspan="2" class="r vcol-waste" style="background:#fff7ed">Wastage</th>
       <th colspan="2" class="r vcol-var" style="background:#fef2f2">Variance</th>
      </tr>
      <tr>
-      <th class="r" style="background:#f1f5f9">Full</th>
-      <th class="r" style="background:#f1f5f9">Loose</th>
-      <th class="r" style="background:#eff6ff">Full</th>
-      <th class="r" style="background:#eff6ff">Loose</th>
+      <th class="r vcol-io" style="background:#f1f5f9">Full</th>
+      <th class="r vcol-io" style="background:#f1f5f9">Loose</th>
+      <th class="r vcol-io" style="background:#eff6ff">Full</th>
+      <th class="r vcol-io" style="background:#eff6ff">Loose</th>
       <th class="r vcol-waste" style="background:#fff7ed">Full</th>
       <th class="r vcol-waste" style="background:#fff7ed">Loose</th>
       <th class="r vcol-var" style="background:#fef2f2">Full</th>
@@ -5710,10 +5711,10 @@ function iiRenderSavedView(){
       + '<td>' + esc(it.name) + '</td>'
       + '<td>' + catCell + '</td>'
       + '<td>' + uomCell + '</td>'
-      + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.fullQty,  sIdeal.fullUnit)  + '</td>'
-      + '<td class="r" style="background:#f8fafc">' + fmtPlain(sIdeal.looseQty, sIdeal.looseUnit) + '</td>'
-      + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.fullQty, sOnHand.fullUnit) + '</td>'
-      + '<td class="r" style="background:#f0f9ff">' + fmtPlain(sOnHand.looseQty,sOnHand.looseUnit)+ '</td>'
+      + '<td class="r vcol-io" style="background:#f8fafc">' + fmtPlain(sIdeal.fullQty,  sIdeal.fullUnit)  + '</td>'
+      + '<td class="r vcol-io" style="background:#f8fafc">' + fmtPlain(sIdeal.looseQty, sIdeal.looseUnit) + '</td>'
+      + '<td class="r vcol-io" style="background:#f0f9ff">' + fmtPlain(sOnHand.fullQty, sOnHand.fullUnit) + '</td>'
+      + '<td class="r vcol-io" style="background:#f0f9ff">' + fmtPlain(sOnHand.looseQty,sOnHand.looseUnit)+ '</td>'
       + '<td class="r vcol-waste" style="background:#fffaf0">' + fmtPlain(sWaste.fullQty,  sWaste.fullUnit) + chip + '</td>'
       + '<td class="r vcol-waste" style="background:#fffaf0">' + fmtPlain(sWaste.looseQty, sWaste.looseUnit) + '</td>'
       + '<td class="r vcol-var" style="background:#fef2f2">' + varFullHtml  + '</td>'
