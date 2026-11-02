@@ -695,9 +695,15 @@ async function loadRmList(){
   const body = $('tbodySheet');
   body.innerHTML = '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading raw-material list…</td></tr>';
   try {
-    const r = await fetch('/api/product-master', { cache: 'no-store' });
+    const [r, rd] = await Promise.all([
+      fetch('/api/product-master', { cache: 'no-store' }),
+      fetch('/api/loose-denomination', { cache: 'no-store' }).catch(() => null),
+    ]);
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || 'Load failed');
+    // Loose-denomination marks from RM Master (which level is "loose" per RM).
+    let denom = {};
+    try { if(rd && rd.ok){ const jd = await rd.json(); if(jd && jd.ok && jd.denom && typeof jd.denom === 'object') denom = jd.denom; } } catch(_){ /* loose marks optional */ }
     const products = Array.isArray(j.products) ? j.products : [];
     const CAT_ORDER = { 'Frozen':1, 'Chiller':2, 'Vegetable':3, 'Dry Store':4, 'Packaging':5 };
     const items = products.filter(p => p.idealStorage && !p.isGhost).map(p => {
@@ -706,12 +712,14 @@ async function loadRmList(){
       const L2u = (lv.L2 && lv.L2.u) || '';
       const L3u = (lv.L3 && lv.L3.u) || '';
       const pack = p.idealUom || L1u || '';
-      // Loose unit = the denomination one level below the full/packing unit.
-      let loose_uom = '';
-      if(pack && pack === L3u)      loose_uom = L2u || L1u;
-      else if(pack && pack === L2u) loose_uom = L1u;
-      else if(pack && pack === L1u) loose_uom = '';            // packing is the base unit -> no distinct loose
-      else                          loose_uom = (L1u && L1u !== pack) ? L1u : '';
+      // Loose UOM = the level(s) marked as loose denomination in RM Master
+      // (loose_denomination_state.denom), same source the dashboard uses.
+      const d = denom[p.code || ''] || {};
+      const looseParts = [];
+      if(d.L3 && L3u) looseParts.push(L3u);
+      if(d.L2 && L2u) looseParts.push(L2u);
+      if(d.L1 && L1u) looseParts.push(L1u);
+      const loose_uom = looseParts.join(' / ');
       return {
         rm_code:     p.code || '',
         name:        p.name || '',
