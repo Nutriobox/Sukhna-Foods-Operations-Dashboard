@@ -701,12 +701,23 @@ async function loadRmList(){
     const products = Array.isArray(j.products) ? j.products : [];
     const CAT_ORDER = { 'Frozen':1, 'Chiller':2, 'Vegetable':3, 'Dry Store':4, 'Packaging':5 };
     const items = products.filter(p => p.idealStorage && !p.isGhost).map(p => {
-      const L1 = (p.levels && p.levels.L1) || {};
+      const lv = p.levels || {};
+      const L1u = (lv.L1 && lv.L1.u) || '';
+      const L2u = (lv.L2 && lv.L2.u) || '';
+      const L3u = (lv.L3 && lv.L3.u) || '';
+      const pack = p.idealUom || L1u || '';
+      // Loose unit = the denomination one level below the full/packing unit.
+      let loose_uom = '';
+      if(pack && pack === L3u)      loose_uom = L2u || L1u;
+      else if(pack && pack === L2u) loose_uom = L1u;
+      else if(pack && pack === L1u) loose_uom = '';            // packing is the base unit -> no distinct loose
+      else                          loose_uom = (L1u && L1u !== pack) ? L1u : '';
       return {
         rm_code:     p.code || '',
         name:        p.name || '',
         category:    p.idealStorage || '',
-        packing_uom: p.idealUom || L1.u || '',
+        packing_uom: pack,
+        loose_uom:   loose_uom,
       };
     }).sort((a, b) => {
       const ca = CAT_ORDER[a.category] || 99;
@@ -748,7 +759,7 @@ function renderSheet(){
       + '<td class="code">' + esc(it.rm_code) + '</td>'
       + '<td>' + esc(it.name) + '</td>'
       + '<td><span class="pill cat-chip">' + esc(it.category) + '</span></td>'
-      + '<td>' + esc(it.packing_uom) + '</td>'
+      + '<td>' + esc(it.packing_uom) + ((it.loose_uom && it.loose_uom !== it.packing_uom) ? ' <span class="mut" style="font-size:11px">\u00b7 ' + esc(it.loose_uom) + ' loose</span>' : '') + '</td>'
       + '<td class="r">' + cell('full') + '</td>'
       + '<td class="r">' + cell('loose') + '</td>'
       + '</tr>';
