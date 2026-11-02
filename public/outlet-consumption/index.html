@@ -788,13 +788,14 @@
     <th class="r">Opening (L1)</th>
     <th class="r">Purchase (L1)</th>
     <th class="r">Consumption (L1)</th>
-    <th class="r" title="Sum of every Submit-Wastage count this outlet saved inside the window, converted to L1. Pulled live from each outlet's Submit Wastage portal.">Wastage (L1)</th>
+    <th class="r" title="Approved wastage in L1 — the only wastage that feeds Ideal Closing. Portal submissions become approved from the Wastage tab.">Wastage Approved (L1)</th>
+    <th class="r" title="Wastage submitted by the outlet's Submit-Wastage portal but not yet approved by a manager. Shown for reference only — it does NOT affect Ideal Closing until it is approved.">Wastage Unapproved (L1)</th>
     <th class="r">Ideal Closing (L1)</th>
     <th class="r" title="Manual gain/loss AFTER wastage is accounted for. Positive = still-unexplained loss; negative = still-unexplained gain.">Adjusted Variance (L1)</th>
     <th class="r">Full</th>
     <th class="r">Loose</th>
    </tr></thead>
-   <tbody id="tbodyIi"><tr><td colspan="13" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodyIi"><tr><td colspan="14" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
 
   </div>  <!-- /iiResultsView -->
@@ -5186,7 +5187,7 @@ function renderIi(){
   });
   const tb = $('tbodyIi');
   if(!rows.length){
-    tb.innerHTML = '<tr><td colspan="13" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="14" class="mut" style="padding:20px;text-align:center">No raw materials match these filters.</td></tr>';
     return;
   }
   const inputBase     = 'text-align:right;border:1px solid #d1d5db;border-radius:6px';
@@ -5223,7 +5224,10 @@ function renderIi(){
       // read-only for portal wastage. The underlying it.portal_wastage_l1
       // is still populated at load time so Variance's approval math has
       // the live value when the admin signs it off.
-      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)" style="' + wastageStyle + '" title="Approved wastage in ' + esc(it.l1_unit) + '. Portal submissions are approved from the Variance tab, not here."></td>' +
+      '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)" style="' + wastageStyle + '" title="Approved wastage in ' + esc(it.l1_unit) + '. Portal submissions are approved from the Wastage tab, not here."></td>' +
+      // Wastage Unapproved: live portal submission awaiting manager approval.
+      // Display-only — does NOT feed closing. Clears once the row is approved.
+      '<td class="r">' + ((!it.approved && Number(it.portal_wastage_l1) > 0) ? '<span style="color:#b45309;font-weight:600" title="Submitted by the outlet portal, awaiting manager approval in the Wastage tab">' + qty(it.portal_wastage_l1) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></span>' : '<span class="mut">—</span>') + '</td>' +
       '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001"        value="' + esc(it.variance_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + varianceStyle + '" title="Manual residual after wastage in ' + esc(it.l1_unit) + ' (positive = still-unexplained loss, negative = still-unexplained gain)"></td>' +
       '<td class="r">' + fullCell  + '</td>' +
@@ -5235,7 +5239,7 @@ function renderIi(){
 function exportCsvIi(){
   if(!IIv.items.length){ toast('No ideal inventory rows to export yet.'); return; }
   const esc2 = (v) => { if(v == null) return ''; const s = String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Wastage (L1),Ideal Closing (L1),Adjusted Variance (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
+  const lines = ['#,RM Code,Raw Material Name,Category,L1 UOM,Opening (L1),Purchase (L1),Consumption (L1),Wastage Approved (L1),Wastage Unapproved (L1),Ideal Closing (L1),Adjusted Variance (L1),Full Qty,Full UOM,Loose Qty,Loose UOM'];
   let i = 0;
   for(const it of IIv.items){
     i++;
@@ -5244,7 +5248,7 @@ function exportCsvIi(){
     const split = iiSplitClosing(it, closing);
     lines.push([i, it.rm_code, it.name, it.category, it.l1_unit,
                 it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0,
-                it.wastage_l1 || 0, closing, it.variance_l1 || 0,
+                it.wastage_l1 || 0, it.portal_wastage_l1 || 0, closing, it.variance_l1 || 0,
                 split.fullQty == null ? '' : split.fullQty, split.fullUnit,
                 split.looseQty == null ? '' : split.looseQty, split.looseUnit].map(esc2).join(','));
   }
