@@ -5204,7 +5204,8 @@ function renderIi(){
     // the window). Adjusted Variance is the manual residual left over after
     // the four auto-filled buckets.
     const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
-                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0) - (it.variance_l1 || 0);
+                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
+                  - (it.approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
@@ -5245,7 +5246,8 @@ function exportCsvIi(){
   for(const it of IIv.items){
     i++;
     const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
-                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0) - (it.variance_l1 || 0);
+                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
+                  - (it.approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     lines.push([i, it.rm_code, it.name, it.category, it.l1_unit,
                 it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0,
@@ -5282,7 +5284,8 @@ function iiBuildSnapshotPayload(){
   // needing to re-walk the live sales + GRN + OI data.
   const items = IIv.items.map((it) => {
     const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
-                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0) - (it.variance_l1 || 0);
+                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
+                  - (it.approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     return {
       rm_code:         it.rm_code,
@@ -5403,6 +5406,8 @@ async function iiFetchSnapshotById(id){
 async function iiViewSaved(id, mode){
   try {
     const snap = await iiFetchSnapshotById(id);
+    const known = (VA.snapshots || []).concat(WS.snapshots || []).find(x => x && x.id === id);
+    if(known && known._ioTicker != null) snap._ioTicker = known._ioTicker;
     const modal = $('iiSavedViewModal');
     // variance mode shows Ideal/On Hand/Variance; wastage mode shows
     // Ideal/On Hand/Wastage. (Satvik 2026-10-30 — wastage moved to its own tab.)
@@ -5691,7 +5696,9 @@ function iiRenderSavedView(){
       ? ['<span class="mut">—</span>', '<span class="mut">—</span>']
       : varSplitCells(it, adjVarL1);
     const catCell      = (typeof oiCategoryChip === 'function') ? oiCategoryChip(it.category) : esc(it.category || '');
-    const uomCell      = '<span class="code">' + esc(it.packing_uom || it.full_unit || it.l1_unit || '') + '</span>';
+    const _uFull = it.packing_uom || it.full_unit || it.l1_unit || '';
+    const _uLoose = it.l1_unit || '';
+    const uomCell      = '<span class="code">' + esc(_uFull) + '</span>' + ((_uLoose && _uLoose !== _uFull) ? ' <span class="mut" style="font-size:11px">· ' + esc(_uLoose) + ' loose</span>' : '');
     const fmtPlain     = (q, u) => (q == null) ? '<span class="mut">—</span>' : (qty(q) + (u ? ' <span class="mut" style="font-size:11px">' + esc(u) + '</span>' : ''));
     // Pending / Approved chip for the Wastage Full cell.
     //   Pending  — portal has a non-zero value AND snapshot's wastage_l1
@@ -6285,6 +6292,7 @@ async function loadVa(fresh){
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     VA.snapshots = Array.isArray(j.snapshots) ? j.snapshots : [];
+    annotateIoTickers(VA.snapshots);
     VA.loaded = true;
     VA._sig = vaSnapSig(VA.snapshots);
     if(stat) stat.textContent = '✓ ' + VA.snapshots.length + ' snapshot' + (VA.snapshots.length === 1 ? '' : 's');
@@ -6317,6 +6325,7 @@ async function loadWs(fresh){
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     WS.snapshots = Array.isArray(j.snapshots) ? j.snapshots : [];
+    annotateIoTickers(WS.snapshots);
     WS.loaded = true;
     WS._sig = vaSnapSig(WS.snapshots);
     WS.meta = { source: 'Ideal Inventory snapshots · portal wastage', synced_at: new Date().toISOString(), count: WS.snapshots.length };
@@ -6345,24 +6354,51 @@ async function wsDecorateWastage(){
     } catch(_){ s._wsStatus = 'none'; s._wsCount = 0; }
   }));
 }
+// Assign each snapshot its "Nth IO that day" ticker (per outlet, per local
+// day), oldest-first, so ioCode can render outlet/date/N consistently.
+function annotateIoTickers(list){
+  if(!Array.isArray(list)) return list;
+  const seen = {};
+  const byTime = list.slice().sort((a,b) => String((a && a.created_at) || '').localeCompare(String((b && b.created_at) || '')));
+  for(const s of byTime){
+    if(!s) continue;
+    const d = s.created_at ? new Date(s.created_at) : null;
+    const dayKey = (d && !isNaN(d.getTime()))
+      ? ((s.outlet || '') + '|' + d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate())
+      : ((s.outlet || '') + '|?');
+    seen[dayKey] = (seen[dayKey] || 0) + 1;
+    s._ioTicker = seen[dayKey];
+  }
+  return list;
+}
 function ioCode(s){
-  // IO code = first 3 letters of the outlet + 3-letter month + the outlet's
-  // running order number, e.g. Rajinder Nagar's 1st order saved in Nov -> RAJ-NOV-1.
-  if(!s || typeof s !== 'object') return '\u2014';
-  const abbr = String(s.outlet || '').replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase() || 'XXX';
+  // IO code = outlet / DD-Mon-YY / ticker, where ticker is the outlet's Nth IO
+  // that day (s._ioTicker from annotateIoTickers; falls back to order_number).
+  // e.g. "Rajinder Nagar/02-Nov-26/1".
+  if(!s || typeof s !== 'object') return '—';
+  const outlet = String(s.outlet || '').trim() || 'Outlet';
   let d = null;
   if(s.created_at){ d = new Date(s.created_at); }
   else if(s.window_to){ const w = String(s.window_to); d = new Date(w.length === 16 ? w + '+05:30' : w); }
-  const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-  const mon = (d && !isNaN(d.getTime())) ? MON[d.getMonth()] : '';
-  const n = (s.order_number != null && s.order_number !== '') ? String(s.order_number) : '';
-  const parts = [abbr, mon, n].filter(x => x !== '');
-  return parts.length ? parts.join('-') : '\u2014';
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateStr = (d && !isNaN(d.getTime()))
+    ? (String(d.getDate()).padStart(2,'0') + '-' + MON[d.getMonth()] + '-' + String(d.getFullYear() % 100).padStart(2,'0'))
+    : '';
+  const tick = (s._ioTicker != null) ? String(s._ioTicker)
+             : ((s.order_number != null && s.order_number !== '') ? String(s.order_number) : '');
+  const parts = [outlet, dateStr, tick].filter(x => x !== '' && x != null);
+  return parts.length ? parts.join('/') : '—';
 }
 function renderWs(){
   const tb = $('tbodyWs'); if(!tb) return;
   const q = (($('qWs') && $('qWs').value) || '').trim().toLowerCase();
-  const list = (WS.snapshots || []).filter(s => !q || ((s.outlet || '') + ' ' + ioCode(s) + ' #' + (s.order_number || '')).toLowerCase().includes(q));
+  const list = (WS.snapshots || []).filter(s => {
+    // Only valid wastage rows: approved, or a pending non-zero submission.
+    // Hide 'none' (no submission / all zeros). While undecorated keep the row.
+    if(s._wsStatus !== undefined && !s.wastage_approved_at && s._wsStatus !== 'pending') return false;
+    if(q && !((s.outlet || '') + ' ' + ioCode(s)).toLowerCase().includes(q)) return false;
+    return true;
+  });
   if(!list.length){
     tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No snapshots' + (q ? ' match this filter.' : ' yet — save one from Ideal Inventory, then outlets submit wastage from their portal.') + '</td></tr>';
     return;

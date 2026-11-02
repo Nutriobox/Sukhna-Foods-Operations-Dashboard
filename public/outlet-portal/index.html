@@ -593,14 +593,32 @@ const IO = { list: [], selected: '' };
 
 // IO code = first 3 letters of outlet + 3-letter month + running number,
 // matching the dashboard (e.g. RAJ-NOV-1).
+function annotateIoTickers(list){
+  if(!Array.isArray(list)) return list;
+  const seen = {};
+  const byTime = list.slice().sort((a,b) => String((a && a.created_at) || '').localeCompare(String((b && b.created_at) || '')));
+  for(const sn of byTime){
+    if(!sn) continue;
+    const d = sn.created_at ? new Date(sn.created_at) : null;
+    const dayKey = (d && !isNaN(d.getTime()))
+      ? ((sn.outlet || '') + '|' + d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate())
+      : ((sn.outlet || '') + '|?');
+    seen[dayKey] = (seen[dayKey] || 0) + 1;
+    sn._ioTicker = seen[dayKey];
+  }
+  return list;
+}
 function ioCode(sn){
   if(!sn || typeof sn !== 'object') return '';
-  const abbr = String(sn.outlet || '').replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase() || 'XXX';
+  const outlet = String(sn.outlet || '').trim() || 'Outlet';
   const d = sn.created_at ? new Date(sn.created_at) : null;
-  const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-  const mon = (d && !isNaN(d.getTime())) ? MON[d.getMonth()] : '';
-  const n = (sn.order_number != null && sn.order_number !== '') ? String(sn.order_number) : '';
-  return [abbr, mon, n].filter(x => x !== '').join('-');
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateStr = (d && !isNaN(d.getTime()))
+    ? (String(d.getDate()).padStart(2,'0') + '-' + MON[d.getMonth()] + '-' + String(d.getFullYear() % 100).padStart(2,'0'))
+    : '';
+  const tick = (sn._ioTicker != null) ? String(sn._ioTicker)
+             : ((sn.order_number != null && sn.order_number !== '') ? String(sn.order_number) : '');
+  return [outlet, dateStr, tick].filter(x => x !== '' && x != null).join('/');
 }
 
 // Open IOs for this outlet (closing not yet approved), newest first. The
@@ -612,7 +630,9 @@ async function loadIoList(){
     const r = await fetch('/api/outlet-portal/snapshots', { cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || 'load failed');
-    const open = (Array.isArray(j.snapshots) ? j.snapshots : [])
+    const all = Array.isArray(j.snapshots) ? j.snapshots : [];
+    annotateIoTickers(all);
+    const open = all
       .filter(sn => !sn.approved_at)
       .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     IO.list = open;
