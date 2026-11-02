@@ -751,8 +751,8 @@
       }
     },
     {
-      "name": "Stuffed Chicken Breast (8 Pcs/Container)",
-      "norm": "stuffed chicken breast (8 pcs/container)",
+      "name": "Stuffed Chicken Breast (4 Pcs/Container)",
+      "norm": "stuffed chicken breast (4 pcs/container)",
       "storage": "Frozen",
       "uom": "Container",
       "ideals": {
@@ -1507,8 +1507,8 @@
       }
     },
     {
-      "name": "Anar (1 Kg)",
-      "norm": "anar (1 kg)",
+      "name": "Anar 1Kg",
+      "norm": "anar 1kg",
       "storage": "Vegetable",
       "uom": "Kg",
       "ideals": {
