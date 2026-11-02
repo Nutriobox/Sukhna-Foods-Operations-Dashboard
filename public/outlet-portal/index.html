@@ -187,6 +187,10 @@
     <div class="card">
       <div class="toolbar">
         <span id="modeBadge" class="mode-badge on-hand">📦 On Hand</span>
+        <span id="ioPick" style="display:none;align-items:center;gap:6px">
+          <label style="font-size:12.5px;color:#374151;font-weight:600">IO #:</label>
+          <select id="ioSelect" class="cat-filter" title="Pick the IO you are counting closing stock against"></select>
+        </span>
         <label style="font-size:12.5px;color:#374151;font-weight:600">Date & time:</label>
         <input id="dtIso" type="datetime-local">
         <input id="qSearch" class="search" placeholder="Search RM code or name…" oninput="renderSheet()">
@@ -585,6 +589,52 @@ async function confirmClearNetwork(){
 // --- Sheet view -------------------------------------------------------------
 
 const SHEET = { items: [], qty: {}, qtyLoose: {} };
+const IO = { list: [], selected: '' };
+
+// IO code = first 3 letters of outlet + 3-letter month + running number,
+// matching the dashboard (e.g. RAJ-NOV-1).
+function ioCode(sn){
+  if(!sn || typeof sn !== 'object') return '';
+  const abbr = String(sn.outlet || '').replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase() || 'XXX';
+  const d = sn.created_at ? new Date(sn.created_at) : null;
+  const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const mon = (d && !isNaN(d.getTime())) ? MON[d.getMonth()] : '';
+  const n = (sn.order_number != null && sn.order_number !== '') ? String(sn.order_number) : '';
+  return [abbr, mon, n].filter(x => x !== '').join('-');
+}
+
+// Open IOs for this outlet (closing not yet approved), newest first. The
+// outlet picks one to submit its on-hand count against.
+async function loadIoList(){
+  const sel = $('ioSelect');
+  if(sel) sel.innerHTML = '<option value="">Loading IOs…</option>';
+  try {
+    const r = await fetch('/api/outlet-portal/snapshots', { cache: 'no-store' });
+    const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || 'load failed');
+    const open = (Array.isArray(j.snapshots) ? j.snapshots : [])
+      .filter(sn => !sn.approved_at)
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    IO.list = open;
+    if(!sel) return;
+    if(!open.length){
+      sel.innerHTML = '<option value="">No open IO — ask your supervisor to save one</option>';
+      IO.selected = '';
+      return;
+    }
+    sel.innerHTML = open.map((sn, i) => {
+      const code = ioCode(sn) || ('#' + (sn.order_number != null ? sn.order_number : '?'));
+      const d = sn.created_at ? new Date(sn.created_at) : null;
+      const dl = (d && !isNaN(d.getTime())) ? (' · ' + d.toLocaleDateString()) : '';
+      return '<option value="' + esc(sn.id) + '"' + (i === 0 ? ' selected' : '') + '>' + esc(code + dl) + '</option>';
+    }).join('');
+    IO.selected = open[0].id;
+    sel.onchange = () => { IO.selected = sel.value; };
+  } catch (e) {
+    if(sel) sel.innerHTML = '<option value="">Could not load IOs</option>';
+    IO.selected = '';
+  }
+}
 
 async function openSheet(mode){
   CURRENT_MODE = mode;
@@ -607,6 +657,16 @@ async function openSheet(mode){
   // Reset any entered values when switching workflows so we don't accidentally
   // save wastage values as on-hand (or vice versa).
   SHEET.qty = {}; SHEET.qtyLoose = {};
+
+  // On-hand is submitted against a chosen IO; wastage keeps its own flow.
+  const ioPick = $('ioPick');
+  if(mode === 'on-hand'){
+    if(ioPick) ioPick.style.display = 'inline-flex';
+    loadIoList();
+  } else {
+    if(ioPick) ioPick.style.display = 'none';
+    IO.list = []; IO.selected = '';
+  }
 
   await loadRmList();
 }
@@ -707,6 +767,11 @@ async function saveSheet(){
   if(!SHEET.items.length){ toast('Nothing to save.'); return; }
   const dt = $('dtIso').value;
   if(!dt){ toast('Pick a date & time.'); return; }
+  let snapshotId = '';
+  if(CURRENT_MODE === 'on-hand'){
+    snapshotId = ($('ioSelect') && $('ioSelect').value) || IO.selected || '';
+    if(!snapshotId){ toast('Pick an IO number to submit against.'); return; }
+  }
   const btn = $('saveBtn'); btn.disabled = true;
   const t0 = Date.now();
   try {
@@ -716,6 +781,7 @@ async function saveSheet(){
       qty_loose: SHEET.qtyLoose,
       total_items: SHEET.items.length,
     };
+    if(snapshotId) payload.snapshot_id = snapshotId;
     const r = await fetch(MODES[CURRENT_MODE].endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

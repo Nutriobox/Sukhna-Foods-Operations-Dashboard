@@ -65,18 +65,42 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "This network is no longer authorized for this outlet." }, { status: 403 });
   }
 
-  // 2026-10-30 (Satvik's #4): outlet-portal submissions only accepted
-  // during the 2-hour window stamped by the admin's Ideal Inventory save.
-  // See src/lib/outlet-portal-window.ts.
-  const windowState = await fetchWindowState(url, key, toCountsOutletName(outletName));
-  const refusal = windowRefusal(windowState);
-  if (refusal) return NextResponse.json(refusal.body, { status: refusal.status });
-
-  type Body = { dt_iso?: string; qty?: Record<string, number>; qty_loose?: Record<string, number>; total_items?: number };
+  type Body = { dt_iso?: string; qty?: Record<string, number>; qty_loose?: Record<string, number>; total_items?: number; snapshot_id?: string };
   let body: Body = {};
   try { body = (await req.json()) as Body; } catch { /* ignore */ }
   const dt_iso = String(body.dt_iso || "").trim();
   if (!dt_iso) return NextResponse.json({ ok: false, error: "dt_iso is required" }, { status: 400 });
+
+  // 2026-11-02 (Satvik): the on-hand count is submitted against a specific IO
+  // (ideal_inventory_snapshots row). When the portal names one, validate it
+  // belongs to this outlet and is still inside its own 2-hour window, and tag
+  // the saved row with it. A legacy client that sends no snapshot_id falls
+  // back to the latest-snapshot window gate (and is tagged with that IO).
+  const outletShort = toCountsOutletName(outletName);
+  const snapId = String(body.snapshot_id || "").trim();
+  let tagSnapshotId: string | null = null;
+  if (snapId) {
+    const sr = await fetch(
+      `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,submission_window_closes_at&id=eq.${encodeURIComponent(snapId)}`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
+    );
+    const srows = sr.ok ? ((await sr.json()) as Array<{ id: string; outlet: string; submission_window_closes_at: string | null }>) : [];
+    const srow = srows[0];
+    if (!srow) return NextResponse.json({ ok: false, error: "That IO was not found. Refresh and pick an open IO." }, { status: 404 });
+    if (String(srow.outlet || "") !== outletShort) {
+      return NextResponse.json({ ok: false, error: "That IO belongs to another outlet." }, { status: 403 });
+    }
+    const closesAt = srow.submission_window_closes_at ? Date.parse(srow.submission_window_closes_at) : null;
+    if (closesAt != null && Date.now() > closesAt) {
+      return NextResponse.json({ ok: false, error: "The 2-hour submission window for this IO has closed. Ask your supervisor to save a new Ideal Inventory snapshot." }, { status: 403 });
+    }
+    tagSnapshotId = srow.id;
+  } else {
+    const windowState = await fetchWindowState(url, key, outletShort);
+    const refusal = windowRefusal(windowState);
+    if (refusal) return NextResponse.json(refusal.body, { status: refusal.status });
+    tagSnapshotId = windowState.snapshot_id || null;
+  }
   const qty       = (body.qty       && typeof body.qty       === "object") ? body.qty       : {};
   const qty_loose = (body.qty_loose && typeof body.qty_loose === "object") ? body.qty_loose : {};
   const total     = typeof body.total_items === "number" ? body.total_items : 0;
@@ -87,8 +111,9 @@ export async function POST(req: Request) {
   // branded form ("NutrioBox (Rajinder Nagar)"), so the main dashboard's
   // outlet=eq.<name> queries hit these rows.
   const payload = {
-    outlet:       toCountsOutletName(outletName),
+    outlet:       outletShort,
     dt_iso,
+    snapshot_id:  tagSnapshotId,
     qty,
     qty_loose,
     total_items:  total,

@@ -39,3 +39,13 @@ alter table public.opening_inventory_counts enable row level security;
 drop policy if exists oi_counts_read on public.opening_inventory_counts;
 create policy oi_counts_read on public.opening_inventory_counts
   for select to anon, authenticated using (true);
+
+-- 2026-11-02 (Satvik): tie each outlet On-Hand (closing) submission to the
+-- specific IO it was counted against (ideal_inventory_snapshots.id). Opening
+-- counts from the dashboard leave this null; portal on-hand submits set it so
+-- closing stock can be read per IO. Nulls stay distinct, so existing rows and
+-- the (outlet, dt_iso) uniqueness are untouched.
+alter table public.opening_inventory_counts
+  add column if not exists snapshot_id uuid;
+create index if not exists idx_oi_counts_snapshot
+  on public.opening_inventory_counts (snapshot_id);
