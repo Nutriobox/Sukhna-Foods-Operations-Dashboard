@@ -4990,7 +4990,7 @@ async function loadIi(fresh){
           it.approved = true;
           overlaid++;
         }
-        IIv._approved = { id: approvedSnap.id, order_number: approvedSnap.order_number, approved_at: approvedSnap.approved_at, overlaid };
+        IIv._approved = { id: approvedSnap.id, order_number: approvedSnap.order_number, approved_at: approvedSnap.approved_at, created_at: approvedSnap.created_at, outlet: approvedSnap.outlet, overlaid };
       }
     }
   } catch(_){ /* no approved overlay; the live recompute stands */ }
@@ -5004,7 +5004,7 @@ async function loadIi(fresh){
          + (pm.unmatched ? ', ' + pm.unmatched + ' unmatched' : ''))
       : '';
     const approvedLbl = (IIv._approved && IIv._approved.order_number)
-      ? ' · showing approved #' + IIv._approved.order_number
+      ? ' · showing approved ' + ioCode({ outlet: IIv._approved.outlet || IIv.outlet, order_number: IIv._approved.order_number, created_at: IIv._approved.created_at })
       : '';
     stat.textContent = '✓ computed · ' + openingLbl + (purchaseLbl ? ' · ' + purchaseLbl : '') + approvedLbl;
   }
@@ -5333,8 +5333,9 @@ async function iiSavePrompt(){
     });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    if(stat) stat.textContent = '✓ saved · ' + (j.order_number != null ? ('#' + j.order_number) : j.id);
-    toast('Saved snapshot for ' + IIv.outlet + (j.order_number != null ? ' (#' + j.order_number + ')' : ''), 4000);
+    const ioc = ioCode({ outlet: IIv.outlet, order_number: j.order_number, created_at: j.created_at });
+    if(stat) stat.textContent = '✓ saved · ' + (j.order_number != null ? ioc : j.id);
+    toast('Saved snapshot for ' + IIv.outlet + (j.order_number != null ? ' (' + ioc + ')' : ''), 4000);
   } catch(e){
     if(stat) stat.textContent = '✗ save failed: ' + (e.message || e);
     toast('Save failed: ' + (e.message || e), 5000);
@@ -5410,7 +5411,7 @@ async function iiViewSaved(id, mode){
     const meta  = $('iiSavedViewMeta');
     const tb    = $('tbodyIiSavedView');
     if(!modal || !tb) return;
-    if(title) title.textContent = (snap.outlet || '—') + (snap.order_number != null ? ' · #' + snap.order_number : '');
+    if(title) title.textContent = (snap.outlet || '—') + (snap.order_number != null ? ' · ' + ioCode(snap) : '');
     if(meta){
       const parts = [];
       parts.push('<b>Window:</b> ' + esc(snap.window_from || '—').replace('T',' ') + ' → ' + esc(snap.window_to || '—').replace('T',' '));
@@ -5749,7 +5750,7 @@ async function iiImportSaved(id){
       wastage_l1:     Number(it.wastage_l1     || 0),
       variance_l1:    Number(it.variance_l1    || 0),
     }));
-    IIv.meta = { source: 'imported snapshot #' + (snap.order_number != null ? snap.order_number : snap.id), synced_at: snap.created_at || null, count: IIv.items.length };
+    IIv.meta = { source: 'imported snapshot ' + (snap.order_number != null ? ioCode(snap) : snap.id), synced_at: snap.created_at || null, count: IIv.items.length };
     II_LOADED.v = true;
     iiCloseSavedList();
     $('iiFormView').style.display = 'none';
@@ -5758,7 +5759,7 @@ async function iiImportSaved(id){
     if($('iiCtxTo'))     $('iiCtxTo').textContent     = (IIv.to   || '').replace('T', ' ') + ' (from saved snapshot)';
     if($('iiCtxOutlet')) $('iiCtxOutlet').textContent = IIv.outlet;
     const stat = $('syncStatIi');
-    if(stat) stat.textContent = 'imported #' + (snap.order_number != null ? snap.order_number : snap.id);
+    if(stat) stat.textContent = 'imported ' + (snap.order_number != null ? ioCode(snap) : snap.id);
     renderIi();
     toast('Imported snapshot for ' + IIv.outlet, 3500);
   } catch(e){
@@ -6343,10 +6344,24 @@ async function wsDecorateWastage(){
     } catch(_){ s._wsStatus = 'none'; s._wsCount = 0; }
   }));
 }
+function ioCode(s){
+  // IO code = first 3 letters of the outlet + 3-letter month + the outlet's
+  // running order number, e.g. Rajinder Nagar's 1st order saved in Nov -> RAJ-NOV-1.
+  if(!s || typeof s !== 'object') return '\u2014';
+  const abbr = String(s.outlet || '').replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase() || 'XXX';
+  let d = null;
+  if(s.created_at){ d = new Date(s.created_at); }
+  else if(s.window_to){ const w = String(s.window_to); d = new Date(w.length === 16 ? w + '+05:30' : w); }
+  const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const mon = (d && !isNaN(d.getTime())) ? MON[d.getMonth()] : '';
+  const n = (s.order_number != null && s.order_number !== '') ? String(s.order_number) : '';
+  const parts = [abbr, mon, n].filter(x => x !== '');
+  return parts.length ? parts.join('-') : '\u2014';
+}
 function renderWs(){
   const tb = $('tbodyWs'); if(!tb) return;
   const q = (($('qWs') && $('qWs').value) || '').trim().toLowerCase();
-  const list = (WS.snapshots || []).filter(s => !q || ((s.outlet || '') + ' #' + (s.order_number || '')).toLowerCase().includes(q));
+  const list = (WS.snapshots || []).filter(s => !q || ((s.outlet || '') + ' ' + ioCode(s) + ' #' + (s.order_number || '')).toLowerCase().includes(q));
   if(!list.length){
     tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No snapshots' + (q ? ' match this filter.' : ' yet — save one from Ideal Inventory, then outlets submit wastage from their portal.') + '</td></tr>';
     return;
@@ -6355,7 +6370,7 @@ function renderWs(){
     const idEsc = esc(String(s.id || '')).replace(/'/g, "\\'");
     const nameJs = esc(s.outlet || '').replace(/'/g, "\\'");
     const when = s.window_to ? fmtTime(String(s.window_to).length === 16 ? s.window_to + '+05:30' : s.window_to) : (s.created_at ? fmtTime(s.created_at) : '—');
-    const ord = s.order_number != null ? ('#' + s.order_number) : '—';
+    const ord = ioCode(s);
     const approved = Boolean(s.wastage_approved_at);
     const st = approved ? 'approved' : (s._wsStatus || 'none');
     const statusChip = approved
@@ -6543,7 +6558,7 @@ function renderVa(){
     if(statusF === 'pending'  && s.approved_at) return false;
     if(statusF === 'approved' && !s.approved_at) return false;
     if(q){
-      const hay = ((s.outlet || '') + ' #' + (s.order_number || '')).toLowerCase();
+      const hay = ((s.outlet || '') + ' ' + ioCode(s) + ' #' + (s.order_number || '')).toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
@@ -6559,7 +6574,7 @@ function renderVa(){
     const when = s.window_to
       ? fmtTime(String(s.window_to).length === 16 ? s.window_to + '+05:30' : s.window_to)
       : (s.created_at ? fmtTime(s.created_at) : '—');
-    const ord  = s.order_number != null ? ('#' + s.order_number) : '—';
+    const ord  = ioCode(s);
     // 2026-10-29 (Satvik's Variance E): split the single Approve into
     // TWO independent slices so Closing Stock and Portal Wastage can be
     // signed off separately. Approve C/S applies on-hand → Adjusted
