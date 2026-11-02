@@ -33,6 +33,13 @@ async function outletNameForSlug(url: string, key: string, slug: string): Promis
   return rows[0]?.outlet_name || null;
 }
 
+/** Strip the "NutrioBox (…)" wrapper so the filter hits the same short
+ *  outlet string the snapshots are saved under ("Rajinder Nagar"). */
+function toCountsOutletName(fullName: string): string {
+  const m = String(fullName || "").match(/^\s*NutrioBox\s*\(\s*(.+?)\s*\)\s*$/i);
+  return (m ? m[1] : fullName).trim();
+}
+
 export async function GET(req: Request) {
   const sess = readSessionFromRequest(req);
   if (!sess) return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
@@ -54,7 +61,7 @@ export async function GET(req: Request) {
     if (!row) return NextResponse.json({ ok: false, error: "Snapshot not found" }, { status: 404 });
     // Cross-outlet guard: a Rajinder session must not see a Dwarka snapshot
     // even if it guesses the id.
-    if (String(row.outlet || "") !== outletName) {
+    if (String(row.outlet || "") !== toCountsOutletName(outletName)) {
       return NextResponse.json({ ok: false, error: "Not allowed" }, { status: 403 });
     }
     return NextResponse.json({ ok: true, snapshot: row });
@@ -62,7 +69,7 @@ export async function GET(req: Request) {
 
   // Listing
   const r = await fetch(
-    `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,order_number,window_from,window_to,total_items,opening_count,created_at,updated_at,approved_at,approved_by&outlet=eq.${encodeURIComponent(outletName)}&order=created_at.desc`,
+    `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,order_number,window_from,window_to,total_items,opening_count,created_at,updated_at,approved_at,approved_by,wastage_approved_at,submission_window_closes_at&outlet=eq.${encodeURIComponent(toCountsOutletName(outletName))}&order=created_at.desc`,
     { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
   );
   if (!r.ok) {
