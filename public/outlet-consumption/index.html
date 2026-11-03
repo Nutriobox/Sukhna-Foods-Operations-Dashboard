@@ -5636,7 +5636,7 @@ function iiRenderSavedView(){
   const snap = II_VIEW.snap;
   const tb = $('tbodyIiSavedView');
   if(!snap || !tb) return;
-  const items = Array.isArray(snap.items) ? snap.items.slice() : [];
+  let items = Array.isArray(snap.items) ? snap.items.slice() : [];
   if(!items.length){
     tb.innerHTML = '<tr><td colspan="15" class="mut" style="padding:14px;text-align:center">Snapshot has no rows.</td></tr>';
     return;
@@ -5664,6 +5664,16 @@ function iiRenderSavedView(){
   }
   const onHandOf  = (it) => Number(onHandByCode .get(String(it.rm_code || '')) || 0);
   const wastageOf = (it) => Number(wastageByCode.get(String(it.rm_code || '')) || 0);
+  // Wastage View (Satvik 2026-11-03): show only rows that actually carry
+  // wastage — hide every all-zero row so the admin sees just what was wasted.
+  const _vmode = ((($('iiSavedViewModal')||{}).dataset)||{}).vmode || 'variance';
+  if(_vmode === 'wastage'){
+    items = items.filter(it => wastageOf(it) > 0);
+    if(!items.length){
+      tb.innerHTML = '<tr><td colspan="13" class="mut" style="padding:14px;text-align:center">No wastage submitted in this IO.</td></tr>';
+      return;
+    }
+  }
   if(II_VIEW.sort === 'asc')  items.sort((a, b) => onHandOf(a) - onHandOf(b));
   if(II_VIEW.sort === 'desc') items.sort((a, b) => onHandOf(b) - onHandOf(a));
 
@@ -5706,12 +5716,16 @@ function iiRenderSavedView(){
     //              doesn't match it (within 0.001 L1 tolerance).
     //   Approved — portal and snapshot match (within tolerance) and the
     //              value is non-zero.
+    // Chip reflects the approval STAMP, not a value comparison — once the IO's
+    // wastage is approved via OTP, every non-zero wastage row reads Approved;
+    // before that it reads Pending. (Value-matching was unreliable: approve and
+    // this view loaded wastage by slightly different windows, so an approved
+    // row could stay stuck on Pending.)
     let chip = '';
-    const delta = Math.abs(portalWaste - snapWaste);
-    if(portalWaste && delta > 0.001){
-      chip = ' <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10.5px;font-weight:600;background:#fef3c7;color:#92400e">⏳ Pending</span>';
-    } else if(portalWaste && delta <= 0.001){
-      chip = ' <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10.5px;font-weight:600;background:#dcfce7;color:#166534">✓ Approved</span>';
+    if(wasteL1){
+      chip = snap.wastage_approved_at
+        ? ' <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10.5px;font-weight:600;background:#dcfce7;color:#166534">✓ Approved</span>'
+        : ' <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10.5px;font-weight:600;background:#fef3c7;color:#92400e">⏳ Pending</span>';
     }
     return '<tr>'
       + '<td>' + (i + 1) + '</td>'
@@ -6343,10 +6357,18 @@ async function loadWs(fresh){
 // submitted but not yet approved), or none. Reuses vaLatestPortalWastage.
 async function wsDecorateWastage(){
   const snaps = WS.snapshots || [];
+  // Per-outlet latest wastage approval — new portal wastage reads pending only
+  // once it post-dates this (Satvik's "require a fresh IO first" rule).
+  const wsLastApproved = {};
+  for(const s of snaps){
+    if(!s.wastage_approved_at) continue;
+    const o = s.outlet || '';
+    if(!wsLastApproved[o] || String(s.wastage_approved_at) > String(wsLastApproved[o])) wsLastApproved[o] = s.wastage_approved_at;
+  }
   await Promise.all(snaps.map(async (s) => {
     if(s.wastage_approved_at){ s._wsStatus = 'approved'; s._wsCount = 0; return; }
     try {
-      const wa = await vaLatestPortalWastage(s.outlet || '', s.window_from || null);
+      const wa = await vaLatestPortalWastage(s.outlet || '', wsLastApproved[s.outlet || ''] || null);
       const qmap = (wa && wa.qty) || {};
       const ql   = (wa && wa.qty_loose) || {};
       const n = new Set(Object.keys(qmap).concat(Object.keys(ql)).filter(k => (Number(qmap[k]) || 0) || (Number(ql[k]) || 0))).size;
@@ -6523,10 +6545,11 @@ async function vaDecorateWastage(){
       const qty      = (r2.ok && j2.ok && j2.count && j2.count.qty)       || {};
       const qtyLoose = (r2.ok && j2.ok && j2.count && j2.count.qty_loose) || {};
       const rmCount = new Set([...Object.keys(qty), ...Object.keys(qtyLoose)].filter(k => (Number(qty[k])||0) || (Number(qtyLoose[k])||0))).size;
+      // Latest wastage approval for this outlet — a submission not newer than it
+      // was already signed off in a prior IO, so it's stale here.
+      const vaLastApproved = outletSnaps.reduce((m,x)=> (x.wastage_approved_at && (!m || String(x.wastage_approved_at) > String(m))) ? x.wastage_approved_at : m, null);
       for(const s of outletSnaps){
-        // In-window check — a submission that predates this snapshot's
-        // window belongs to a previous period and is irrelevant here.
-        if(s.window_from && pick.dt_iso && String(pick.dt_iso) < String(s.window_from)){
+        if(vaLastApproved && pick.updated_at && String(pick.updated_at) <= String(vaLastApproved)){
           s._wastage = { status: 'stale', dt_iso: pick.dt_iso };
           continue;
         }
@@ -6710,7 +6733,7 @@ async function vaLatestPortalOnHand(outlet, windowFrom){
 }
 
 // Same shape as vaLatestPortalOnHand, but reads outlet_wastage_counts.
-async function vaLatestPortalWastage(outlet, windowFrom){
+async function vaLatestPortalWastage(outlet, cutoffIso){
   if(!outlet) return { qty: {}, qty_loose: {} };
   try {
     const r = await fetch('/api/outlet-wastage?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
@@ -6719,11 +6742,14 @@ async function vaLatestPortalWastage(outlet, windowFrom){
     const portalCounts = j.counts.filter(c => typeof c.created_by === 'string' && c.created_by.startsWith('portal:'));
     const pick = portalCounts.length ? portalCounts[0] : null;
     if(!pick) return { qty: {}, qty_loose: {} };
-    if(windowFrom && pick.dt_iso && String(pick.dt_iso) < String(windowFrom)) return { qty: {}, qty_loose: {} };
+    // Show only wastage NEWER than the outlet's last approval (Satvik's
+    // "require a fresh IO" rule). Replaces the old window-start check, which
+    // dropped a just-submitted count when dt_iso fell minutes before save.
+    if(cutoffIso && pick.updated_at && String(pick.updated_at) <= String(cutoffIso)) return { qty: {}, qty_loose: {} };
     const r2 = await fetch('/api/outlet-wastage?id=' + encodeURIComponent(pick.id), { cache: 'no-store' });
     const j2 = await r2.json();
     if(!r2.ok || !j2.ok || !j2.count) return { qty: {}, qty_loose: {} };
-    return { qty: j2.count.qty || {}, qty_loose: j2.count.qty_loose || {}, manager_name: (j2.count.manager_name || pick.manager_name || ''), dt_iso: pick.dt_iso || '' };
+    return { qty: j2.count.qty || {}, qty_loose: j2.count.qty_loose || {}, manager_name: (j2.count.manager_name || pick.manager_name || ''), dt_iso: pick.dt_iso || '', updated_at: pick.updated_at || '' };
   } catch(_){ return { qty: {}, qty_loose: {} }; }
 }
 
@@ -6821,7 +6847,7 @@ async function vaApproveSlice(id, outletLabel, slice){
     const needsWastage = (slice === 'wastage' || slice === 'all');
     const [oh, wa] = await Promise.all([
       needsOnHand  ? vaLatestPortalOnHand(snap.outlet || outletLabel, snap.window_from || null) : Promise.resolve({ qty:{}, qty_loose:{} }),
-      needsWastage ? vaLatestPortalWastage(snap.outlet || outletLabel, snap.window_from || null) : Promise.resolve({ qty:{}, qty_loose:{} }),
+      needsWastage ? vaLatestPortalWastage(snap.outlet || outletLabel, null) : Promise.resolve({ qty:{}, qty_loose:{} }),
     ]);
     const ohQty      = oh.qty       || {};
     const ohLoose    = oh.qty_loose || {};
