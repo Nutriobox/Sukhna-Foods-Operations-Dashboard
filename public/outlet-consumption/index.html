@@ -3612,7 +3612,7 @@ async function loadCn(fresh){
     // too in case the server-side resolution misses (e.g. outlet-name typo
     // on the AIFI side) — a near-match on 'restaurant_name' catches it.
     const outletLc = CN.outlet.toLowerCase();
-    const raw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
+    const raw = (j.rows || []).filter(row => nbCanonName(row.restaurant_name).includes(nbCanonName(outletLc)));
     CN.rows = raw;
     CN.meta = {
       source: 'PetPooja Global Sales API',
@@ -3779,6 +3779,7 @@ function renderCn(){
   const petpoojaNameByMenuKey = new Map();        // name_key    -> first-seen PetPooja name
   const orphans = new Map();                      // dish_id|name_key||ot -> {code,name,cat,ot,qty}
   for(const row of (CN.rows || [])){
+    if(String(row.status || '').toLowerCase().includes('cancel')) continue; // audit C2: cancelled != consumed
     const ot = cnNormOrderType(row.order_type);
     if(!ot) continue;
     const dishId  = String(row.dish_id || '').trim();
@@ -4095,7 +4096,7 @@ async function loadRc(fresh){
 
     // Defensive client-side outlet filter (same as loadCn does).
     const outletLc = RC.outlet.toLowerCase();
-    const salesRaw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
+    const salesRaw = (j.rows || []).filter(row => nbCanonName(row.restaurant_name).includes(nbCanonName(outletLc)));
 
     // 3. Build TWO item indexes — one per order-type family — so a Dine In
     //    sale picks the DIN_BOM* recipe and a Delivery/Pick Up sale picks the
@@ -4192,6 +4193,7 @@ async function loadRc(fresh){
     let unmatchedItems = 0;
 
     for(const row of salesRaw){
+      if(String(row.status || '').toLowerCase().includes('cancel')) continue; // audit C2: cancelled != consumed
       const ot = rcNormOrderType(row.order_type);
       if(!ot) continue;
       const qty = Number(row.item_quantity || 0);
@@ -4844,7 +4846,7 @@ async function loadIi(fresh){
     const j = await r.json();
     if(r.ok && j.ok){
       const outletLc = outlet.toLowerCase();
-      const salesRaw = (j.rows || []).filter(row => (row.restaurant_name || '').toLowerCase().includes(outletLc));
+      const salesRaw = (j.rows || []).filter(row => nbCanonName(row.restaurant_name).includes(nbCanonName(outletLc)));
 
       // Reuse the two-section Item Master index + pickBomCode logic from loadRc.
       const dineByKey  = new Map();
@@ -4881,6 +4883,7 @@ async function loadIi(fresh){
       for(const rm of (RM.items || [])) rmByCode.set(String(rm.code || '').toUpperCase(), rm);
 
       for(const row of salesRaw){
+        if(String(row.status || '').toLowerCase().includes('cancel')) continue; // audit C2: cancelled != consumed
         const ot = rcNormOrderType(row.order_type); if(!ot) continue;
         const qSold = Number(row.item_quantity || 0); if(!(qSold > 0)) continue;
         const dishId = String(row.dish_id || '').trim();
@@ -5608,14 +5611,22 @@ function iiSplitForView(item, l1){
   };
 }
 
+// Canonicalise an outlet / restaurant name for matching: lowercase, strip
+// punctuation (the comma in "NutrioBox (Sector 15, Gurugram)" broke a plain
+// .includes and zeroed that outlet's consumption — audit C1).
+function nbCanonName(x){ return String(x||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
 function iiFmtVarCell(qtyVal, unitLabel){
   const n = Number(qtyVal || 0);
   if(n === 0 || qtyVal == null){
     return '<span class="mut">0' + (unitLabel ? ' <span style="font-size:11px">' + esc(unitLabel) + '</span>' : '') + '</span>';
   }
-  const colour = n > 0 ? '#15803d' : '#b91c1c';
+  // Variance = Ideal - On-hand - Wastage. Positive = ideal exceeds on-hand =
+  // SHORTAGE (red); negative = excess/gain (amber). (audit V4 — colours were
+  // reversed before, showing shortages green.)
+  const colour = n > 0 ? '#b91c1c' : '#b45309';
   const sign   = n > 0 ? '+' : '−';
-  return '<span style="color:' + colour + ';font-weight:600">' + sign + qty(Math.abs(n)) + '</span>'
+  const vtitle = n > 0 ? 'Shortage (ideal > on-hand)' : 'Excess (on-hand > ideal)';
+  return '<span title="' + vtitle + '" style="color:' + colour + ';font-weight:600">' + sign + qty(Math.abs(n)) + '</span>'
        + (unitLabel ? ' <span class="mut" style="font-size:11px">' + esc(unitLabel) + '</span>' : '');
 }
 
@@ -5917,7 +5928,7 @@ async function fgCompute(){
     // server-side but if that lookup misses (name typo on AIFI side) we
     // still want the picked outlet only.
     const outletLc = outlet.toLowerCase();
-    const scoped = outlet ? sales.filter(s => (s.restaurant_name || '').toLowerCase().includes(outletLc)) : sales;
+    const scoped = outlet ? sales.filter(s => nbCanonName(s.restaurant_name).includes(nbCanonName(outletLc))) : sales;
 
     // Map each sold item to its BOM via Item Master.
     const idx = fgBuildDishIndex();
@@ -6849,6 +6860,19 @@ async function vaApproveSlice(id, outletLabel, slice){
       needsOnHand  ? vaLatestPortalOnHand(snap.outlet || outletLabel, snap.window_from || null) : Promise.resolve({ qty:{}, qty_loose:{} }),
       needsWastage ? vaLatestPortalWastage(snap.outlet || outletLabel, null) : Promise.resolve({ qty:{}, qty_loose:{} }),
     ]);
+    // V1 guard (audit 2026-11-03): a blank on-hand is read as 0, so an
+    // incomplete count writes the uncounted items off as full-stock loss.
+    // Warn with the exact count before a C/S approval.
+    if(needsOnHand){
+      const _ohQ = oh.qty || {}, _ohL = oh.qty_loose || {};
+      const _counted = items.filter(it => { const c = String(it.rm_code || ''); return (c in _ohQ) || (c in _ohL); }).length;
+      const _total = items.length;
+      if(_counted < _total){
+        const _miss = _total - _counted;
+        const _ok = confirm('On-hand is INCOMPLETE: only ' + _counted + ' of ' + _total + ' items were counted.\n\nThe ' + _miss + ' uncounted item' + (_miss === 1 ? '' : 's') + ' will be treated as ZERO on-hand and written off as full-stock loss (Adjusted Variance = full ideal stock). This is what caused the bad write-offs flagged in the audit.\n\nApprove anyway?');
+        if(!_ok) return;
+      }
+    }
     const ohQty      = oh.qty       || {};
     const ohLoose    = oh.qty_loose || {};
     const waQty      = wa.qty       || {};
