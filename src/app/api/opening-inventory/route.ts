@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, gateDenied } from "@/lib/dashboard-auth";
 
 /**
  * Opening Inventory counts — persistent, cross-device.
@@ -95,6 +96,7 @@ function sanitiseQtyMap(obj: unknown): NumMap {
 }
 
 export async function POST(req: Request) {
+  { const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g); }
   const { url, key } = sbEnv();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
   let body: {
@@ -152,6 +154,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  { const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g); }
   const { url, key } = sbEnv();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
   const id = new URL(req.url).searchParams.get("id");
