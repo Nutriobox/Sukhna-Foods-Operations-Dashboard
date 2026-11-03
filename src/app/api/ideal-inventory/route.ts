@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, gateDenied } from "@/lib/dashboard-auth";
 import { createHash } from "node:crypto";
 
 /**
@@ -165,6 +166,7 @@ function sanitiseItem(raw: unknown): SnapshotItem | null {
 }
 
 export async function POST(req: Request) {
+  { const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g); }
   const { url, key } = sbEnv();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
 
@@ -280,6 +282,7 @@ export async function POST(req: Request) {
  * gates this behind the shared password used for Save/Delete.
  */
 export async function PATCH(req: Request) {
+  { const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g); }
   const { url, key } = sbEnv();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
   const id = new URL(req.url).searchParams.get("id");
@@ -415,6 +418,7 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  { const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g); }
   const { url, key } = sbEnv();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
   const id = new URL(req.url).searchParams.get("id");

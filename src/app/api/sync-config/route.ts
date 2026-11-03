@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authEnforced } from "@/lib/dashboard-auth";
 
 /**
  * Serves the browser the Supabase credentials needed to open a Realtime
@@ -44,6 +45,7 @@ export async function GET() {
       url,
       anonKey,
       channel: "costing_snapshots",
+      authEnforced: authEnforced(),
     },
     {
       headers: {

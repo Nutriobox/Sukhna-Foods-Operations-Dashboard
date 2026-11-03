@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, gateDenied } from "@/lib/dashboard-auth";
 
 /**
  * Server-side store for Loose Denomination state so marks made on one device
@@ -66,6 +67,7 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  { const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g); }
   const { url, key } = sbEnv();
   if (!url || !key) {
     return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
