@@ -58,11 +58,13 @@ export async function POST(req: Request) {
   // 2026-11-03 (Satvik): wastage is always submittable — the 2-hour window
   // gates On-Hand only, not wastage. (Window gate intentionally removed here.)
 
-  type Body = { dt_iso?: string; qty?: Record<string, number>; qty_loose?: Record<string, number>; total_items?: number };
+  type Body = { dt_iso?: string; qty?: Record<string, number>; qty_loose?: Record<string, number>; total_items?: number; manager_name?: string };
   let body: Body = {};
   try { body = (await req.json()) as Body; } catch { /* ignore */ }
   const dt_iso = String(body.dt_iso || "").trim();
   if (!dt_iso) return NextResponse.json({ ok: false, error: "dt_iso is required" }, { status: 400 });
+  const manager_name = String(body.manager_name || "").trim().slice(0, 120);
+  if (!manager_name) return NextResponse.json({ ok: false, error: "Manager name is required to submit wastage." }, { status: 400 });
   const qty       = (body.qty       && typeof body.qty       === "object") ? body.qty       : {};
   const qty_loose = (body.qty_loose && typeof body.qty_loose === "object") ? body.qty_loose : {};
   const total     = typeof body.total_items === "number" ? body.total_items : 0;
@@ -75,6 +77,7 @@ export async function POST(req: Request) {
     qty_loose,
     total_items:  total,
     filled_count: filled,
+    manager_name,
     created_by:   `portal:${sess.slug}`,
     updated_at:   new Date().toISOString(),
   };

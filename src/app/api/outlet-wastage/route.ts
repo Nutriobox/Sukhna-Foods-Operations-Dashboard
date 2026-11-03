@@ -115,7 +115,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, count: row }, { headers: CORS });
   }
 
-  let q = `${url}/rest/v1/outlet_wastage_counts?select=id,outlet,dt_iso,filled_count,total_items,created_by,created_at,updated_at&order=updated_at.desc&limit=500`;
+  let q = `${url}/rest/v1/outlet_wastage_counts?select=id,outlet,dt_iso,filled_count,total_items,manager_name,created_by,created_at,updated_at&order=updated_at.desc&limit=500`;
   if (outlet) q += `&outlet=eq.${encodeURIComponent(outlet)}`;
   const r = await fetch(q, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" });
   if (!r.ok) {
