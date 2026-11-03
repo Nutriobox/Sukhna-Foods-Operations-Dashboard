@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 
 /**
  * Ideal Inventory snapshots — persistent per-outlet saves of the Ideal
@@ -43,6 +44,35 @@ function sbEnv() {
   const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   return { url, key: key as string | undefined };
+}
+
+// Verify the email-OTP for a wastage approval. Returns null when OK, or an
+// { status, msg } to refuse. Consumes (deletes) the OTP on success; counts a
+// failed attempt and caps at 5. See /api/wastage-otp/send.
+async function verifyWastageOtp(url: string, key: string, snapshotId: string, otp: string): Promise<{ status: number; msg: string } | null> {
+  if (!otp) return { status: 401, msg: "An OTP is required to approve wastage. Click Approve Wastage to have one emailed." };
+  const r = await fetch(
+    `${url}/rest/v1/wastage_approval_otps?select=code_hash,expires_at,attempts&snapshot_id=eq.${encodeURIComponent(snapshotId)}`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
+  );
+  if (!r.ok) return { status: 502, msg: "Could not check the OTP. Try again." };
+  const rows = (await r.json()) as Array<{ code_hash: string; expires_at: string; attempts: number }>;
+  const row = rows[0];
+  const del = () => fetch(`${url}/rest/v1/wastage_approval_otps?snapshot_id=eq.${encodeURIComponent(snapshotId)}`, { method: "DELETE", headers: { apikey: key, Authorization: `Bearer ${key}` } }).catch(() => undefined);
+  if (!row) return { status: 401, msg: "No OTP is pending for this snapshot (or it expired). Request a new one." };
+  if (new Date(row.expires_at).getTime() < Date.now()) { await del(); return { status: 401, msg: "The OTP has expired. Request a new one." }; }
+  if ((row.attempts || 0) >= 5) { await del(); return { status: 429, msg: "Too many incorrect attempts. Request a new OTP." }; }
+  const hash = createHash("sha256").update(otp).digest("hex");
+  if (hash !== row.code_hash) {
+    await fetch(`${url}/rest/v1/wastage_approval_otps?snapshot_id=eq.${encodeURIComponent(snapshotId)}`, {
+      method: "PATCH",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ attempts: (row.attempts || 0) + 1 }),
+    }).catch(() => undefined);
+    return { status: 401, msg: "Incorrect OTP." };
+  }
+  await del(); // single-use
+  return null;
 }
 
 export async function GET(req: Request) {
@@ -257,7 +287,7 @@ export async function PATCH(req: Request) {
 
   type ItemUpdate  = { wastage_l1?: number; adjusted_variance_l1?: number };
   type SnapItem    = { rm_code?: string; wastage_l1?: number; adjusted_variance_l1?: number; [k: string]: unknown };
-  type PatchBody   = { action?: unknown; approved_by?: unknown; stage?: unknown; item_updates?: Record<string, ItemUpdate> };
+  type PatchBody   = { action?: unknown; approved_by?: unknown; stage?: unknown; otp?: unknown; item_updates?: Record<string, ItemUpdate> };
 
   let body: PatchBody;
   try { body = (await req.json()) as PatchBody; }
@@ -291,6 +321,10 @@ export async function PATCH(req: Request) {
   if (action === "approve") {
     if (stage === "wastage") {
       if (cur.wastage_approved_at) return NextResponse.json({ ok: false, error: "Wastage is already approved and cannot be re-approved." }, { status: 409, headers: CORS });
+      // Email-OTP gate: a valid, unexpired OTP for this snapshot is required.
+      const otp = typeof body.otp === "string" ? body.otp.trim() : "";
+      const otpErr = await verifyWastageOtp(url, key, id, otp);
+      if (otpErr) return NextResponse.json({ ok: false, error: otpErr.msg }, { status: otpErr.status, headers: CORS });
       patch.wastage_approved_at = new Date().toISOString();
       patch.wastage_approved_by = approvedBy;
     } else {

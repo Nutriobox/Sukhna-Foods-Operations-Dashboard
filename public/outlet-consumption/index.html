@@ -6781,7 +6781,21 @@ async function vaApproveSlice(id, outletLabel, slice){
   const pwd = await vaPromptPassword(outletLabel, note);
   if(pwd == null) return;
   if(pwd !== II_PASSWORD){ toast('Wrong password.', 4000); return; }
-  const by = 'password-approver (OTP TBD)';
+  // Wastage approval also requires an email OTP sent to the admin inbox.
+  let otp = null;
+  if(slice === 'wastage'){
+    try {
+      const sr = await fetch('/api/wastage-otp/send', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ snapshot_id: id }) });
+      const sj = await sr.json();
+      if(!sr.ok || !sj.ok) throw new Error(sj.error || ('HTTP ' + sr.status));
+      toast('OTP emailed to ' + (sj.to || 'mis@nutriobox.com') + ' — check that inbox.', 4500);
+    } catch(e){ toast('Could not send OTP: ' + (e.message || e), 6000); return; }
+    otp = prompt('Enter the 6-digit OTP emailed to mis@nutriobox.com to approve wastage for ' + outletLabel + ':');
+    if(otp == null) return;
+    otp = String(otp).trim();
+    if(!otp){ toast('OTP is required to approve wastage.', 4000); return; }
+  }
+  const by = slice === 'wastage' ? 'password + OTP approver' : 'password-approver';
   try {
     const snap = await iiFetchSnapshotById(id);
     const items = Array.isArray(snap && snap.items) ? snap.items : [];
@@ -6826,7 +6840,7 @@ async function vaApproveSlice(id, outletLabel, slice){
     const r = await fetch('/api/ideal-inventory?id=' + encodeURIComponent(id), {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', approved_by: by, stage: (slice === 'wastage' ? 'wastage' : 'cs'), item_updates: item_updates }),
+      body: JSON.stringify({ action: 'approve', approved_by: by, stage: (slice === 'wastage' ? 'wastage' : 'cs'), otp: otp, item_updates: item_updates }),
     });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
