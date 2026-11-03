@@ -396,16 +396,17 @@ function renderWindowStatus(){
   const pickB = $('pickWastage');
   if(!panel) return;
   panel.style.display = '';
+  // Wastage is always submittable — the window only gates On-Hand.
+  if(pickB){ pickB.style.opacity = ''; pickB.style.pointerEvents = ''; }
   // Clear any running tick before we re-schedule.
   if(WIN.tickTimer){ clearInterval(WIN.tickTimer); WIN.tickTimer = null; }
   if(WIN.state === 'open'){
     panel.style.background = '#f0fdf4';
     panel.style.borderColor = '#86efac';
     pill.style.background = '#166534';
-    pill.textContent = 'Submissions open';
+    pill.textContent = 'On-Hand open';
     pickA && (pickA.style.opacity = '', pickA.style.pointerEvents = '');
-    pickB && (pickB.style.opacity = '', pickB.style.pointerEvents = '');
-    note.textContent = 'The window closes 2 hours after your supervisor saved the latest snapshot.';
+    note.textContent = 'On-Hand closes 2 hours after your supervisor saved the latest snapshot. Wastage can be submitted anytime.';
     const tick = () => {
       if(WIN.closesAt == null){ cd.textContent = 'closes when supervisor re-saves'; return; }
       const now = Date.now() + WIN.serverSkewMs;
@@ -425,20 +426,18 @@ function renderWindowStatus(){
     panel.style.background = '#fef2f2';
     panel.style.borderColor = '#fecaca';
     pill.style.background = '#b91c1c';
-    pill.textContent = 'Submissions closed';
+    pill.textContent = 'On-Hand closed';
     cd.textContent = 'window has elapsed';
-    note.textContent = 'Ask your supervisor to save a new Ideal Inventory snapshot. The 2-hour window will reopen then.';
+    note.textContent = 'On-Hand is closed. Ask your supervisor to save a new Ideal Inventory snapshot to reopen it for 2 hours. Wastage can still be submitted.';
     if(pickA){ pickA.style.opacity = '0.5'; pickA.style.pointerEvents = 'none'; }
-    if(pickB){ pickB.style.opacity = '0.5'; pickB.style.pointerEvents = 'none'; }
   } else {
     panel.style.background = '#fef9c3';
     panel.style.borderColor = '#fde047';
     pill.style.background = '#854d0e';
-    pill.textContent = 'Not yet open';
+    pill.textContent = 'On-Hand not yet open';
     cd.textContent = 'no snapshot saved';
-    note.textContent = 'Your supervisor needs to save an Ideal Inventory snapshot before you can submit here.';
+    note.textContent = 'Your supervisor needs to save an Ideal Inventory snapshot before On-Hand opens. Wastage can still be submitted.';
     if(pickA){ pickA.style.opacity = '0.5'; pickA.style.pointerEvents = 'none'; }
-    if(pickB){ pickB.style.opacity = '0.5'; pickB.style.pointerEvents = 'none'; }
   }
   // Poll every 30s so admin re-saves show up without the outlet having
   // to refresh the whole page.
@@ -450,10 +449,12 @@ function renderWindowStatus(){
 // the window is closed instead of letting the sheet open and the save
 // hit a 403.
 function openSheetGated(mode){
+  // Wastage is always open; only On-Hand is gated by the 2-hour window.
+  if(mode === 'wastage'){ openSheet('wastage'); return; }
   if(WIN.state !== 'open'){
     toast(WIN.state === 'closed'
-      ? 'Submission window has closed. Ask your supervisor to save a new snapshot.'
-      : 'No Ideal Inventory snapshot has been saved yet. Ask your supervisor to save one.', 3800);
+      ? 'On-Hand submission window has closed. Ask your supervisor to save a new snapshot.'
+      : 'No Ideal Inventory snapshot has been saved yet — On-Hand opens for 2 hours after your supervisor saves one.', 3800);
     return;
   }
   openSheet(mode);
