@@ -36,7 +36,7 @@ export async function fetchWindowState(
   const q =
     `${sbUrl.replace(/\/$/, "")}/rest/v1/ideal_inventory_snapshots` +
     `?outlet=eq.${encodeURIComponent(outlet)}` +
-    `&select=id,submission_window_opens_at,submission_window_closes_at` +
+    `&select=id,created_at,submission_window_opens_at,submission_window_closes_at` +
     `&order=created_at.desc&limit=1`;
   try {
     const r = await fetch(q, {
@@ -46,32 +46,40 @@ export async function fetchWindowState(
     if (!r.ok) return { status: "none", outlet };
     const rows = (await r.json()) as Array<{
       id: string;
+      created_at: string | null;
       submission_window_opens_at: string | null;
       submission_window_closes_at: string | null;
     }>;
     const row = rows[0];
     if (!row) return { status: "none", outlet };
-    const closes = row.submission_window_closes_at
+    // The window is exactly the 2 hours after the snapshot was saved. New
+    // saves stamp submission_window_closes_at; for an older snapshot that
+    // predates those columns, derive it from created_at + 2h so it still
+    // closes on time instead of staying open forever.
+    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+    let closes = row.submission_window_closes_at
       ? new Date(row.submission_window_closes_at).getTime()
       : null;
-    if (closes == null) {
-      // Pre-migration snapshot — treat as open so legacy data keeps working.
-      return {
-        status: "open",
-        snapshot_id: row.id,
-        opens_at: row.submission_window_opens_at ?? null,
-        closes_at: null,
-        closes_in_ms: null,
-        outlet,
-      };
+    let closesIso = row.submission_window_closes_at;
+    let opensIso = row.submission_window_opens_at ?? row.created_at ?? null;
+    if (closes == null && row.created_at) {
+      const createdMs = new Date(row.created_at).getTime();
+      if (!Number.isNaN(createdMs)) {
+        closes = createdMs + TWO_HOURS_MS;
+        closesIso = new Date(closes).toISOString();
+      }
+    }
+    if (closes == null || Number.isNaN(closes)) {
+      // No way to establish a window — closed (never open indefinitely).
+      return { status: "closed", snapshot_id: row.id, opens_at: opensIso, closes_at: null, closes_in_ms: null, outlet };
     }
     const nowMs = Date.now();
     const closesInMs = closes - nowMs;
     return {
       status: closesInMs > 0 ? "open" : "closed",
       snapshot_id: row.id,
-      opens_at: row.submission_window_opens_at,
-      closes_at: row.submission_window_closes_at,
+      opens_at: opensIso,
+      closes_at: closesIso,
       closes_in_ms: closesInMs,
       outlet,
     };

@@ -81,17 +81,24 @@ export async function POST(req: Request) {
   let tagSnapshotId: string | null = null;
   if (snapId) {
     const sr = await fetch(
-      `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,submission_window_closes_at&id=eq.${encodeURIComponent(snapId)}`,
+      `${url}/rest/v1/ideal_inventory_snapshots?select=id,outlet,created_at,submission_window_closes_at&id=eq.${encodeURIComponent(snapId)}`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
     );
-    const srows = sr.ok ? ((await sr.json()) as Array<{ id: string; outlet: string; submission_window_closes_at: string | null }>) : [];
+    const srows = sr.ok ? ((await sr.json()) as Array<{ id: string; outlet: string; created_at: string | null; submission_window_closes_at: string | null }>) : [];
     const srow = srows[0];
     if (!srow) return NextResponse.json({ ok: false, error: "That IO was not found. Refresh and pick an open IO." }, { status: 404 });
     if (String(srow.outlet || "") !== outletShort) {
       return NextResponse.json({ ok: false, error: "That IO belongs to another outlet." }, { status: 403 });
     }
-    const closesAt = srow.submission_window_closes_at ? Date.parse(srow.submission_window_closes_at) : null;
-    if (closesAt != null && Date.now() > closesAt) {
+    // The window is the 2 hours after the snapshot was saved. Use the stamp
+    // when present, otherwise derive it from created_at + 2h. If neither is
+    // available, or it has elapsed, the window is closed.
+    let closesAt = srow.submission_window_closes_at ? Date.parse(srow.submission_window_closes_at) : null;
+    if ((closesAt == null || Number.isNaN(closesAt)) && srow.created_at) {
+      const c = Date.parse(srow.created_at);
+      if (!Number.isNaN(c)) closesAt = c + 2 * 60 * 60 * 1000;
+    }
+    if (closesAt == null || Number.isNaN(closesAt) || Date.now() > closesAt) {
       return NextResponse.json({ ok: false, error: "The 2-hour submission window for this IO has closed. Ask your supervisor to save a new Ideal Inventory snapshot." }, { status: 403 });
     }
     tagSnapshotId = srow.id;
