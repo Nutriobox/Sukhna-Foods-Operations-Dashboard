@@ -191,6 +191,10 @@
           <label style="font-size:12.5px;color:#374151;font-weight:600">IO #:</label>
           <select id="ioSelect" class="cat-filter" title="Pick the IO you are counting closing stock against"></select>
         </span>
+        <span id="managerPick" style="display:none;align-items:center;gap:6px">
+          <label style="font-size:12.5px;color:#374151;font-weight:600">Manager:</label>
+          <input id="managerName" class="search" placeholder="Manager name" style="min-width:150px" title="Name of the manager submitting this wastage (required)">
+        </span>
         <label style="font-size:12.5px;color:#374151;font-weight:600">Date & time:</label>
         <input id="dtIso" type="datetime-local">
         <input id="qSearch" class="search" placeholder="Search RM code or name…" oninput="renderSheet()">
@@ -682,12 +686,16 @@ async function openSheet(mode){
 
   // On-hand is submitted against a chosen IO; wastage keeps its own flow.
   const ioPick = $('ioPick');
+  const managerPick = $('managerPick');
   if(mode === 'on-hand'){
     if(ioPick) ioPick.style.display = 'inline-flex';
+    if(managerPick) managerPick.style.display = 'none';
     loadIoList();
   } else {
     if(ioPick) ioPick.style.display = 'none';
     IO.list = []; IO.selected = '';
+    if(managerPick) managerPick.style.display = 'inline-flex';
+    if($('managerName')) $('managerName').value = '';
   }
 
   await loadRmList();
@@ -814,6 +822,11 @@ async function saveSheet(){
     snapshotId = ($('ioSelect') && $('ioSelect').value) || IO.selected || '';
     if(!snapshotId){ toast('Pick an IO number to submit against.'); return; }
   }
+  let managerName = '';
+  if(CURRENT_MODE === 'wastage'){
+    managerName = (($('managerName') && $('managerName').value) || '').trim();
+    if(!managerName){ toast('Enter the manager name before submitting wastage.'); return; }
+  }
   const btn = $('saveBtn'); btn.disabled = true;
   const t0 = Date.now();
   try {
@@ -824,6 +837,7 @@ async function saveSheet(){
       total_items: SHEET.items.length,
     };
     if(snapshotId) payload.snapshot_id = snapshotId;
+    if(managerName) payload.manager_name = managerName;
     const r = await fetch(MODES[CURRENT_MODE].endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

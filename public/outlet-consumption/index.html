@@ -1045,9 +1045,10 @@
     <th>Outlet</th>
     <th>IO #</th>
     <th>Wastage</th>
+    <th>Manager</th>
     <th>Actions</th>
    </tr></thead>
-   <tbody id="tbodyWs"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+   <tbody id="tbodyWs"><tr><td colspan="7" class="mut" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
   </table></div></div>
  </div>  <!-- /tabWs -->
 
@@ -6335,7 +6336,7 @@ async function loadWs(fresh){
     if(CURTAB === 'ws') updateHeaderStats();
   } catch(e){
     if(stat) stat.textContent = '✗ ' + (e.message || e);
-    const tb = $('tbodyWs'); if(tb) tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
+    const tb = $('tbodyWs'); if(tb) tb.innerHTML = '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center;color:#b91c1c">Load failed: ' + esc(e.message || e) + '</td></tr>';
   }
 }
 // Per-snapshot portal-wastage status: approved (one-way stamp), pending (portal
@@ -6351,7 +6352,8 @@ async function wsDecorateWastage(){
       const n = new Set(Object.keys(qmap).concat(Object.keys(ql)).filter(k => (Number(qmap[k]) || 0) || (Number(ql[k]) || 0))).size;
       s._wsStatus = n > 0 ? 'pending' : 'none';
       s._wsCount = n;
-    } catch(_){ s._wsStatus = 'none'; s._wsCount = 0; }
+      s._wsManager = (wa && wa.manager_name) || '';
+    } catch(_){ s._wsStatus = 'none'; s._wsCount = 0; s._wsManager = ''; }
   }));
 }
 // Assign each snapshot its "Nth IO that day" ticker (per outlet, per local
@@ -6400,7 +6402,7 @@ function renderWs(){
     return true;
   });
   if(!list.length){
-    tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">No snapshots' + (q ? ' match this filter.' : ' yet — save one from Ideal Inventory, then outlets submit wastage from their portal.') + '</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="mut" style="padding:20px;text-align:center">No snapshots' + (q ? ' match this filter.' : ' yet — save one from Ideal Inventory, then outlets submit wastage from their portal.') + '</td></tr>';
     return;
   }
   tb.innerHTML = list.map((s, i) => {
@@ -6427,6 +6429,7 @@ function renderWs(){
       + '<td>' + esc(s.outlet || '') + '</td>'
       + '<td style="font-family:monospace;font-size:12px">' + ord + '</td>'
       + '<td>' + statusChip + '</td>'
+      + '<td>' + (s._wsManager ? esc(s._wsManager) : '<span class="mut">\u2014</span>') + '</td>'
       + '<td><button class="btn" onclick="iiViewSaved(\'' + idEsc + '\', \'wastage\')" style="padding:4px 10px;font-size:12px">👁 View</button> &nbsp; ' + approveBtn + '</td>'
     + '</tr>';
   }).join('');
@@ -6444,21 +6447,35 @@ function vaSnapSig(snaps){
     return (s.id || '') + ':' + (s.approved_at || '') + ':' + (s.wastage_approved_at || '') + ':' + (s.updated_at || '');
   }).join('|');
 }
+let _vaWasteSig = '';
+function vaWasteSig(counts){
+  return (counts || []).map(function(c){ return (c.id || '') + ':' + (c.updated_at || ''); }).join('|');
+}
 async function vaAutoRefreshTick(){
   const active = (typeof CURTAB !== 'undefined') ? CURTAB : '';
   if(active !== 'va' && active !== 'ws') return;
   if(typeof document !== 'undefined' && document.hidden) return;
   try {
-    const r = await fetch('/api/ideal-inventory', { cache: 'no-store' });
-    const j = await r.json();
-    if(!r.ok || !j.ok || !Array.isArray(j.snapshots)) return;
-    const sig = vaSnapSig(j.snapshots);
-    if(active === 'va' && VA.loaded && sig !== VA._sig) loadVa(true);
-    if(active === 'ws' && WS.loaded && sig !== (WS._sig || '')) loadWs(true);
+    const [sr, wr] = await Promise.all([
+      fetch('/api/ideal-inventory', { cache: 'no-store' }),
+      fetch('/api/outlet-wastage', { cache: 'no-store' }),
+    ]);
+    const sj = await sr.json().catch(() => ({}));
+    const wj = await wr.json().catch(() => ({}));
+    const sig  = (sr.ok && sj.ok && Array.isArray(sj.snapshots)) ? vaSnapSig(sj.snapshots) : null;
+    const wsig = (wr.ok && wj.ok && Array.isArray(wj.counts))    ? vaWasteSig(wj.counts)   : null;
+    let wasteChanged = false;
+    if(wsig !== null){
+      if(_vaWasteSig === '') _vaWasteSig = wsig;
+      else if(wsig !== _vaWasteSig){ wasteChanged = true; _vaWasteSig = wsig; }
+    }
+    const snapChanged = sig !== null && ((active === 'va' && sig !== VA._sig) || (active === 'ws' && sig !== (WS._sig || '')));
+    if(active === 'va' && VA.loaded && (snapChanged || wasteChanged)) loadVa(true);
+    if(active === 'ws' && WS.loaded && (snapChanged || wasteChanged)) loadWs(true);
   } catch(_){ /* transient; the next tick retries */ }
 }
 try {
-  setInterval(vaAutoRefreshTick, 20000);
+  setInterval(vaAutoRefreshTick, 5000);
   window.addEventListener('focus', vaAutoRefreshTick);
 } catch(_){ /* non-browser / unsupported */ }
 
@@ -6706,7 +6723,7 @@ async function vaLatestPortalWastage(outlet, windowFrom){
     const r2 = await fetch('/api/outlet-wastage?id=' + encodeURIComponent(pick.id), { cache: 'no-store' });
     const j2 = await r2.json();
     if(!r2.ok || !j2.ok || !j2.count) return { qty: {}, qty_loose: {} };
-    return { qty: j2.count.qty || {}, qty_loose: j2.count.qty_loose || {} };
+    return { qty: j2.count.qty || {}, qty_loose: j2.count.qty_loose || {}, manager_name: (j2.count.manager_name || pick.manager_name || ''), dt_iso: pick.dt_iso || '' };
   } catch(_){ return { qty: {}, qty_loose: {} }; }
 }
 

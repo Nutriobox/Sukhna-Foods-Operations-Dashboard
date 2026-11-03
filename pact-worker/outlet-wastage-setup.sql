@@ -34,3 +34,8 @@ alter table public.outlet_wastage_counts enable row level security;
 drop policy if exists wastage_read on public.outlet_wastage_counts;
 create policy wastage_read on public.outlet_wastage_counts
   for select to anon, authenticated using (true);
+
+-- 2026-11-03 (Satvik): record which manager submitted each wastage count.
+-- Required at submit time by /api/outlet-portal/submit-wastage; shown in the
+-- dashboard's Wastage tab.
+alter table public.outlet_wastage_counts add column if not exists manager_name text;
