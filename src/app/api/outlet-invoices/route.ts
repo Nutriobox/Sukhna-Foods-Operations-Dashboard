@@ -192,15 +192,20 @@ export async function GET(req: Request) {
     //   3. Substring match on the full name — pick the row whose branch
     //      label is shortest among the hits (shortest = most specific)
     if (!outletFilter && outletNameFilter) {
-      const needle = outletNameFilter.toLowerCase().trim();
+      // Canonicalise both sides: lowercase + strip punctuation. Without this
+      // the comma in "NutrioBox (Sector 15, Gurugram)" made every match fail,
+      // the query fell back to ALL outlets, and the outlet showed zero
+      // consumption (audit C1).
+      const canon = (x: string) => (x || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const needle = canon(outletNameFilter);
       const label = (r: Restaurant) => {
         const m = (r.name || "").match(/\(([^)]+)\)/);
-        return (m ? m[1] : (r.name || "")).toLowerCase().trim();
+        return canon(m ? m[1] : (r.name || ""));
       };
       let match = restaurants.find((r) => label(r) === needle);
-      if (!match) match = restaurants.find((r) => (r.name || "").toLowerCase().trim() === needle);
+      if (!match) match = restaurants.find((r) => canon(r.name) === needle);
       if (!match) {
-        const hits = restaurants.filter((r) => (r.name || "").toLowerCase().includes(needle));
+        const hits = restaurants.filter((r) => canon(r.name).includes(needle));
         hits.sort((a, b) => label(a).length - label(b).length);
         match = hits[0];
       }
