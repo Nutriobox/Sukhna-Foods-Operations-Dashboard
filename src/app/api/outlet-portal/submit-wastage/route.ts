@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { readSessionFromRequest } from "@/lib/outlet-portal-session";
 import { clientIpFromRequest, ipIsAllowed, fetchAllowedIps } from "@/lib/outlet-portal-ip";
-import { fetchWindowState, windowRefusal } from "@/lib/outlet-portal-window";
 
 /**
  * POST /api/outlet-portal/submit-wastage
@@ -56,13 +55,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "This network is no longer authorized for this outlet." }, { status: 403 });
   }
 
-  // 2026-10-30 (Satvik's #4 — 2-hour submission window): gate on the
-  // outlet's latest Ideal Inventory snapshot. If window is closed or no
-  // snapshot exists, refuse with an informative message so the outlet
-  // knows what their supervisor needs to do.
-  const windowState = await fetchWindowState(url, key, toCountsOutletName(outletName));
-  const refusal = windowRefusal(windowState);
-  if (refusal) return NextResponse.json(refusal.body, { status: refusal.status });
+  // 2026-11-03 (Satvik): wastage is always submittable — the 2-hour window
+  // gates On-Hand only, not wastage. (Window gate intentionally removed here.)
 
   type Body = { dt_iso?: string; qty?: Record<string, number>; qty_loose?: Record<string, number>; total_items?: number };
   let body: Body = {};
