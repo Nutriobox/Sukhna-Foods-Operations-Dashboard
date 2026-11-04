@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, authEnforced, gateDenied } from "@/lib/dashboard-auth";
 
 /**
  * Row-level PetPooja sales — one row per order_item — for the Sales Data tab
@@ -155,6 +156,11 @@ function outletCode(r: Restaurant | undefined, id: number): string {
 }
 
 export async function GET(req: Request) {
+  const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g);
+  // PII (phone/name/address) only for an authenticated admin. When auth is
+  // off nothing changes; once enforced, anonymous callers get it masked.
+  const showPII = !authEnforced() || _g.authed === true;
+  const _maskPhone = (p: string | null) => (showPII || !p) ? p : ("\u2022\u2022\u2022\u2022 " + String(p).slice(-4));
   const url = process.env.AIFI_SUPABASE_URL;
   const key = process.env.AIFI_SUPABASE_SERVICE_KEY;
   if (!url || !key) {
@@ -342,9 +348,9 @@ export async function GET(req: Request) {
         virtual_brand_name:  o.sub_order_type,
         brand_grouping:      o.group_name,
         assign_to:           o.assignee,
-        customer_phone:      o.customer_phone,
-        customer_name:       o.customer,
-        customer_address:    o.customer_address,
+        customer_phone:      _maskPhone(o.customer_phone),
+        customer_name:       showPII ? o.customer : null,
+        customer_address:    showPII ? o.customer_address : null,
         persons:             o.no_of_persons,
         order_cancel_reason: o.order_cancel_reason,
         my_amount:           o.core_total       != null ? Number(o.core_total)        : null,
@@ -447,9 +453,9 @@ export async function GET(req: Request) {
           virtual_brand_name:  s(ord.sub_order_type),
           brand_grouping:      s(ord.GroupName),
           assign_to:           s(ord.assignee),
-          customer_phone:      s(cust.phone) || s(cust.customer_phone),
-          customer_name:       s(cust.name)  || s(cust.customer_name),
-          customer_address:    s(cust.address) || s(cust.customer_address),
+          customer_phone:      _maskPhone(s(cust.phone) || s(cust.customer_phone)),
+          customer_name:       showPII ? (s(cust.name)  || s(cust.customer_name)) : null,
+          customer_address:    showPII ? (s(cust.address) || s(cust.customer_address)) : null,
           persons:             n(ord.no_of_persons),
           order_cancel_reason: s(ord.reason),
           my_amount:           n(ord.core_total),
