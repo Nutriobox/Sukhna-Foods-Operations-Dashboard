@@ -4977,22 +4977,39 @@ async function loadIi(fresh){
     const lj = await lr.json();
     if(lr.ok && lj.ok && Array.isArray(lj.snapshots)){
       // snapshots come back newest-first (created_at.desc); take the latest approved one.
-      const approvedSnap = lj.snapshots.find((s) => s && s.approved_at);
-      if(approvedSnap){
-        const snap = await iiFetchSnapshotById(approvedSnap.id);
-        const sItems = (snap && Array.isArray(snap.items)) ? snap.items : [];
+      // Two independent overlays (Satvik 2026-11-04): wastage approval and C/S
+      // approval are separate steps, so read each from the latest snapshot that
+      // carries its own stamp. Before this, only approved_at (C/S) was read, so
+      // a wastage approved first never reached the Wastage Approved column until
+      // C/S was also approved.
+      const wasteSnapMeta = lj.snapshots.find((s) => s && s.wastage_approved_at);
+      const csSnapMeta    = lj.snapshots.find((s) => s && s.approved_at);
+      const needIds = {};
+      if(wasteSnapMeta) needIds[wasteSnapMeta.id] = true;
+      if(csSnapMeta)    needIds[csSnapMeta.id]    = true;
+      const fetchedSnaps = {};
+      for(const sid of Object.keys(needIds)){ try { fetchedSnaps[sid] = await iiFetchSnapshotById(sid); } catch(_){ } }
+      if(wasteSnapMeta && fetchedSnaps[wasteSnapMeta.id]){
+        let wOverlaid = 0;
+        for(const si of (fetchedSnaps[wasteSnapMeta.id].items || [])){
+          const it = byCode.get(String(si.rm_code || '').toUpperCase()); if(!it) continue;
+          const w = Number(si.wastage_l1);
+          if(Number.isFinite(w)) it.wastage_l1 = w;   // approved wastage -> Wastage Approved column
+          it.wastage_approved = true;
+          wOverlaid++;
+        }
+        IIv._wasteApproved = { id: wasteSnapMeta.id, order_number: wasteSnapMeta.order_number, wastage_approved_at: wasteSnapMeta.wastage_approved_at, overlaid: wOverlaid };
+      }
+      if(csSnapMeta && fetchedSnaps[csSnapMeta.id]){
         let overlaid = 0;
-        for(const si of sItems){
-          const it = byCode.get(String(si.rm_code || '').toUpperCase());
-          if(!it) continue;
-          const w  = Number(si.wastage_l1);
+        for(const si of (fetchedSnaps[csSnapMeta.id].items || [])){
+          const it = byCode.get(String(si.rm_code || '').toUpperCase()); if(!it) continue;
           const av = Number(si.adjusted_variance_l1);
-          if(Number.isFinite(w))  it.wastage_l1  = w;   // approved wastage
           if(Number.isFinite(av)) it.variance_l1 = av;  // approved Adjusted Variance
           it.approved = true;
           overlaid++;
         }
-        IIv._approved = { id: approvedSnap.id, order_number: approvedSnap.order_number, approved_at: approvedSnap.approved_at, created_at: approvedSnap.created_at, outlet: approvedSnap.outlet, overlaid };
+        IIv._approved = { id: csSnapMeta.id, order_number: csSnapMeta.order_number, approved_at: csSnapMeta.approved_at, created_at: csSnapMeta.created_at, outlet: csSnapMeta.outlet, overlaid };
       }
     }
   } catch(_){ /* no approved overlay; the live recompute stands */ }
@@ -5206,7 +5223,7 @@ function renderIi(){
     // the four auto-filled buckets.
     const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
                   - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
-                  - (it.approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
+                  - (it.wastage_approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
@@ -5230,7 +5247,7 @@ function renderIi(){
       '<td class="r"><input class="ii-num" type="number" step="0.001" min="0" value="' + esc(it.wastage_l1 || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'wastage_l1\',this.value)" style="' + wastageStyle + '" title="Approved wastage in ' + esc(it.l1_unit) + '. Portal submissions are approved from the Wastage tab, not here."></td>' +
       // Wastage Unapproved: live portal submission awaiting manager approval.
       // Display-only — does NOT feed closing. Clears once the row is approved.
-      '<td class="r">' + ((!it.approved && Number(it.portal_wastage_l1) > 0) ? '<span style="color:#b45309;font-weight:600" title="Submitted by the outlet portal, awaiting manager approval in the Wastage tab">' + qty(it.portal_wastage_l1) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></span>' : '<span class="mut">—</span>') + '</td>' +
+      '<td class="r">' + ((!it.wastage_approved && Number(it.portal_wastage_l1) > 0) ? '<span style="color:#b45309;font-weight:600" title="Submitted by the outlet portal, awaiting manager approval in the Wastage tab">' + qty(it.portal_wastage_l1) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></span>' : '<span class="mut">—</span>') + '</td>' +
       '<td class="r" style="font-weight:600">' + qty(closing) + ' <span class="mut" style="font-size:11px">' + esc(it.l1_unit) + '</span></td>' +
       '<td class="r"><input class="ii-num" type="number" step="0.001"        value="' + esc(it.variance_l1    || '') + '" onchange="iiSetField(\'' + codeEsc + '\',\'variance_l1\',this.value)"    style="' + varianceStyle + '" title="Manual residual after wastage in ' + esc(it.l1_unit) + ' (positive = still-unexplained loss, negative = still-unexplained gain)"></td>' +
       '<td class="r">' + fullCell  + '</td>' +
@@ -5248,7 +5265,7 @@ function exportCsvIi(){
     i++;
     const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
                   - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
-                  - (it.approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
+                  - (it.wastage_approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     lines.push([i, it.rm_code, it.name, it.category, it.l1_unit,
                 it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0,
@@ -5286,7 +5303,7 @@ function iiBuildSnapshotPayload(){
   const items = IIv.items.map((it) => {
     const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
                   - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
-                  - (it.approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
+                  - (it.wastage_approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
     const split = iiSplitClosing(it, closing);
     return {
       rm_code:         it.rm_code,
