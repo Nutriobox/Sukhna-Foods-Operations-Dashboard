@@ -51,7 +51,7 @@ const NAV = {
   pf:  { search: 'process flow',  report: 'Process Flow Report' },
   // Batch Wise Stock Analysis -> Closing Stock view. Report name is a best
   // guess from the export filename; the first run log confirms the exact row.
-  bs:  { search: 'batch wise stock', report: 'Batch Wise Stock Analysis' },
+  bs:  { search: 'batchwise', report: 'BatchWise StockAnalysis' },
 };
 
 // Reports that return only today's data by default and need a rolling date range.
@@ -189,7 +189,10 @@ const MIN_REAL_ROWS = 10;
 function isRealReport(rows) {
   if (!Array.isArray(rows) || rows.length < MIN_REAL_ROWS) return false;
   const cols = Object.keys(rows[0] || {});
-  if (cols.length <= 1) return false;
+  // <= 2 (not <= 1): the bs report ships a junk 2-col init table
+  // (RefInvDocDetailsID/Qty, ~132k rows) that would otherwise out-row the real
+  // 18-col table. No real costing report is 2-column.
+  if (cols.length <= 2) return false;
   if (cols.some((c) => /StaticReportType/i.test(c)) && cols.length <= 2) return false;
   return true;
 }
@@ -198,7 +201,7 @@ function isRealReport(rows) {
 function isUsableReport(rows) {
   if (!Array.isArray(rows) || !rows.length) return false;
   const cols = Object.keys(rows[0] || {});
-  if (cols.length <= 1) return false;
+  if (cols.length <= 2) return false; // skip junk 2-col init tables (see isRealReport)
   if (cols.some((c) => /StaticReportType/i.test(c)) && cols.length <= 2) return false;
   return true;
 }
@@ -365,7 +368,7 @@ async function runCostingReport({ report, headers, colmap, hashCaptionMap, posit
             && json.Columns[0].length === Object.keys(t[0]).length) {
           bestColumnIds = json.Columns[0].slice();
         }
-        const sampleKeys = Object.keys(t[0]).slice(0, 6);
+        const sampleKeys = Object.keys(t[0]); // log all columns (needed to map new reports' C-ids)
         const sampleVals = sampleKeys.map((k) => k.slice(0, 10) + '=' + String(t[0][k]).slice(0, 24)).join(' | ');
         log('[capture] REAL table -> ' + t.length + ' rows, ' + Object.keys(t[0]).length + ' cols');
         log('[capture] sample row0: ' + sampleVals);
