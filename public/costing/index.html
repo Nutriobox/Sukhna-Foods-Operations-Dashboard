@@ -1324,7 +1324,7 @@ function parsePF(rows,hr,h,mode){const c=n=>colIdx(h,n);const iJ=c('job'),iD=c('
  for(let i=hr+1;i<rows.length;i++){const r=rows[i]||[];const job=r[iJ];if(job==null||job==='')continue;const jk=String(job);
   if(!jobs.has(jk))jobs.set(jk,{date:fmtDate(r[iD]),fg:new Map(),lines:new Map(),nb:new Set()});const J=jobs.get(jk);J.nb.add(String(r[iB]));
   const pn=r[iPN],pc=r[iPC],itp=numv(r[iRq]),pmq=numv(r[iPq]),fgq=numv(r[iFq]),req=iQq>=0?numv(r[iQq]):0,sip=iSq>=0?numv(r[iSq]):0;
-  if(fgq>0&&r[iFn]){J.fg.set(String(r[iB]),{name:String(pn).trim(),code:String(pc==null?'':pc).trim(),q:r2(fgq),u:r[iFu],no:r[iFn],batch:r[iB]});if(!(sip>0||itp>0||pmq>0))continue;}
+  if(fgq>0){J.fg.set(String(r[iB]),{name:String(pn).trim(),code:String(pc==null?'':pc).trim(),q:r2(fgq),u:r[iFu],no:r[iFn]||'',batch:r[iB]});if(!(sip>0||itp>0||pmq>0))continue;}
   if(req===0&&sip===0&&itp===0&&pmq===0)continue;
   const code=String(pc==null?'':pc).trim(),isPm=pmq>0&&itp===0,k=(isPm?'P':'R')+'|'+(code||lc(pn));
   const iQn=c('request no'),iSn=c('issue no'),iRn=c('rmissueno'),iPn=c('pmissue no');
