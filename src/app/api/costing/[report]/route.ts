@@ -19,14 +19,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,OPTIONS" };
-const REPORTS = new Set(["pf", "pm", "bom", "si"]);
+const REPORTS = new Set(["pf", "pm", "bom", "si", "bs"]);
 
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: CORS }); }
 
 export async function GET(_req: Request, { params }: { params: { report: string } }) {
   const report = String(params.report || "").toLowerCase();
   if (!REPORTS.has(report)) {
-    return NextResponse.json({ ok: false, error: "unknown report (use pf | pm | bom | si)" }, { status: 400, headers: CORS });
+    return NextResponse.json({ ok: false, error: "unknown report (use pf | pm | bom | si | bs)" }, { status: 400, headers: CORS });
   }
   const sbUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
