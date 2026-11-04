@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 /**
  * Queue a live PACT costing sync for the always-on AWS worker (pact-worker/worker.js).
  * Inserts one queued row per report into public.pact_jobs with
- *   invoice = "sync:costing-<k>",  payload.__sync = "costing-<k>"
+ *   invoice = "csync:costing-<k>",  payload.__sync = "costing-<k>"
  * which the worker maps to scripts/sync-costing-<k>.js. The script logs into PACT,
  * replays that report's ReportDataSet call, and writes a fresh row to
  * costing_snapshots (which /api/costing/<k> then serves to the dashboard).
@@ -39,7 +39,11 @@ async function enqueue(reports: Report[]) {
   }
   const jobs = reports.map((k) => ({
     id: crypto.randomUUID(),
-    invoice: `sync:costing-${k}`,
+    // "csync:" (not "sync:") so OLD worker builds on other machines — which
+    // claim only `invoice like 'sync:%'` and fail types they don't know with
+    // "unknown __sync type" — skip these entirely. The current worker claims
+    // `%sync:%`, which matches both prefixes, so only it processes costing jobs.
+    invoice: `csync:costing-${k}`,
     status: "queued",
     dry_run: false,
     payload: { __sync: `costing-${k}`, report: k },
