@@ -931,6 +931,7 @@
      <option value="Shivalik">Shivalik</option>
     </select>
     <button class="btn prim" onclick="fgCompute()">⚡ Compute</button>
+    <button class="btn" onclick="fgFromOpening()" title="Set the window from the selected outlet's last Opening Inventory count to now (same window as Ideal Inventory), then compute">⤓ From Opening Inv</button>
     <button class="btn" onclick="fgClearAll()">Clear</button>
     <span id="fgStat" class="mut" style="font-size:12.5px;color:#4338ca"></span>
    </div>
@@ -1000,6 +1001,28 @@
    </div>
    <div id="mmRmNotBomList"></div>
    <div id="mmBomNotRmList" style="display:none"></div>
+  </div>
+ </div>
+
+ <!-- Per-FG consumption drill-down (double-click a finished good in FG → RM) -->
+ <div id="fgEntryModal" class="nmmodal" style="display:none" onclick="if(event.target===this)fgCloseEntryModal()">
+  <div class="nmbody" style="max-width:1000px">
+   <div class="nmhdr">
+    <h3 style="margin:0;flex:1">🍽 Finished Good → RM Consumption — <span id="fgEntryName" style="font-weight:600;color:#1e40af"></span></h3>
+    <button class="btn" onclick="fgCloseEntryModal()">✕</button>
+   </div>
+   <div id="fgEntryMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
+   <div class="card" style="margin:0"><div class="scroll" style="max-height:65vh"><table id="tblFgEntry">
+    <thead><tr>
+     <th>RM Code</th>
+     <th>Raw Material Name</th>
+     <th>Category</th>
+     <th>BOM UoM</th>
+     <th class="r">Ideal Qty / 1 FG</th>
+     <th class="r">Qty Consumed</th>
+    </tr></thead>
+    <tbody id="tbodyFgEntry"></tbody>
+   </table></div></div>
   </div>
  </div>
 
@@ -5916,6 +5939,25 @@ function fgBuildDishIndex(){
   return { byDishId, byName };
 }
 
+// Set the window from the selected outlet's last Opening Inventory count to
+// now (the same window the Ideal Inventory tab reconciles over), then compute —
+// so FG→RM consumption lines up with the ideal-inventory period.
+async function fgFromOpening(){
+  const stat = $('fgStat');
+  const outlet = $('fgOutlet').value || '';
+  if(!outlet){ if(stat){ stat.style.color = '#b91c1c'; stat.textContent = 'Pick a specific outlet first (Opening Inventory is per outlet).'; } return; }
+  if(stat){ stat.style.color = '#4338ca'; stat.textContent = 'Finding last Opening Inventory count…'; }
+  try {
+    const opening = await rcLatestOpeningForOutlet(outlet);
+    if(!opening || !opening.dt_iso){ if(stat){ stat.style.color = '#b91c1c'; stat.textContent = 'No Opening Inventory count found for ' + outlet + '.'; } return; }
+    $('fgFrom').value = String(opening.dt_iso).slice(0, 16);
+    $('fgTo').value   = iiNowIstDatetime();
+    await fgCompute();
+  } catch(err){
+    if(stat){ stat.style.color = '#b91c1c'; stat.textContent = 'Opening Inventory lookup failed: ' + (err.message || err); }
+  }
+}
+
 // Core "pull from Sales Summary" flow — same /api/outlet-invoices call the
 // Sales API + Sales Summary tabs use, with the same outlet + date filters.
 // Each sold item line is mapped to its BOM via Item Master, then aggregated
@@ -6057,6 +6099,16 @@ function fgClearAll(){
 function fgBomInputs(bomCode){
   const bom = (BOM.boms || []).find((b) => String(b.code || '').toUpperCase() === String(bomCode || '').toUpperCase());
   if(!bom) return [];
+  // Finished-product batch qty (e.g. "Qty: 30" in the FP header). The Raw Qty
+  // column is for the whole batch, so per-1-FG usage = Raw Qty / fpQty. This is
+  // the SAME normalization the RM Consumption / Ideal Inventory engine uses, so
+  // FG→RM now agrees with ideal inventory instead of showing batch-level numbers.
+  const fpQty = (bom.fpQty && bom.fpQty > 0) ? bom.fpQty : 1;
+  // Semi-finished intermediates: a stage OUTPUT that a later stage consumes as
+  // an input is produced in-house, not drawn from stock. Exclude those codes so
+  // WIP is not double-counted as raw-material consumption (mirrors loadRc).
+  const inter = new Set();
+  for(const s of bom.stages.values()) for(const o of (s.outputs || [])){ const oc = String(o[4] || '').trim().toUpperCase(); if(oc) inter.add(oc); }
   const out = [];
   for(const s of bom.stages.values()){
     for(const r of (s.inputs || [])){
@@ -6064,11 +6116,36 @@ function fgBomInputs(bomCode){
       const code = String(r[4] || '').trim();
       const name = String(r[5] || '').trim();
       const unit = String(r[6] || '').trim();
-      const usage = Number(r[7] || 0);
       if(!code && !name) continue;
-      out.push({ product_code: code, product_name: name, unit, usage_qty: isFinite(usage) ? usage : 0 });
+      if(code && inter.has(code.toUpperCase())) continue;  // skip semi-finished re-inputs
+      const rawQty = Number(r[9]);                         // batch total, BOM's declared unit
+      const per1   = (isFinite(rawQty) ? rawQty : 0) / fpQty;  // per 1 finished good
+      out.push({ product_code: code, product_name: name, unit, usage_qty: per1 });
     }
   }
+  return out;
+}
+
+// Resolve one finished good's RM draw into display rows (per-1-FG + total for
+// its qty). Shared by the per-FG drill-down modal. Mirrors fgComputeConsumption
+// but scoped to a single BOM so the operator can open "what did this FG eat".
+function fgEntryLines(bomCode, qtySold){
+  const rmByCode = new Map((RM.items || []).map((r) => [String(r.code || '').toUpperCase(), r]));
+  const map = new Map();
+  for(const ln of fgBomInputs(bomCode)){
+    const key = (ln.product_code || 'name:' + ln.product_name).toUpperCase();
+    let row = map.get(key);
+    if(!row){ row = { product_code: ln.product_code, product_name: ln.product_name, unit: ln.unit, per1: 0 }; map.set(key, row); }
+    if(!row.unit) row.unit = ln.unit;
+    row.per1 += ln.usage_qty;
+  }
+  const out = [...map.values()].map((r) => {
+    const rm = rmByCode.get(String(r.product_code || '').toUpperCase());
+    return { product_code: r.product_code, product_name: r.product_name, unit: r.unit,
+             category: rm ? (rm.idealStorage || '') : '', in_master: !!rm,
+             per1: r.per1, consumed: r.per1 * (Number(qtySold) || 0) };
+  });
+  out.sort((a, b) => (a.product_name || '').localeCompare(b.product_name || ''));
   return out;
 }
 
@@ -6152,12 +6229,16 @@ function fgRender(){
         const pill = isManual
           ? '<span style="font-size:10.5px;background:#4338ca;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600">MANUAL</span>'
           : '<span style="font-size:10.5px;background:#64748b;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600">SALES</span>';
-        return '<tr>'
+        const cEsc = esc(e.bom_code || '').replace(/'/g, "\\'");
+        return '<tr ondblclick="fgViewEntry(\'' + cEsc + '\')" style="cursor:pointer" title="Double-click to see this finished good\'s raw-material consumption">'
           + '<td>' + pill + '</td>'
           + '<td class="code">' + esc(e.bom_code || '') + '</td>'
           + '<td>' + esc(e.bom_name || '') + '</td>'
           + '<td class="r" style="font-weight:600">' + qty(e.qty) + '</td>'
-          + '<td><button class="btn" style="padding:3px 8px;font-size:11px" title="Remove this entry" onclick="fgRemoveEntry(' + i + ')">✕</button></td>'
+          + '<td style="white-space:nowrap">'
+            + '<button class="btn" style="padding:3px 8px;font-size:11px" title="See this finished good\'s RM consumption" onclick="event.stopPropagation();fgViewEntry(\'' + cEsc + '\')">👁</button> '
+            + '<button class="btn" style="padding:3px 8px;font-size:11px" title="Remove this entry" onclick="event.stopPropagation();fgRemoveEntry(' + i + ')">✕</button>'
+          + '</td>'
         + '</tr>';
       }).join('');
     }
@@ -6193,6 +6274,44 @@ function fgRender(){
     + '</tr>'
   ).join('');
 }
+
+// Per-FG drill-down: open one finished good and show the raw materials it
+// consumed (per 1 FG and for its qty sold), with unbooked RMs flagged.
+function fgViewEntry(bomCode){
+  const ent = (FG.entries || []).find(e => String(e.bom_code || '').toUpperCase() === String(bomCode || '').toUpperCase());
+  const qtySold = ent ? (Number(ent.qty) || 0) : 0;
+  const nameEl = $('fgEntryName');
+  if(nameEl) nameEl.textContent = (ent && ent.bom_name) ? (ent.bom_name + ' (' + bomCode + ')') : bomCode;
+  const lines = fgEntryLines(bomCode, qtySold);
+  const metaEl = $('fgEntryMeta');
+  if(metaEl){
+    const unbooked = lines.filter(l => !l.in_master && l.consumed > 0).length;
+    const parts = ['<b>Qty sold:</b> ' + qty(qtySold), '<b>Distinct RMs:</b> ' + lines.length];
+    if(unbooked) parts.push('<b style="color:#b45309">⚠ ' + unbooked + ' not booked in ideal inventory</b>');
+    metaEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  }
+  const tb = $('tbodyFgEntry');
+  if(tb){
+    if(!lines.length){
+      tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:16px;text-align:center">This finished good has no BOM inputs on record.</td></tr>';
+    } else {
+      tb.innerHTML = lines.map(l => {
+        const leak = !l.in_master && l.consumed > 0;
+        const codeCell = leak ? ('<span title="Consumed but not in RM Master — not booked in ideal inventory" style="color:#b45309;font-weight:600">⚠ ' + esc(l.product_code || '—') + '</span>') : esc(l.product_code || '—');
+        return '<tr>'
+          + '<td class="code">' + codeCell + '</td>'
+          + '<td>' + esc(l.product_name || '') + '</td>'
+          + '<td>' + (l.category ? ('<span class="sb">' + esc(l.category) + '</span>') : '<span class="mut">—</span>') + '</td>'
+          + '<td>' + esc(l.unit || '') + '</td>'
+          + '<td class="r">' + qty(l.per1) + '</td>'
+          + '<td class="r" style="font-weight:600">' + qty(l.consumed) + '</td>'
+        + '</tr>';
+      }).join('');
+    }
+  }
+  const m = $('fgEntryModal'); if(m) m.style.display = 'flex';
+}
+function fgCloseEntryModal(){ const m = $('fgEntryModal'); if(m) m.style.display = 'none'; }
 
 // Highlight RMs that the finished goods in this window consume via their BOM
 // but that are missing from the RM Master — so their consumption is never
