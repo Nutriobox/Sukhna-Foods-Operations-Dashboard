@@ -28,7 +28,10 @@ export async function GET(req: Request) {
   }
   const type = new URL(req.url).searchParams.get("type") || "inventory";
   try {
-    const q = `${sbUrl.replace(/\/$/, "")}/rest/v1/pact_jobs?invoice=eq.${encodeURIComponent("sync:" + type)}&select=id,status,updated_at&order=updated_at.desc&limit=1`;
+    // Costing jobs are tagged "csync:" (see /api/sync-costing) so stale workers
+    // on other machines don't claim them; every other sync type stays "sync:".
+    const prefix = type.startsWith("costing-") ? "csync:" : "sync:";
+    const q = `${sbUrl.replace(/\/$/, "")}/rest/v1/pact_jobs?invoice=eq.${encodeURIComponent(prefix + type)}&select=id,status,updated_at&order=updated_at.desc&limit=1`;
     const r = await fetch(q, { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" });
     if (!r.ok) {
       const t = await r.text().catch(() => "");

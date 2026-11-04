@@ -61,7 +61,10 @@ async function claimNextJob() {
     .from('pact_jobs')
     .select('id,invoice,status,payload,updated_at')
     .eq('status', 'queued')
-    .like('invoice', 'sync:%')
+    // Match both "sync:%" and "csync:%" (both contain "sync:"). Costing jobs are
+    // tagged "csync:" so stale OLD workers (which claim only "sync:%") skip them;
+    // this up-to-date worker claims both and handles every type.
+    .like('invoice', '%sync:%')
     .order('updated_at', { ascending: true })
     .limit(1);
   if (error) { log('poll error:', error.message); return null; }
@@ -83,8 +86,8 @@ async function claimNextJob() {
 function syncType(job) {
   const p = job.payload || {};
   if (p.__sync && SCRIPTS[p.__sync]) return p.__sync;
-  // fall back to the invoice tag "sync:<type>"
-  const tag = String(job.invoice || '').replace(/^sync:/, '');
+  // fall back to the invoice tag "sync:<type>" or "csync:<type>"
+  const tag = String(job.invoice || '').replace(/^c?sync:/, '');
   return SCRIPTS[tag] ? tag : null;
 }
 
@@ -210,7 +213,7 @@ if (String(process.env.COSTING_CRON || '') === '1') {
   async function enqueueCosting(reports) {
     const jobs = reports.map((k) => ({
       id: (require('crypto').randomUUID && require('crypto').randomUUID()) || (Date.now() + '-' + k),
-      invoice: `sync:costing-${k}`, status: 'queued', dry_run: false,
+      invoice: `csync:costing-${k}`, status: 'queued', dry_run: false,
       payload: { __sync: `costing-${k}`, report: k },
     }));
     const { error } = await sb.from('pact_jobs').insert(jobs);
