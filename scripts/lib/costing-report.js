@@ -49,6 +49,9 @@ const NAV = {
   pm:  { search: 'product master', report: 'Product Master Report' },
   bom: { search: 'stage wise bom', report: 'Stage Wise BOM With Wastage Summary' },
   pf:  { search: 'process flow',  report: 'Process Flow Report' },
+  // Batch Wise Stock Analysis -> Closing Stock view. Report name is a best
+  // guess from the export filename; the first run log confirms the exact row.
+  bs:  { search: 'batch wise stock', report: 'Batch Wise Stock Analysis' },
 };
 
 // Reports that return only today's data by default and need a rolling date range.

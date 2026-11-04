@@ -193,6 +193,12 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
   <div><label>Biryani ₹/Kg</label><input id="cr_Biryani" type="number" oninput="saveGv()"></div>
   <div><label>Margin %</label><input id="gmargin" type="number" oninput="saveGv()"></div>
   <div><label>Variance %</label><input id="gvar" type="number" oninput="saveGv()"></div>
+ </div>
+ <div class="rowflex" style="margin-top:8px">
+  <div><label>Gravy 2° Pack ₹/Kg</label><input id="sp_Gravy" type="number" oninput="saveGv()"></div>
+  <div><label>Beverages 2° Pack ₹/Kg</label><input id="sp_Beverages" type="number" oninput="saveGv()"></div>
+  <div><label>Snacks 2° Pack ₹/Kg</label><input id="sp_Snacks" type="number" oninput="saveGv()"></div>
+  <div><label>Biryani 2° Pack ₹/Kg</label><input id="sp_Biryani" type="number" oninput="saveGv()"></div>
  </div><div class="muted note hide" style="margin-top:6px">Processing ₹/Kg per category (300 ml packs = Beverages · 1 Kg packs = Gravy). Rates are remembered on this device. Drag a column edge to resize · double-click a header to sort · double-click a row for detail.</div></div>
 </div>
 
@@ -215,6 +221,7 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
   <div class="mitem" data-t="vr" onclick="pickMore(event,'vr')">📑 Validation Report (qty &amp; rate)</div>
   <div class="mitem" data-t="pm" onclick="pickMore(event,'pm')">📦 Product Packing</div>
   <div class="mitem" data-t="veg" onclick="pickMore(event,'veg')">📐 Yield / Wastage (all items)</div>
+  <div class="mitem" data-t="cs" onclick="pickMore(event,'cs')">📦 Closing Stock</div>
  </div></div>
 </div>
 
@@ -292,6 +299,19 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
  </div><div class="muted note hide" style="margin-top:6px"><b>Validation report</b> — actual production vs ideal, in quantity and rate. <b>Output</b>: ideal = BOM batch yield × batches produced vs actual FG qty. <b>Cost</b>: ideal = PMR request qty × Product Master rate vs actual = issued qty (÷ (1 − wastage)) × current rate, split into <b>quantity variance</b> (issued − PMR) × PM rate and <b>rate variance</b> (current − PM rate) × issued. Double-click a product for its materials; by-material view aggregates every job in the date range.</div></div>
  <div class="card"><div class="overflow"><table class="dt" id="vrtbl"></table></div></div></div>
 
+<div id="cs" class="hide"><div class="card"><div class="rowflex">
+  <div style="flex:2"><label>Search product / batch</label><input id="qcs" placeholder="code, name or batch…" oninput="deb(renderCS)"></div>
+  <div><label>Location</label><select id="csloc" onchange="renderCS()"><option value="">All</option></select></div>
+  <div><label>Warehouse</label><select id="cswh" onchange="renderCS()"><option value="">All</option></select></div>
+  <div><label>Category</label><select id="cscat" onchange="renderCS()"><option value="">All</option></select></div>
+  <div><label>Closing as on (till date)</label><input id="cstill" type="date" onchange="renderCS()"></div>
+  <div style="flex:0 0 auto"><label>&nbsp;</label><div style="display:flex;gap:6px">
+    <button class="btn2" style="background:#2563eb;color:#fff;font-weight:600" onclick="liveSyncNow('bs')">⚡ Sync from PACT</button>
+    <button class="xbtn" onclick="exportCS()" title="Export this view to Excel">⬇ Excel</button>
+  </div></div>
+ </div><div class="muted note" style="margin-top:6px">Batch-wise closing stock from PACT's Batch Wise Stock Analysis, valued with the dashboard's own rates: RM from the Rate Dashboard final price, FG from Summary Ideal cost (Approved / Unapproved shown), WIP cost = 0. "Closing as on" keeps rows with a Doc Date on or before the chosen date. Value = Qty × Rate.</div>
+ <div id="cssum" class="muted" style="margin-top:8px;font-size:12.5px"></div></div>
+ <div class="card"><div class="overflow"><table class="dt" id="cstbl"></table></div></div></div>
 <div id="pm" class="hide"><div class="card"><div class="rowflex">
   <div style="flex:2"><label>Search product</label><input id="qpm" placeholder="name or code…" oninput="deb(renderPM)"></div>
   <div><label>Category</label><select id="pmcat" onchange="renderPM()"><option value="">All</option><option>Gravy</option><option>Beverages</option><option>Snacks</option><option>Biryani</option></select></div>
@@ -554,19 +574,23 @@ rebuildIdx();
 const CATN=['Gravy','Beverages','Snacks','Biryani'];
 let CV={};try{CV=JSON.parse(localStorage.getItem('costvars')||'{}');}catch(e){CV={};}
 function gvInit(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.value=(CV.rates&&CV.rates[k]!=null)?CV.rates[k]:(CATS[k]!=null?CATS[k]:65);});
- document.getElementById('gmargin').value=CV.mg!=null?CV.mg:15;document.getElementById('gvar').value=CV.va!=null?CV.va:2;gvMark();gvSum();}
+ document.getElementById('gmargin').value=CV.mg!=null?CV.mg:15;document.getElementById('gvar').value=CV.va!=null?CV.va:2;
+ CATN.forEach(k=>{const e=document.getElementById('sp_'+k);if(e)e.value=(CV.spRates&&CV.spRates[k]!=null&&CV.spRates[k]!==0)?CV.spRates[k]:'';});
+ gvMark();gvSum();}
 function gv(){const rates={};CATN.forEach(k=>{const e=document.getElementById('cr_'+k);rates[k]=e&&e.value!==''?(+e.value||0):(CATS[k]!=null?CATS[k]:65);});
- return {rates,pp:0,sp:0,mg:(+val('gmargin')||0)/100,va:(+val('gvar')||0)/100};}
-function saveGv(){const v=gv();CV={rates:v.rates,mg:v.mg*100,va:v.va*100};try{localStorage.setItem('costvars',JSON.stringify(CV));}catch(e){}bump();gvMark();gvSum();refresh(true);}
-function gvMark(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.classList.toggle('edited',+e.value!==(CATS[k]!=null?CATS[k]:65));});const m=document.getElementById('gmargin'),v=document.getElementById('gvar');if(m)m.classList.toggle('edited',+m.value!==15);if(v)v.classList.toggle('edited',+v.value!==2);}
-function gvSum(){const v=gv();const d=k=>(CATS[k]!=null?CATS[k]:65);document.getElementById('gvsum').innerHTML='⚙ <b>Processing ₹/Kg</b> — '+CATN.map(k=>k+' <b class="'+(v.rates[k]!==d(k)?'edited':'')+'">'+nfmt(v.rates[k])+'</b>').join(' · ')+' · Margin <b class="'+(v.mg!==0.15?'edited':'')+'">'+(v.mg*100).toFixed(0)+'%</b> · Variance <b class="'+(v.va!==0.02?'edited':'')+'">'+(v.va*100).toFixed(0)+'%</b>';}
+ const spRates={};CATN.forEach(k=>{const e=document.getElementById('sp_'+k);spRates[k]=e&&e.value!==''?(+e.value||0):0;});
+ return {rates,spRates,pp:0,sp:0,mg:(+val('gmargin')||0)/100,va:(+val('gvar')||0)/100};}
+function saveGv(){const v=gv();CV={rates:v.rates,spRates:v.spRates,mg:v.mg*100,va:v.va*100};try{localStorage.setItem('costvars',JSON.stringify(CV));}catch(e){}bump();gvMark();gvSum();refresh(true);}
+function gvMark(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.classList.toggle('edited',+e.value!==(CATS[k]!=null?CATS[k]:65));});const m=document.getElementById('gmargin'),v=document.getElementById('gvar');if(m)m.classList.toggle('edited',+m.value!==15);if(v)v.classList.toggle('edited',+v.value!==2);CATN.forEach(k=>{const e=document.getElementById('sp_'+k);if(e)e.classList.toggle('edited',e.value!==''&&+e.value!==0);});}
+function gvSum(){const v=gv();const d=k=>(CATS[k]!=null?CATS[k]:65);document.getElementById('gvsum').innerHTML='⚙ <b>Processing ₹/Kg</b> — '+CATN.map(k=>k+' <b class="'+(v.rates[k]!==d(k)?'edited':'')+'">'+nfmt(v.rates[k])+'</b>').join(' · ')+' · Margin <b class="'+(v.mg!==0.15?'edited':'')+'">'+(v.mg*100).toFixed(0)+'%</b> · Variance <b class="'+(v.va!==0.02?'edited':'')+'">'+(v.va*100).toFixed(0)+'%</b>'+(CATN.some(k=>(v.spRates&&v.spRates[k]))?' <br>📦 <b>2° Pack ₹/Kg</b> — '+CATN.map(k=>k+' <b>'+nfmt((v.spRates&&v.spRates[k])||0)+'</b>').join(' · '):'');}
 function openRates(){gvMark();gvSum();document.getElementById('ratesmodal').classList.add('on');}
 function closeRates(){document.getElementById('ratesmodal').classList.remove('on');}
-function resetGv(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.value=(CATS[k]!=null?CATS[k]:65);});document.getElementById('gmargin').value=15;document.getElementById('gvar').value=2;saveGv();}
+function resetGv(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.value=(CATS[k]!=null?CATS[k]:65);});CATN.forEach(k=>{const e=document.getElementById('sp_'+k);if(e)e.value='';});document.getElementById('gmargin').value=15;document.getElementById('gvar').value=2;saveGv();}
 let CATOVR={};try{CATOVR=JSON.parse(localStorage.getItem('cat_override')||'{}');}catch(e){CATOVR={};}
 const catOfR=r=>CATOVR[r.oc]||r.cat;const catOfB=b=>CATOVR[b.code]||b.cat;
 function setCatOvr(code,cat){if(!cat)delete CATOVR[code];else CATOVR[code]=cat;try{localStorage.setItem('cat_override',JSON.stringify(CATOVR));}catch(e){}bump();}
 function procRate(cat,v){return v.rates[cat]!=null?v.rates[cat]:(CATS[cat]!=null?CATS[cat]:0);}
+function spRate(cat,v){return (v.spRates&&v.spRates[cat]!=null)?v.spRates[cat]:0;}
 const issueOf=it=>it[4]==='W'?0:((it[2]||0)>=100?it[1]:it[1]/(1-(it[2]||0)/100));
 const CI_CACHE=new Map();
 function bump(){CI_CACHE.clear();VEGCAT=null;VEGMAP=null;POOL=null;STATS_CACHE.clear();markDirty();clearTimeout(bump._t);bump._t=setTimeout(()=>{try{prewarm();}catch(e){}},800);}
@@ -580,7 +604,7 @@ function computeIdeal_(r){const v=gv();let food=0,pack=0,waste=0;const zero=[];
  const foodPU=food/q,packPU=pack/q,procPU=pr*wkg,ppPU=v.pp*wkg;
  // Secondary packaging ₹/unit: editable override wins over global rate × weight.
  // Rolls into Total Consumable (treated as a consumable material), NOT into Production Cost.
- const spOvr=SPK_OVR[r.code], spPU=(spOvr!=null?spOvr:(v.sp*wkg));
+ const spOvr=SPK_OVR[r.code], spPU=(spOvr!=null?spOvr:(spRate(cat,v)*wkg));
  const prodPU=procPU+ppPU,consumPU=foodPU+packPU+spPU,totalPU=consumPU+prodPU;
  return {r,v,cat,food,pack,waste,wastePU:waste/q,q,u,wg,wgBase,wgEdited:wgOvr!=null,spPU,spEdited:spOvr!=null,pr,foodPU,packPU,procPU,ppPU,prodPU,consumPU,totalPU,derivedPU:totalPU*(1+v.va)/(1-v.mg),zero};}
 function getMin(code){try{const m=JSON.parse(localStorage.getItem('minsell')||'{}');return m[code]!=null?m[code]:null;}catch(e){return null;}}
@@ -624,18 +648,92 @@ function layoutTable(id){const t=document.getElementById(id);if(!t||!COLW[id])re
  CURW[id]=w;t.classList.add('fx');ths.forEach((th,i)=>th.style.width=w[i]+'px');t.style.width=sum()+'px';}
 let _rsT=null;window.addEventListener('resize',()=>{clearTimeout(_rsT);_rsT=setTimeout(()=>{['ratetbl','bomtbl','sumtbl','batchtbl','devtbl','pmtbl','vegtbl'].forEach(id=>{const el=document.getElementById(id);if(el&&el.offsetParent)layoutTable(id);});},120);});
 let CUR='rate';
-const MORE={ai:'🤖 AI BOM Check',dev:'📉 Cost Deviation',vr:'📑 Validation Report',pm:'📦 Product Packing',veg:'📐 Yield / Wastage'};
+const MORE={ai:'🤖 AI BOM Check',dev:'📉 Cost Deviation',vr:'📑 Validation Report',pm:'📦 Product Packing',veg:'📐 Yield / Wastage',cs:'📦 Closing Stock'};
 function toggleMore(ev){ev.stopPropagation();document.getElementById('moremenu').classList.toggle('hide');}
 function pickMore(ev,t){ev.stopPropagation();document.getElementById('moremenu').classList.add('hide');tab(t);}
 document.addEventListener('click',()=>{const m=document.getElementById('moremenu');if(m)m.classList.add('hide');});
 const deb=fn=>{clearTimeout(fn._t);fn._t=setTimeout(fn,180);};
 function tab(t){CUR=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===t||(x.id==='moretab'&&!!MORE[t])));document.querySelectorAll('.mitem').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
  const ml=document.getElementById('morelbl');if(ml)ml.textContent=MORE[t]?MORE[t]+' ▾':'⋯ More ▾';
- ['rate','bom','sum','batch','ai','dev','vr','pm','veg'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==t));
+ ['rate','bom','sum','batch','ai','dev','vr','pm','veg','cs'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==t));
  try{history.replaceState(null,'','#'+t);}catch(e){}refresh();}
-const DIRTY={rate:1,bom:1,sum:1,batch:1,ai:1,dev:1,pm:1,veg:1,vr:1};
+const DIRTY={rate:1,bom:1,sum:1,batch:1,ai:1,dev:1,pm:1,veg:1,vr:1,cs:1};
 function markDirty(){for(const k in DIRTY)DIRTY[k]=1;}
-const RENDERERS={rate:renderRate,bom:renderBOM,sum:renderSum,batch:renderBatch,ai:renderAI,dev:renderDev,pm:renderPM,veg:renderVeg,vr:renderVR};
+const RENDERERS={rate:renderRate,bom:renderBOM,sum:renderSum,batch:renderBatch,ai:renderAI,dev:renderDev,pm:renderPM,veg:renderVeg,vr:renderVR,cs:renderCS};
+
+// ---------- Closing Stock (Batch Wise Stock Analysis from PACT) ----------
+let CS={loaded:false,rows:[],meta:{}};
+const csStr=v=>String(v==null?'':v).trim();
+const csNorm=x=>String(x==null?'':x).toLowerCase().replace(/[\s_/().-]+/g,'');
+function csHeaderIndex(header){
+  // Map the report's header labels to column positions, tolerant of casing /
+  // punctuation so it works whether COLMAP is filled or still raw.
+  const idx={}; const want={batch:'batch',docno:'docno',doc:'docno',location:'location',warehouse:'warehouse',date:'docdate',code:'code',product:'name',name:'name',units:'units',unit:'units',quantity:'qty',qty:'qty',rate:'rate',value:'value',exp:'exp',mfg:'mfg'};
+  (header||[]).forEach((h,i)=>{const k=csNorm(h);
+    if(k.includes('batch'))idx.batch=i; else if(k.includes('docno'))idx.docNo=i;
+    else if(k.includes('location'))idx.location=i; else if(k.includes('warehouse'))idx.warehouse=i;
+    else if(k.includes('docdate')||k==='date')idx.docDate=i; else if(k.includes('productcode')||k.includes('code'))idx.code=i;
+    else if(k.includes('productname')||k.includes('name'))idx.name=i; else if(k.includes('unit'))idx.units=i;
+    else if(k.includes('quantity')||k==='qty')idx.qty=i; else if(k.includes('rate'))idx.rate=i;
+    else if(k.includes('value'))idx.value=i; else if(k.includes('exp'))idx.exp=i; else if(k.includes('mfg'))idx.mfg=i;});
+  return idx;
+}
+async function loadCS(force){
+  if(CS.loaded&&!force)return;
+  try{
+    const res=await fetch('/api/costing/bs',{cache:'no-store'}); const j=await res.json();
+    CS.meta=j||{};
+    const data=(j&&j.ok&&Array.isArray(j.data))?j.data:[];
+    const header=data[0]||[]; const ix=csHeaderIndex(header);
+    const g=(row,k)=>ix[k]!=null?row[ix[k]]:'';
+    CS.rows=data.slice(1).map(row=>({
+      batch:csStr(g(row,'batch')),docNo:csStr(g(row,'docNo')),location:csStr(g(row,'location')),
+      warehouse:csStr(g(row,'warehouse')),docDate:csStr(g(row,'docDate')).slice(0,10),
+      code:csStr(g(row,'code')),name:csStr(g(row,'name')),units:csStr(g(row,'units')),
+      qty:num(g(row,'qty')),pactRate:num(g(row,'rate')),pactValue:num(g(row,'value')),
+    })).filter(r=>r.code||r.name);
+  }catch(e){ CS.rows=[]; CS.meta={ok:false,error:String(e&&e.message||e)}; }
+  CS.loaded=true;
+}
+function csClassify(code,name){const nm=lc(name);if(/\bwip\b/.test(nm))return 'wip';if(RBYOC[String(code||'').trim()])return 'fg';return 'rm';}
+function csValue(r){
+  const kind=csClassify(r.code,r.name);
+  if(kind==='wip')return {kind,rate:0,approved:null};
+  if(kind==='fg'){const rec=RBYOC[String(r.code).trim()];let rate=0;try{const c=computeIdeal(rec);rate=c?c.derivedPU:0;}catch(e){}return {kind,rate,approved:isApproved(rec.code)};}
+  let rate=0;try{rate=unitRate(r.name,r.code,r.units||'').r||0;}catch(e){}
+  return {kind,rate,approved:null};
+}
+function csCat(r){const rec=RBYOC[String(r.code||'').trim()];if(rec)return catOfR(rec);const p=(D.products||[]).find(x=>x.code===r.code);if(p&&p.cat)return p.cat;const e=(D.conv||{})[String(r.code||'').trim()];return e?(e[7]||''):'';}
+function csFillSelect(id,vals){const el=document.getElementById(id);if(!el)return;const cur=el.value;const opts=['<option value="">All</option>'].concat([...new Set(vals.filter(Boolean))].sort().map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`));el.innerHTML=opts.join('');}
+function renderCS(){
+  const tb=document.getElementById('cstbl');if(!tb)return;
+  if(!CS.loaded){tb.innerHTML='<tr><td class="muted" style="padding:14px">Loading…</td></tr>';loadCS(false).then(()=>{DIRTY.cs=1;renderCS();});return;}
+  if(!CS.rows.length){
+    const err=CS.meta&&CS.meta.error?(' — '+esc(String(CS.meta.error).slice(0,200))):'';
+    tb.innerHTML='<tr><td class="muted" style="padding:16px">No batch-stock data yet. Click <b>⚡ Sync from PACT</b> to pull the Batch Wise Stock Analysis report. (If this is the first sync, it records the report\'s column map; once that is in place the rows appear here.)'+err+'</td></tr>';
+    const sum=document.getElementById('cssum');if(sum)sum.textContent='';
+    return;
+  }
+  csFillSelect('csloc',CS.rows.map(r=>r.location));
+  csFillSelect('cswh',CS.rows.map(r=>r.warehouse));
+  csFillSelect('cscat',CS.rows.map(r=>csCat(r)));
+  const q=lc(val('qcs')),loc=val('csloc'),wh=val('cswh'),cat=val('cscat'),till=val('cstill');
+  let totVal=0,totQ=0,shown=0;
+  const rowsHtml=CS.rows.filter(r=>{
+    if(loc&&r.location!==loc)return false; if(wh&&r.warehouse!==wh)return false;
+    if(till&&r.docDate&&r.docDate>till)return false;
+    if(cat&&csCat(r)!==cat)return false;
+    if(q&&!(lc(r.code).includes(q)||lc(r.name).includes(q)||lc(r.batch).includes(q)))return false;
+    return true;
+  }).map((r,i)=>{
+    const v=csValue(r),value=r.qty*v.rate;totVal+=value;totQ+=r.qty;shown++;
+    const stat=v.kind==='fg'?(v.approved?'<span class="apr">Approved</span>':'<span class="pill" style="background:#fef3c7;color:#92400e">Unapproved</span>'):(v.kind==='wip'?'<span class="pill" style="background:#eee;color:#777">WIP ₹0</span>':'');
+    return `<tr><td>${i+1}</td><td class="l">${esc(r.batch)}</td><td>${esc(fmtD?fmtD(r.docDate):r.docDate)}</td><td>${esc(r.location)}</td><td>${esc(r.warehouse)}</td><td class="l"><small class="muted">${esc(r.code)}</small></td><td class="l" title="${esc(r.name)}">${esc(r.name)}</td><td class="l">${esc(csCat(r))}</td><td>${esc(r.units)}</td><td>${nfmt(r.qty)}</td><td>${money(v.rate)}</td><td>${money(value)}</td><td>${stat}</td></tr>`;
+  }).join('');
+  tb.innerHTML=`<tr><th>#</th><th class="l">Batch</th><th>Doc Date</th><th>Location</th><th>Warehouse</th><th class="l">Code</th><th class="l">Product</th><th class="l">Category</th><th>UOM</th><th>Qty (L1)</th><th>Rate ₹</th><th>Value ₹</th><th>Status</th></tr>${rowsHtml}<tr class="tot"><td colspan="9" class="l">${shown} batch rows · total qty ${nfmt(totQ)}</td><td></td><td></td><td><b>${money(totVal)}</b></td><td></td></tr>`;
+  const sum=document.getElementById('cssum');if(sum)sum.innerHTML='📦 <b>'+shown+'</b> rows · Total closing value <b>'+money(totVal)+'</b>'+(CS.meta&&CS.meta.synced_at?(' · synced '+esc(String(CS.meta.synced_at).slice(0,16).replace('T',' '))):'');
+}
+function exportCS(){try{const rows=[['Batch','Doc No','Doc Date','Location','Warehouse','Code','Product','Category','UOM','Qty','Rate','Value','Status']];CS.rows.forEach(r=>{const v=csValue(r);rows.push([r.batch,r.docNo,r.docDate,r.location,r.warehouse,r.code,r.name,csCat(r),r.units,r.qty,v.rate,r.qty*v.rate,v.kind]);});const csv=rows.map(a=>a.map(x=>'"'+String(x==null?'':x).replace(/"/g,'""')+'"').join(',')).join('\n');const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='closing-stock.csv';a.click();URL.revokeObjectURL(u);}catch(e){alert('Export failed: '+(e&&e.message||e));}}
 function refresh(force){if(!force&&!DIRTY[CUR])return;RENDERERS[CUR]();DIRTY[CUR]=0;}
 
 // ===== TAB 1: RATE DASHBOARD =====

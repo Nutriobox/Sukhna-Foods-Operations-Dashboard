@@ -40,6 +40,7 @@ const SCRIPTS = {
   'costing-pm': 'scripts/sync-costing-pm.js',
   'costing-bom': 'scripts/sync-costing-bom.js',
   'costing-si': 'scripts/sync-costing-si.js',
+  'costing-bs': 'scripts/sync-costing-bs.js',
 };
 
 const now = () => new Date().toISOString();
