@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sukhna Foods — Closing Stock</title>
+<script src="/js/password-gate.js"></script>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e5e7eb;--brand:#2563eb}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px;line-height:1.45}
+  .wrap{max-width:1360px;margin:0 auto;padding:16px}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+  h1{font-size:19px;font-weight:700;margin:0}header p{margin:3px 0 0;color:var(--mut);font-size:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .rowflex{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  label{display:block;font-size:11px;font-weight:600;color:var(--mut);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+  input,select{padding:9px 11px;font-size:14px;border:1px solid #cbd5e1;border-radius:8px;outline:none;background:#fff}
+  button{cursor:pointer;border-radius:8px;border:1px solid var(--line);padding:9px 12px;font-weight:600;background:#fff}
+  button.prim{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .banner{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px}
+  .overflow{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:right;white-space:nowrap}
+  th{background:#f8fafc;font-weight:700;font-size:11.5px;color:#334155;position:sticky;top:0}
+  td.l,th.l{text-align:left}
+  tr.tot td{font-weight:700;background:#f1f5f9;border-top:2px solid #cbd5e1}
+  .mut{color:var(--mut)}
+  .pill{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10.5px;font-weight:700}
+  .p-rm{background:#eff6ff;color:#1d4ed8}.p-fg{background:#ecfdf5;color:#166534}.p-pk{background:#f5f3ff;color:#6d28d9}.p-wip{background:#eee;color:#777}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>📦 Closing Stock</h1><p>Batch-wise closing stock from PACT (Batch Wise Stock Analysis). Part of the Sukhna Foods Operations Dashboard.</p></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="synced" class="mut" style="font-size:12px"></span>
+      <button class="prim" id="syncBtn" onclick="syncNow()">⚡ Sync from PACT</button>
+      <button onclick="exportCsv()">⬇ Excel</button>
+    </div>
+  </header>
+
+  <div class="banner" id="valnote">Valuation note: this view currently shows PACT's own Rate &amp; Value. The dashboard-rate valuation — RM from the rate master, FG from the Summary cost (approved / unapproved), WIP = ₹0 — is wired next, once the sync is live and the numbers can be verified against real data.</div>
+
+  <div class="card"><div class="rowflex">
+    <div style="flex:2"><label>Search (code, name, batch)</label><input id="q" placeholder="type to filter…" oninput="deb(render)"></div>
+    <div><label>Location</label><select id="loc" onchange="render()"><option value="">All</option></select></div>
+    <div><label>Warehouse</label><select id="wh" onchange="render()"><option value="">All</option></select></div>
+    <div><label>Type</label><select id="typ" onchange="render()"><option value="">All</option><option>Raw Material</option><option>Packing</option><option>Finished Good</option><option>WIP</option></select></div>
+    <div><label>Closing as on (till date)</label><input id="till" type="date" onchange="render()"></div>
+  </div>
+  <div id="sum" class="mut" style="margin-top:8px;font-size:12.5px"></div></div>
+
+  <div class="card"><div class="overflow"><table id="tbl"></table></div></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const str=v=>String(v==null?'':v).trim();
+const num=v=>{const n=Number(String(v==null?'':v).replace(/,/g,''));return isNaN(n)?0:n;};
+const normk=x=>String(x==null?'':x).toLowerCase().replace(/[\s_/().-]+/g,'');
+const nf=x=>Number(x||0).toLocaleString('en-IN',{maximumFractionDigits:3});
+const money=x=>(x==null||isNaN(x))?'—':'₹'+Number(x).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>{if(!d)return '';const p=String(d).slice(0,10).split('-');return p.length===3?(p[2]+'-'+p[1]+'-'+p[0]):String(d);};
+let _t;function deb(fn){clearTimeout(_t);_t=setTimeout(fn,180);}
+
+let DATA={loaded:false,rows:[],meta:{}};
+function headerIndex(header){const ix={};(header||[]).forEach((h,i)=>{const k=normk(h);
+  if(k.includes('batch'))ix.batch=i; else if(k.includes('docno'))ix.docNo=i;
+  else if(k.includes('location'))ix.location=i; else if(k.includes('warehouse'))ix.warehouse=i;
+  else if(k.includes('docdate')||k==='date')ix.docDate=i; else if(k.includes('productcode')||k.includes('code'))ix.code=i;
+  else if(k.includes('productname')||k.includes('name'))ix.name=i; else if(k.includes('unit'))ix.units=i;
+  else if(k.includes('quantity')||k==='qty')ix.qty=i; else if(k.includes('rate'))ix.rate=i;
+  else if(k.includes('value'))ix.value=i;});
+  return ix;}
+async function load(force){
+  if(DATA.loaded&&!force)return;
+  try{
+    const res=await fetch('/api/costing/bs',{cache:'no-store'});const j=await res.json();DATA.meta=j||{};
+    const d=(j&&j.ok&&Array.isArray(j.data))?j.data:[];const ix=headerIndex(d[0]||[]);const g=(r,k)=>ix[k]!=null?r[ix[k]]:'';
+    DATA.rows=d.slice(1).map(r=>({batch:str(g(r,'batch')),docNo:str(g(r,'docNo')),location:str(g(r,'location')),
+      warehouse:str(g(r,'warehouse')),docDate:str(g(r,'docDate')).slice(0,10),code:str(g(r,'code')),
+      name:str(g(r,'name')),units:str(g(r,'units')),qty:num(g(r,'qty')),rate:num(g(r,'rate')),value:num(g(r,'value'))}))
+      .filter(r=>r.code||r.name);
+  }catch(e){DATA.rows=[];DATA.meta={ok:false,error:String(e&&e.message||e)};}
+  DATA.loaded=true;
+}
+function typeOf(r){const nm=r.name.toLowerCase(),c=r.code.toUpperCase();
+  if(/\bwip\b/.test(nm))return 'WIP'; if(c.startsWith('FG'))return 'Finished Good';
+  if(c.startsWith('RP'))return 'Packing'; if(c.startsWith('RM'))return 'Raw Material'; return '—';}
+function fillSel(id,vals){const el=$(id);if(!el)return;const cur=el.value;
+  el.innerHTML=['<option value="">All</option>'].concat([...new Set(vals.filter(Boolean))].sort().map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`)).join('');}
+function render(){
+  const tb=$('tbl');if(!tb)return;
+  if(!DATA.loaded){tb.innerHTML='<tr><td class="mut" style="padding:14px">Loading…</td></tr>';load().then(()=>render());return;}
+  if(!DATA.rows.length){
+    const err=DATA.meta&&DATA.meta.error?(' — '+esc(String(DATA.meta.error).slice(0,200))):'';
+    tb.innerHTML='<tr><td class="mut" style="padding:16px">No batch-stock data yet. Click <b>⚡ Sync from PACT</b> to pull the Batch Wise Stock Analysis report. If this is the first sync it records the report\'s column map; once that is in place the rows appear here.'+err+'</td></tr>';
+    $('sum').textContent='';return;}
+  fillSel('loc',DATA.rows.map(r=>r.location));fillSel('wh',DATA.rows.map(r=>r.warehouse));
+  const q=($('q').value||'').toLowerCase(),loc=$('loc').value,wh=$('wh').value,typ=$('typ').value,till=$('till').value;
+  let totV=0,totQ=0,shown=0;
+  const body=DATA.rows.filter(r=>{
+    if(loc&&r.location!==loc)return false; if(wh&&r.warehouse!==wh)return false;
+    if(till&&r.docDate&&r.docDate>till)return false; if(typ&&typeOf(r)!==typ)return false;
+    if(q&&!(r.code.toLowerCase().includes(q)||r.name.toLowerCase().includes(q)||r.batch.toLowerCase().includes(q)))return false;
+    return true;
+  }).map((r,i)=>{const t=typeOf(r),cls={'Raw Material':'p-rm','Finished Good':'p-fg','Packing':'p-pk','WIP':'p-wip'}[t]||'';
+    totV+=r.value;totQ+=r.qty;shown++;
+    return `<tr><td>${i+1}</td><td class="l">${esc(r.batch)}</td><td>${esc(fmtD(r.docDate))}</td><td>${esc(r.location)}</td><td>${esc(r.warehouse)}</td><td class="l"><span class="mut">${esc(r.code)}</span></td><td class="l" title="${esc(r.name)}">${esc(r.name)}</td><td class="l">${cls?`<span class="pill ${cls}">${t}</span>`:''}</td><td>${esc(r.units)}</td><td>${nf(r.qty)}</td><td>${money(r.rate)}</td><td>${money(r.value)}</td></tr>`;
+  }).join('');
+  tb.innerHTML=`<tr><th>#</th><th class="l">Batch</th><th>Doc Date</th><th>Location</th><th>Warehouse</th><th class="l">Code</th><th class="l">Product</th><th class="l">Type</th><th>UOM</th><th>Qty</th><th>Rate (PACT)</th><th>Value (PACT)</th></tr>${body}<tr class="tot"><td colspan="9" class="l">${shown} rows · total qty ${nf(totQ)}</td><td></td><td></td><td>${money(totV)}</td></tr>`;
+  $('sum').innerHTML='📦 <b>'+shown+'</b> rows · total value (PACT) <b>'+money(totV)+'</b>'+(DATA.meta&&DATA.meta.synced_at?' · synced '+esc(String(DATA.meta.synced_at).slice(0,16).replace('T',' ')):'');
+  $('synced').textContent=DATA.meta&&DATA.meta.synced_at?('Synced '+String(DATA.meta.synced_at).slice(0,16).replace('T',' ')):'';
+}
+async function syncNow(){
+  const b=$('syncBtn');b.disabled=true;b.textContent='Syncing…';
+  try{await fetch('/api/sync-costing?report=bs',{cache:'no-store'});
+    // poll the snapshot a few times for freshness
+    for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,3000));await load(true);if(DATA.rows.length){break;}}
+  }catch(e){}
+  b.disabled=false;b.textContent='⚡ Sync from PACT';render();
+}
+function exportCsv(){try{const head=['Batch','Doc No','Doc Date','Location','Warehouse','Code','Product','Type','UOM','Qty','Rate','Value'];
+  const rows=[head].concat(DATA.rows.map(r=>[r.batch,r.docNo,r.docDate,r.location,r.warehouse,r.code,r.name,typeOf(r),r.units,r.qty,r.rate,r.value]));
+  const csv=rows.map(a=>a.map(x=>'"'+String(x==null?'':x).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const u=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));const a=document.createElement('a');a.href=u;a.download='closing-stock.csv';a.click();URL.revokeObjectURL(u);
+}catch(e){alert('Export failed: '+(e&&e.message||e));}}
+load().then(render);
+</script>
+</body>
+</html>
