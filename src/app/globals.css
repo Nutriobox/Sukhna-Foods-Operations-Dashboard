@@ -490,6 +490,9 @@
   .tile.salary{--go:#4338ca}
   .tile.salary .tile-band{background:linear-gradient(90deg,#4f46e5 0%,#818cf8 100%)}
   .tile.salary .tile-ic{background:#e0e7ff;color:#4338ca}
+  .tile.closing{--go:#b45309}
+  .tile.closing .tile-band{background:linear-gradient(90deg,#d97706 0%,#fbbf24 100%)}
+  .tile.closing .tile-ic{background:#fef3c7;color:#b45309}
 
   /* ===== Home button in topbar ===== */
   .homebtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink-2)}
