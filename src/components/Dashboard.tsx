@@ -1795,6 +1795,16 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
             <span className="tile-go">Open {TileSvg.arrow}</span>
           </span>
         </a>
+        <a className="tile closing" href="/closing-stock/index.html">
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.boxes}</span>
+            <span className="tile-ttl">Closing Stock</span>
+            <span className="tile-sub">Batch-wise closing stock from PACT &mdash; filter by location, warehouse and date, valued with the dashboard&rsquo;s own rates.</span>
+            <span className="tile-meta">Batch-wise · PACT stock</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
+        </a>
       </div>
     </div>
   );
