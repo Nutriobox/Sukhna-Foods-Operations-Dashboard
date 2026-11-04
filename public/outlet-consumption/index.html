@@ -969,6 +969,9 @@
    </table></div>
   </div>
 
+  <!-- Leak highlight: RMs consumed via BOM but missing from RM Master (not booked in Ideal Inventory) -->
+  <div id="fgLeakHighlight" style="display:none;margin:0 0 12px"></div>
+
   <!-- Aggregated RM consumption table -->
   <div class="card"><div class="scroll"><table id="tblFg">
    <thead><tr>
@@ -5870,7 +5873,7 @@ async function iiDeleteSaved(id, outletLabel){
 // Each entry carries its source so the UI can show whether a line came
 // from the auto Sales-Summary fetch or was added manually, and so Clear /
 // Compute know which entries to wipe.
-const FG = { entries: [] };  // [{ bom_code, bom_name, qty, source: 'sales'|'manual' }]
+const FG = { entries: [], leaks: [] };  // entries: [{ bom_code, bom_name, qty, source: 'sales'|'manual' }]; leaks: consumed RMs missing from RM Master
 
 async function fgOnTabEnter(){
   // Ensure BOM + Item Master are both ready — the dropdown needs BOM, and
@@ -6115,6 +6118,12 @@ function fgComputeConsumption(){
   for(const o of out){
     const rm = rmByCode.get(String(o.product_code || '').toUpperCase());
     o.category = rm ? (rm.idealStorage || '') : '';
+    // in_master: the RM code exists in RM Master. booked: it is also an Ideal
+    // Inventory line (idealStorage set), i.e. its consumption actually lands
+    // somewhere. A consumed RM that is NOT in master is never booked — that's
+    // the leak the FG→RM highlight calls out.
+    o.in_master = !!rm;
+    o.booked    = !!(rm && rm.idealStorage);
   }
   out.sort((a, b) => (a.product_name || '').localeCompare(b.product_name || ''));
   return out;
@@ -6166,6 +6175,7 @@ function fgRender(){
   // Consumption table
   const tb = $('tbodyFg'); if(!tb) return;
   const rows = fgComputeConsumption();
+  fgRenderLeaks(rows);
   if(!rows.length){
     tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">'
       + (FG.entries.length ? 'Added finished goods have no BOM inputs on record.' : 'Add a finished good above to see its raw-material breakdown.')
@@ -6182,6 +6192,45 @@ function fgRender(){
       + '<td class="r" style="font-weight:600">' + qty(r.qty_consumed) + '</td>'
     + '</tr>'
   ).join('');
+}
+
+// Highlight RMs that the finished goods in this window consume via their BOM
+// but that are missing from the RM Master — so their consumption is never
+// booked in Ideal Inventory (it's silently dropped from the booked rows).
+function fgRenderLeaks(rows){
+  const el = $('fgLeakHighlight'); if(!el) return;
+  const leaks = (rows || [])
+    .filter(r => !r.in_master && r.qty_consumed > 0)
+    .sort((a, b) => (b.qty_consumed || 0) - (a.qty_consumed || 0));
+  FG.leaks = leaks;
+  if(!leaks.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  let h = '<div style="border:1px solid #f59e0b;background:#fffbeb;border-radius:8px;padding:12px 14px">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+    + '<b style="color:#b45309">⚠ ' + leaks.length + ' raw material' + (leaks.length > 1 ? 's' : '') + ' consumed but NOT booked in Ideal Inventory</b>'
+    + '<span class="mut" style="font-size:12px">Used by a BOM in this window but missing from the RM Master, so the consumption is dropped from ideal inventory.</span>'
+    + '<button class="btn" style="margin-left:auto;padding:3px 10px;font-size:12px" onclick="fgExportLeaksCsv()">⬇ CSV</button></div>'
+    + '<div class="scroll" style="max-height:220px"><table style="width:100%;font-size:12px"><thead><tr>'
+    + '<th style="text-align:left">RM Code</th><th style="text-align:left">RM Name</th><th style="text-align:left">BOM UoM</th>'
+    + '<th style="text-align:right">Qty Consumed (unbooked)</th></tr></thead><tbody>';
+  for(const r of leaks){
+    h += '<tr><td class="code">' + esc(r.product_code || '—') + '</td>'
+      + '<td>' + esc(r.product_name || '') + '</td>'
+      + '<td>' + esc(r.unit || '') + '</td>'
+      + '<td class="r" style="font-weight:600;color:#b45309">' + qty(r.qty_consumed) + '</td></tr>';
+  }
+  h += '</tbody></table></div></div>';
+  el.innerHTML = h;
+}
+
+function fgExportLeaksCsv(){
+  if(!(FG.leaks && FG.leaks.length)){ toast('No unbooked-consumption items to export.', 1800); return; }
+  const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = [['RM Code','RM Name','BOM UoM','Qty Consumed (unbooked)'].map(esc2).join(',')];
+  for(const r of FG.leaks) lines.push([r.product_code, r.product_name, r.unit, r.qty_consumed].map(esc2).join(','));
+  const today = (new Date()).toISOString().slice(0,10);
+  downloadBlob(lines.join('\n'), 'fg-rm-consumed-not-booked-' + today + '.csv');
+  toast('Exported ' + FG.leaks.length + ' unbooked-consumption RM(s).', 1800);
 }
 
 function fgExportCsv(){
