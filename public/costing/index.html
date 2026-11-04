@@ -193,6 +193,12 @@ select.csel{width:auto;min-width:110px;padding:4px 6px;font-size:12.5px;border-r
   <div><label>Biryani ₹/Kg</label><input id="cr_Biryani" type="number" oninput="saveGv()"></div>
   <div><label>Margin %</label><input id="gmargin" type="number" oninput="saveGv()"></div>
   <div><label>Variance %</label><input id="gvar" type="number" oninput="saveGv()"></div>
+ </div>
+ <div class="rowflex" style="margin-top:8px">
+  <div><label>Gravy 2° Pack ₹/Kg</label><input id="sp_Gravy" type="number" oninput="saveGv()"></div>
+  <div><label>Beverages 2° Pack ₹/Kg</label><input id="sp_Beverages" type="number" oninput="saveGv()"></div>
+  <div><label>Snacks 2° Pack ₹/Kg</label><input id="sp_Snacks" type="number" oninput="saveGv()"></div>
+  <div><label>Biryani 2° Pack ₹/Kg</label><input id="sp_Biryani" type="number" oninput="saveGv()"></div>
  </div><div class="muted note hide" style="margin-top:6px">Processing ₹/Kg per category (300 ml packs = Beverages · 1 Kg packs = Gravy). Rates are remembered on this device. Drag a column edge to resize · double-click a header to sort · double-click a row for detail.</div></div>
 </div>
 
@@ -554,19 +560,23 @@ rebuildIdx();
 const CATN=['Gravy','Beverages','Snacks','Biryani'];
 let CV={};try{CV=JSON.parse(localStorage.getItem('costvars')||'{}');}catch(e){CV={};}
 function gvInit(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.value=(CV.rates&&CV.rates[k]!=null)?CV.rates[k]:(CATS[k]!=null?CATS[k]:65);});
- document.getElementById('gmargin').value=CV.mg!=null?CV.mg:15;document.getElementById('gvar').value=CV.va!=null?CV.va:2;gvMark();gvSum();}
+ document.getElementById('gmargin').value=CV.mg!=null?CV.mg:15;document.getElementById('gvar').value=CV.va!=null?CV.va:2;
+ CATN.forEach(k=>{const e=document.getElementById('sp_'+k);if(e)e.value=(CV.spRates&&CV.spRates[k]!=null&&CV.spRates[k]!==0)?CV.spRates[k]:'';});
+ gvMark();gvSum();}
 function gv(){const rates={};CATN.forEach(k=>{const e=document.getElementById('cr_'+k);rates[k]=e&&e.value!==''?(+e.value||0):(CATS[k]!=null?CATS[k]:65);});
- return {rates,pp:0,sp:0,mg:(+val('gmargin')||0)/100,va:(+val('gvar')||0)/100};}
-function saveGv(){const v=gv();CV={rates:v.rates,mg:v.mg*100,va:v.va*100};try{localStorage.setItem('costvars',JSON.stringify(CV));}catch(e){}bump();gvMark();gvSum();refresh(true);}
-function gvMark(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.classList.toggle('edited',+e.value!==(CATS[k]!=null?CATS[k]:65));});const m=document.getElementById('gmargin'),v=document.getElementById('gvar');if(m)m.classList.toggle('edited',+m.value!==15);if(v)v.classList.toggle('edited',+v.value!==2);}
-function gvSum(){const v=gv();const d=k=>(CATS[k]!=null?CATS[k]:65);document.getElementById('gvsum').innerHTML='⚙ <b>Processing ₹/Kg</b> — '+CATN.map(k=>k+' <b class="'+(v.rates[k]!==d(k)?'edited':'')+'">'+nfmt(v.rates[k])+'</b>').join(' · ')+' · Margin <b class="'+(v.mg!==0.15?'edited':'')+'">'+(v.mg*100).toFixed(0)+'%</b> · Variance <b class="'+(v.va!==0.02?'edited':'')+'">'+(v.va*100).toFixed(0)+'%</b>';}
+ const spRates={};CATN.forEach(k=>{const e=document.getElementById('sp_'+k);spRates[k]=e&&e.value!==''?(+e.value||0):0;});
+ return {rates,spRates,pp:0,sp:0,mg:(+val('gmargin')||0)/100,va:(+val('gvar')||0)/100};}
+function saveGv(){const v=gv();CV={rates:v.rates,spRates:v.spRates,mg:v.mg*100,va:v.va*100};try{localStorage.setItem('costvars',JSON.stringify(CV));}catch(e){}bump();gvMark();gvSum();refresh(true);}
+function gvMark(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.classList.toggle('edited',+e.value!==(CATS[k]!=null?CATS[k]:65));});const m=document.getElementById('gmargin'),v=document.getElementById('gvar');if(m)m.classList.toggle('edited',+m.value!==15);if(v)v.classList.toggle('edited',+v.value!==2);CATN.forEach(k=>{const e=document.getElementById('sp_'+k);if(e)e.classList.toggle('edited',e.value!==''&&+e.value!==0);});}
+function gvSum(){const v=gv();const d=k=>(CATS[k]!=null?CATS[k]:65);document.getElementById('gvsum').innerHTML='⚙ <b>Processing ₹/Kg</b> — '+CATN.map(k=>k+' <b class="'+(v.rates[k]!==d(k)?'edited':'')+'">'+nfmt(v.rates[k])+'</b>').join(' · ')+' · Margin <b class="'+(v.mg!==0.15?'edited':'')+'">'+(v.mg*100).toFixed(0)+'%</b> · Variance <b class="'+(v.va!==0.02?'edited':'')+'">'+(v.va*100).toFixed(0)+'%</b>'+(CATN.some(k=>(v.spRates&&v.spRates[k]))?' <br>📦 <b>2° Pack ₹/Kg</b> — '+CATN.map(k=>k+' <b>'+nfmt((v.spRates&&v.spRates[k])||0)+'</b>').join(' · '):'');}
 function openRates(){gvMark();gvSum();document.getElementById('ratesmodal').classList.add('on');}
 function closeRates(){document.getElementById('ratesmodal').classList.remove('on');}
-function resetGv(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.value=(CATS[k]!=null?CATS[k]:65);});document.getElementById('gmargin').value=15;document.getElementById('gvar').value=2;saveGv();}
+function resetGv(){CATN.forEach(k=>{const e=document.getElementById('cr_'+k);if(e)e.value=(CATS[k]!=null?CATS[k]:65);});CATN.forEach(k=>{const e=document.getElementById('sp_'+k);if(e)e.value='';});document.getElementById('gmargin').value=15;document.getElementById('gvar').value=2;saveGv();}
 let CATOVR={};try{CATOVR=JSON.parse(localStorage.getItem('cat_override')||'{}');}catch(e){CATOVR={};}
 const catOfR=r=>CATOVR[r.oc]||r.cat;const catOfB=b=>CATOVR[b.code]||b.cat;
 function setCatOvr(code,cat){if(!cat)delete CATOVR[code];else CATOVR[code]=cat;try{localStorage.setItem('cat_override',JSON.stringify(CATOVR));}catch(e){}bump();}
 function procRate(cat,v){return v.rates[cat]!=null?v.rates[cat]:(CATS[cat]!=null?CATS[cat]:0);}
+function spRate(cat,v){return (v.spRates&&v.spRates[cat]!=null)?v.spRates[cat]:0;}
 const issueOf=it=>it[4]==='W'?0:((it[2]||0)>=100?it[1]:it[1]/(1-(it[2]||0)/100));
 const CI_CACHE=new Map();
 function bump(){CI_CACHE.clear();VEGCAT=null;VEGMAP=null;POOL=null;STATS_CACHE.clear();markDirty();clearTimeout(bump._t);bump._t=setTimeout(()=>{try{prewarm();}catch(e){}},800);}
@@ -580,7 +590,7 @@ function computeIdeal_(r){const v=gv();let food=0,pack=0,waste=0;const zero=[];
  const foodPU=food/q,packPU=pack/q,procPU=pr*wkg,ppPU=v.pp*wkg;
  // Secondary packaging ₹/unit: editable override wins over global rate × weight.
  // Rolls into Total Consumable (treated as a consumable material), NOT into Production Cost.
- const spOvr=SPK_OVR[r.code], spPU=(spOvr!=null?spOvr:(v.sp*wkg));
+ const spOvr=SPK_OVR[r.code], spPU=(spOvr!=null?spOvr:(spRate(cat,v)*wkg));
  const prodPU=procPU+ppPU,consumPU=foodPU+packPU+spPU,totalPU=consumPU+prodPU;
  return {r,v,cat,food,pack,waste,wastePU:waste/q,q,u,wg,wgBase,wgEdited:wgOvr!=null,spPU,spEdited:spOvr!=null,pr,foodPU,packPU,procPU,ppPU,prodPU,consumPU,totalPU,derivedPU:totalPU*(1+v.va)/(1-v.mg),zero};}
 function getMin(code){try{const m=JSON.parse(localStorage.getItem('minsell')||'{}');return m[code]!=null?m[code]:null;}catch(e){return null;}}
