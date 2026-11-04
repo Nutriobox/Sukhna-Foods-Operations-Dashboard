@@ -20,7 +20,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS" };
-const ALL = ["pf", "pm", "bom", "si"] as const;
+const ALL = ["pf", "pm", "bom", "si", "bs"] as const;
 type Report = (typeof ALL)[number];
 
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: CORS }); }
