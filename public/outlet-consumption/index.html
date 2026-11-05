@@ -28,7 +28,32 @@
   .btn.prim{background:var(--brand2);color:#fff;border-color:var(--brand2)}
   .btn.prim:hover{background:#1e40af}
   .btn:disabled{opacity:.6;cursor:not-allowed}
-  .tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+  /* ── 2026-11-05 professional polish: header band, grouped tab bar, focus states ── */
+  .hdr{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);color:#fff;border-radius:16px;padding:16px 20px;margin-bottom:12px;box-shadow:0 6px 20px rgba(15,23,42,.18)}
+  .hdr-logo{border-radius:10px;background:#fff;flex:0 0 auto}
+  .hdr-title{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .hdr-back{color:#93c5fd;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  .hdr-back:hover{color:#fff}
+  .hdr h1{color:#fff;font-size:22px;letter-spacing:-.01em;line-height:1.2}
+  .hdr .sub{color:#cbd5e1;font-size:12.5px}
+  .hdr .pill{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.22);color:#e2e8f0}
+  .hdr .pill.live{background:rgba(59,130,246,.22);border-color:rgba(147,197,253,.45);color:#dbeafe}
+  .hdr .pill.ok{background:rgba(16,185,129,.20);border-color:rgba(110,231,183,.45);color:#d1fae5}
+  .hdr .pill.warn{background:rgba(245,158,11,.22);border-color:rgba(252,211,77,.5);color:#fef3c7}
+  .hdr .pill.err{background:rgba(239,68,68,.22);border-color:rgba(252,165,165,.5);color:#fee2e2}
+  .tabs{display:flex;gap:10px 22px;margin:0 0 16px;flex-wrap:wrap;align-items:flex-end;padding:10px 14px 12px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .tabgrp{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .tabgrp-l{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#94a3b8;padding-left:2px;white-space:nowrap}
+  .tabgrp-row{display:flex;gap:6px;flex-wrap:wrap}
+  .tabs .tab{padding:8px 14px;font-size:13.5px;border-radius:9px;transition:background .12s,color .12s,border-color .12s}
+  .tabs .tab:hover{color:var(--ink);border-color:#cbd5e1;background:#f8fafc}
+  .tabs .tab.on,.tabs .tab.on:hover{background:var(--brand2);color:#fff;border-color:var(--brand2);box-shadow:0 1px 3px rgba(29,78,216,.35)}
+  .moremenu{position:absolute;right:0;top:100%;margin-top:6px;z-index:60;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.16);min-width:260px;padding:6px}
+  .moreItem{display:flex;flex-direction:column;gap:1px;padding:9px 12px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13.5px;color:var(--ink)}
+  .moreItem-sub{font-weight:400;font-size:12px;color:var(--mut)}
+  .card{box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .btn:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #93c5fd;outline-offset:1px}
+  @media (max-width:720px){.tabs{gap:8px 12px;padding:8px}.tabs .tab{padding:7px 11px;font-size:13px}.hdr{padding:12px 14px}}
   /* Variance View modal shows Wastage columns in wastage mode, Variance columns in variance mode. */
   [data-vmode="variance"] .vcol-waste{display:none}
   [data-vmode="wastage"] .vcol-var{display:none}
@@ -138,8 +163,12 @@
 <body>
 <div class="wrap">
  <div class="hdr">
-  <h1>Outlet Consumption</h1>
-  <span class="sub">PACT masters — the single source every tool reads from.</span>
+  <img class="hdr-logo" src="/icons/icon-192.png?v=2" alt="" width="38" height="38">
+  <div class="hdr-title">
+   <a class="hdr-back" href="/" title="Back to the Sukhna Foods operations hub">Sukhna Foods · Operations</a>
+   <h1>Outlet Consumption</h1>
+   <span class="sub">Outlet stock, consumption and reconciliation · PACT masters + PetPooja sales</span>
+  </div>
   <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
    <span id="statSrc" class="pill live">source: …</span>
    <span id="statCnt" class="pill">… rows</span>
@@ -147,22 +176,37 @@
   </span>
  </div>
 
+ <!-- 2026-11-05 (Satvik): tabs grouped by workflow. Every working section
+      stays a visible tab (per the 2026-10-30 decision); only Outlet Logins
+      lives under More ▾. -->
  <div class="tabs">
-  <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
-  <div class="tab" data-t="im" onclick="selTab('im')">📋 Item Master</div>
-  <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales API</div>
-  <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
-  <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
-  <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Sales Summary</div>
-  <div class="tab" data-t="rc" onclick="selTab('rc')">🥬 RM Consumption</div>
-  <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
-  <div class="tab" data-t="va" onclick="selTab('va')">⚖ Variance</div>
-  <!-- 2026-10-30 (Satvik): the "More ▾" dropdown was removed — every section is
-       now a visible tab that wraps onto a second row. Wastage sits beside
-       Variance; Outlet Logins opens its modal rather than switching tabs. -->
-  <div class="tab" data-t="ws" onclick="selTab('ws')">🗑 Wastage</div>
-  <div class="tab" data-t="fg" onclick="selTab('fg')">🧮 FG → RM</div>
-  <div class="tab" onclick="openOutletLogins()" title="Outlet portal URLs, usernames &amp; passwords">🔑 Outlet Logins</div>
+  <div class="tabgrp"><span class="tabgrp-l">Masters</span><div class="tabgrp-row">
+   <div class="tab on" data-t="rm" onclick="selTab('rm')">🥕 Raw Material Master</div>
+   <div class="tab" data-t="im" onclick="selTab('im')">📋 Item Master</div>
+  </div></div>
+  <div class="tabgrp"><span class="tabgrp-l">Sales &amp; Purchase</span><div class="tabgrp-row">
+   <div class="tab" data-t="sd" onclick="selTab('sd')">🧾 Sales API</div>
+   <div class="tab" data-t="pu" onclick="selTab('pu')">📦 Purchase</div>
+   <div class="tab" data-t="cn" onclick="selTab('cn')">🍳 Sales Summary</div>
+   <div class="tab" data-t="rc" onclick="selTab('rc')">🥬 RM Consumption</div>
+  </div></div>
+  <div class="tabgrp"><span class="tabgrp-l">Inventory</span><div class="tabgrp-row">
+   <div class="tab" data-t="oi" onclick="selTab('oi')">📝 Opening Inventory</div>
+   <div class="tab" data-t="ii" onclick="selTab('ii')">📊 Ideal Inventory</div>
+   <div class="tab" data-t="va" onclick="selTab('va')">⚖ Variance</div>
+   <div class="tab" data-t="ws" onclick="selTab('ws')">🗑 Wastage</div>
+   <div class="tab" data-t="ci" onclick="selTab('ci')">📦 Closing Inventory</div>
+  </div></div>
+  <div class="tabgrp"><span class="tabgrp-l">Analysis</span><div class="tabgrp-row">
+   <div class="tab" data-t="fg" onclick="selTab('fg')">🧮 FG → RM</div>
+  </div></div>
+  <div class="tabgrp" id="moreMenuWrap" style="position:relative;margin-left:auto"><span class="tabgrp-l">&nbsp;</span><div class="tabgrp-row">
+   <div class="tab" id="moreMenuBtn" onclick="toggleMoreMenu(event)">⋯ More ▾</div>
+  </div>
+   <div id="moreMenu" class="moremenu" style="display:none">
+    <div class="moreItem" onclick="closeMoreMenu();openOutletLogins()">🔑 Outlet Logins<span class="moreItem-sub">Portal URLs and usernames for all 10 outlets</span></div>
+   </div>
+  </div>
  </div>
 
  <!-- Product Master and BOM (Stage Wise) tabs were removed per Satvik on
@@ -990,11 +1034,15 @@
    </table></div>
   </div>
 
-  <!-- Leak highlight: RMs consumed via BOM but missing from RM Master (not booked in Ideal Inventory) -->
+  <!-- Consolidated list: raw materials whose consumption is NOT recorded in
+       Ideal Inventory, across every item sold in the window -->
   <div id="fgLeakHighlight" style="display:none;margin:0 0 12px"></div>
 
-  <!-- Aggregated RM consumption table -->
-  <div class="card"><div class="scroll"><table id="tblFg">
+  <!-- Full RM consumption table — hidden by default (Satvik: not needed day to day) -->
+  <div style="margin:0 0 8px">
+   <button class="btn" id="fgAllRmToggle" onclick="fgToggleAllRm()">▸ Show all RM consumption</button>
+  </div>
+  <div class="card" id="fgAllRmCard" style="display:none"><div class="scroll"><table id="tblFg">
    <thead><tr>
     <th>RM Code</th>
     <th>Raw Material Name</th>
@@ -1006,6 +1054,28 @@
    <tbody id="tbodyFg"><tr><td colspan="6" class="mut" style="padding:20px;text-align:center">Pick an outlet + date range and click Compute to see raw-material consumption for the finished goods sold in that window.</td></tr></tbody>
   </table></div></div>
  </div>  <!-- /tabFg -->
+
+ <!-- ============== Closing Inventory — Ideal closing as of a chosen time, per outlet, as Excel ============== -->
+ <div id="tabCi" style="display:none">
+  <div class="card" style="padding:14px 16px;margin-bottom:12px">
+   <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:#374151">Outlet
+     <select id="ciOutlet" class="btn" style="min-width:210px"></select></label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:#374151">Closing as of
+     <input id="ciAsOf" type="datetime-local" class="btn" style="min-width:210px"></label>
+    <button class="btn prim" id="ciRunBtn" onclick="ciRun()">⚡ Compute</button>
+    <button class="btn" id="ciDlBtn" onclick="ciDownloadOne()" disabled title="Download this outlet's closing sheet (one sheet per category)">⬇ Download Excel</button>
+    <span style="flex:1"></span>
+    <button class="btn" id="ciBulkBtn" onclick="ciBulkDownload()" title="Compute every outlet at this closing time and download a .zip with one Excel workbook per outlet">⬇ Bulk download · all outlets (.zip)</button>
+   </div>
+   <div id="ciStat" class="mut" style="margin-top:10px;font-size:12.5px">Closing Inventory = the Ideal Inventory closing (Opening + Purchase − Consumption − Wastage − Adjusted Variance) at the time you pick, using the Opening Inventory that was current at that time.</div>
+  </div>
+  <div id="ciSummary" style="display:none;margin:0 0 10px"></div>
+  <div class="card" style="padding:0"><div class="scroll"><table id="tblCi">
+   <thead><tr><th style="width:56px">S.No</th><th>Item Name</th><th>Item Code</th><th>UOM</th><th class="r">Closing Inventory</th></tr></thead>
+   <tbody id="tbodyCi"><tr><td colspan="5" class="mut" style="padding:18px;text-align:center">Pick an outlet and closing time, then click <b>⚡ Compute</b>.</td></tr></tbody>
+  </table></div></div>
+ </div>  <!-- /tabCi -->
 
  <!-- Mismatch report modal (triggered from FG → RM tab) -->
  <div id="fgMismatchModal" class="nmmodal" style="display:none" onclick="if(event.target===this)fgCloseMismatchModal()">
@@ -1501,7 +1571,7 @@ function qtyPrecise(n){
 // Tabs listed inside the "⋯ More ▾" dropdown — kept here so selTab can
 // (a) light up the More button when one of them is the active tab, and
 // (b) mark the dropdown item itself as active.
-const MORE_TABS = ['fg'];
+const MORE_TABS = [];   // More ▾ holds non-tab tools only (Outlet Logins)
 function toggleMoreMenu(e){
   if(e) e.stopPropagation();
   const el = $('moreMenu');
@@ -1572,6 +1642,7 @@ function selTab(t){
   $('tabIi').style.display = t === 'ii' ? '' : 'none';
   $('tabVa').style.display = t === 'va' ? '' : 'none';
   $('tabWs').style.display = t === 'ws' ? '' : 'none';
+  if($('tabCi')) $('tabCi').style.display = t === 'ci' ? '' : 'none';
   // Leaving RM Master while Loose Denomination mode is on → silently exit the
   // mode so the user doesn't come back to a half-finished picker. Draft is lost.
   if(LD.mode && t !== 'rm') rmLooseModeCancel();
@@ -1587,6 +1658,7 @@ function selTab(t){
   if(t === 'ii') iiOnTabEnter();
   if(t === 'va') vaOnTabEnter();
   if(t === 'ws') wsOnTabEnter();
+  if(t === 'ci') ciOnTabEnter();
 }
 
 function updateHeaderStats(){
@@ -4792,18 +4864,21 @@ async function iiSubmitForm(){
     if(err) err.textContent = 'Could not fetch Opening Inventory: ' + (e.message || e);
     return;
   }
-  if(!opening || !opening.dt_iso){
-    if(err) err.textContent = 'No Opening Inventory count has been saved for ' + outlet + ' yet. Save one on the Opening Inventory tab first.';
-    return;
-  }
   if(err) err.textContent = '';
   IIv.outlet = outlet;
-  IIv.from   = String(opening.dt_iso).slice(0, 16);
   IIv.to     = iiNowIstDatetime();
-  IIv.openingMeta = { id: opening.id, filled_count: opening.filled_count, total_items: opening.total_items };
+  if(!opening || !opening.dt_iso){
+    // No opening (never saved, or deleted): still open the dashboard; loadIi
+    // shows every line at 0 and saving an IO is disabled until one exists.
+    IIv.from = '';
+    IIv.openingMeta = null;
+  } else {
+    IIv.from = String(opening.dt_iso).slice(0, 16);
+    IIv.openingMeta = { id: opening.id, filled_count: opening.filled_count, total_items: opening.total_items };
+  }
   $('iiFormView').style.display = 'none';
   $('iiResultsView').style.display = '';
-  if($('iiCtxFrom'))   $('iiCtxFrom').textContent   = IIv.from.replace('T', ' ') + ' (last Opening Inventory count)';
+  if($('iiCtxFrom'))   $('iiCtxFrom').textContent   = IIv.from ? (IIv.from.replace('T', ' ') + ' (last Opening Inventory count)') : '— (no Opening Inventory saved: values are 0)';
   if($('iiCtxTo'))     $('iiCtxTo').textContent     = IIv.to.replace('T', ' ') + ' (now)';
   if($('iiCtxOutlet')) $('iiCtxOutlet').textContent = outlet;
   await loadIi(true);
@@ -4814,6 +4889,16 @@ function iiBackToForm(){
   $('iiResultsView').style.display = 'none';
   if($('iiFormOutlet') && IIv.outlet) $('iiFormOutlet').value = IIv.outlet;
   const err = $('iiFormErr'); if(err) err.textContent = '';
+}
+
+// Ideal closing in L1 for one Ideal Inventory row — the single formula used
+// by the table, CSV/snapshot export and the Closing Inventory sheet:
+//   Opening + Purchase − Consumption − Wastage − unapproved portal wastage
+//   − Adjusted Variance.
+function iiClosingOf(it){
+  return (it.opening_l1 || 0) + (it.purchase_l1 || 0)
+       - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
+       - (it.wastage_approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
 }
 
 function iiBuildItemsFromRm(){
@@ -4907,15 +4992,21 @@ function iiGrnQtyToL1(item, qty, unitRaw){
   return n;
 }
 
-async function loadIi(fresh){
+async function loadIi(fresh, ctx){
+  // ctx (optional): a private state object { outlet, to, asOf } so other tabs
+  // (Closing Inventory) can run this exact engine without touching the
+  // Ideal Inventory tab. With ctx the run is quiet: no DOM, no render.
+  const V = ctx || IIv;
+  const quiet = !!ctx;
   // Reads window state from IIv (set by iiSubmitForm), not from DOM inputs —
   // the editable datetime inputs were removed when the two-view flow landed.
-  const stat = $('syncStatIi');
+  const stat = quiet ? null : $('syncStatIi');
   if(stat) stat.textContent = fresh ? 'Recomputing…' : 'Loading…';
-  const outlet = IIv.outlet || '';
+  const outlet = V.outlet || '';
   if(!outlet){
-    IIv.items = iiBuildItemsFromRm();
-    IIv.meta = { source: 'awaiting outlet', synced_at: new Date().toISOString(), count: IIv.items.length };
+    V.items = iiBuildItemsFromRm();
+    V.meta = { source: 'awaiting outlet', synced_at: new Date().toISOString(), count: V.items.length };
+    if(quiet) return;
     II_LOADED.v = true;
     if(stat) stat.textContent = '';
     renderIi();
@@ -4925,9 +5016,9 @@ async function loadIi(fresh){
 
   // Rebuild the per-RM scaffold so a late RM refresh is reflected, and
   // index by rm_code for O(1) lookups on the data passes.
-  IIv.items = iiBuildItemsFromRm();
+  V.items = iiBuildItemsFromRm();
   const byCode = new Map();
-  for(const it of IIv.items) byCode.set(String(it.rm_code).toUpperCase(), it);
+  for(const it of V.items) byCode.set(String(it.rm_code).toUpperCase(), it);
 
   // Make sure the three master datasets are loaded. These are independent.
   try {
@@ -4942,9 +5033,11 @@ async function loadIi(fresh){
   //    becomes the window start — Satvik's rule is Purchase and
   //    Consumption are only counted AFTER the opening count.
   let openingDtIso = '';
+  let openingErr = null;
   try {
     const r = await fetch('/api/opening-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
     const j = await r.json();
+    if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     if(r.ok && j.ok && Array.isArray(j.counts) && j.counts.length){
       // 2026-10-29 (Satvik's Ideal Inv A — opening-data lock): previously
       // this took counts[0] (= most recent updated_at), so a portal
@@ -4960,12 +5053,16 @@ async function loadIi(fresh){
       const adminCounts = j.counts.filter((c) =>
         typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
       );
-      const latest = oiLatestAdmin(adminCounts);
+      // As-of runs (Closing Inventory "closing at <time>") use the opening that
+      // was current at that time; the live tab uses the latest opening.
+      const asOf = iiIsoToLocalDatetime(V.asOf || '');
+      const eligible = asOf ? adminCounts.filter((c) => iiIsoToLocalDatetime(c.dt_iso) <= asOf) : adminCounts;
+      const latest = oiLatestAdmin(eligible);
       openingDtIso = latest ? (latest.dt_iso || '') : '';
-      IIv._openingId = latest ? latest.id : null;   // scopes the approval overlay below to this period
+      V._openingId = latest ? latest.id : null;   // scopes the approval overlay below to this period
       // Keep the snapshot's opening link in step with the opening actually used,
       // so a Save never links an IO to an older opening than its window.
-      if(latest) IIv.openingMeta = { id: latest.id, filled_count: latest.filled_count, total_items: latest.total_items };
+      if(latest) V.openingMeta = { id: latest.id, filled_count: latest.filled_count, total_items: latest.total_items };
       // Load its qty maps.
       const r2 = latest ? await fetch('/api/opening-inventory?id=' + encodeURIComponent(latest.id), { cache: 'no-store' }) : null;
       const j2 = r2 ? await r2.json() : {};
@@ -4978,22 +5075,45 @@ async function loadIi(fresh){
         }
       }
     }
-  } catch(_){ /* leave opening at 0 */ }
+  } catch(e){ openingErr = e; /* opening stays 0 */ }
 
-  // Window already anchored by iiSubmitForm (IIv.from = OI dt_iso, IIv.to =
+  // 2026-11-05 (Satvik): no admin opening (never saved, or deleted) — the
+  // dashboard still opens, with every line at 0. Nothing is counted without
+  // an opening to anchor the window, so purchases / consumption / wastage /
+  // approvals are not fetched.
+  V.noOpening = !openingDtIso;
+  if(V.noOpening){
+    V._openingId = null; V.openingMeta = null; V.from = '';
+    V._purchaseMatch = null; V._approved = null; V._wasteApproved = null; V._wastage = null;
+    V.meta = { source: 'no opening inventory', synced_at: new Date().toISOString(), count: V.items.length };
+    V.openingError = openingErr ? String(openingErr.message || openingErr) : '';
+    if(quiet) return;
+    II_LOADED.v = true;
+    V.openingError = openingErr ? String(openingErr.message || openingErr) : '';
+    if(stat) stat.textContent = openingErr
+      ? ('Could not load Opening Inventory for ' + outlet + ' (' + V.openingError + ') — values shown as 0. Try ↻ again.')
+      : ('No Opening Inventory saved for ' + outlet + ' — all values are 0 until one is saved.');
+    if($('iiCtxFrom')) $('iiCtxFrom').textContent = '— (no Opening Inventory saved: values are 0)';
+    if($('iiCtxTo'))   $('iiCtxTo').textContent   = (V.to || iiNowIstDatetime()).replace('T', ' ') + ' (now)';
+    renderIi();
+    if(CURTAB === 'ii') updateHeaderStats();
+    return;
+  }
+
+  // Window already anchored by iiSubmitForm (V.from = OI dt_iso, V.to =
   // "now" at the moment OK was pressed). If the OI fetch above found a newer
   // count than the one iiSubmitForm captured, we accept it silently.
   if(openingDtIso){
     const anchored = iiIsoToLocalDatetime(openingDtIso);
-    if(anchored) IIv.from = anchored;
+    if(anchored) V.from = anchored;
   }
   const dFromAuto = openingDtIso ? iiIsoToLocalDatetime(openingDtIso) : '';
-  const dFromFinal = IIv.from || '';
-  const dToFinal   = IIv.to   || iiNowIstDatetime();
-  IIv.to = dToFinal;
+  const dFromFinal = V.from || '';
+  const dToFinal   = V.to   || iiNowIstDatetime();
+  V.to = dToFinal;
   // Keep the context pills in sync in case iiSubmitForm's values were updated.
-  if($('iiCtxFrom')) $('iiCtxFrom').textContent = (dFromFinal || '').replace('T', ' ') + ' (last Opening Inventory count)';
-  if($('iiCtxTo'))   $('iiCtxTo').textContent   = (dToFinal   || '').replace('T', ' ') + ' (now)';
+  if(!quiet && $('iiCtxFrom')) $('iiCtxFrom').textContent = (dFromFinal || '').replace('T', ' ') + ' (last Opening Inventory count)';
+  if(!quiet && $('iiCtxTo'))   $('iiCtxTo').textContent   = (dToFinal   || '').replace('T', ' ') + ' (now)';
 
   // 2) Purchases: per-RM aggregate from Stock Outlet Outward GRNs,
   //    outlet-filtered, date-bounded.
@@ -5028,7 +5148,7 @@ async function loadIi(fresh){
     if(r.ok && j.ok && Array.isArray(j.aggregates)){
       // Name-fallback index for GRN rows without an rm_code.
       const byName = new Map();
-      for(const it of IIv.items){
+      for(const it of V.items){
         const nm = String(it.name || '').trim().toLowerCase();
         if(nm) byName.set(nm, it);
       }
@@ -5043,7 +5163,7 @@ async function loadIi(fresh){
       }
       // Stash for the status area so Satvik can see at a glance how many
       // GRN products landed vs how many fell through name matching.
-      IIv._purchaseMatch = { matched, unmatched, from: fromDate, to: toDate };
+      V._purchaseMatch = { matched, unmatched, from: fromDate, to: toDate };
     }
   } catch(_){ /* leave purchase at 0 */ }
 
@@ -5128,30 +5248,30 @@ async function loadIi(fresh){
           }
         }
       }
-      IIv.meta = {
+      V.meta = {
         source: 'Opening (OI count) + Purchase (GRN sum) + Consumption (sales × BOM) + Variance (manual)',
         synced_at: new Date().toISOString(),
-        count: IIv.items.length,
+        count: V.items.length,
         kot_items_in_window: salesRaw.length,
         opening_dt_iso: openingDtIso || null,
       };
     } else {
-      IIv.meta = { source: 'opening + purchase done; consumption fetch failed', synced_at: new Date().toISOString(), count: IIv.items.length };
+      V.meta = { source: 'opening + purchase done; consumption fetch failed', synced_at: new Date().toISOString(), count: V.items.length };
     }
   } catch(err){
-    IIv.meta = { source: 'opening + purchase done; consumption fetch failed', synced_at: new Date().toISOString(), count: IIv.items.length };
+    V.meta = { source: 'opening + purchase done; consumption fetch failed', synced_at: new Date().toISOString(), count: V.items.length };
   }
 
   // 4) Wastage: per-RM sum of every Submit-Wastage count the outlet saved
   //    inside the window, converted to L1 via the same iiOpeningToL1 math
-  //    we use for Opening counts. IIv.from and IIv.to are already naive IST
+  //    we use for Opening counts. V.from and V.to are already naive IST
   //    ISO strings — the exact shape outlet_wastage_counts.dt_iso stores —
   //    so no conversion is needed, PostgREST gte/lte compare them lexically.
   //    Best-effort: if the aggregate call fails, wastage stays at 0.
   try {
     const qs = new URLSearchParams({
       outlet: outlet, aggregate: 'rm',
-      from: IIv.from || '', to: IIv.to || '',
+      from: V.from || '', to: V.to || '',
     });
     const r = await fetch('/api/outlet-wastage?' + qs.toString(), { cache: 'no-store' });
     const j = await r.json();
@@ -5176,7 +5296,7 @@ async function loadIi(fresh){
         it.portal_wastage_l1 = portalL1;
         if(portalL1) wastageMatched++;
       }
-      IIv._wastage = { submissions: j.submissions || 0, matched: wastageMatched };
+      V._wastage = { submissions: j.submissions || 0, matched: wastageMatched };
     }
   } catch(_){ /* leave wastage at 0 */ }
 
@@ -5186,7 +5306,7 @@ async function loadIi(fresh){
   // but this live recompute never read them back, so the Wastage and Adjusted
   // Variance columns stayed empty here after approving. Display-only overlay:
   // the stored snapshot stays the source of truth; approved rows render green.
-  IIv._approved = null;
+  V._approved = null;
   try {
     const lr = await fetch('/api/ideal-inventory?outlet=' + encodeURIComponent(outlet), { cache: 'no-store' });
     const lj = await lr.json();
@@ -5203,7 +5323,7 @@ async function loadIi(fresh){
       // period's approved variance/wastage carried into a new opening. A
       // snapshot belongs here when it is linked to this opening, or (legacy
       // snapshots saved without the link) when its window starts at/after it.
-      const curOpenId = IIv._openingId || (IIv.openingMeta && IIv.openingMeta.id) || null;
+      const curOpenId = V._openingId || (V.openingMeta && V.openingMeta.id) || null;
       const curOpenDt = String(openingDtIso || '').slice(0, 16);
       const inCurPeriod = (s) => {
         const linked = s && s.opening_count && s.opening_count.id;
@@ -5227,7 +5347,7 @@ async function loadIi(fresh){
           it.wastage_approved = true;
           wOverlaid++;
         }
-        IIv._wasteApproved = { id: wasteSnapMeta.id, order_number: wasteSnapMeta.order_number, wastage_approved_at: wasteSnapMeta.wastage_approved_at, overlaid: wOverlaid };
+        V._wasteApproved = { id: wasteSnapMeta.id, order_number: wasteSnapMeta.order_number, wastage_approved_at: wasteSnapMeta.wastage_approved_at, overlaid: wOverlaid };
       }
       if(csSnapMeta && fetchedSnaps[csSnapMeta.id]){
         let overlaid = 0;
@@ -5238,26 +5358,221 @@ async function loadIi(fresh){
           it.approved = true;
           overlaid++;
         }
-        IIv._approved = { id: csSnapMeta.id, order_number: csSnapMeta.order_number, approved_at: csSnapMeta.approved_at, created_at: csSnapMeta.created_at, outlet: csSnapMeta.outlet, overlaid };
+        V._approved = { id: csSnapMeta.id, order_number: csSnapMeta.order_number, approved_at: csSnapMeta.approved_at, created_at: csSnapMeta.created_at, outlet: csSnapMeta.outlet, overlaid };
       }
     }
   } catch(_){ /* no approved overlay; the live recompute stands */ }
 
+  if(quiet) return;
   II_LOADED.v = true;
   if(stat){
     const openingLbl = openingDtIso ? ('OI count ' + fmtTime(openingDtIso)) : 'no opening count yet';
-    const pm = IIv._purchaseMatch;
+    const pm = V._purchaseMatch;
     const purchaseLbl = pm
       ? ('purchase ' + pm.from + '→' + pm.to + ' · ' + pm.matched + ' matched'
          + (pm.unmatched ? ', ' + pm.unmatched + ' unmatched' : ''))
       : '';
-    const approvedLbl = (IIv._approved && IIv._approved.order_number)
-      ? ' · showing approved ' + ioCode({ outlet: IIv._approved.outlet || IIv.outlet, order_number: IIv._approved.order_number, created_at: IIv._approved.created_at })
+    const approvedLbl = (V._approved && V._approved.order_number)
+      ? ' · showing approved ' + ioCode({ outlet: V._approved.outlet || V.outlet, order_number: V._approved.order_number, created_at: V._approved.created_at })
       : '';
     stat.textContent = '✓ computed · ' + openingLbl + (purchaseLbl ? ' · ' + purchaseLbl : '') + approvedLbl;
   }
   renderIi();
   if(CURTAB === 'ii') updateHeaderStats();
+}
+
+/* ── Closing Inventory ─────────────────────────────────────────────────────
+   Ideal closing per RM at a chosen time, computed by the SAME engine as the
+   Ideal Inventory tab (loadIi with a private context, so that tab is not
+   disturbed), using the Opening Inventory that was current at that time.
+   Excel: one workbook per outlet, one sheet per category, columns
+   Item Name · Item Code · UOM · Closing Inventory (L1). Bulk: a .zip with a
+   workbook for every outlet. */
+const CI = { busy: false, last: null };
+
+function ciOutlets(){
+  // Single source: the Ideal Inventory outlet picker's option list.
+  const sel = $('iiFormOutlet');
+  return sel ? Array.from(sel.options).map((o) => o.value).filter(Boolean) : OUTLET_LOGINS.map((o) => o.name);
+}
+
+function ciOnTabEnter(){
+  const sel = $('ciOutlet');
+  if(sel && !sel.options.length){
+    sel.innerHTML = '<option value="">— Choose outlet —</option>' + ciOutlets().map((o) => '<option value="' + esc(o) + '">' + esc(o) + '</option>').join('');
+  }
+  const t = $('ciAsOf');
+  if(t && !t.value) t.value = iiNowIstDatetime();
+}
+
+function ciLoadLibs(){
+  const need = [];
+  if(!window.XLSX)  need.push('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  if(!window.JSZip) need.push('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  return Promise.all(need.map((src) => new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = src; el.onload = resolve;
+    el.onerror = () => reject(new Error('could not load ' + src.split('/').slice(-1)[0] + ' (check the connection)'));
+    document.head.appendChild(el);
+  })));
+}
+
+async function ciComputeOutlet(outlet, asOf){
+  const ctx = { outlet, asOf, to: asOf, from: '', items: [] };
+  await loadIi(true, ctx);
+  const rows = (ctx.items || []).map((it) => ({
+    name: it.name || '', code: it.rm_code || '', uom: it.l1_unit || '',
+    category: it.category || 'Uncategorised',
+    closing: Math.round(iiClosingOf(it) * 1000) / 1000,
+  }));
+  rows.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  return { outlet, asOf, from: ctx.from || '', noOpening: !!ctx.noOpening, openingError: ctx.openingError || '', rows };
+}
+
+function ciSetBusy(on, msg){
+  CI.busy = on;
+  ['ciRunBtn', 'ciBulkBtn'].forEach((id) => { const b = $(id); if(b) b.disabled = on; });
+  const dl = $('ciDlBtn'); if(dl) dl.disabled = on || !CI.last;
+  if(msg != null){ const st = $('ciStat'); if(st){ st.style.color = ''; st.textContent = msg; } }
+}
+
+function ciFmt(dt){ return String(dt || '').replace('T', ' '); }
+
+async function ciRun(){
+  if(CI.busy) return;
+  const outlet = ($('ciOutlet') && $('ciOutlet').value) || '';
+  const asOf = iiIsoToLocalDatetime(($('ciAsOf') && $('ciAsOf').value) || '');
+  const st = $('ciStat');
+  if(!outlet){ if(st){ st.style.color = 'var(--err)'; st.textContent = 'Pick an outlet.'; } return; }
+  if(!asOf){ if(st){ st.style.color = 'var(--err)'; st.textContent = 'Pick the closing date and time.'; } return; }
+  ciSetBusy(true, 'Computing closing stock for ' + outlet + ' as of ' + ciFmt(asOf) + '…');
+  const t0 = Date.now();
+  try {
+    const res = await ciComputeOutlet(outlet, asOf);
+    CI.last = res;
+    ciRender(res);
+    ciSetBusy(false, '✓ ' + res.rows.length + ' items · computed in ' + Math.round((Date.now() - t0) / 100) / 10 + 's');
+  } catch(e){
+    CI.last = null;
+    ciSetBusy(false);
+    if(st){ st.style.color = 'var(--err)'; st.textContent = 'Could not compute: ' + (e.message || e); }
+  }
+}
+
+function ciRender(res){
+  const sum = $('ciSummary');
+  if(sum){
+    const cats = new Set(res.rows.map((r) => r.category));
+    const note = res.openingError
+      ? '<span style="color:var(--err);font-weight:600">Opening Inventory could not be loaded (' + esc(res.openingError) + ') — values shown as 0. Compute again.</span>'
+      : res.noOpening
+        ? '<span style="color:var(--err);font-weight:600">No Opening Inventory saved at or before this time — every closing value is 0.</span>'
+        : ('Opening used: <b>' + esc(ciFmt(res.from)) + '</b>');
+    sum.style.display = '';
+    sum.innerHTML = '<div class="card" style="margin:0;padding:10px 14px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:13px">'
+      + '<span>Outlet: <b>' + esc(res.outlet) + '</b></span>'
+      + '<span>Closing as of: <b>' + esc(ciFmt(res.asOf)) + '</b></span>'
+      + '<span>' + note + '</span>'
+      + '<span class="mut">' + res.rows.length + ' items · ' + cats.size + ' categor' + (cats.size === 1 ? 'y' : 'ies') + ' (one sheet each)</span></div>';
+  }
+  const tb = $('tbodyCi'); if(!tb) return;
+  if(!res.rows.length){ tb.innerHTML = '<tr><td colspan="5" class="mut" style="padding:18px;text-align:center">No Ideal Inventory items (check RM Master storages).</td></tr>'; return; }
+  let h = '', cat = null, n = 0;
+  for(const r of res.rows){
+    if(r.category !== cat){
+      cat = r.category; n = 0;
+      h += '<tr><td colspan="5" style="background:#f1f5f9;font-weight:700;color:#334155;padding:8px 12px">' + esc(cat) + '</td></tr>';
+    }
+    n++;
+    h += '<tr><td class="mut">' + n + '</td><td>' + esc(r.name) + '</td><td class="code">' + esc(r.code) + '</td><td>' + esc(r.uom) + '</td>'
+       + '<td class="r" style="font-weight:600' + (r.closing < 0 ? ';color:var(--err)' : '') + '">' + qtyPrecise(r.closing) + '</td></tr>';
+  }
+  tb.innerHTML = h;
+}
+
+function ciSheetName(name, used){
+  let base = String(name || 'Sheet').replace(/[\[\]:*?\/\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31) || 'Sheet';
+  let n = base, i = 2;
+  while(used.has(n.toLowerCase())){ const suf = ' (' + (i++) + ')'; n = base.slice(0, 31 - suf.length) + suf; }
+  used.add(n.toLowerCase());
+  return n;
+}
+
+function ciWorkbook(res){
+  const wb = XLSX.utils.book_new();
+  const byCat = new Map();
+  for(const r of res.rows){ if(!byCat.has(r.category)) byCat.set(r.category, []); byCat.get(r.category).push(r); }
+  const used = new Set();
+  const header = ['Item Name', 'Item Code', 'UOM', 'Closing Inventory'];
+  const cats = [...byCat.keys()];
+  if(!cats.length){
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header]), 'Closing Inventory');
+    return wb;
+  }
+  for(const c of cats){
+    const aoa = [header].concat(byCat.get(c).map((r) => [r.name, r.code, r.uom, r.closing]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 46 }, { wch: 14 }, { wch: 10 }, { wch: 18 }];
+    ws['!autofilter'] = { ref: 'A1:D' + aoa.length };
+    XLSX.utils.book_append_sheet(wb, ws, ciSheetName(c, used));
+  }
+  return wb;
+}
+
+function ciFileStem(outlet, asOf){
+  const t = String(asOf || '').replace('T', ' ').replace(':', '');
+  return ('Closing Inventory - ' + outlet + ' - ' + t).replace(/[\\\/:*?"<>|]/g, '-');
+}
+
+function ciSaveBlob(blob, filename){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+async function ciDownloadOne(){
+  const res = CI.last;
+  if(!res){ toast('Compute an outlet first.', 1800); return; }
+  try {
+    await ciLoadLibs();
+    XLSX.writeFile(ciWorkbook(res), ciFileStem(res.outlet, res.asOf) + '.xlsx');
+  } catch(e){ toast('Excel download failed: ' + (e.message || e), 5000); }
+}
+
+async function ciBulkDownload(){
+  if(CI.busy) return;
+  const asOf = iiIsoToLocalDatetime(($('ciAsOf') && $('ciAsOf').value) || '');
+  const st = $('ciStat');
+  if(!asOf){ if(st){ st.style.color = 'var(--err)'; st.textContent = 'Pick the closing date and time first.'; } return; }
+  const outlets = ciOutlets();
+  ciSetBusy(true, 'Loading Excel tools…');
+  try {
+    await ciLoadLibs();
+    const zip = new JSZip();
+    const notes = [];
+    let ok = 0;
+    for(let i = 0; i < outlets.length; i++){
+      const o = outlets[i];
+      if(st) st.textContent = 'Computing ' + (i + 1) + ' of ' + outlets.length + ' · ' + o + ' (closing as of ' + ciFmt(asOf) + ')…';
+      try {
+        const res = await ciComputeOutlet(o, asOf);
+        zip.file(ciFileStem(o, asOf) + '.xlsx', XLSX.write(ciWorkbook(res), { bookType: 'xlsx', type: 'array' }));
+        ok++;
+        if(res.openingError) notes.push(o + ': Opening Inventory could not be loaded (' + res.openingError + ') — sheet shows 0. Re-run for this outlet.');
+        else if(res.noOpening) notes.push(o + ': no Opening Inventory saved at or before ' + ciFmt(asOf) + ' — sheet shows 0.');
+      } catch(e){
+        notes.push(o + ': FAILED — ' + (e.message || e) + ' (no workbook in this zip).');
+      }
+    }
+    if(notes.length) zip.file('_READ ME - notes.txt', 'Closing Inventory as of ' + ciFmt(asOf) + '\r\n\r\n' + notes.join('\r\n') + '\r\n');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    ciSaveBlob(blob, ('Closing Inventory - All Outlets - ' + String(asOf).replace('T', ' ').replace(':', '')).replace(/[\\\/:*?"<>|]/g, '-') + '.zip');
+    ciSetBusy(false, '✓ Downloaded ' + ok + ' of ' + outlets.length + ' outlet workbooks' + (notes.length ? (' · ' + notes.length + ' note(s) inside the zip') : '') + '.');
+  } catch(e){
+    ciSetBusy(false);
+    if(st){ st.style.color = 'var(--err)'; st.textContent = 'Bulk download failed: ' + (e.message || e); }
+  }
 }
 
 // IST wall-clock helpers for the Ideal Inventory window inputs.
@@ -5450,9 +5765,7 @@ function renderIi(){
     // Wastage comes from each outlet's Submit-Wastage submissions (summed in
     // the window). Adjusted Variance is the manual residual left over after
     // the four auto-filled buckets.
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
-                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
-                  - (it.wastage_approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
+    const closing = iiClosingOf(it);
     const split = iiSplitClosing(it, closing);
     const codeEsc = esc(it.rm_code).replace(/\\/g,'\\\\').replace(/\'/g,"\\'");
     const fullCell  = split.fullQty  == null ? '<span class="mut">—</span>' : qty(split.fullQty)  + ' <span class="mut" style="font-size:11px">' + esc(split.fullUnit)  + '</span>';
@@ -5492,9 +5805,7 @@ function exportCsvIi(){
   let i = 0;
   for(const it of IIv.items){
     i++;
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
-                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
-                  - (it.wastage_approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
+    const closing = iiClosingOf(it);
     const split = iiSplitClosing(it, closing);
     lines.push([i, it.rm_code, it.name, it.category, it.l1_unit,
                 it.opening_l1 || 0, it.purchase_l1 || 0, it.consumption_l1 || 0,
@@ -5530,9 +5841,7 @@ function iiBuildSnapshotPayload(){
   // the exact per-RM numbers, Full/Loose split, and window context without
   // needing to re-walk the live sales + GRN + OI data.
   const items = IIv.items.map((it) => {
-    const closing = (it.opening_l1 || 0) + (it.purchase_l1 || 0)
-                  - (it.consumption_l1 || 0) - (it.wastage_l1 || 0)
-                  - (it.wastage_approved ? 0 : (it.portal_wastage_l1 || 0)) - (it.variance_l1 || 0);
+    const closing = iiClosingOf(it);
     const split = iiSplitClosing(it, closing);
     return {
       rm_code:         it.rm_code,
@@ -5569,6 +5878,9 @@ function iiBuildSnapshotPayload(){
 async function iiSavePrompt(){
   if(!IIv.outlet || !IIv.items.length){
     toast('Nothing to save — pick an outlet and let the numbers compute first.'); return;
+  }
+  if(IIv.noOpening){
+    toast('No Opening Inventory is saved for ' + IIv.outlet + ', so there is nothing to snapshot. Save an opening first.', 5000); return;
   }
   const pwd = prompt('Save this Ideal Inventory snapshot for ' + IIv.outlet + '?\nEnter password to confirm:');
   if(pwd == null) return;
@@ -6431,6 +6743,7 @@ function fgItemLines(it){
     product_code: r.product_code, product_name: r.product_name, unit: r.unit,
     category: r.category, in_master: r.in_master,
     consumed: r.consumed,
+    unbooked: Math.max(0, r.consumed - r.bookedQty),   // qty Ideal Inventory does not record
     per1: it.total > 0 ? r.consumed / it.total : 0,
     booked: r.consumed > 0 ? (r.bookedQty >= r.consumed * (1 - 1e-9)) : r.rmBooked,
     reasons: [...r.reasons],
@@ -6570,7 +6883,7 @@ function fgRender(){
   // Consumption table
   const tb = $('tbodyFg'); if(!tb) return;
   const rows = fgComputeConsumption();
-  fgRenderLeaks(rows);
+  fgRenderLeaks();
   if(!rows.length){
     tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">'
       + (FG.items.length ? 'None of the items in this window map to a BOM with raw-material inputs.' : 'Compute a window above to see the raw-material consumption of everything sold.')
@@ -6641,43 +6954,80 @@ function fgViewItem(i){
 }
 function fgCloseEntryModal(){ const m = $('fgEntryModal'); if(m) m.style.display = 'none'; }
 
-// Highlight RMs that the finished goods in this window consume via their BOM
-// but that are missing from the RM Master — so their consumption is never
-// booked in Ideal Inventory (it's silently dropped from the booked rows).
-function fgRenderLeaks(rows){
-  const el = $('fgLeakHighlight'); if(!el) return;
-  const leaks = (rows || [])
-    .filter(r => !r.in_master && r.qty_consumed > 0)
-    .sort((a, b) => (b.qty_consumed || 0) - (a.qty_consumed || 0));
-  FG.leaks = leaks;
-  if(!leaks.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = '';
-  let h = '<div style="border:1px solid #f59e0b;background:#fffbeb;border-radius:8px;padding:12px 14px">'
-    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
-    + '<b style="color:#b45309">⚠ ' + leaks.length + ' raw material' + (leaks.length > 1 ? 's' : '') + ' consumed but NOT booked in Ideal Inventory</b>'
-    + '<span class="mut" style="font-size:12px">Used by a BOM in this window but missing from the RM Master, so the consumption is dropped from ideal inventory.</span>'
-    + '<button class="btn" style="margin-left:auto;padding:3px 10px;font-size:12px" onclick="fgExportLeaksCsv()">⬇ CSV</button></div>'
-    + '<div class="scroll" style="max-height:220px"><table style="width:100%;font-size:12px"><thead><tr>'
-    + '<th style="text-align:left">RM Code</th><th style="text-align:left">RM Name</th><th style="text-align:left">BOM UoM</th>'
-    + '<th style="text-align:right">Qty Consumed (unbooked)</th></tr></thead><tbody>';
-  for(const r of leaks){
-    h += '<tr><td class="code">' + esc(r.product_code || '—') + '</td>'
-      + '<td>' + esc(r.product_name || '') + '</td>'
-      + '<td>' + esc(r.unit || '') + '</td>'
-      + '<td class="r" style="font-weight:600;color:#b45309">' + qty(r.qty_consumed) + '</td></tr>';
+// Consolidated list of raw materials whose consumption is NOT recorded in
+// Ideal Inventory, across every item sold in the window — the same rules as
+// the % Consumption Booked column and the red rows in the item drill-down
+// (not in RM Master, not an Ideal Inventory line, BOM with no batch qty, or
+// sales with no order type).
+function fgConsolidatedUnbooked(){
+  const map = new Map();
+  for(const it of FG.items){
+    for(const l of fgItemLines(it)){
+      if(l.booked || !(l.unbooked > 0)) continue;
+      const k = (l.product_code || 'name:' + l.product_name).toUpperCase();
+      let r = map.get(k);
+      if(!r){ r = { product_code: l.product_code, product_name: l.product_name, category: l.category, unit: l.unit, qty: 0, items: new Set(), reasons: new Set() }; map.set(k, r); }
+      r.qty += l.unbooked;
+      r.items.add(it.name);
+      for(const why of l.reasons) r.reasons.add(why);
+    }
   }
+  return [...map.values()]
+    .map((r) => ({ ...r, items: [...r.items].sort(), reasons: [...r.reasons] }))
+    .sort((a, b) => (b.items.length - a.items.length) || (a.product_name || '').localeCompare(b.product_name || ''));
+}
+
+function fgRenderLeaks(){
+  const el = $('fgLeakHighlight'); if(!el) return;
+  const leaks = fgConsolidatedUnbooked();
+  FG.leaks = leaks;
+  if(!leaks.length){
+    el.style.display = FG.items.length ? '' : 'none';
+    el.innerHTML = FG.items.length
+      ? '<div class="card" style="margin:0;padding:10px 14px;border-color:#bbf7d0;background:#f0fdf4;color:#166534;font-size:13px">✓ Every raw material consumed in this window is recorded in Ideal Inventory.</div>'
+      : '';
+    return;
+  }
+  el.style.display = '';
+  let h = '<div class="card" style="margin:0;padding:0;border-color:#fecaca">'
+    + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:#fef2f2;border-bottom:1px solid #fecaca;border-radius:8px 8px 0 0">'
+    + '<b style="color:#b91c1c">' + leaks.length + ' raw material' + (leaks.length > 1 ? 's' : '') + ' with consumption not recorded in Ideal Inventory</b>'
+    + '<span class="mut" style="font-size:12px">Consolidated across every item sold in this window · hover a row for the reason</span>'
+    + '<button class="btn" style="margin-left:auto;padding:3px 10px;font-size:12px" onclick="fgExportLeaksCsv()">⬇ CSV</button></div>'
+    + '<div class="scroll" style="max-height:340px"><table style="width:100%"><thead><tr>'
+    + '<th style="width:56px">S.No</th><th>RM Code</th><th>Raw Material Name</th><th>Category</th><th>BOM UoM</th>'
+    + '<th class="r">Qty Not Recorded</th><th class="r">Items Using It</th><th>Reason</th></tr></thead><tbody>';
+  leaks.forEach((r, i) => {
+    const itemsTip = esc(r.items.slice(0, 40).join(', ') + (r.items.length > 40 ? ' …' : ''));
+    h += '<tr style="color:#b91c1c">'
+      + '<td class="mut">' + (i + 1) + '</td>'
+      + '<td class="code" style="color:#b91c1c;font-weight:700">' + esc(r.product_code || '—') + '</td>'
+      + '<td style="font-weight:600">' + esc(r.product_name || '') + '</td>'
+      + '<td>' + (r.category ? ('<span class="sb">' + esc(r.category) + '</span>') : '<span class="mut">—</span>') + '</td>'
+      + '<td>' + esc(r.unit || '') + '</td>'
+      + '<td class="r" style="font-weight:700">' + qtyPrecise(r.qty) + '</td>'
+      + '<td class="r" title="' + itemsTip + '">' + r.items.length + '</td>'
+      + '<td style="font-size:12px">' + esc(r.reasons.join('; ')) + '</td></tr>';
+  });
   h += '</tbody></table></div></div>';
   el.innerHTML = h;
 }
 
+function fgToggleAllRm(){
+  const card = $('fgAllRmCard'), btn = $('fgAllRmToggle'); if(!card || !btn) return;
+  const show = card.style.display === 'none';
+  card.style.display = show ? '' : 'none';
+  btn.textContent = (show ? '▾ Hide' : '▸ Show') + ' all RM consumption';
+}
+
 function fgExportLeaksCsv(){
-  if(!(FG.leaks && FG.leaks.length)){ toast('No unbooked-consumption items to export.', 1800); return; }
+  if(!(FG.leaks && FG.leaks.length)){ toast('No unrecorded-consumption raw materials to export.', 1800); return; }
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const lines = [['RM Code','RM Name','BOM UoM','Qty Consumed (unbooked)'].map(esc2).join(',')];
-  for(const r of FG.leaks) lines.push([r.product_code, r.product_name, r.unit, r.qty_consumed].map(esc2).join(','));
+  const lines = [['S.No','RM Code','RM Name','Category','BOM UoM','Qty Not Recorded','Items Using It','Items','Reason'].map(esc2).join(',')];
+  FG.leaks.forEach((r, i) => lines.push([i + 1, r.product_code, r.product_name, r.category, r.unit, r.qty, r.items.length, r.items.join(' | '), r.reasons.join('; ')].map(esc2).join(',')));
   const today = (new Date()).toISOString().slice(0,10);
-  downloadBlob(lines.join('\n'), 'fg-rm-consumed-not-booked-' + today + '.csv');
-  toast('Exported ' + FG.leaks.length + ' unbooked-consumption RM(s).', 1800);
+  downloadBlob(lines.join('\n'), 'fg-rm-consumption-not-recorded-' + today + '.csv');
+  toast('Exported ' + FG.leaks.length + ' raw material(s).', 1800);
 }
 
 function fgExportCsv(){
