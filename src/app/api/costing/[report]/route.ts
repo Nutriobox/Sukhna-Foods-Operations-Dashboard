@@ -34,22 +34,30 @@ export async function GET(_req: Request, { params }: { params: { report: string 
     return NextResponse.json({ ok: false, error: "Supabase not configured on the server." }, { status: 500, headers: CORS });
   }
   try {
-    const url = `${sbUrl.replace(/\/$/, "")}/rest/v1/costing_snapshots`
-      + `?report=eq.${encodeURIComponent(report)}`
-      + `&select=report,status,synced_at,row_count,source,error,data`
-      + `&order=synced_at.desc&limit=1`;
-    const r = await fetch(url, {
-      headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, Accept: "application/json" },
-      cache: "no-store",
-    });
+    // 2026-11-05: serve the newest snapshot that HAS DATA. A failed sync (e.g.
+    // PACT login failure) still writes a row with row_count 0; reading "newest
+    // row" blindly made that empty row hide the last good data, which emptied
+    // Item Master and stopped all outlet consumption. The newest attempt is
+    // still reported as last_attempt when it failed after the served data.
+    const base = `${sbUrl.replace(/\/$/, "")}/rest/v1/costing_snapshots?report=eq.${encodeURIComponent(report)}`;
+    const hdr = { apikey: sbKey, Authorization: `Bearer ${sbKey}`, Accept: "application/json" };
+    const [r, rLast] = await Promise.all([
+      fetch(`${base}&row_count=gt.0&select=report,status,synced_at,row_count,source,error,data&order=synced_at.desc&limit=1`, { headers: hdr, cache: "no-store" }),
+      fetch(`${base}&select=status,synced_at,row_count,error&order=synced_at.desc&limit=1`, { headers: hdr, cache: "no-store" }),
+    ]);
     if (!r.ok) {
       const t = await r.text().catch(() => "");
       return NextResponse.json({ ok: false, error: `Supabase ${r.status} ${t}`.slice(0, 300) }, { status: 502, headers: CORS });
     }
     const rows = (await r.json()) as Array<Record<string, unknown>>;
+    const lastRows = rLast.ok ? ((await rLast.json()) as Array<Record<string, unknown>>) : [];
     const snap = rows && rows[0];
+    const last = lastRows && lastRows[0];
+    const lastAttempt = last && (!snap || String(last.synced_at) > String(snap.synced_at))
+      ? { status: last.status ?? "", synced_at: last.synced_at ?? null, row_count: last.row_count ?? 0, error: String(last.error ?? "").slice(0, 600) }
+      : null;
     if (!snap) {
-      return NextResponse.json({ ok: true, report, status: "none", synced_at: null, row_count: 0, data: [] }, { headers: CORS });
+      return NextResponse.json({ ok: true, report, status: last ? (last.status ?? "failed") : "none", synced_at: null, row_count: 0, data: [], last_attempt: lastAttempt }, { headers: CORS });
     }
     return NextResponse.json({
       ok: true,
@@ -60,6 +68,7 @@ export async function GET(_req: Request, { params }: { params: { report: string 
       source: snap.source ?? "",
       error: snap.error ?? "",
       data: snap.data ?? [],
+      last_attempt: lastAttempt,
     }, { headers: CORS });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

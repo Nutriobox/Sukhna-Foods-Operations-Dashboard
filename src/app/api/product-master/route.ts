@@ -169,7 +169,7 @@ export async function GET(req: Request) {
 
   try {
     const q = `${sbUrl.replace(/\/$/, "")}/rest/v1/costing_snapshots`
-      + `?report=eq.pm`
+      + `?report=eq.pm&row_count=gt.0`   // newest PM snapshot WITH data; skip failed-sync rows
       + `&select=data,synced_at`
       + `&order=synced_at.desc&limit=1`;
     const r = await fetch(q, {

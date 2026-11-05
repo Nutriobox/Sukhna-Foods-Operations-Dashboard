@@ -254,7 +254,9 @@ export async function GET(req: Request) {
     if (!sbUrl || !sbKey) {
       return NextResponse.json({ ok: false, error: "Supabase not configured" }, { status: 500, headers: CORS });
     }
-    const bomQ = `${sbUrl.replace(/\/$/, "")}/rest/v1/costing_snapshots?report=eq.bom&select=synced_at,data&order=synced_at.desc&limit=1`;
+    // Newest BOM snapshot WITH data — a failed sync's empty row must not hide the
+    // last good BOM (that emptied Item Master and stopped all consumption).
+    const bomQ = `${sbUrl.replace(/\/$/, "")}/rest/v1/costing_snapshots?report=eq.bom&row_count=gt.0&select=synced_at,data&order=synced_at.desc&limit=1`;
     const bomR = await fetch(bomQ, {
       headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, Accept: "application/json" },
       cache: "no-store",
