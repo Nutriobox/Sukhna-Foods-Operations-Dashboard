@@ -87,6 +87,17 @@
      the Raw Material Name column allowed to wrap. */
   .scroll.ii-fit{overflow-x:auto}
   .scroll.ii-fit table{table-layout:auto}
+  /* Column resize + hide (tblEnhance). Once a column is resized the table
+     switches to fixed layout so the dragged widths hold exactly. */
+  .colrz{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:3;user-select:none;touch-action:none}
+  .colrz:hover,.colrz.on{background:rgba(99,102,241,.35)}
+  table.tbl-fixed{table-layout:fixed !important}
+  table.tbl-fixed th,table.tbl-fixed td{overflow:hidden;overflow-wrap:anywhere}
+  table.tbl-fixed input{max-width:100%;box-sizing:border-box}
+  .colmenu{position:absolute;z-index:50;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.14);padding:8px;min-width:220px;max-height:60vh;overflow:auto;font-size:13px}
+  .colmenu label{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;cursor:pointer}
+  .colmenu label:hover{background:#f1f5f9}
+  .colmenu .cm-actions{display:flex;gap:6px;border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
   .scroll.ii-fit th, .scroll.ii-fit td{padding:7px 8px;font-size:12.5px}
   .scroll.ii-fit td.nameCell{white-space:normal;line-height:1.3}
   .scroll.ii-fit input.ii-num{width:72px;max-width:72px;padding:4px 6px;font-size:12.5px}
@@ -772,6 +783,7 @@
      <option value="Packaging">Packaging</option>
     </select>
     <input id="qIi" class="search" placeholder="Search RM code or name…" oninput="renderIi()" style="min-width:220px">
+    <button class="btn" onclick="tblColsMenu('tblIi', this)" title="Show or hide columns, or reset column widths. Drag a column's right edge to resize it.">☰ Columns</button>
     <button class="btn" onclick="exportCsvIi()">⬇ Export CSV</button>
     <button class="btn prim" onclick="iiSavePrompt()" title="Save this snapshot (Opening + Purchase + Consumption + Variance + Closing per RM) to the cloud. Password protected.">💾 Save</button>
     <button class="btn" onclick="iiOpenSavedListPrompt()" title="View, re-import or delete inventories saved earlier. Protected — enter the password to continue.">🗂 Saved</button>
@@ -949,23 +961,31 @@
    </div>
   </div>
 
-  <!-- Added FG entries — proper table so Qty Sold is an actual column -->
+  <!-- Items sold at the outlet in the window, split by channel, with how much of
+       each item's raw-material consumption actually lands in Ideal Inventory.
+       Double-click an item to see its RM consumption (unbooked RMs in red). -->
   <div class="card" style="padding:0;margin-bottom:10px">
-   <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)">
-    <strong style="font-size:13px">Finished goods in this window</strong>
-    <span id="fgEntriesCount" class="mut" style="font-size:12.5px;margin-left:8px"></span>
-    <button class="btn" style="margin-left:auto" onclick="fgExportCsv()">⬇ Export CSV</button>
+   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line)">
+    <strong style="font-size:13px">Items sold in this window</strong>
+    <span id="fgEntriesCount" class="mut" style="font-size:12.5px"></span>
+    <input id="fgItemQ" class="search" placeholder="Filter by item name…" oninput="fgRender()" style="min-width:220px;margin-left:auto">
+    <button class="btn" onclick="fgExportCsv()">⬇ Export CSV</button>
    </div>
    <div class="scroll"><table id="tblFgEntries">
     <thead><tr>
-     <th style="width:90px">Source</th>
-     <th style="width:140px">BOM Code</th>
-     <th>Finished Good</th>
-     <th class="r" style="width:120px">Qty Sold</th>
-     <th style="width:60px"></th>
+     <th style="width:56px">S.No</th>
+     <th>Item Name</th>
+     <th>Category</th>
+     <th class="r" title="Units sold on Delivery / Pick Up orders (not add-ons or extras)">Delivery</th>
+     <th class="r" title="Units sold on Dine In orders (not add-ons or extras)">Dine-in</th>
+     <th class="r" title="Add-on line items (Dine_AddOn / Del_AddOn BOMs, or PetPooja add-on vocabulary)">Add-on</th>
+     <th class="r" title="Line items named 'Extra …'">Extra</th>
+     <th class="r">Total Units</th>
+     <th class="r" title="Share of this item's raw materials whose consumption is booked in Ideal Inventory (RM is an Ideal Inventory line, the BOM has a batch output qty, and the sale has an order type). Red when any raw material is not booked.">% Consumption Booked</th>
+     <th style="width:72px"></th>
     </tr></thead>
     <tbody id="fgEntriesBody">
-     <tr><td colspan="5" class="mut" style="padding:16px;text-align:center">Pick an outlet + date range above and click <b>⚡ Compute</b> — the finished goods sold in that window will auto-populate here with their qty from the Sales Summary feed. You can also add a BOM manually to layer a "what-if" scenario on top.</td></tr>
+     <tr><td colspan="10" class="mut" style="padding:16px;text-align:center">Pick an outlet + date range (or <b>⤓ From Opening Inv</b>) and click <b>⚡ Compute</b> — every item sold at the outlet in that window appears here by channel. Double-click an item to see its raw-material consumption.</td></tr>
     </tbody>
    </table></div>
   </div>
@@ -1008,7 +1028,7 @@
  <div id="fgEntryModal" class="nmmodal" style="display:none" onclick="if(event.target===this)fgCloseEntryModal()">
   <div class="nmbody" style="max-width:1000px">
    <div class="nmhdr">
-    <h3 style="margin:0;flex:1">🍽 Finished Good → RM Consumption — <span id="fgEntryName" style="font-weight:600;color:#1e40af"></span></h3>
+    <h3 style="margin:0;flex:1">🍽 Item → RM Consumption — <span id="fgEntryName" style="font-weight:600;color:#1e40af"></span></h3>
     <button class="btn" onclick="fgCloseEntryModal()">✕</button>
    </div>
    <div id="fgEntryMeta" class="mut" style="margin:8px 0 14px;font-size:13px;line-height:1.5"></div>
@@ -1018,7 +1038,7 @@
      <th>Raw Material Name</th>
      <th>Category</th>
      <th>BOM UoM</th>
-     <th class="r">Ideal Qty / 1 FG</th>
+     <th class="r" title="Consumption divided by total units sold of this item">Per Unit Sold</th>
      <th class="r">Qty Consumed</th>
     </tr></thead>
     <tbody id="tbodyFgEntry"></tbody>
@@ -1311,6 +1331,121 @@ const OR_ADDON_SIDE = /\b(fries|chips|crisps|side|sauce|dip|chutney|mayo|mayonna
 // too. The looser beverage/side regexes are intentionally NOT used here
 // because they match main-dish names like "Chicken Nugget" — too many
 // false positives when the user wants to spot genuine add-ons.
+/* ── Column resize + hide for data tables (Ideal Inventory first) ──────────
+   Drag a header's right edge to resize; the ☰ Columns menu hides/shows
+   columns and resets widths. Remembered per browser in localStorage
+   (best-effort — storage can be unavailable). Works on a static <thead>;
+   rows can re-render freely because hiding is done with an nth-child rule. */
+function tblEnhance(tableId, storeKey){
+  const tbl = document.getElementById(tableId);
+  if(!tbl || tbl._enh) return;
+  const ths = Array.from(tbl.querySelectorAll('thead tr:first-child > th'));
+  if(!ths.length) return;
+  let st = {};
+  try { st = JSON.parse(localStorage.getItem(storeKey) || '{}') || {}; } catch(_){ st = {}; }
+  st.w = (st.w && typeof st.w === 'object') ? st.w : {};
+  st.hide = Array.isArray(st.hide) ? st.hide.filter((i) => i >= 0 && i < ths.length) : [];
+  const save = () => { try { localStorage.setItem(storeKey, JSON.stringify(st)); } catch(_){} };
+  const styleEl = document.createElement('style');
+  document.head.appendChild(styleEl);
+  const hidden = (i) => st.hide.indexOf(i) >= 0;
+  const applyHide = () => {
+    // colspan cells (loading / empty-state rows) are exempt so messages stay visible.
+    styleEl.textContent = st.hide.map((i) => '#' + tableId + ' tr > :nth-child(' + (i + 1) + '):not([colspan]){display:none}').join('\n');
+  };
+  const applyWidths = () => {
+    const resized = Object.keys(st.w).length > 0;
+    tbl.classList.toggle('tbl-fixed', resized);
+    let sum = 0;
+    ths.forEach((th, i) => {
+      const w = resized ? (st.w[i] || 110) : 0;
+      th.style.width = w ? (w + 'px') : '';
+      if(w && !hidden(i)) sum += w;
+    });
+    tbl.style.width = resized ? (sum + 'px') : '';
+  };
+  // Capture the current rendered widths the first time anything is resized, so
+  // switching to fixed layout doesn't make the other columns jump.
+  const freeze = () => {
+    if(Object.keys(st.w).length) return;
+    ths.forEach((th, i) => { st.w[i] = Math.max(40, Math.round(th.getBoundingClientRect().width) || 110); });
+  };
+  ths.forEach((th, i) => {
+    const grip = document.createElement('span');
+    grip.className = 'colrz';
+    grip.title = 'Drag to resize';
+    grip.addEventListener('click', (e) => e.stopPropagation());
+    grip.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      freeze();
+      const startX = e.clientX, startW = st.w[i];
+      grip.classList.add('on');
+      try { grip.setPointerCapture(e.pointerId); } catch(_){}
+      const move = (ev) => { st.w[i] = Math.max(40, Math.round(startW + ev.clientX - startX)); applyWidths(); };
+      const up = () => {
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        grip.removeEventListener('pointercancel', up);
+        grip.classList.remove('on');
+        save();
+      };
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+      grip.addEventListener('pointercancel', up);
+    });
+    th.appendChild(grip);
+  });
+  tbl._enh = {
+    ths, st,
+    label: (i) => (ths[i].textContent || '').trim() || ('Column ' + (i + 1)),
+    isHidden: hidden,
+    toggle: (i, show) => {
+      st.hide = st.hide.filter((x) => x !== i);
+      if(!show) st.hide.push(i);
+      applyHide(); applyWidths(); save();
+    },
+    showAll: () => { st.hide = []; applyHide(); applyWidths(); save(); },
+    resetWidths: () => { st.w = {}; applyWidths(); save(); },
+  };
+  applyHide(); applyWidths();
+}
+
+function tblColsMenu(tableId, btn){
+  const tbl = document.getElementById(tableId);
+  if(tbl && !tbl._enh) tblEnhance(tableId, tableId + '.cols.v1');
+  const E = tbl && tbl._enh; if(!E) return;
+  const old = document.getElementById('colmenu-' + tableId);
+  if(old){ old.remove(); return; }       // second click closes
+  const m = document.createElement('div');
+  m.className = 'colmenu'; m.id = 'colmenu-' + tableId;
+  let h = '<div class="mut" style="font-size:11.5px;padding:2px 6px 6px">Show columns · drag a header edge to resize</div>';
+  E.ths.forEach((_, i) => {
+    h += '<label><input type="checkbox" data-i="' + i + '"' + (E.isHidden(i) ? '' : ' checked') + '> ' + esc(E.label(i)) + '</label>';
+  });
+  h += '<div class="cm-actions"><button class="btn" data-act="all" style="padding:3px 10px;font-size:12px">Show all</button>'
+     + '<button class="btn" data-act="w" style="padding:3px 10px;font-size:12px">Reset widths</button></div>';
+  m.innerHTML = h;
+  m.addEventListener('change', (e) => { const i = Number(e.target.getAttribute('data-i')); if(Number.isFinite(i)) E.toggle(i, e.target.checked); });
+  m.addEventListener('click', (e) => {
+    const a = e.target.getAttribute && e.target.getAttribute('data-act');
+    if(a === 'all'){ E.showAll(); m.querySelectorAll('input[data-i]').forEach((cb) => { cb.checked = true; }); }
+    if(a === 'w') E.resetWidths();
+    e.stopPropagation();
+  });
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect();
+  m.style.top = (window.scrollY + r.bottom + 6) + 'px';
+  m.style.left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8)) + 'px';
+  setTimeout(() => {
+    const close = (ev) => { if(!m.contains(ev.target) && ev.target !== btn){ m.remove(); document.removeEventListener('mousedown', close); } };
+    document.addEventListener('mousedown', close);
+  }, 0);
+}
+
+// Wire up the Ideal Inventory table (thead is static markup).
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => tblEnhance('tblIi', 'tblIi.cols.v1'));
+else tblEnhance('tblIi', 'tblIi.cols.v1');
+
 function isAddonItem(name, category){
   const nm = String(name || '').toLowerCase();
   const ct = String(category || '').toLowerCase();
@@ -3246,16 +3381,48 @@ async function oiListLoad(){
 }
 
 // Delete handler with the password prompt Satvik asked for (1122).
+// Deleting an opening cascades server-side to everything built on it for this
+// outlet (Ideal Inventory IOs incl. approved wastage/variance, wastage and
+// on-hand submissions in the opening's period). Preview first so the confirm
+// shows exactly what will go.
 async function oiListDelete(id, outlet, dtIso){
-  const pwd = prompt('Delete the opening-inventory count for ' + outlet + ' at ' + fmtTime(dtIso + '+05:30') + '?\n\nThis clears the Ideal Inventory tab\'s Opening numbers for this outlet-window too. Enter password to confirm:');
+  let pv = null;
+  try {
+    const r0 = await fetch('/api/opening-inventory?preview=1&id=' + encodeURIComponent(id), { method: 'DELETE', cache: 'no-store' });
+    const j0 = await r0.json();
+    if(r0.ok && j0.ok) pv = j0;
+  } catch(_){ /* fall through — server still cascades on the real delete */ }
+  let msg = 'Delete the opening-inventory count for ' + outlet + ' at ' + fmtTime(dtIso + '+05:30') + '?\n\n';
+  if(pv && !pv.portal){
+    const c = pv.cascade || {};
+    const until = (pv.period && pv.period.to) ? (' up to the next opening (' + fmtTime(pv.period.to + '+05:30') + ')') : ' onward';
+    msg += 'This ALSO permanently deletes everything for ' + outlet + ' from this opening' + until + ':\n'
+        +  '  • ' + (c.snapshots || 0) + ' Ideal Inventory snapshot(s), incl. their approved wastage & variance\n'
+        +  '  • ' + (c.wastage   || 0) + ' wastage submission(s)\n'
+        +  '  • ' + (c.onhand    || 0) + ' on-hand submission(s)\n\n';
+  } else if(!pv){
+    msg += 'Could not preview the linked entries. The Ideal Inventory, wastage and on-hand entries in this opening\'s period will still be deleted.\n\n';
+  }
+  msg += 'This cannot be undone. Enter password to confirm:';
+  const pwd = prompt(msg);
   if(pwd == null) return;             // Cancel
   if(pwd.trim() !== '1122'){ toast('Wrong password. Delete cancelled.'); return; }
   try {
     const r = await fetch('/api/opening-inventory?id=' + encodeURIComponent(id), { method: 'DELETE', cache: 'no-store' });
     const j = await r.json();
     if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    toast('Deleted the count for ' + outlet + '.');
+    const c = j.cascade || {};
+    const extra = (c.snapshots || c.wastage || c.onhand)
+      ? (' Also removed ' + (c.snapshots || 0) + ' IO(s), ' + (c.wastage || 0) + ' wastage and ' + (c.onhand || 0) + ' on-hand submission(s).')
+      : '';
+    toast('Deleted the count for ' + outlet + '.' + extra, 5000);
+    // Drop the in-session opening fallback if it pointed at this count.
+    if(typeof OI !== 'undefined' && OI.dtIso && String(OI.dtIso).slice(0, 16) === String(dtIso || '').slice(0, 16)
+       && (!OI.outlet || String(OI.outlet).toLowerCase() === String(outlet || '').toLowerCase())){ OI.dtIso = ''; }
     oiListLoad();
+    // The Variance and Wastage tabs list the IOs / submissions that just went.
+    if(typeof loadVa === 'function') Promise.resolve().then(() => loadVa(true)).catch(() => {});
+    if(typeof loadWs === 'function') Promise.resolve().then(() => loadWs(true)).catch(() => {});
     // If the Ideal Inventory tab is already rendered for this outlet, re-pull
     // so the Opening column flips to the next-latest count (or 0 if none).
     if(typeof IIv !== 'undefined' && IIv.outlet && IIv.outlet.toLowerCase() === String(outlet || '').toLowerCase() && typeof loadIi === 'function'){
@@ -3521,7 +3688,7 @@ async function cnFromOpening(){
       const adminList = j.counts.filter((c) =>
         typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
       );
-      const pick = adminList.length ? adminList[0] : j.counts[0];
+      const pick = oiLatestAdmin(adminList);   // admin openings only; on-hand belongs to Variance
       if(pick && pick.dt_iso) dtIso = String(pick.dt_iso).slice(0, 16);
     }
   } catch(_){ /* fall through to in-session fallback */ }
@@ -4004,6 +4171,16 @@ function rcOnTabEnter(){
 // cannot shift Reconciliation's "From" cutoff off the admin's locked
 // opening. Falls back to the newest portal submission only when no
 // admin save exists.
+// The outlet's CURRENT opening = the admin count with the latest opening
+// datetime (dt_iso), never a portal on-hand row. The API lists by updated_at,
+// so re-saving an older count used to make it "current"; ordering by dt_iso
+// matches how the opening-delete cascade defines each opening's period.
+function oiLatestAdmin(list){
+  const admin = (list || []).filter((c) => c && (typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')));
+  admin.sort((a, b) => String(b.dt_iso || '').slice(0, 16).localeCompare(String(a.dt_iso || '').slice(0, 16)));
+  return admin[0] || null;
+}
+
 async function rcLatestOpeningForOutlet(outletName){
   if(!outletName) return null;
   // The /api/opening-inventory endpoint returns rows ordered by updated_at desc.
@@ -4018,7 +4195,9 @@ async function rcLatestOpeningForOutlet(outletName){
   const adminList = list.filter((c) =>
     typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
   );
-  return adminList.length ? adminList[0] : list[0];
+  // Admin openings only — a portal on-hand submission is a closing count and
+  // only reflects in Variance, never as an opening.
+  return oiLatestAdmin(adminList);
 }
 
 async function rcSubmitForm(){
@@ -4607,7 +4786,8 @@ async function iiSubmitForm(){
     const adminList = list.filter((c) =>
       typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
     );
-    opening = (adminList.length ? adminList[0] : list[0]) || null;
+    // Admin openings only — a portal on-hand submission belongs to Variance.
+    opening = oiLatestAdmin(adminList);
   } catch(e){
     if(err) err.textContent = 'Could not fetch Opening Inventory: ' + (e.message || e);
     return;
@@ -4772,18 +4952,24 @@ async function loadIi(fresh){
       // silently overwrote the admin's locked opening value. Fixed by
       // preferring the ADMIN-saved count (any row whose created_by is
       // not a portal: slug) over any portal submission. If no admin
-      // save exists for the outlet, fall back to the most-recent portal
-      // submission so new outlets without an admin lock still display
-      // something sensible.
+      // save exists for the outlet, the opening stays 0.
+      // 2026-11-05 (Satvik): an outlet's portal Submit-On-Hand is its CLOSING
+      // count and must only reflect in Variance — it is never used as an
+      // opening, even when no admin opening exists (that fallback is what made
+      // on-hand leak into Ideal Inventory after an opening was deleted).
       const adminCounts = j.counts.filter((c) =>
         typeof c.created_by !== 'string' || !c.created_by.startsWith('portal:')
       );
-      const latest = adminCounts.length ? adminCounts[0] : j.counts[0];
-      openingDtIso = latest.dt_iso || '';
+      const latest = oiLatestAdmin(adminCounts);
+      openingDtIso = latest ? (latest.dt_iso || '') : '';
+      IIv._openingId = latest ? latest.id : null;   // scopes the approval overlay below to this period
+      // Keep the snapshot's opening link in step with the opening actually used,
+      // so a Save never links an IO to an older opening than its window.
+      if(latest) IIv.openingMeta = { id: latest.id, filled_count: latest.filled_count, total_items: latest.total_items };
       // Load its qty maps.
-      const r2 = await fetch('/api/opening-inventory?id=' + encodeURIComponent(latest.id), { cache: 'no-store' });
-      const j2 = await r2.json();
-      if(r2.ok && j2.ok && j2.count){
+      const r2 = latest ? await fetch('/api/opening-inventory?id=' + encodeURIComponent(latest.id), { cache: 'no-store' }) : null;
+      const j2 = r2 ? await r2.json() : {};
+      if(r2 && r2.ok && j2.ok && j2.count){
         const q   = j2.count.qty       || {};
         const qL  = j2.count.qty_loose || {};
         for(const [code, _] of byCode){
@@ -5011,8 +5197,22 @@ async function loadIi(fresh){
       // carries its own stamp. Before this, only approved_at (C/S) was read, so
       // a wastage approved first never reached the Wastage Approved column until
       // C/S was also approved.
-      const wasteSnapMeta = lj.snapshots.find((s) => s && s.wastage_approved_at);
-      const csSnapMeta    = lj.snapshots.find((s) => s && s.approved_at);
+      // 2026-11-05 (Satvik): only snapshots from the CURRENT opening period may
+      // adjust the live Ideal Inventory. Previously the outlet's latest approved
+      // snapshot was applied whatever opening it was built on, so an old
+      // period's approved variance/wastage carried into a new opening. A
+      // snapshot belongs here when it is linked to this opening, or (legacy
+      // snapshots saved without the link) when its window starts at/after it.
+      const curOpenId = IIv._openingId || (IIv.openingMeta && IIv.openingMeta.id) || null;
+      const curOpenDt = String(openingDtIso || '').slice(0, 16);
+      const inCurPeriod = (s) => {
+        const linked = s && s.opening_count && s.opening_count.id;
+        if(linked && curOpenId) return linked === curOpenId;
+        return !!curOpenDt && String((s && s.window_from) || '').slice(0, 16) >= curOpenDt;
+      };
+      const periodSnaps   = lj.snapshots.filter((s) => s && inCurPeriod(s));
+      const wasteSnapMeta = periodSnaps.find((s) => s.wastage_approved_at);
+      const csSnapMeta    = periodSnaps.find((s) => s.approved_at);
       const needIds = {};
       if(wasteSnapMeta) needIds[wasteSnapMeta.id] = true;
       if(csSnapMeta)    needIds[csSnapMeta.id]    = true;
@@ -5896,7 +6096,15 @@ async function iiDeleteSaved(id, outletLabel){
 // Each entry carries its source so the UI can show whether a line came
 // from the auto Sales-Summary fetch or was added manually, and so Clear /
 // Compute know which entries to wipe.
-const FG = { entries: [], leaks: [] };  // entries: [{ bom_code, bom_name, qty, source: 'sales'|'manual' }]; leaks: consumed RMs missing from RM Master
+// items:   one row per item sold (or added manually):
+//          { key, name, category, source:'sales'|'manual',
+//            ch:{ delivery, dine_in, addon, extra }, total,
+//            boms:{ <bom_code>: { qty, skipQty } }, noBom, _lines }
+//          skipQty = units Ideal Inventory skips (no order type on the sale).
+// entries: flat [{ bom_code, bom_name, qty, source }] derived from items —
+//          drives the aggregated RM table + unbooked-RM highlight.
+// leaks:   consumed RMs missing from RM Master.
+const FG = { items: [], entries: [], leaks: [] };
 
 async function fgOnTabEnter(){
   // Ensure BOM + Item Master are both ready — the dropdown needs BOM, and
@@ -5916,27 +6124,57 @@ async function fgOnTabEnter(){
   fgRender();
 }
 
-// Walk Item Master and build an index: dish_id -> {bom_code, bom_name}, and
-// lower(name) -> {bom_code, bom_name}. Used by fgCompute to map sold items
-// back to their BOM.
-function fgBuildDishIndex(){
-  const byDishId = new Map();
-  const byName   = new Map();
-  const walk = (section) => {
-    if(!section) return;
-    const absorb = (item) => {
-      if(!item || !item.bom_code) return;
-      const entry = { bom_code: item.bom_code, bom_name: item.name || '' };
-      const did = String(item.petpooja_dish_id || '').trim();
-      if(did && !byDishId.has(did)) byDishId.set(did, entry);
-      const nm = String(item.name || '').toLowerCase().trim();
-      if(nm && !byName.has(nm)) byName.set(nm, entry);
-    };
-    for(const items of Object.values(section.categories || {})) for(const it of (items || [])) absorb(it);
-    for(const it of (section.add_ons || [])) absorb(it);
+// Channel-aware dish -> BOM mapping. MUST mirror the Ideal Inventory engine
+// (loadIi / loadRc pickBomCode): a Dine In sale uses the DIN_BOM* / Dine_AddOn*
+// recipe, a Delivery / Pick Up sale uses BOM_O* / Del_AddOn*, falling back to
+// the other family when the dish only exists in one. The old FG index was
+// first-wins across both families, so delivery sales were walked through the
+// dine-in recipe whenever a dish existed in both.
+function fgChannelIndex(){
+  const dineByKey = new Map(), delivByKey = new Map();
+  const indexItem = (it, target) => {
+    const bc = String((it && it.bom_code) || '').trim(); if(!bc) return;
+    const dishId = String(it.petpooja_dish_id || '').trim();
+    const nm     = String(it.name || '').trim().toLowerCase();
+    if(dishId) target.set('id:' + dishId, bc);
+    if(nm)     target.set('nm:' + nm,     bc);
   };
-  if(IM_LOADED.v && IM.data){ walk(IM.data.dine_in); walk(IM.data.delivery); }
-  return { byDishId, byName };
+  const addSection = (section, target) => {
+    if(!section) return;
+    for(const items of Object.values(section.categories || {})) for(const it of (items || [])) indexItem(it, target);
+    for(const it of (section.add_ons || [])) indexItem(it, target);
+  };
+  if(IM_LOADED.v && IM.data){ addSection(IM.data.dine_in, dineByKey); addSection(IM.data.delivery, delivByKey); }
+  return function pick(ot, dishId, name){
+    const idKey = dishId ? ('id:' + dishId) : '';
+    const nmKey = 'nm:' + String(name || '').toLowerCase();
+    const primary  = (ot === 'Dine In') ? dineByKey  : delivByKey;
+    const fallback = (ot === 'Dine In') ? delivByKey : dineByKey;
+    return (idKey && primary.get(idKey)) || primary.get(nmKey)
+        || (idKey && fallback.get(idKey)) || fallback.get(nmKey) || '';
+  };
+}
+
+// Which channel column a sale line counts under. Extras and add-ons are their
+// own columns whatever the order type; everything else is Dine-in vs Delivery
+// (Pick Up and other off-premise orders count as Delivery).
+function fgBucketOf(name, category, ot, bomCode){
+  if(/\bextra\b/i.test(String(name || ''))) return 'extra';
+  if(isAddonItem(name, category) || /add[\s_-]?on/i.test(String(bomCode || ''))) return 'addon';
+  return ot === 'Dine In' ? 'dine_in' : 'delivery';
+}
+
+// Flatten items -> per-BOM entries for the aggregated RM table / leak panel.
+function fgRebuildEntries(){
+  const out = [];
+  for(const it of FG.items){
+    it._lines = null;   // invalidate cached RM lines
+    for(const [code, b] of Object.entries(it.boms || {})){
+      const bom = (BOM.boms || []).find((x) => String(x.code || '').toUpperCase() === code.toUpperCase());
+      out.push({ bom_code: code, bom_name: bom ? (bom.name || '') : '', qty: b.qty, source: it.source });
+    }
+  }
+  FG.entries = out;
 }
 
 // Set the window from the selected outlet's last Opening Inventory count to
@@ -5992,35 +6230,43 @@ async function fgCompute(){
     const outletLc = outlet.toLowerCase();
     const scoped = outlet ? sales.filter(s => nbCanonName(s.restaurant_name).includes(nbCanonName(outletLc))) : sales;
 
-    // Map each sold item to its BOM via Item Master.
-    const idx = fgBuildDishIndex();
-    const aggregated = new Map();  // bom_code -> { bom_code, bom_name, qty }
-    let matchedCount = 0, unmatchedCount = 0;
+    // One row per item sold. Each sale line is mapped to its BOM exactly the
+    // way Ideal Inventory maps it (channel-aware) and counted under its channel.
+    const pick = fgChannelIndex();
+    const items = new Map();   // lower(item name) -> item
+    let saleLines = 0, unmapped = 0;
     for(const row of scoped){
-      // Skip cancelled rows — they contributed nothing to kitchen output.
-      if(String(row.status || '').toLowerCase().includes('cancel')) continue;
-      const qtyN = Number(row.item_quantity || 0);
-      if(!qtyN) continue;
-      const did = String(row.dish_id || '').trim();
-      const nm  = String(row.item_name || '').toLowerCase().trim();
-      const hit = (did && idx.byDishId.get(did)) || (nm && idx.byName.get(nm));
-      if(!hit){ unmatchedCount++; continue; }
-      matchedCount++;
-      const key = hit.bom_code;
-      if(!aggregated.has(key)) aggregated.set(key, { bom_code: hit.bom_code, bom_name: hit.bom_name, qty: 0, source: 'sales' });
-      aggregated.get(key).qty += qtyN;
+      if(String(row.status || '').toLowerCase().includes('cancel')) continue;   // cancelled != consumed
+      const qtyN = Number(row.item_quantity || 0); if(!(qtyN > 0)) continue;
+      const name = String(row.item_name || '').trim(); if(!name) continue;
+      const cat  = String(row.category_name || '').trim();
+      const ot   = rcNormOrderType(row.order_type);
+      const did  = String(row.dish_id || '').trim();
+      const bomCode = pick(ot, did, name);
+      const key = name.toLowerCase();
+      let it = items.get(key);
+      if(!it){
+        it = { key, name, category: cat, source: 'sales', ch: { delivery: 0, dine_in: 0, addon: 0, extra: 0 }, total: 0, boms: {}, noBom: 0, _lines: null };
+        items.set(key, it);
+      }
+      if(!it.category && cat) it.category = cat;
+      it.ch[fgBucketOf(name, cat, ot, bomCode)] += qtyN;
+      it.total += qtyN;
+      saleLines++;
+      if(!bomCode){ it.noBom += qtyN; unmapped++; continue; }
+      const b = it.boms[bomCode] || (it.boms[bomCode] = { qty: 0, skipQty: 0 });
+      b.qty += qtyN;
+      if(!ot) b.skipQty += qtyN;   // Ideal Inventory drops sales with no order type
     }
 
-    // Replace any previous auto-fetched entries with the new result, but
-    // keep manual entries so they don't disappear on Recompute.
-    FG.entries = FG.entries.filter(e => e.source !== 'sales');
-    for(const e of aggregated.values()) FG.entries.push(e);
+    // Replace the previous sales rows; keep manual what-if rows.
+    FG.items = FG.items.filter((x) => x.source === 'manual').concat([...items.values()]);
+    fgRebuildEntries();
 
     if(stat){
       stat.style.color = '#4338ca';
-      stat.textContent = '✓ ' + aggregated.size + ' finished goods · '
-        + matchedCount + ' sales matched'
-        + (unmatchedCount ? (' · ' + unmatchedCount + ' unmatched (no BOM in Item Master)') : '')
+      stat.textContent = '✓ ' + items.size + ' items · ' + saleLines + ' sale lines'
+        + (unmapped ? (' · ' + unmapped + ' line(s) with no BOM in Item Master') : '')
         + ' · ' + Math.round((Date.now() - t0) / 100) / 10 + 's';
     }
     fgRender();
@@ -6076,19 +6322,31 @@ function fgAddEntry(){
     if(err) err.textContent = 'Enter a positive quantity.';
     return;
   }
-  FG.entries.push({ bom_code: bom.code, bom_name: bom.name || '', qty, source: 'manual' });
+  // A manual "what-if" row behaves like an item whose units all use this BOM.
+  const key = 'manual:' + String(bom.code).toUpperCase();
+  let it = FG.items.find((x) => x.key === key);
+  if(!it){
+    it = { key, name: (bom.name || bom.code), category: 'Manual (what-if)', source: 'manual', ch: { delivery: 0, dine_in: 0, addon: 0, extra: 0 }, total: 0, boms: {}, noBom: 0, _lines: null };
+    FG.items.push(it);
+  }
+  it.total += qty;
+  const b = it.boms[bom.code] || (it.boms[bom.code] = { qty: 0, skipQty: 0 });
+  b.qty += qty;
+  fgRebuildEntries();
   $('fgPickInput').value = '';
   $('fgQtyInput').value = '';
   $('fgPickInput').focus();
   fgRender();
 }
 
-function fgRemoveEntry(idx){
-  FG.entries.splice(idx, 1);
+function fgRemoveItem(key){
+  FG.items = FG.items.filter((x) => x.key !== key);
+  fgRebuildEntries();
   fgRender();
 }
 
 function fgClearAll(){
+  FG.items = [];
   FG.entries = [];
   const stat = $('fgStat'); if(stat) stat.textContent = '';
   fgRender();
@@ -6116,37 +6374,87 @@ function fgBomInputs(bomCode){
       const code = String(r[4] || '').trim();
       const name = String(r[5] || '').trim();
       const unit = String(r[6] || '').trim();
-      if(!code && !name) continue;
-      if(code && inter.has(code.toUpperCase())) continue;  // skip semi-finished re-inputs
+      // Same input-line rules as loadIi: no product code or no positive Raw
+      // Qty means the line consumes nothing Ideal Inventory can track.
+      if(!code) continue;
+      if(inter.has(code.toUpperCase())) continue;          // skip semi-finished re-inputs
       const rawQty = Number(r[9]);                         // batch total, BOM's declared unit
-      const per1   = (isFinite(rawQty) ? rawQty : 0) / fpQty;  // per 1 finished good
+      if(!(rawQty > 0)) continue;
+      const per1   = rawQty / fpQty;                       // per 1 finished good
       out.push({ product_code: code, product_name: name, unit, usage_qty: per1 });
     }
   }
   return out;
 }
 
-// Resolve one finished good's RM draw into display rows (per-1-FG + total for
-// its qty). Shared by the per-FG drill-down modal. Mirrors fgComputeConsumption
-// but scoped to a single BOM so the operator can open "what did this FG eat".
-function fgEntryLines(bomCode, qtySold){
+// Raw-material lines for one item, merged across every BOM its units used
+// (e.g. the dine-in vs delivery recipe). Each line records how much of its
+// consumption Ideal Inventory actually books — mirroring loadIi's rules:
+//   * the RM must be an Ideal Inventory line (in RM Master with a storage),
+//   * the BOM must have a batch output qty (fpQty) — loadIi skips it otherwise,
+//   * the sale must carry an order type — loadIi skips it otherwise.
+// A line is "booked" only when ALL of its consumption is booked; otherwise it
+// renders red with the reason(s).
+function fgItemLines(it){
+  // Cache is keyed to the loaded masters, so a later RM Master / BOM refresh
+  // recomputes booking status instead of showing stale colours.
+  const sig = (RM.items || []).length + '|' + (BOM.boms || []).length + '|' + (RM.synced_at || RM.meta && RM.meta.synced_at || '');
+  if(it._lines && it._linesSig === sig) return it._lines;
   const rmByCode = new Map((RM.items || []).map((r) => [String(r.code || '').toUpperCase(), r]));
   const map = new Map();
-  for(const ln of fgBomInputs(bomCode)){
-    const key = (ln.product_code || 'name:' + ln.product_name).toUpperCase();
-    let row = map.get(key);
-    if(!row){ row = { product_code: ln.product_code, product_name: ln.product_name, unit: ln.unit, per1: 0 }; map.set(key, row); }
-    if(!row.unit) row.unit = ln.unit;
-    row.per1 += ln.usage_qty;
+  for(const [code, b] of Object.entries(it.boms || {})){
+    const bom = (BOM.boms || []).find((x) => String(x.code || '').toUpperCase() === code.toUpperCase());
+    const bomOk = !!(bom && bom.fpQty > 0);
+    const bookableUnits = bomOk ? Math.max(0, b.qty - (b.skipQty || 0)) : 0;
+    for(const ln of fgBomInputs(code)){
+      const k = (ln.product_code || 'name:' + ln.product_name).toUpperCase();
+      let row = map.get(k);
+      if(!row){
+        const rm = rmByCode.get(String(ln.product_code || '').toUpperCase());
+        row = { product_code: ln.product_code, product_name: ln.product_name, unit: ln.unit,
+                // Ideal Inventory lines = RM Master items with a storage that are
+                // not ghosts (iiBuildItemsFromRm), so only those book consumption.
+                category: rm ? (rm.idealStorage || '') : '', in_master: !!rm, rmBooked: !!(rm && rm.idealStorage && !rm.isGhost),
+                consumed: 0, bookedQty: 0, reasons: new Set() };
+        map.set(k, row);
+      }
+      if(!row.unit) row.unit = ln.unit;
+      row.consumed += ln.usage_qty * b.qty;
+      if(row.rmBooked) row.bookedQty += ln.usage_qty * bookableUnits;
+      if(!row.in_master)     row.reasons.add('Not in RM Master');
+      else if(!row.rmBooked) row.reasons.add('In RM Master but not an Ideal Inventory line (no storage, or flagged as a ghost)');
+      if(!bomOk)             row.reasons.add('BOM ' + code + ' has no batch output qty, so Ideal Inventory skips it');
+      if(b.skipQty)          row.reasons.add(qty(b.skipQty) + ' unit(s) sold with no order type, which Ideal Inventory skips');
+    }
   }
-  const out = [...map.values()].map((r) => {
-    const rm = rmByCode.get(String(r.product_code || '').toUpperCase());
-    return { product_code: r.product_code, product_name: r.product_name, unit: r.unit,
-             category: rm ? (rm.idealStorage || '') : '', in_master: !!rm,
-             per1: r.per1, consumed: r.per1 * (Number(qtySold) || 0) };
-  });
-  out.sort((a, b) => (a.product_name || '').localeCompare(b.product_name || ''));
+  const out = [...map.values()].map((r) => ({
+    product_code: r.product_code, product_name: r.product_name, unit: r.unit,
+    category: r.category, in_master: r.in_master,
+    consumed: r.consumed,
+    per1: it.total > 0 ? r.consumed / it.total : 0,
+    booked: r.consumed > 0 ? (r.bookedQty >= r.consumed * (1 - 1e-9)) : r.rmBooked,
+    reasons: [...r.reasons],
+  }));
+  // Unbooked (red) lines first so they stand out, then by name.
+  out.sort((a, b) => (a.booked - b.booked) || (a.product_name || '').localeCompare(b.product_name || ''));
+  it._lines = out;
+  it._linesSig = sig;
   return out;
+}
+
+// "% Consumption Booked" for an item = share of its raw-material lines whose
+// consumption fully lands in Ideal Inventory. Units with no BOM in Item Master
+// book nothing and are flagged separately.
+function fgItemBooking(it){
+  const lines = fgItemLines(it);
+  if(!lines.length){
+    return { pct: null, n: 0, total: 0, label: (it.noBom > 0 ? 'No BOM' : 'No RM lines'), bad: true };
+  }
+  const n = lines.filter((l) => l.booked).length;
+  const pct = Math.round((n / lines.length) * 100);
+  let label = pct + '% · ' + n + '/' + lines.length;
+  if(it.noBom > 0) label += ' · ' + qty(it.noBom) + ' unit(s) no BOM';
+  return { pct, n, total: lines.length, label, bad: pct < 100 || it.noBom > 0 };
 }
 
 // Aggregate RM consumption across every entry. Returns an array of rows
@@ -6207,50 +6515,56 @@ function fgComputeConsumption(){
 }
 
 function fgRender(){
-  // Finished-goods table — one row per entry with Qty Sold as a proper column.
-  // Rows carry a SOURCE pill distinguishing auto-fetched Sales Summary entries
-  // from manual what-if adds so the operator can tell actual KOT consumption
-  // from scenario math at a glance.
+  // Items table — one row per item sold at the outlet (plus manual what-if
+  // rows), units split by channel, and the share of its raw-material
+  // consumption that lands in Ideal Inventory. Rows are addressed by their
+  // index in FG._view (not by name) so item names with quotes are safe.
   const body    = $('fgEntriesBody');
   const countEl = $('fgEntriesCount');
-  if(!FG.entries.length){
-    if(body) body.innerHTML = '<tr><td colspan="5" class="mut" style="padding:16px;text-align:center">Pick an outlet + date range above and click <b>⚡ Compute</b> — the finished goods sold in that window will auto-populate here with their qty from the Sales Summary feed. You can also add a BOM manually to layer a "what-if" scenario on top.</td></tr>';
+  const q = String(($('fgItemQ') && $('fgItemQ').value) || '').trim().toLowerCase();
+  FG._view = [];
+  if(!FG.items.length){
+    if(body) body.innerHTML = '<tr><td colspan="10" class="mut" style="padding:16px;text-align:center">Pick an outlet + date range (or <b>⤓ From Opening Inv</b>) and click <b>⚡ Compute</b> — every item sold at the outlet in that window appears here by channel. Double-click an item to see its raw-material consumption.</td></tr>';
     if(countEl) countEl.textContent = '';
   } else {
-    // Sort: auto-fetched first (biggest qty on top), then manual.
-    const sorted = FG.entries.map((e, i) => ({ e, i })).sort((a, b) => {
-      const sa = a.e.source === 'manual' ? 1 : 0, sb = b.e.source === 'manual' ? 1 : 0;
-      if(sa !== sb) return sa - sb;
-      return (b.e.qty || 0) - (a.e.qty || 0);
-    });
+    FG._view = FG.items
+      .filter((it) => !q || it.name.toLowerCase().includes(q))
+      .sort((a, b) => ((a.source === 'manual') - (b.source === 'manual')) || ((b.total || 0) - (a.total || 0)));
+    const cell = (v) => (v ? qty(v) : '<span class="mut">—</span>');
     if(body){
-      body.innerHTML = sorted.map(({ e, i }) => {
-        const isManual = e.source === 'manual';
-        const pill = isManual
-          ? '<span style="font-size:10.5px;background:#4338ca;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600">MANUAL</span>'
-          : '<span style="font-size:10.5px;background:#64748b;color:#fff;padding:2px 8px;border-radius:4px;font-weight:600">SALES</span>';
-        const cEsc = esc(e.bom_code || '').replace(/'/g, "\\'");
-        return '<tr ondblclick="fgViewEntry(\'' + cEsc + '\')" style="cursor:pointer" title="Double-click to see this finished good\'s raw-material consumption">'
-          + '<td>' + pill + '</td>'
-          + '<td class="code">' + esc(e.bom_code || '') + '</td>'
-          + '<td>' + esc(e.bom_name || '') + '</td>'
-          + '<td class="r" style="font-weight:600">' + qty(e.qty) + '</td>'
-          + '<td style="white-space:nowrap">'
-            + '<button class="btn" style="padding:3px 8px;font-size:11px" title="See this finished good\'s RM consumption" onclick="event.stopPropagation();fgViewEntry(\'' + cEsc + '\')">👁</button> '
-            + '<button class="btn" style="padding:3px 8px;font-size:11px" title="Remove this entry" onclick="event.stopPropagation();fgRemoveEntry(' + i + ')">✕</button>'
-          + '</td>'
-        + '</tr>';
-      }).join('');
+      if(!FG._view.length){
+        body.innerHTML = '<tr><td colspan="10" class="mut" style="padding:16px;text-align:center">No item matches "' + esc(q) + '".</td></tr>';
+      } else {
+        body.innerHTML = FG._view.map((it, i) => {
+          const bk = fgItemBooking(it);
+          const style = (!bk.bad) ? 'background:#dcfce7;color:#166534'
+                      : (bk.pct != null && bk.pct >= 50) ? 'background:#fef3c7;color:#92400e'
+                      : 'background:#fee2e2;color:#991b1b';
+          const manual = it.source === 'manual'
+            ? ' <span style="font-size:10px;background:#4338ca;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600">MANUAL</span>' : '';
+          return '<tr ondblclick="fgViewItem(' + i + ')" style="cursor:pointer" title="Double-click to see this item\'s raw-material consumption">'
+            + '<td class="mut">' + (i + 1) + '</td>'
+            + '<td>' + esc(it.name) + manual + '</td>'
+            + '<td>' + (it.category ? esc(it.category) : '<span class="mut">—</span>') + '</td>'
+            + '<td class="r">' + cell(it.ch.delivery) + '</td>'
+            + '<td class="r">' + cell(it.ch.dine_in) + '</td>'
+            + '<td class="r">' + cell(it.ch.addon) + '</td>'
+            + '<td class="r">' + cell(it.ch.extra) + '</td>'
+            + '<td class="r" style="font-weight:600">' + qty(it.total) + '</td>'
+            + '<td class="r"><span class="sb" style="' + style + ';white-space:nowrap">' + esc(bk.label) + '</span></td>'
+            + '<td style="white-space:nowrap">'
+              + '<button class="btn" style="padding:3px 8px;font-size:11px" title="See this item\'s RM consumption" onclick="event.stopPropagation();fgViewItem(' + i + ')">👁</button> '
+              + '<button class="btn" style="padding:3px 8px;font-size:11px" title="Remove this row" onclick="event.stopPropagation();fgRemoveItem(FG._view[' + i + '].key)">✕</button>'
+            + '</td>'
+          + '</tr>';
+        }).join('');
+      }
     }
-    const salesN = FG.entries.filter(e => e.source !== 'manual').length;
-    const manN   = FG.entries.length - salesN;
-    const totalQ = FG.entries.reduce((a, e) => a + (Number(e.qty) || 0), 0);
-    const summary = [
-      salesN ? (salesN + ' from sales') : '',
-      manN   ? (manN + ' manual')       : '',
-      totalQ ? ('total qty ' + qty(totalQ)) : '',
-    ].filter(Boolean).join(' · ');
-    if(countEl) countEl.textContent = '· ' + summary;
+    const units  = FG.items.reduce((a, it) => a + (it.total || 0), 0);
+    const fully  = FG.items.filter((it) => !fgItemBooking(it).bad).length;
+    const parts  = [FG.items.length + ' item' + (FG.items.length === 1 ? '' : 's'), qty(units) + ' units', fully + ' fully booked'];
+    if(q) parts.push(FG._view.length + ' shown');
+    if(countEl) countEl.textContent = '· ' + parts.join(' · ');
   }
 
   // Consumption table
@@ -6259,7 +6573,7 @@ function fgRender(){
   fgRenderLeaks(rows);
   if(!rows.length){
     tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:20px;text-align:center">'
-      + (FG.entries.length ? 'Added finished goods have no BOM inputs on record.' : 'Add a finished good above to see its raw-material breakdown.')
+      + (FG.items.length ? 'None of the items in this window map to a BOM with raw-material inputs.' : 'Compute a window above to see the raw-material consumption of everything sold.')
       + '</td></tr>';
     return;
   }
@@ -6275,36 +6589,50 @@ function fgRender(){
   ).join('');
 }
 
-// Per-FG drill-down: open one finished good and show the raw materials it
-// consumed (per 1 FG and for its qty sold), with unbooked RMs flagged.
-function fgViewEntry(bomCode){
-  const ent = (FG.entries || []).find(e => String(e.bom_code || '').toUpperCase() === String(bomCode || '').toUpperCase());
-  const qtySold = ent ? (Number(ent.qty) || 0) : 0;
+// Item drill-down (double-click a row): every raw material the item consumed
+// with its quantity. Lines whose consumption is NOT booked in Ideal Inventory
+// are highlighted red, with the reason on hover.
+function fgViewItem(i){
+  const it = (FG._view || [])[i]; if(!it) return;
   const nameEl = $('fgEntryName');
-  if(nameEl) nameEl.textContent = (ent && ent.bom_name) ? (ent.bom_name + ' (' + bomCode + ')') : bomCode;
-  const lines = fgEntryLines(bomCode, qtySold);
+  if(nameEl) nameEl.textContent = it.name;
+  const lines = fgItemLines(it);
+  const bk = fgItemBooking(it);
   const metaEl = $('fgEntryMeta');
   if(metaEl){
-    const unbooked = lines.filter(l => !l.in_master && l.consumed > 0).length;
-    const parts = ['<b>Qty sold:</b> ' + qty(qtySold), '<b>Distinct RMs:</b> ' + lines.length];
-    if(unbooked) parts.push('<b style="color:#b45309">⚠ ' + unbooked + ' not booked in ideal inventory</b>');
+    const ch = it.ch || {};
+    const chParts = [['Delivery', ch.delivery], ['Dine-in', ch.dine_in], ['Add-on', ch.addon], ['Extra', ch.extra]]
+      .filter((p) => p[1] > 0).map((p) => p[0] + ' ' + qty(p[1]));
+    const boms = Object.entries(it.boms || {}).map(([c, b]) => esc(c) + ' (' + qty(b.qty) + ')');
+    const unbooked = lines.filter((l) => !l.booked).length;
+    const parts = [
+      it.category ? ('<b>Category:</b> ' + esc(it.category)) : '',
+      '<b>Units sold:</b> ' + qty(it.total) + (chParts.length ? (' (' + chParts.join(' · ') + ')') : ''),
+      boms.length ? ('<b>BOM:</b> ' + boms.join(', ')) : '',
+      '<b>Consumption booked:</b> ' + esc(bk.label),
+      unbooked ? ('<b style="color:#b91c1c">' + unbooked + ' raw material' + (unbooked === 1 ? '' : 's') + ' not booked in Ideal Inventory (red)</b>') : '',
+      it.noBom ? ('<b style="color:#b91c1c">' + qty(it.noBom) + ' unit(s) have no BOM in Item Master, so they book nothing</b>') : '',
+    ].filter(Boolean);
     metaEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
   }
   const tb = $('tbodyFgEntry');
   if(tb){
     if(!lines.length){
-      tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:16px;text-align:center">This finished good has no BOM inputs on record.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="6" class="mut" style="padding:16px;text-align:center">'
+        + (it.noBom ? 'This item has no BOM in Item Master, so none of its consumption is booked.' : 'This item\'s BOM has no raw-material inputs on record.')
+        + '</td></tr>';
     } else {
-      tb.innerHTML = lines.map(l => {
-        const leak = !l.in_master && l.consumed > 0;
-        const codeCell = leak ? ('<span title="Consumed but not in RM Master — not booked in ideal inventory" style="color:#b45309;font-weight:600">⚠ ' + esc(l.product_code || '—') + '</span>') : esc(l.product_code || '—');
-        return '<tr>'
-          + '<td class="code">' + codeCell + '</td>'
-          + '<td>' + esc(l.product_name || '') + '</td>'
+      tb.innerHTML = lines.map((l) => {
+        const red = !l.booked;
+        const rowStyle = red ? ' style="background:#fef2f2;color:#b91c1c"' : '';
+        const why = red ? (' title="Not booked in Ideal Inventory: ' + esc(l.reasons.join('; ') || 'not an Ideal Inventory line') + '"') : '';
+        return '<tr' + rowStyle + why + '>'
+          + '<td class="code"' + (red ? ' style="color:#b91c1c;font-weight:700"' : '') + '>' + esc(l.product_code || '—') + '</td>'
+          + '<td' + (red ? ' style="font-weight:600"' : '') + '>' + esc(l.product_name || '') + '</td>'
           + '<td>' + (l.category ? ('<span class="sb">' + esc(l.category) + '</span>') : '<span class="mut">—</span>') + '</td>'
           + '<td>' + esc(l.unit || '') + '</td>'
-          + '<td class="r">' + qty(l.per1) + '</td>'
-          + '<td class="r" style="font-weight:600">' + qty(l.consumed) + '</td>'
+          + '<td class="r">' + qtyPrecise(l.per1) + '</td>'
+          + '<td class="r" style="font-weight:600">' + qtyPrecise(l.consumed) + '</td>'
         + '</tr>';
       }).join('');
     }
@@ -6353,13 +6681,18 @@ function fgExportLeaksCsv(){
 }
 
 function fgExportCsv(){
-  if(!FG.entries.length){ toast('Add a finished good first.', 1800); return; }
+  if(!FG.items.length){ toast('Compute a window first.', 1800); return; }
   const esc2 = v => { if(v==null) return ''; const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
   const lines = [];
-  // Section 1: the inputs the user added
-  lines.push('# Finished goods entered');
-  lines.push(['BOM Code','BOM Name','Qty Sold'].map(esc2).join(','));
-  for(const e of FG.entries) lines.push([e.bom_code, e.bom_name, e.qty].map(esc2).join(','));
+  // Section 1: items sold, by channel, with consumption-booked share
+  lines.push('# Items sold');
+  lines.push(['S.No','Item Name','Category','Delivery','Dine-in','Add-on','Extra','Total Units','% Consumption Booked','RMs Booked','RMs Total','Units With No BOM','Source'].map(esc2).join(','));
+  const view = FG.items.slice().sort((a, b) => ((a.source === 'manual') - (b.source === 'manual')) || ((b.total || 0) - (a.total || 0)));
+  view.forEach((it, i) => {
+    const bk = fgItemBooking(it);
+    lines.push([i + 1, it.name, it.category, it.ch.delivery, it.ch.dine_in, it.ch.addon, it.ch.extra, it.total,
+                bk.pct == null ? bk.label : bk.pct, bk.n, bk.total, it.noBom, it.source].map(esc2).join(','));
+  });
   lines.push('');
   // Section 2: aggregated consumption
   lines.push('# Aggregated raw-material consumption');
