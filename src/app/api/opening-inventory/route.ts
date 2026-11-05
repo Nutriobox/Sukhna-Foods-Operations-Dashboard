@@ -153,27 +153,116 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * DELETE /api/opening-inventory?id=<uuid>[&preview=1]
+ *
+ * Deleting an admin Opening Inventory count also deletes everything that was
+ * built on it for that outlet — the opening's PERIOD runs from its dt_iso up
+ * to the outlet's next admin opening (or open-ended if it is the latest):
+ *   - Ideal Inventory snapshots (IOs) tied to this opening (opening_count.id),
+ *     or — for legacy snapshots saved without that link — whose window starts
+ *     inside the period; plus their pending wastage-approval OTPs
+ *   - Wastage submissions (outlet_wastage_counts) dated inside the period
+ *   - On-hand submissions (portal rows in opening_inventory_counts) tagged to
+ *     a deleted IO, or untagged and dated inside the period
+ * Approved variance/wastage lives inside the snapshot rows, so it goes too.
+ *
+ * preview=1 returns the counts that WOULD be deleted without touching data,
+ * so the UI can show the operator exactly what goes before confirming.
+ * Deleting a portal on-hand row directly removes just that row.
+ */
+type CountRow = { id: string; outlet: string; dt_iso: string | null; created_by: string | null; snapshot_id?: string | null };
+type SnapRow  = { id: string; window_from: string | null; opening_count: { id?: string } | null };
+type WasteRow = { id: string; dt_iso: string | null };
+
 export async function DELETE(req: Request) {
   { const _g = await requireAdmin(req); if (!_g.ok) return gateDenied(_g); }
   const { url, key } = sbEnv();
   if (!url || !key) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
-  const id = new URL(req.url).searchParams.get("id");
+  const sp = new URL(req.url).searchParams;
+  const id = sp.get("id");
+  const preview = sp.get("preview") === "1";
   if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400, headers: CORS });
 
-  try {
-    const r = await fetch(
-      `${url}/rest/v1/opening_inventory_counts?id=eq.${encodeURIComponent(id)}`,
-      {
-        method: "DELETE",
-        headers: { apikey: key, Authorization: `Bearer ${key}`, Prefer: "return=minimal" },
-        cache: "no-store",
-      }
-    );
-    if (!r.ok && r.status !== 204) {
-      const t = await r.text().catch(() => "");
-      return NextResponse.json({ ok: false, error: `Supabase ${r.status}: ${t.slice(0, 200)}` }, { status: 500, headers: CORS });
+  const rh = { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" };
+  // Paged read: PostgREST caps a response at 1000 rows by default. A truncated
+  // read here could miss the outlet's next opening and widen the period, so
+  // every cascade read pages through to the end (stable order by id).
+  const get = async <T,>(path: string): Promise<T[]> => {
+    const PAGE = 1000;
+    const out: T[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const sep = path.includes("?") ? "&" : "?";
+      const r = await fetch(`${url}/rest/v1/${path}${sep}order=id.asc&limit=${PAGE}&offset=${offset}`, { headers: rh, cache: "no-store" });
+      if (!r.ok) throw new Error(`Supabase read ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+      const rows = (await r.json()) as T[];
+      out.push(...rows);
+      if (rows.length < PAGE) return out;
+      if (offset > 200_000) throw new Error("cascade read too large; aborting before deleting anything");
     }
-    return NextResponse.json({ ok: true, deleted: id }, { headers: CORS });
+  };
+  const del = async (table: string, filter: string) => {
+    const r = await fetch(`${url}/rest/v1/${table}?${filter}`, {
+      method: "DELETE",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, Prefer: "return=minimal" },
+      cache: "no-store",
+    });
+    if (!r.ok && r.status !== 204) throw new Error(`Supabase delete ${table} ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+  };
+  const inList = (ids: string[]) => `in.(${ids.map(encodeURIComponent).join(",")})`;
+  const isPortal = (c: { created_by: string | null }) => typeof c.created_by === "string" && c.created_by.startsWith("portal:");
+  const m16 = (s: string | null | undefined) => String(s || "").slice(0, 16);
+
+  try {
+    const target = (await get<CountRow>(`opening_inventory_counts?id=eq.${encodeURIComponent(id)}&select=id,outlet,dt_iso,created_by`))[0];
+    if (!target) return NextResponse.json({ ok: false, error: "not found" }, { status: 404, headers: CORS });
+
+    let snapIds: string[] = [], wasteIds: string[] = [], onhandIds: string[] = [];
+    let periodFrom = m16(target.dt_iso), periodTo: string | null = null;
+
+    if (!isPortal(target) && periodFrom) {
+      const outletQ = `outlet=eq.${encodeURIComponent(target.outlet)}`;
+      const counts = await get<CountRow>(`opening_inventory_counts?${outletQ}&select=id,dt_iso,created_by,snapshot_id`);
+      const next = counts
+        .filter((c) => c.id !== id && !isPortal(c) && m16(c.dt_iso) > periodFrom)
+        .map((c) => m16(c.dt_iso)).sort()[0];
+      periodTo = next || null;
+      const inPeriod = (d: string | null) => { const x = m16(d); return !!x && x >= periodFrom && (periodTo == null || x < periodTo); };
+
+      const snaps = await get<SnapRow>(`ideal_inventory_snapshots?${outletQ}&select=id,window_from,opening_count`);
+      snapIds = snaps.filter((s) => {
+        const linked = s.opening_count && typeof s.opening_count === "object" ? s.opening_count.id : undefined;
+        // A snapshot linked to this opening still has to sit before the next
+        // opening — guards an IO that was linked to an older opening but whose
+        // window actually belongs to a later period.
+        if (linked) return linked === id && (periodTo == null || !m16(s.window_from) || m16(s.window_from) < periodTo);
+        return inPeriod(s.window_from);
+      }).map((s) => s.id);
+      const snapSet = new Set(snapIds);
+
+      const waste = await get<WasteRow>(`outlet_wastage_counts?${outletQ}&select=id,dt_iso`);
+      wasteIds = waste.filter((w) => inPeriod(w.dt_iso)).map((w) => w.id);
+
+      onhandIds = counts
+        .filter((c) => isPortal(c) && (c.snapshot_id ? snapSet.has(c.snapshot_id) : inPeriod(c.dt_iso)))
+        .map((c) => c.id);
+    }
+
+    const cascade = { snapshots: snapIds.length, wastage: wasteIds.length, onhand: onhandIds.length };
+    const period = { from: periodFrom, to: periodTo };
+    if (preview) {
+      return NextResponse.json({ ok: true, preview: true, outlet: target.outlet, dt_iso: target.dt_iso, portal: isPortal(target), period, cascade }, { headers: CORS });
+    }
+
+    // Children first, so a mid-way failure never leaves an IO pointing at a
+    // deleted opening with its submissions still attached.
+    if (snapIds.length)   await del("wastage_approval_otps", `snapshot_id=${inList(snapIds)}`).catch(() => undefined);
+    if (wasteIds.length)  await del("outlet_wastage_counts", `id=${inList(wasteIds)}`);
+    if (onhandIds.length) await del("opening_inventory_counts", `id=${inList(onhandIds)}`);
+    if (snapIds.length)   await del("ideal_inventory_snapshots", `id=${inList(snapIds)}`);
+    await del("opening_inventory_counts", `id=eq.${encodeURIComponent(id)}`);
+
+    return NextResponse.json({ ok: true, deleted: id, outlet: target.outlet, period, cascade }, { headers: CORS });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: CORS });
