@@ -59,8 +59,8 @@ type SnapBatch = { batch: string; warehouse: string; mfg: string; availGms: numb
 type Row = { batch: string; warehouse: string; mfg: string; qty: number };
 type Item = {
   code: string; name: string; salesUnit: string; scale: number;
-  system: number; actual: number; variance: number; klass: "Scrap" | "Excess" | "Match"; qty: number;
-  warehouse: string; scrapRows: Row[]; excessRows: Row[]; flags: string[];
+  system: number; actual: number; variance: number; klass: "Scrap" | "Excess" | "Match" | "Uncounted"; qty: number;
+  coverage: number; warehouse: string; scrapRows: Row[]; excessRows: Row[]; flags: string[];
 };
 type Order = { id: string; orderNo: string; status: string; createdAt: string; items: Item[] };
 
@@ -135,12 +135,18 @@ export async function GET(req: Request) {
         const system = num(s.required);
         const actual = num(s.scanned);
         const variance = actual - system;
-        const klass: Item["klass"] = variance < 0 ? "Scrap" : variance > 0 ? "Excess" : "Match";
-        const qty = Math.abs(variance);
         const flags: string[] = [];
 
         // physical batches actually scanned, aggregated
         const packs = (Array.isArray(s.packs) ? s.packs : []) as Array<Record<string, unknown>>;
+        const counted = packs.length > 0 || actual > 0;
+        // An item listed in the order but never physically scanned is NOT scrap — it was simply
+        // not counted. Only compare items that were actually counted.
+        const klass: Item["klass"] = !counted ? "Uncounted" : variance < 0 ? "Scrap" : variance > 0 ? "Excess" : "Match";
+        const qty = klass === "Uncounted" ? 0 : Math.abs(variance);
+        const coverage = system > 0 ? actual / system : actual > 0 ? 999 : 1;
+        if (!counted) flags.push("not counted in this order — excluded from scrap");
+        else if (klass === "Scrap" && coverage < 0.5) flags.push(`counted only ${Math.round(coverage * 100)}% of system stock — likely a partial count, review before scrapping`);
         const scannedAgg: Record<string, number> = {};
         for (const p of packs) { const b = String(p.batch || "").trim(); if (!b) continue; scannedAgg[b] = (scannedAgg[b] || 0) + num(p.qty); }
         const scannedBatches = Object.entries(scannedAgg)
@@ -159,7 +165,7 @@ export async function GET(req: Request) {
           excessRows = allocate(qty, scannedBatches.map((b) => ({ batch: b.batch, warehouse: b.warehouse, mfg: b.mfg, cap: b.qty })));
         }
 
-        return { code, name, salesUnit: String(s.salesUnit || ""), scale: num(s.scale) || 1, system, actual, variance, klass, qty, warehouse, scrapRows, excessRows, flags };
+        return { code, name, salesUnit: String(s.salesUnit || ""), scale: num(s.scale) || 1, system, actual, variance, klass, qty, coverage, warehouse, scrapRows, excessRows, flags };
       });
       return { id: String(o.id || ""), orderNo: String(o.order_no || ""), status: String(o.status || ""), createdAt: String(o.created_at || ""), items };
     });

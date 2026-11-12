@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 type Row = { batch: string; warehouse: string; mfg: string; qty: number };
 type Item = {
   code: string; name: string; salesUnit: string; scale: number;
-  system: number; actual: number; variance: number; klass: "Scrap" | "Excess" | "Match"; qty: number;
-  warehouse: string; scrapRows: Row[]; excessRows: Row[]; flags: string[];
+  system: number; actual: number; variance: number; klass: "Scrap" | "Excess" | "Match" | "Uncounted"; qty: number;
+  coverage: number; warehouse: string; scrapRows: Row[]; excessRows: Row[]; flags: string[];
 };
 type Order = { id: string; orderNo: string; status: string; createdAt: string; items: Item[] };
 type Resp = { ok: boolean; date?: string; snapshotAt?: string | null; snapshotProducts?: number; orders?: Order[]; error?: string };
 
 const C = { ink: "#0e2233", sub: "#64748b", line: "#e2e8f0", head: "#f1f5f9" };
-const klassColor: Record<string, string> = { Scrap: "#dc2626", Excess: "#2563eb", Match: "#16a34a" };
+const klassColor: Record<string, string> = { Scrap: "#dc2626", Excess: "#2563eb", Match: "#16a34a", Uncounted: "#94a3b8" };
 
 // Fixed PACT-import constants (editable in the export dialog).
 const SCRAP_DEFAULTS = { prefix: "26-27/", location: "Factory", unit: "Gms" };
@@ -60,14 +60,15 @@ export default function StockReconciliationPage() {
   const visible = useMemo(() => orders.filter((o) => status === "all" || o.status === status), [orders, status]);
 
   const stats = useMemo(() => {
-    let items = 0, scrapN = 0, excessN = 0, matchN = 0, scrapQ = 0, excessQ = 0;
+    let items = 0, scrapN = 0, excessN = 0, matchN = 0, uncountedN = 0, scrapQ = 0, excessQ = 0;
     visible.forEach((o) => o.items.forEach((it) => {
       items++;
       if (it.klass === "Scrap") { scrapN++; scrapQ += it.qty; }
       else if (it.klass === "Excess") { excessN++; excessQ += it.qty; }
+      else if (it.klass === "Uncounted") uncountedN++;
       else matchN++;
     }));
-    return { vouchers: visible.length, items, scrapN, excessN, matchN, scrapQ, excessQ };
+    return { vouchers: visible.length, items, scrapN, excessN, matchN, uncountedN, scrapQ, excessQ };
   }, [visible]);
 
   const flagged = useMemo(() => {
@@ -131,8 +132,8 @@ export default function StockReconciliationPage() {
 
   async function exportMaster() {
     const XLSX = await import("xlsx");
-    const summary: (string | number)[][] = [["Date", "Voucher (order)", "Status", "Code", "Product", "Sales unit", "System (gms)", "Actual (gms)", "Variance (gms)", "Result", "Warehouse"]];
-    visible.forEach((o) => o.items.forEach((it) => summary.push([date, o.orderNo, o.status, it.code, it.name, it.salesUnit, it.system, it.actual, it.variance, it.klass, it.warehouse])));
+    const summary: (string | number)[][] = [["Date", "Voucher (order)", "Status", "Code", "Product", "Sales unit", "System (gms)", "Actual (gms)", "Variance (gms)", "Counted % of system", "Result", "Warehouse", "Review note"]];
+    visible.forEach((o) => o.items.forEach((it) => summary.push([date, o.orderNo, o.status, it.code, it.name, it.salesUnit, it.system, it.actual, it.variance, it.coverage >= 999 ? "" : Math.round(it.coverage * 100) + "%", it.klass, it.warehouse, it.flags.join("; ")])));
     const scrapD: (string | number)[][] = [["Code", "Product", "Warehouse", "Batch No", "Mfg date", "Scrap qty (Gms)", "From voucher"]];
     scrapLines.forEach((l) => scrapD.push([l.code, l.name, l.warehouse, l.batch, l.mfg, l.qty, l.order]));
     const excessD: (string | number)[][] = [["Code", "Product", "Warehouse", "Batch No", "Mfg date", "Qty (Gms)", "From voucher"]];
@@ -184,6 +185,7 @@ export default function StockReconciliationPage() {
           ["Scrap items", `${nf(stats.scrapN)}  ·  ${nf(stats.scrapQ)} g`, klassColor.Scrap],
           ["Excess items", `${nf(stats.excessN)}  ·  ${nf(stats.excessQ)} g`, klassColor.Excess],
           ["Matched", nf(stats.matchN), klassColor.Match],
+          ["Not counted", nf(stats.uncountedN), klassColor.Uncounted],
         ].map(([label, val, color]) => (
           <div key={label as string} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: "8px 14px", minWidth: 110, background: "#fff" }}>
             <div style={{ fontSize: 11, color: C.sub, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
@@ -194,7 +196,11 @@ export default function StockReconciliationPage() {
 
       {flagged.length > 0 && (
         <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#92400e" }}>
-          <b>{flagged.length} item(s) need a warehouse check</b> — not found in the latest PACT batch snapshot; their warehouse/batch may be blank in the import. {flagged.slice(0, 6).map((f) => f.item).join("; ")}{flagged.length > 6 ? "…" : ""}
+          <b>{flagged.length} item(s) to review before importing.</b> Scrap assumes the day&rsquo;s count was a <b>complete</b> physical count of the item. Items not counted are excluded; items counted far below system stock are flagged as likely partial counts — don&rsquo;t scrap those unless the count really was complete.
+          <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+            {flagged.slice(0, 8).map((f, i) => <li key={i} style={{ marginBottom: 2 }}>{f.item} — {f.flags.join("; ")}</li>)}
+          </ul>
+          {flagged.length > 8 && <div style={{ marginTop: 4 }}>…and {flagged.length - 8} more.</div>}
         </div>
       )}
 
@@ -275,7 +281,7 @@ function FragmentOrder({ o, cell, numCell }: { o: Order; cell: React.CSSProperti
             <td style={{ ...cell, whiteSpace: "normal" }}>{it.name}</td>
             <td style={numCell}>{nf(it.system)}</td>
             <td style={numCell}>{nf(it.actual)}</td>
-            <td style={{ ...numCell, color: it.klass === "Scrap" ? klassColor.Scrap : it.klass === "Excess" ? klassColor.Excess : C.sub }}>{it.variance > 0 ? "+" : ""}{nf(it.variance)}</td>
+            <td style={{ ...numCell, color: klassColor[it.klass] || C.sub }}>{it.klass === "Uncounted" ? "—" : `${it.variance > 0 ? "+" : ""}${nf(it.variance)}`}</td>
             <td style={cell}><span style={{ display: "inline-block", padding: "1px 8px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, color: "#fff", background: klassColor[it.klass] }}>{it.klass}</span></td>
             <td style={{ ...cell, whiteSpace: "normal" }}>{it.warehouse || <span style={{ color: "#b45309" }}>—</span>}</td>
             <td style={{ ...cell, whiteSpace: "normal", color: C.sub, fontSize: 12 }}>{batchTxt}</td>
