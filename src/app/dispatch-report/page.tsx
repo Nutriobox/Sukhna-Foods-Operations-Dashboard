@@ -119,9 +119,12 @@ export default function DispatchReportPage() {
           B2B &amp; outlet data as of {fmtSync(synced.b2b)} / {fmtSync(synced.nb)} (last PACT sync) · scans are live
         </div>
       </div>
-      <p style={{ color: C.sub, margin: "0 0 16px", fontSize: 14 }}>
+      <p style={{ color: C.sub, margin: "0 0 12px", fontSize: 14 }}>
         Every dispatch in one place — B2B factory sales invoices, outlet stock-outward, and inventory-order scans.
       </p>
+      <a href="/stock-reconciliation" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16, padding: "7px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", color: C.ink, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+        Stock Reconciliation — scrap &amp; excess from the day&rsquo;s count &rarr;
+      </a>
 
       {/* summary chips */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
