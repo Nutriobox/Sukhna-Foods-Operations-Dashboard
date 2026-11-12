@@ -1805,6 +1805,16 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
             <span className="tile-go">Open {TileSvg.arrow}</span>
           </span>
         </a>
+        <a className="tile dispatch" href="/dispatch-report">
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.chart}</span>
+            <span className="tile-ttl">Dispatch Report</span>
+            <span className="tile-sub">Every dispatch in one place &mdash; B2B factory sales invoices, outlet stock-outward and inventory-order scans &mdash; filterable and exportable.</span>
+            <span className="tile-meta">All sources · filter &amp; export</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
+        </a>
       </div>
     </div>
   );
