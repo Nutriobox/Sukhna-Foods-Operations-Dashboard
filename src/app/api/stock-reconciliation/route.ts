@@ -125,9 +125,14 @@ export async function GET(req: Request) {
     const byBatch: Record<string, SnapBatch> = {};
     for (const r of snapRows) {
       const code = String(r.code || "").trim(); if (!code) continue;
+      const warehouse = String(r.warehouse || "").trim();
+      // System inventory = Factory location only. The BatchWise sync is already
+      // locked to the factory's 16 warehouses; drop rows with no real warehouse
+      // (blank "-") so nothing outside a Factory warehouse is ever used.
+      if (!warehouse || warehouse === "-") continue;
       const batch = String(r.batch || "").trim();
       const mfg = parseAnyDate(r.mfg) || mfgFromBatch(batch);
-      const b: SnapBatch = { batch, warehouse: String(r.warehouse || "").trim(), mfg, exp: parseAnyDate(r.exp) || expFromMfg(mfg), availGms: num(r.qty) * unitFactorToGms(String(r.unit || "")) };
+      const b: SnapBatch = { batch, warehouse, mfg, exp: parseAnyDate(r.exp) || expFromMfg(mfg), availGms: num(r.qty) * unitFactorToGms(String(r.unit || "")) };
       (idx[code] = idx[code] || []).push(b);
       if (batch) byBatch[`${code}|${batch}`] = b;
     }
