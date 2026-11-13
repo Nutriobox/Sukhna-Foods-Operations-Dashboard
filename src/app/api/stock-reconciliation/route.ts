@@ -84,10 +84,10 @@ type Item = {
 
 function allocate(need: number, batches: Array<{ batch: string; warehouse: string; mfg: Date | null; exp: Date | null; cap: number }>): Row[] {
   const out: Row[] = [];
-  let left = Math.round(need);
+  let left = Math.floor(need); // all batch inventory quantities are rounded DOWN (50.91 -> 50)
   for (const b of batches) {
     if (left <= 0) break;
-    const take = b.cap > 0 ? Math.min(left, Math.round(b.cap)) : left;
+    const take = b.cap > 0 ? Math.min(left, Math.floor(b.cap)) : left;
     if (take <= 0) continue;
     out.push({ batch: b.batch, warehouse: b.warehouse, mfg: iso(b.mfg), exp: iso(b.exp || expFromMfg(b.mfg)), qty: take });
     left -= take;
@@ -165,7 +165,7 @@ export async function GET(req: Request) {
       const name = latest.name, salesUnit = latest.salesUnit, scale = latest.scale;
       const variance = actual - system;
       const klass: Item["klass"] = actual <= 0 ? "Uncounted" : variance < 0 ? "Scrap" : variance > 0 ? "Excess" : "Match";
-      const qty = klass === "Uncounted" ? 0 : Math.abs(variance);
+      const qty = klass === "Uncounted" ? 0 : Math.floor(Math.abs(variance));
       const coverage = system > 0 ? actual / system : actual > 0 ? 999 : 0;
       const flags: string[] = [];
       const sources: Source[] = occs.map((o) => ({ orderNo: o.orderNo, postedAt: o.postedAt, scanned: o.scanned }));
