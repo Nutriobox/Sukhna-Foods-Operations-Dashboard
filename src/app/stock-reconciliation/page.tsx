@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type Row = { batch: string; warehouse: string; mfg: string; exp: string; qty: number };
+type Row = { batch: string; warehouse: string; doc: string; mfg: string; exp: string; qty: number };
 type Source = { orderNo: string; postedAt: string; scanned: number };
 type Item = {
   code: string; name: string; salesUnit: string; scale: number;
@@ -26,7 +26,7 @@ function fmtClock(iso: string | null) { if (!iso) return "—"; try { return new
 function fmtSync(s: string | null | undefined) { if (!s) return "—"; try { return new Date(s).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }); } catch { return String(s).slice(0, 16); } }
 
 type ExportKind = "scrap" | "excess";
-type Line = { code: string; name: string; warehouse: string; batch: string; mfg: string; exp: string; qty: number; order: string };
+type Line = { code: string; name: string; warehouse: string; batch: string; doc: string; mfg: string; exp: string; qty: number; order: string };
 
 export default function StockReconciliationPage() {
   const [date, setDate] = useState(todayIST());
@@ -99,7 +99,7 @@ export default function StockReconciliationPage() {
 
   const linesFor = useCallback((kind: ExportKind): Line[] => {
     const out: Line[] = [];
-    items.forEach((it) => { if ((kind === "scrap" ? "Scrap" : "Excess") === it.klass) rowsOf(it).forEach((r) => out.push({ code: it.code, name: it.name, warehouse: r.warehouse, batch: r.batch, mfg: r.mfg, exp: r.exp, qty: r.qty, order: it.sources.map((s) => s.orderNo).join(" + ") })); });
+    items.forEach((it) => { if ((kind === "scrap" ? "Scrap" : "Excess") === it.klass) rowsOf(it).forEach((r) => out.push({ code: it.code, name: it.name, warehouse: r.warehouse, batch: r.batch, doc: r.doc, mfg: r.mfg, exp: r.exp, qty: r.qty, order: it.sources.map((s) => s.orderNo).join(" + ") })); });
     return out;
   }, [items, rowsOf]);
   const scrapLines = useMemo(() => linesFor("scrap"), [linesFor]);
@@ -123,11 +123,11 @@ export default function StockReconciliationPage() {
     const XLSX = await import("xlsx");
     let aoa: (string | number | Date)[][];
     if (kind === "scrap") {
-      aoa = [["Doc date ", "Doc prefix", "Doc no", "Location", "Warehouse", "Product name", "Unit", "Scrap qty", "Unit price", "Value", "Batch No", "Mfg date", "Exp date", "Batch Allocation", "Damage Type", "IMPORT_STATUS", "IMPORT_MESSAGE"]];
-      lines.forEach((l, i) => aoa.push([dd, prefix, nos[i], SCRAP.location, l.warehouse, l.name, SCRAP.unit, l.qty, 0, 0, l.batch, dateFromIso(l.mfg), dateFromIso(l.exp), SCRAP.allocation, damage, "", ""]));
+      aoa = [["Doc date ", "Doc prefix", "Doc no", "Location", "Warehouse", "Product name", "Unit", "Scrap qty", "Unit price", "Value", "Batch No", "Mfg date", "Exp date", "Batch Allocation", "Damage Type", "IMPORT_STATUS", "IMPORT_MESSAGE", "Source Doc No"]];
+      lines.forEach((l, i) => aoa.push([dd, prefix, nos[i], SCRAP.location, l.warehouse, l.name, SCRAP.unit, l.qty, 0, 0, l.batch, dateFromIso(l.mfg), dateFromIso(l.exp), SCRAP.allocation, damage, "", "", l.doc]));
     } else {
-      aoa = [["Doc date ", "Doc prefix", "Doc no", "Credit ", "Location", "Warehouse", "Product name", "Unit", "Qty", "Unit price", "Value", "Batch No", "Mfg date", "Exp date", "IMPORT_STATUS", "IMPORT_MESSAGE"]];
-      lines.forEach((l, i) => aoa.push([dd, prefix, nos[i], EXCESS.credit, EXCESS.location, l.warehouse, l.name, EXCESS.unit, l.qty, 0, 0, l.batch, dateFromIso(l.mfg), dateFromIso(l.exp), "", ""]));
+      aoa = [["Doc date ", "Doc prefix", "Doc no", "Credit ", "Location", "Warehouse", "Product name", "Unit", "Qty", "Unit price", "Value", "Batch No", "Mfg date", "Exp date", "IMPORT_STATUS", "IMPORT_MESSAGE", "Source Doc No"]];
+      lines.forEach((l, i) => aoa.push([dd, prefix, nos[i], EXCESS.credit, EXCESS.location, l.warehouse, l.name, EXCESS.unit, l.qty, 0, 0, l.batch, dateFromIso(l.mfg), dateFromIso(l.exp), "", "", l.doc]));
     }
     const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: "dd-mm-yyyy" });
     const wb = XLSX.utils.book_new();
@@ -140,10 +140,10 @@ export default function StockReconciliationPage() {
     const XLSX = await import("xlsx");
     const summary: (string | number)[][] = [["Date", "Code", "Product", "Sales unit", "System (gms)", "Actual (gms)", "Variance (gms)", "Result", "Warehouse", "Counts", "Note"]];
     items.forEach((it) => summary.push([date, it.code, it.name, it.salesUnit, it.system, it.actual, it.variance, it.klass, it.warehouse, it.sources.map((s) => `${s.orderNo}@${fmtTime(s.postedAt)}=${Math.round(s.scanned)}`).join(" | "), it.flags.join("; ")]));
-    const sD: (string | number)[][] = [["Code", "Product", "Warehouse", "Batch No", "Mfg date", "Scrap qty (Gms)", "From vouchers"]];
-    scrapLines.forEach((l) => sD.push([l.code, l.name, l.warehouse, l.batch, toDMY(l.mfg), l.qty, l.order]));
-    const eD: (string | number)[][] = [["Code", "Product", "Warehouse", "Batch No", "Mfg date", "Qty (Gms)", "From vouchers"]];
-    excessLines.forEach((l) => eD.push([l.code, l.name, l.warehouse, l.batch, toDMY(l.mfg), l.qty, l.order]));
+    const sD: (string | number)[][] = [["Code", "Product", "Warehouse", "Batch No", "Doc No", "Mfg date", "Scrap qty (Gms)", "From vouchers"]];
+    scrapLines.forEach((l) => sD.push([l.code, l.name, l.warehouse, l.batch, l.doc, toDMY(l.mfg), l.qty, l.order]));
+    const eD: (string | number)[][] = [["Code", "Product", "Warehouse", "Batch No", "Doc No", "Mfg date", "Qty (Gms)", "From vouchers"]];
+    excessLines.forEach((l) => eD.push([l.code, l.name, l.warehouse, l.batch, l.doc, toDMY(l.mfg), l.qty, l.order]));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Summary");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sD), "Scrap detail");
@@ -216,12 +216,11 @@ export default function StockReconciliationPage() {
                 <thead><tr>
                   <th style={th}>Code</th><th style={th}>Product</th>
                   <th style={{ ...th, textAlign: "right" }}>System</th><th style={{ ...th, textAlign: "right" }}>Actual</th><th style={{ ...th, textAlign: "right" }}>Variance</th>
-                  <th style={th}>Result</th><th style={th}>Warehouse</th><th style={th}>Counts (time)</th><th style={th}>Batches</th>
+                  <th style={th}>Result</th><th style={th}>Warehouse</th><th style={th}>Counts (time)</th><th style={th}>Batch · Doc No (qty)</th>
                 </tr></thead>
                 <tbody>
                   {items.map((it) => {
                     const rows = rowsOf(it);
-                    const batchTxt = rows.length ? rows.map((r) => `${r.batch || "—"}${r.qty ? ` (${nf(r.qty)}g)` : ""}`).join(", ") : "—";
                     const counts = it.sources.map((s, k) => `${fmtTime(s.postedAt)} (${nf(s.scanned)}g)${k === it.sources.length - 1 && it.sources.length > 1 ? " ←sys" : ""}`).join(", ");
                     return (
                       <tr key={it.code}>
@@ -233,7 +232,11 @@ export default function StockReconciliationPage() {
                         <td style={cell}><span style={{ display: "inline-block", padding: "1px 8px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, color: "#fff", background: klassColor[it.klass] }}>{it.klass}</span></td>
                         <td style={{ ...cell, whiteSpace: "normal" }}>{it.warehouse || <span style={{ color: "#b45309" }}>—</span>}</td>
                         <td style={{ ...cell, whiteSpace: "normal", color: C.sub, fontSize: 12 }}>{counts}</td>
-                        <td style={{ ...cell, whiteSpace: "normal", color: C.sub, fontSize: 12 }}>{batchTxt}</td>
+                        <td style={{ ...cell, whiteSpace: "normal", color: C.sub, fontSize: 12 }}>
+                          {rows.length ? rows.map((r, k) => (
+                            <div key={k} style={{ whiteSpace: "nowrap" }}>{r.batch || "—"}{r.doc ? <span style={{ color: "#7c3aed" }}> · {r.doc}</span> : ""}{r.qty ? ` (${nf(r.qty)}g)` : ""}</div>
+                          )) : "—"}
+                        </td>
                       </tr>
                     );
                   })}

@@ -73,26 +73,27 @@ const mfgKey = (d: Date | null) => (d ? d.getFullYear() * 10000 + (d.getMonth() 
 const istMinutes = (isoTs: string) => { const t = Date.parse(isoTs); if (isNaN(t)) return -1; const m = Math.floor(t / 60000) + IST_MIN; return ((m % 1440) + 1440) % 1440; };
 const hhmmToMin = (s: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ""); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
-type SnapBatch = { batch: string; warehouse: string; mfg: Date | null; exp: Date | null; availGms: number };
-type Row = { batch: string; warehouse: string; mfg: string; exp: string; qty: number };
+type SnapBatch = { batch: string; warehouse: string; doc: string; mfg: Date | null; exp: Date | null; availGms: number };
+type Row = { batch: string; warehouse: string; doc: string; mfg: string; exp: string; qty: number };
+type InvRow = { batch: string; warehouse: string; doc: string; mfg: string; exp: string; qty: number };
 type Source = { orderNo: string; postedAt: string; scanned: number };
 type Item = {
   code: string; name: string; salesUnit: string; scale: number;
   system: number; actual: number; variance: number; klass: "Scrap" | "Excess" | "Match" | "Uncounted"; qty: number;
-  coverage: number; warehouse: string; scrapRows: Row[]; excessRows: Row[]; flags: string[]; sources: Source[];
+  coverage: number; warehouse: string; scrapRows: Row[]; excessRows: Row[]; flags: string[]; sources: Source[]; inventory?: InvRow[];
 };
 
-function allocate(need: number, batches: Array<{ batch: string; warehouse: string; mfg: Date | null; exp: Date | null; cap: number }>): Row[] {
+function allocate(need: number, batches: Array<{ batch: string; warehouse: string; doc: string; mfg: Date | null; exp: Date | null; cap: number }>): Row[] {
   const out: Row[] = [];
   let left = Math.floor(need); // all batch inventory quantities are rounded DOWN (50.91 -> 50)
   for (const b of batches) {
     if (left <= 0) break;
     const take = b.cap > 0 ? Math.min(left, Math.floor(b.cap)) : left;
     if (take <= 0) continue;
-    out.push({ batch: b.batch, warehouse: b.warehouse, mfg: iso(b.mfg), exp: iso(b.exp || expFromMfg(b.mfg)), qty: take });
+    out.push({ batch: b.batch, warehouse: b.warehouse, doc: b.doc, mfg: iso(b.mfg), exp: iso(b.exp || expFromMfg(b.mfg)), qty: take });
     left -= take;
   }
-  if (left > 0) { if (out.length) out[0].qty += left; else out.push({ batch: "", warehouse: "", mfg: "", exp: "", qty: left }); }
+  if (left > 0) { if (out.length) out[0].qty += left; else out.push({ batch: "", warehouse: "", doc: "", mfg: "", exp: "", qty: left }); }
   return out;
 }
 
@@ -103,6 +104,7 @@ export async function GET(req: Request) {
   const status = (u.searchParams.get("status") || "").trim().toLowerCase();
   const fromMin = hhmmToMin(u.searchParams.get("from") || "");
   const toMin = hhmmToMin(u.searchParams.get("to") || "");
+  const wantInventory = u.searchParams.get("inventory") === "1"; // screen 3: include full per-product batch list
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ ok: false, error: "Pass ?date=YYYY-MM-DD" }, { status: 400, headers: CORS });
 
   const next = new Date(date + "T00:00:00Z"); next.setUTCDate(next.getUTCDate() + 1);
@@ -132,11 +134,12 @@ export async function GET(req: Request) {
       if (!warehouse || warehouse === "-") continue;
       const batch = String(r.batch || "").trim();
       const mfg = parseAnyDate(r.mfg) || mfgFromBatch(batch);
-      const b: SnapBatch = { batch, warehouse, mfg, exp: parseAnyDate(r.exp) || expFromMfg(mfg), availGms: num(r.qty) * unitFactorToGms(String(r.unit || "")) };
+      const b: SnapBatch = { batch, warehouse, doc: String(r.doc || "").trim(), mfg, exp: parseAnyDate(r.exp) || expFromMfg(mfg), availGms: num(r.qty) * unitFactorToGms(String(r.unit || "")) };
       (idx[code] = idx[code] || []).push(b);
       if (batch) byBatch[`${code}|${batch}`] = b;
     }
-    for (const k in idx) idx[k].sort((a, z) => mfgKey(a.mfg) - mfgKey(z.mfg));
+    // sequence-wise per product: oldest mfg first, then by doc
+    for (const k in idx) idx[k].sort((a, z) => mfgKey(a.mfg) - mfgKey(z.mfg) || a.doc.localeCompare(z.doc));
 
     // flatten + time-filter order-item occurrences, keyed by product code
     type Occ = { postedAt: string; minute: number; orderNo: string; required: number; scanned: number; packs: Array<Record<string, unknown>>; name: string; salesUnit: string; scale: number };
@@ -175,7 +178,7 @@ export async function GET(req: Request) {
       for (const o of occs) for (const p of o.packs) { const b = String(p.batch || "").trim(); if (!b) continue; scannedAgg[b] = (scannedAgg[b] || 0) + num(p.qty); }
       const scannedBatches = Object.entries(scannedAgg).map(([batch, q]) => {
         const sn = byBatch[`${code}|${batch}`]; const mfg = sn?.mfg || mfgFromBatch(batch);
-        return { batch, warehouse: sn?.warehouse || "", mfg, exp: sn?.exp || expFromMfg(mfg), cap: q };
+        return { batch, warehouse: sn?.warehouse || "", doc: sn?.doc || "", mfg, exp: sn?.exp || expFromMfg(mfg), cap: q };
       }).sort((a, z) => mfgKey(a.mfg) - mfgKey(z.mfg));
 
       const sysBatches = idx[code] || [];
@@ -184,10 +187,12 @@ export async function GET(req: Request) {
         flags.push("warehouse/batch not in latest PACT snapshot — fill before import");
 
       let scrapRows: Row[] = [], excessRows: Row[] = [];
-      if (klass === "Scrap") scrapRows = allocate(qty, sysBatches.map((b) => ({ batch: b.batch, warehouse: b.warehouse, mfg: b.mfg, exp: b.exp, cap: b.availGms })));
-      else if (klass === "Excess") excessRows = allocate(qty, scannedBatches.map((b) => ({ batch: b.batch, warehouse: b.warehouse, mfg: b.mfg, exp: b.exp, cap: b.cap })));
+      if (klass === "Scrap") scrapRows = allocate(qty, sysBatches.map((b) => ({ batch: b.batch, warehouse: b.warehouse, doc: b.doc, mfg: b.mfg, exp: b.exp, cap: b.availGms })));
+      else if (klass === "Excess") excessRows = allocate(qty, scannedBatches.map((b) => ({ batch: b.batch, warehouse: b.warehouse, doc: b.doc, mfg: b.mfg, exp: b.exp, cap: b.cap })));
 
-      return { code, name, salesUnit, scale, system, actual, variance, klass, qty, coverage, warehouse, scrapRows, excessRows, flags, sources };
+      const item: Item = { code, name, salesUnit, scale, system, actual, variance, klass, qty, coverage, warehouse, scrapRows, excessRows, flags, sources };
+      if (wantInventory) item.inventory = sysBatches.map((b) => ({ batch: b.batch, warehouse: b.warehouse, doc: b.doc, mfg: iso(b.mfg), exp: iso(b.exp), qty: Math.floor(b.availGms) }));
+      return item;
     }).sort((a, z) => a.name.localeCompare(z.name));
 
     return NextResponse.json({

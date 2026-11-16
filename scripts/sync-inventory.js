@@ -125,14 +125,14 @@ async function writeSnapshot(patch) {
       exp: isoDMY(r.ExpDate),
       mfg: isoDMY(r.MfgDate),
       hsn: String(r.HSNCode || r.HSNName || '').trim(),
+      doc: String(r.DocNo || '').trim(),   // receiving/production voucher for this batch lot
     })).filter((x) => x.code);
-    // The BatchWise DETAIL (p2=0~0) lists a batch once PER document, and the same
-    // batch can sit in several warehouses. Fold to ONE row per (code, batch,
-    // warehouse), summing the quantity — so each warehouse's holding is its own
-    // row and the app shows the exact warehouse split (batch totals unchanged).
+    // Keep each receiving DOCUMENT separate (do NOT club a batch's lots across
+    // documents): fold to one row per (code, batch, warehouse, doc) so every
+    // doc no shows as its own sequence-wise line for the product.
     const byKey = new Map();
     for (const r of detail) {
-      const key = r.code + '|' + r.batch + '|' + r.warehouse;
+      const key = r.code + '|' + r.batch + '|' + r.warehouse + '|' + r.doc;
       const cur = byKey.get(key);
       if (cur) {
         cur.qty += r.qty;
@@ -145,7 +145,7 @@ async function writeSnapshot(patch) {
       }
     }
     const rows = Array.from(byKey.values());
-    console.log('[warehouse] folded ' + detail.length + ' detail rows -> ' + rows.length + ' (code x batch x warehouse) rows');
+    console.log('[warehouse] folded ' + detail.length + ' detail rows -> ' + rows.length + ' (code x batch x warehouse x doc) rows');
 
     const withHsn = rows.filter((r) => r.hsn).length;
     console.log('[hsn] rows with HSN: ' + withHsn + ' / ' + rows.length);
