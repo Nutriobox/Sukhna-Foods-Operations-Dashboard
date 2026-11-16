@@ -113,6 +113,7 @@ async function writeSnapshot(patch) {
     const json = await resp.json();
     const inward = (json.Tables && json.Tables[0]) || [];
     if (!inward.length) throw new Error('ReportDataSet returned 0 rows (Tables[0] empty).');
+    try { const r0 = inward[0] || {}; console.log('[inv-debug] row0 keys=' + Object.keys(r0).join(',')); console.log('[inv-debug] row0 json=' + JSON.stringify(r0).slice(0, 700)); } catch (e) {}
 
     const detail = inward.map((r) => ({
       code: String(r[F.code] || '').trim(),
