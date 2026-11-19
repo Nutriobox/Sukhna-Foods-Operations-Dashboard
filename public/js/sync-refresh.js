@@ -86,37 +86,100 @@
   }
 
   // ─── 2. Supabase Realtime (primary cross-device push) ────────────────────
-  async function startRealtime() {
+  //
+  // 2026-11-19 (Supabase "Realtime Connection Count Exceeded": peak 820 vs the
+  // Pro plan's 500, grace period ends 06 Dec): the old reconnect path called
+  // startRealtime() again, which made a NEW supabase client (= a new
+  // WebSocket) every time without closing the old one. Worse, its own
+  // ch.unsubscribe() fired CLOSED on the old channel, which scheduled yet
+  // another reconnect, so one open tab kept stacking sockets all day.
+  // Now: ONE client per page, created once and reused; every (re)subscribe
+  // first tears down the previous channel; callbacks from a superseded
+  // channel are ignored via a generation counter; and the socket is fully
+  // disconnected while the tab is hidden (the safety poll + focus catch-up
+  // cover that gap), so background tabs on outlet PCs hold no connection.
+  var rtClient = null;
+  var rtChannel = null;
+  var rtGen = 0;
+  var rtCfg = null;
+  var reconnectAttempt = 0;
+  var reconnectTimer = null;
+  var HIDDEN_DISCONNECT_MS = 2 * 60 * 1000;
+  var hiddenTimer = null;
+
+  async function getClient() {
+    if (rtClient) return rtClient;
     if (!window.supabase || typeof window.supabase.createClient !== 'function') {
       console.warn('[OpsSync] supabase-js not loaded — Realtime disabled, safety poll will handle changes.');
       realtimeStatus = 'no-sdk';
-      return;
+      return null;
     }
-    var cfg;
-    try {
-      var r = await fetch('/api/sync-config', { cache: 'no-store' });
-      cfg = await r.json();
-    } catch (e) {
-      console.warn('[OpsSync] /api/sync-config failed — Realtime disabled.', e);
-      realtimeStatus = 'no-config';
-      return;
+    if (!rtCfg) {
+      try {
+        var r = await fetch('/api/sync-config', { cache: 'no-store' });
+        rtCfg = await r.json();
+      } catch (e) {
+        console.warn('[OpsSync] /api/sync-config failed — Realtime disabled.', e);
+        realtimeStatus = 'no-config';
+        return null;
+      }
     }
-    if (!cfg || !cfg.url || !cfg.anonKey) {
+    if (!rtCfg || !rtCfg.url || !rtCfg.anonKey) {
       console.warn('[OpsSync] /api/sync-config returned no credentials — Realtime disabled.');
       realtimeStatus = 'no-config';
-      return;
+      rtCfg = null;
+      return null;
     }
-
-    var client;
+    if (rtClient) return rtClient;            // another call won the race while we awaited
     try {
-      client = window.supabase.createClient(cfg.url, cfg.anonKey, {
+      rtClient = window.supabase.createClient(rtCfg.url, rtCfg.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
         realtime: { params: { eventsPerSecond: 2 } },
       });
     } catch (e) {
       console.warn('[OpsSync] createClient failed:', e);
       realtimeStatus = 'client-err';
-      return;
+      return null;
     }
+    window.OpsSync._client = rtClient;
+    return rtClient;
+  }
+
+  function teardownChannel() {
+    rtGen++;                                   // any callback from the old channel is now stale
+    var old = rtChannel;
+    rtChannel = null;
+    window.OpsSync._channel = null;
+    if (old && rtClient) { try { rtClient.removeChannel(old); } catch (e) { /* ignore */ } }
+  }
+
+  function stopRealtime(reason) {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    teardownChannel();
+    if (rtClient) {
+      try { rtClient.removeAllChannels(); } catch (e) { /* ignore */ }
+      try { rtClient.realtime.disconnect(); } catch (e) { /* ignore */ }
+    }
+    realtimeStatus = 'paused';
+    if (reason) console.log('[OpsSync] Realtime paused (' + reason + ').');
+  }
+
+  function scheduleReconnect(reason) {
+    if (reconnectTimer || document.visibilityState === 'hidden') return;
+    reconnectAttempt++;
+    var delay = Math.min(60000, 1000 * Math.pow(2, reconnectAttempt - 1));
+    console.warn('[OpsSync] Reconnecting Realtime in ' + delay + 'ms (' + reason + ', attempt ' + reconnectAttempt + ')');
+    reconnectTimer = setTimeout(function () {
+      reconnectTimer = null;
+      startRealtime();
+    }, delay);
+  }
+
+  async function startRealtime() {
+    var client = await getClient();
+    if (!client) return;
+    teardownChannel();
+    var gen = rtGen;
 
     // One channel, both tables — one subscription event covers both pipelines
     var ch = client.channel('ops_sync_all');
@@ -126,6 +189,7 @@
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'costing_snapshots' },
       function (payload) {
+        if (gen !== rtGen) return;
         var row = payload && payload.new;
         if (!row || !row.report || !row.synced_at) return;
         var report = String(row.report).toLowerCase();
@@ -143,6 +207,7 @@
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'inventory_snapshots' },
       function (payload) {
+        if (gen !== rtGen) return;
         var row = payload && payload.new;
         if (!row || !row.synced_at) return;
         // Only fire for successful inventory syncs (ignore failed ones)
@@ -155,62 +220,41 @@
       }
     );
 
-    // Reconnect logic — WebSockets drop (sleep, lock screen, flaky WiFi,
-    // Supabase keepalive timeout) and supabase-js's auto-reconnect sometimes
-    // misses CHANNEL_ERROR / CLOSED. Without this, a laptop that was awake
-    // when the subscription dropped silently stops seeing other laptops'
-    // syncs forever. Reconnect with exponential backoff on CLOSED /
-    // CHANNEL_ERROR / TIMED_OUT, and also kick a reconnect when the tab
-    // regains focus so a sleeping laptop catches up the moment it wakes.
-    var reconnectAttempt = 0;
-    var reconnectTimer   = null;
-    function scheduleReconnect(reason) {
-      if (reconnectTimer) return;
-      reconnectAttempt++;
-      var delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempt - 1));
-      console.warn('[OpsSync] Reconnecting Realtime in ' + delay + 'ms (' + reason + ', attempt ' + reconnectAttempt + ')');
-      reconnectTimer = setTimeout(function () {
-        reconnectTimer = null;
-        try { ch.unsubscribe(); } catch (e) { /* ignore */ }
-        try { client.removeChannel(ch); } catch (e) { /* ignore */ }
-        startRealtime();
-      }, delay);
-    }
+    rtChannel = ch;
+    window.OpsSync._channel = ch;
     ch.subscribe(function (status) {
+      if (gen !== rtGen) return;               // a channel we already replaced or closed ourselves
       realtimeStatus = status;
       if (status === 'SUBSCRIBED') {
         reconnectAttempt = 0;
         console.log('[OpsSync] Realtime subscribed — listening for costing_snapshots + inventory_snapshots INSERTs.');
       }
-      else if (status === 'CHANNEL_ERROR') { console.warn('[OpsSync] Realtime channel error — reconnecting.'); scheduleReconnect('CHANNEL_ERROR'); }
-      else if (status === 'TIMED_OUT')     { console.warn('[OpsSync] Realtime timed out — reconnecting.');     scheduleReconnect('TIMED_OUT'); }
-      else if (status === 'CLOSED')        { console.warn('[OpsSync] Realtime channel closed — reconnecting.'); scheduleReconnect('CLOSED'); }
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.warn('[OpsSync] Realtime ' + status + ' — reconnecting.');
+        scheduleReconnect(status);
+      }
     });
-
-    window.OpsSync._client  = client;
-    window.OpsSync._channel = ch;
   }
 
   // Tab regained focus / became visible: a laptop that was asleep almost
-  // certainly dropped its WebSocket. Force a resubscribe AND a safety-poll
-  // pass right now so the UI catches up without waiting on the 45 s timer.
+  // certainly dropped its WebSocket. Resubscribe (on the SAME client) and
+  // run a safety-poll pass so the UI catches up without waiting on the timer.
   //
   // 2026-10-30 (traffic-flood guard): earlier revision called safetyPoll on
   // EVERY focus / visibilitychange, which chattered under rapid alt-tab
   // and Chrome's power-saver visibility ticks — contributing to the 1.5M-
-  // requests-per-day spike Satvik saw at Vercel's firewall. We now cap
-  // the extra safety-poll to one per 30 s, and reboot the subscription
-  // only when it's actually been >15 s since we last tried. The scheduled
-  // SAFETY_POLL_MS timer is unaffected.
+  // requests-per-day spike Satvik saw at Vercel's firewall. We cap the
+  // extra safety-poll to one per 30 s, and reboot the subscription only
+  // when it's been >15 s since we last tried.
   var lastWakeSafetyMs    = 0;
   var lastSubscribeRebootMs = 0;
   function onWakeOrFocus() {
+    if (hiddenTimer) { clearTimeout(hiddenTimer); hiddenTimer = null; }
     var now = Date.now();
-    if (realtimeStatus !== 'SUBSCRIBED' && (now - lastSubscribeRebootMs) > 15000) {
+    if (realtimeStatus !== 'SUBSCRIBED' && !reconnectTimer && (now - lastSubscribeRebootMs) > 15000) {
       lastSubscribeRebootMs = now;
-      console.log('[OpsSync] Tab active, Realtime not healthy (' + realtimeStatus + ') — rebooting subscription.');
-      try { if (window.OpsSync && window.OpsSync._channel) window.OpsSync._channel.unsubscribe(); } catch (e) {}
-      try { if (window.OpsSync && window.OpsSync._client  && window.OpsSync._channel) window.OpsSync._client.removeChannel(window.OpsSync._channel); } catch (e) {}
+      console.log('[OpsSync] Tab active, Realtime not healthy (' + realtimeStatus + ') — resubscribing.');
+      reconnectAttempt = 0;
       startRealtime();
     }
     if ((now - lastWakeSafetyMs) > 30000) {
@@ -220,8 +264,14 @@
   }
   window.addEventListener('focus', onWakeOrFocus);
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') onWakeOrFocus();
+    if (document.visibilityState === 'visible') { onWakeOrFocus(); return; }
+    if (hiddenTimer) clearTimeout(hiddenTimer);
+    hiddenTimer = setTimeout(function () {
+      hiddenTimer = null;
+      if (document.visibilityState === 'hidden') stopRealtime('tab hidden');
+    }, HIDDEN_DISCONNECT_MS);
   });
+  window.addEventListener('pagehide', function () { stopRealtime(); });
 
   // ─── 3. Safety poll (every 5 min — catches missed Realtime drops) ────────
   async function safetyPoll() {
