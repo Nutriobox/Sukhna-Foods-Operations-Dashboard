@@ -129,10 +129,38 @@ const COLMAP = {
   'RM Qty':           ['RM Qty','Request Qty','RequestQty'],
   'PM Unit':          ['PM Unit','PMUnit','PackUnit'],
   'PM Qty':           ['PM Qty','PMQty','PackQty'],
-  'FG No':            (r) => _isFgRow(r) ? (r['Receipt No']    ?? r['FG No']    ?? '') : '',
-  'FG Units':         (r) => _isFgRow(r) ? (r['Receipt Units'] ?? r['FG Units'] ?? '') : '',
-  'FG Qty':           (r) => _isFgRow(r) ? Number(r['Receipt Qty'] ?? r['FG Qty'] ?? 0) || 0 : 0,
+  //   2026-11-21 (Satvik, "sync not working, data wrong"): PACT now fills
+  //   the dedicated FG leg (FG No = FGRN voucher, FG Units, FG Qty) and
+  //   leaves the Receipt leg at 0 on FG rows (checked against PACT's own
+  //   Process Flow export for 16-21 Nov). It also repeats FG Qty on the
+  //   job's WIP row without an FG No. So the FG columns now come from the
+  //   FG leg, and only when it carries an FGRN voucher number; the
+  //   Receipt-leg fallback is kept only for the old layout where the FG
+  //   leg does not exist at all.
+  'FG No':            (r) => _fgLeg(r).no,
+  'FG Units':         (r) => _fgLeg(r).u,
+  'FG Qty':           (r) => _fgLeg(r).q,
 };
+
+function _num(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const n = Number(String(v).replace(/,/g, ''));   // PACT exports "1,08,434.000"
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _fgLeg(r) {
+  const none = { no: '', u: '', q: 0 };
+  if (!r) return none;
+  if ('FG No' in r || 'FG Qty' in r) {
+    const no = String(r['FG No'] ?? '').trim();
+    const q = _num(r['FG Qty']);
+    return (no && no !== '0' && q > 0) ? { no, u: r['FG Units'] ?? '', q } : none;
+  }
+  if (!_isFgRow(r)) return none;
+  const q = _num(r['Receipt Qty']);
+  return q > 0 ? { no: String(r['Receipt No'] ?? '').trim(), u: r['Receipt Units'] ?? '', q } : none;
+}
 
 // Row-level predicate used by the FG* COLMAP entries above. Returns false
 // for rows whose Product Code marks them as RAW-material / SEMI-finished /
@@ -145,4 +173,6 @@ function _isFgRow(r){
   return !/^(RM|SF|PM|WP)\d*/.test(code);
 }
 
+module.exports = { COLMAP, POSITIONAL_CAPTIONS, HASH_TO_CAPTION, _fgLeg };
+if (require.main === module)
 runCostingReport({ report: 'pf', headers: HEADERS, colmap: COLMAP, hashCaptionMap: HASH_TO_CAPTION, positionalCaptions: POSITIONAL_CAPTIONS });
