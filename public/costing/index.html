@@ -1344,7 +1344,12 @@ function parsePF(rows,hr,h,mode){const c=n=>colIdx(h,n);const iJ=c('job'),iD=c('
  if(!nb.length)throw new Error('no finished-goods batches found');
  const bk=b=>b.date+'|'+b.batch+'|'+b.code+'|'+b.no;let added=0,updated=0;
  if(mode==='replace'){D.batches=nb;added=nb.length;D.jobs=JOBS;}
- else{const m=new Map(D.batches.map(b=>[bk(b),b]));nb.forEach(b=>{if(m.has(bk(b)))updated++;else added++;m.set(bk(b),b);});D.batches=[...m.values()];D.jobs=Object.assign({},D.jobs||{},JOBS);}
+ /* 2026-11-21: a sync is the full truth for every date it covers. Batches of
+    those dates are replaced, not merged, so rows from an older, wrongly mapped
+    sync (FG No "0", WIP codes) cannot linger next to the corrected ones. Dates
+    the sync does not cover are kept. */
+ else{const days=new Set(nb.map(b=>b.date));const old=new Map(D.batches.filter(b=>days.has(b.date)).map(b=>[bk(b),1]));
+  const m=new Map(D.batches.filter(b=>!days.has(b.date)).map(b=>[bk(b),b]));nb.forEach(b=>{if(old.has(bk(b)))updated++;else added++;m.set(bk(b),b);});D.batches=[...m.values()];D.jobs=Object.assign({},D.jobs||{},JOBS);}
  D.batches.sort((a,b)=>(a.date+String(a.batch)).localeCompare(b.date+String(b.batch)));
  const ds=[...new Set(nb.map(b=>b.date))].sort();
  return nb.length+' batches ('+fmtD(ds[0])+(ds.length>1?' → '+fmtD(ds[ds.length-1]):'')+') · '+added+' new, '+updated+' updated';}
