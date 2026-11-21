@@ -648,13 +648,9 @@ async function runCostingReport({ report, headers, colmap, hashCaptionMap, posit
     // Only renames keys that are still hash-shaped — never overwrites a
     // caption already assigned by the hardcoded pass.
     if (positionalCaptions && Array.isArray(positionalCaptions) && bestColumnIds && bestColumnIds.length) {
-      const n = Math.min(bestColumnIds.length, positionalCaptions.length);
-      const map = new Map();
-      for (let i = 0; i < n; i++) {
-        const id = String(bestColumnIds[i] || '').trim();
-        const cap = String(positionalCaptions[i] || '').trim();
-        if (id && cap) map.set(id, cap);
-      }
+      const map = buildPositionalMap(bestColumnIds, positionalCaptions);
+      log('[positional] ' + bestColumnIds.length + ' columns, ' + bestColumnIds.filter((x) => /Ver$/.test(String(x))).length
+        + ' hidden "Ver" columns skipped');
       log('[positional] applying ' + map.size + ' positional entries. sample: '
         + [...map.entries()].slice(0, 6).map(([k, v]) => k.slice(0, 10) + '->' + v).join(' | '));
       src = src.map((row) => {
@@ -712,4 +708,34 @@ async function runCostingReport({ report, headers, colmap, hashCaptionMap, posit
   }
 }
 
-module.exports = { runCostingReport };
+// Zip PACT's positional column ids with the caller's captions.
+//
+// 2026-11-21 (Satvik: Batch Actual showing wrong yields, most 20-Nov
+// batches missing): PACT added a hidden "<doc no> Ver" Int32 column after
+// EVERY document-number column (RM Issue, WIP, PM Issue, FG, Excess,
+// Secondary, Scrap), not just after Request No. The report went from 37
+// to 44 columns and a plain index zip shifted every caption from RM Issue
+// onwards, so "FG Qty" was reading PM Qty and FG No was reading a Ver
+// column (always 0). PACT names those ids "<hash of the doc-no column>Ver",
+// so we recognise them by id instead of by position: a "...Ver" id gets
+// "<previous caption> Ver" and does not consume a caption. Captions in the
+// list that themselves end in " Ver" are skipped for the same reason, so
+// the list only has to name the real columns and survives PACT adding or
+// dropping Ver columns again.
+function buildPositionalMap(columnIds, captions) {
+  const caps = (captions || []).map((c) => String(c || '').trim()).filter((c) => c && !/ Ver$/.test(c));
+  const map = new Map();
+  let ci = 0, prev = '';
+  for (const raw of columnIds || []) {
+    const id = String(raw || '').trim();
+    if (!id) continue;
+    if (/Ver$/.test(id)) { if (prev) map.set(id, prev + ' Ver'); continue; }
+    const cap = caps[ci++];
+    if (!cap) break;
+    map.set(id, cap);
+    prev = cap;
+  }
+  return map;
+}
+
+module.exports = { runCostingReport, buildPositionalMap };
