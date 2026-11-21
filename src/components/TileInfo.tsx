@@ -21,34 +21,60 @@ type Info = {
   title: string;
   mode: Mode;
   schedule: string;
+  users: string;
   tasks: string[];
+  about: string;
   overview: FlowNode[];
-  tech: { stack: string; nodes: FlowNode[] };
+  notes: string[];
+  tech: {
+    stack: string;
+    nodes: FlowNode[];
+    data: { name: string; what: string }[];
+    troubleshoot: string[];
+  };
 };
 
 const INFO: Record<TileKey, Info> = {
   stock: {
     title: "Stock Inward & Bill Uploader",
     mode: "Semi-automated",
-    schedule: "On demand · bills arrive continuously",
-    tasks: ["Bill intake", "AI extraction", "Validation", "Stamp check", "PACT Stock Inward"],
+    schedule: "On demand · bills arrive through the day",
+    users: "Stores / purchase team",
+    tasks: ["Bill intake", "AI extraction", "3 checks", "Stamp check", "PACT labels", "PACT Stock Inward"],
+    about:
+      "Every supplier bill for raw and packing material comes through here before it becomes stock in PACT. The tool reads the bill for you, checks the arithmetic and the buyer, confirms the gate and store stamps are on the scan, and then enters the Stock Inward voucher in PACT, so nobody has to type a bill twice and a wrong bill can't slip through.",
     overview: [
-      { stage: "A supplier bill comes in", branches: ["From the mis@nutriobox.com mailbox, picked up automatically", "Or uploaded by hand with Bill Upload (photo or PDF)"], edge: "bill lands in the Invoice Inbox" },
-      { stage: "AI reads the bill", detail: "Vendor, invoice number, date, every item line, GST and the grand total are filled in for you." },
-      { stage: "Three automatic checks", branches: ["Item math: quantity × rate matches each line", "Buyer is Sukhna Foods", "Line totals + GST + round-off equal the grand total"], edge: "pass → Verified · fail → Needs review" },
-      { stage: "Stamp check", detail: "The scan is checked for the Gate No. and Store Checked stamps before the bill can go to PACT." },
-      { stage: "Operator reviews and prints PACT labels", detail: "Fix anything flagged, then confirm." },
-      { stage: "Upload to PACT", detail: "A Stock Inward voucher is entered in PACT and the bill is frozen so it can't be pushed twice." },
+      { stage: "A supplier bill comes in", branches: ["Emailed to mis@nutriobox.com and picked up automatically", "Or added with Bill Upload (photo or PDF)", "Or typed in manually; it then goes through exactly the same checks"], edge: "bill lands in the Invoice Inbox" },
+      { stage: "AI reads the bill", detail: "Vendor, GSTIN, invoice number and date, every item line (quantity, unit, rate, net, GST), other charges, round-off and the grand total are filled in. Anything it gets wrong can be corrected on screen." },
+      { stage: "Three automatic checks", branches: ["Item math: quantity × rate equals each line's net amount (₹0.50 tolerance)", "Buyer: billed to Sukhna Foods with the correct GSTIN", "Totals: line nets + GST + round-off equal the grand total (₹1 tolerance); extra charges outside the item lines are flagged for approval"], edge: "all pass → Verified · any fail → Needs review" },
+      { stage: "Stamp check", detail: "The scan is checked for the Gate No. stamp and the Store Checked stamp. If a stamp is missing the bill is held; if the check can't run, the operator confirms the stamps by eye before uploading." },
+      { stage: "Operator review", detail: "Fix anything flagged, match each line to its PACT product and unit, and print the PACT labels for the goods." },
+      { stage: "Upload to PACT", detail: "The Stock Inward voucher is created in PACT. The bill is then frozen (Uploaded to PACT) so it can't be edited or pushed a second time." },
+    ],
+    notes: [
+      "The tile counts the bills currently in the inbox.",
+      "A bill that fails a check is never blocked forever; fix the field or approve the extra charge and it re-checks immediately.",
+      "Voided bills are frozen too, so they stay on record without being pushed.",
     ],
     tech: {
-      stack: "Next.js API routes · Supabase · Google Gemini vision · GitHub Actions + Playwright",
+      stack: "Next.js (Dashboard.tsx) · Supabase · Google Gemini vision · GitHub Actions + Playwright",
       nodes: [
-        { stage: "POST /api/ingest", detail: "Email extractor upserts bills into Supabase `bills` (service key, guarded by x-ingest-secret)." },
-        { stage: "POST /api/extract-bill", detail: "Gemini flash models, newest first; retries with backoff on 503/429 so a busy model never leaves the form blank." },
-        { stage: "src/lib/validate.ts", detail: "Item math, buyer match and totals reconcile, run client-side on every bill." },
-        { stage: "POST /api/verify-stamp", detail: "Gemini vision looks for the Gate No. and Store Checked stamps on the scan." },
-        { stage: "POST /api/push-to-pact", detail: "Writes a `pact_jobs` row, then fires a GitHub repository_dispatch (push-to-pact).", edge: "GitHub Actions" },
-        { stage: "push-to-pact.yml → scripts/run-pact-job.js", detail: "Playwright logs into PACT and enters the Stock Inward voucher; status is written back to `pact_jobs`, which the UI polls." },
+        { stage: "Intake", branches: ["Email extractor → POST /api/ingest (header x-ingest-secret) → upsert into `bills`", "Bill Upload → file saved to the `scans` storage bucket → its URL sent to POST /api/extract-bill"] },
+        { stage: "POST /api/extract-bill", detail: "Sends the image to Gemini and returns structured JSON. Tries GEMINI_VISION_MODEL, gemini-flash-latest, then gemini-2.5-flash, with backoff on 503 / 429 so a busy model never leaves the form blank." },
+        { stage: "src/lib/validate.ts", detail: "The three checks run in the browser on every edit. Item math and totals use the tolerances above; buyer is compared with BUYER_NAME / BUYER_GST." },
+        { stage: "POST /api/verify-stamp", detail: "Gemini vision on the scan, returning whether each of the two stamps is present. Same model fallback as extract-bill." },
+        { stage: "POST /api/push-to-pact", detail: "Inserts a `pact_jobs` row (queued), then calls GitHub repository_dispatch with event_type push-to-pact and the bill as payload.", edge: "GitHub Actions runner" },
+        { stage: "push-to-pact.yml → scripts/run-pact-job.js", detail: "Headless Chromium (Playwright) logs into PACT and runs createStockInward. Every log line is captured and written back to the `pact_jobs` row with status processing → done / failed; the dashboard polls that row." },
+      ],
+      data: [
+        { name: "bills", what: "Every bill: extracted fields, lines, check results, upload / void state" },
+        { name: "pact_jobs", what: "One row per PACT push: status, error, step log" },
+        { name: "scans (storage bucket)", what: "Uploaded bill images, path bills/…" },
+      ],
+      troubleshoot: [
+        "Form came back blank: all Gemini models were busy; extract again in a minute.",
+        "Push stuck on queued: check the run in GitHub → Actions → push-to-pact, and the log saved on the `pact_jobs` row.",
+        "Push failed after login: usually a changed PACT screen; the run saves screenshots and HTML for each step.",
       ],
     },
   },
@@ -56,62 +82,117 @@ const INFO: Record<TileKey, Info> = {
     title: "Sales Order Creation",
     mode: "Manual",
     schedule: "On demand",
-    tasks: ["Upload / create order", "Price chart", "Save", "Export"],
+    users: "Sales / accounts team",
+    tasks: ["Upload or create", "Price chart", "Save", "Export to PACT", "Excel (FSALES)"],
+    about:
+      "Customer sales orders arrive as spreadsheets in all shapes. This screen turns them into one clean list the whole team can see, priced from the customer price chart, and produces the file PACT imports, so orders don't have to be keyed into PACT line by line.",
     overview: [
-      { stage: "Start a sales order", branches: ["Upload a sales order file (.xlsx, .xls or .csv)", "Or create one by hand with Create Sales Order"] },
-      { stage: "Check it full-screen", detail: "Every line is shown in one table, with rates from the customer price chart." },
-      { stage: "Save", detail: "The order is stored in the shared database so everyone sees the same list." },
-      { stage: "Export", detail: "Export the order for PACT; exported orders are marked so nothing goes out twice." },
+      { stage: "Start a sales order", branches: ["Upload the customer's file (.xlsx, .xls or .csv); every sheet in it is kept", "Or build one from scratch with Create Sales Order"] },
+      { stage: "Check it full-screen", detail: "The order opens as a table. Rates come from the Price Chart (by product code, customer and unit, with a w.e.f. date), so a wrong rate on the customer's sheet stands out." },
+      { stage: "Save", detail: "The order goes into the shared database, so it shows up for everyone and survives a browser refresh." },
+      { stage: "Export to PACT", detail: "Creates the PACT import file for the order and marks it exported, so the same order isn't sent twice." },
+      { stage: "Track the import", detail: "Each order shows how many of its lines PACT has imported (for example Imported 12/12)." },
+    ],
+    notes: [
+      "Excel downloads the order in the FSALES layout PACT expects.",
+      "The Price Chart can be edited from the toolbar; new rates apply from their w.e.f. date.",
+      "The live Re-check from PACT button is shown but not wired yet.",
     ],
     tech: {
-      stack: "React (Dashboard.tsx → SalesPage) · SheetJS parsing in the browser · Supabase",
+      stack: "React (Dashboard.tsx → SalesPage, SalesOrderDetail) · SheetJS in the browser · Supabase",
       nodes: [
-        { stage: "File parse", detail: "onSalesOrderFile reads the sheet in the browser; nothing is uploaded until you save." },
-        { stage: "Price chart", detail: "PRICE_CHART data in the bundle (code, customer, unit, rate, w.e.f.), editable from the Price Chart button." },
-        { stage: "Supabase `sales_orders`", detail: "Saved and listed with supabase-js." },
-        { stage: "Export", detail: "markExported records which orders were exported." },
+        { stage: "onSalesOrderFile", detail: "SheetJS reads every sheet of the uploaded workbook in the browser (sheet_to_json, header rows kept). Nothing leaves the browser until the order is saved." },
+        { stage: "Price chart", detail: "PRICE_CHART data in the bundle (code, name, customer, unit, rate, w.e.f.)." },
+        { stage: "Supabase `sales_orders`", detail: "Read and written with supabase-js from the browser." },
+        { stage: "Export", branches: ["Export to PACT → builds the import file and calls markExported", "Excel → downloadOrderXlsx (FSALES layout)"] },
+      ],
+      data: [
+        { name: "sales_orders", what: "Each order with its original sheets and line data" },
+      ],
+      troubleshoot: [
+        "File won't load: it must be a real .xlsx / .xls / .csv; re-save from Excel if it was exported by another tool.",
+        "Order missing for a colleague: check it was saved (Supabase configured shows on the page) rather than only uploaded.",
       ],
     },
   },
   dispatch: {
     title: "Outlet Dispatch Tool",
     mode: "Manual",
-    schedule: "Daily · run by the dispatch team",
-    tasks: ["Read order sheets", "Build challans", "PACT upload file"],
+    schedule: "Daily · run before goods leave the factory",
+    users: "Dispatch team",
+    tasks: ["Outlet sheets", "Dispatch day", "Bread order", "Challans", "PACT import", "Validation report"],
+    about:
+      "Each NutrioBox outlet sends a stock-count sheet. This tool works out what each outlet should receive against its ideal stock and the dispatch schedule, then produces the outlet order sheets, the challans and the PACT import in one run. It runs entirely in the browser: the order files are read inside the tab and are never uploaded.",
     overview: [
-      { stage: "Load the day's outlet order sheets", detail: "One sheet per outlet with what each kitchen asked for." },
-      { stage: "Match items to the PACT Product Master", detail: "Names, codes and units come from the same master every tool uses. Use Sync to pull the latest from PACT." },
-      { stage: "Build dispatch challans", detail: "One challan per outlet, ready to print." },
-      { stage: "Generate the PACT ERP upload", detail: "A file in PACT's import format, so stock outward doesn't have to be typed in." },
+      { stage: "1 · Load the files", branches: ["Pick the day's date folder (or drag the outlet sheets in)", "Reference files: Product Master, Ideal Inventory, Outlet dispatch schedule", "Product names on the sheets are matched to the PACT Product Master automatically; anything unmatched can be linked once and the link is remembered"] },
+      { stage: "2 · Set the dispatch day", detail: "Choose the date goods go out and the starting voucher number, and confirm the working day. Only categories scheduled for that day are dispatched." },
+      { stage: "Ordering rules", branches: ["Order = ideal level − on hand, for categories scheduled today", "Urgent top-up: if a category isn't scheduled but the outlet flagged a few items critically low, only those go", "Blank on-hand can be treated as 0, but a sheet the outlet never touched is always skipped"] },
+      { stage: "3 · Extras and overrides (optional)", branches: ["Additional items per outlet, each on its own voucher", "Quantity overrides and NA / skip", "Bread: the factory's whole bread holding is split across outlets in proportion to their ideal", "Stationery and small ware are sent exactly as ordered"] },
+      { stage: "Generate all sheets", detail: "Per-outlet order sheets, Dry Store / PM / HK challans, chiller summary, bread order message and the PACT import file. Validate only does a dry run first." },
+      { stage: "Save and send", detail: "Download as Excel or a ZIP, or save straight into the connected folder." },
+    ],
+    notes: [
+      "Items not in the PACT Product Master still go on the challan but are left out of the PACT import and listed in the Validation Report.",
+      "Use ⚡ Sync Product Master from PACT if a new item was added in PACT today.",
+      "Reference files and product links are saved centrally, so another laptop sees the same setup.",
     ],
     tech: {
       stack: "Static app (public/outlet-dispatch/index.html, v6.2) · Supabase · EC2 PACT worker",
       nodes: [
-        { stage: "GET /api/product-master", detail: "Reads the Product Master snapshot from `costing_snapshots`." },
-        { stage: "Sync PM", detail: "POST /api/sync-costing?report=pm queues a `pact_jobs` row; the EC2 worker runs sync-costing-pm.js and refreshes the snapshot.", edge: "Realtime update" },
-        { stage: "/js/sync-refresh.js", detail: "One Supabase Realtime channel per page; reloads the master when a sync lands, and disconnects when the tab is hidden." },
-        { stage: "/api/dispatch-ref", detail: "Saves the dispatch reference data in Supabase `dispatch_ref` so it's shared across machines." },
+        { stage: "In-browser processing", detail: "Outlet sheets are parsed with SheetJS inside the tab; outputs are generated client-side and saved via the File System Access API or downloaded." },
+        { stage: "GET /api/product-master", detail: "Product Master from the `costing_snapshots` pm snapshot (shared with every tool)." },
+        { stage: "Sync Product Master", detail: "POST /api/sync-costing?report=pm → `pact_jobs` row → EC2 worker runs scripts/sync-costing-pm.js → new snapshot.", edge: "Realtime" },
+        { stage: "/js/sync-refresh.js", detail: "One Supabase Realtime channel per page; reloads the master when a sync lands. Disconnects after 2 min hidden, reconnects on focus; a 5-minute safety poll covers missed events." },
+        { stage: "/api/dispatch-ref", detail: "Stores the reference files and the product-to-master links (PLINK) as one JSON row, so they aren't lost when the browser cache is cleared." },
+      ],
+      data: [
+        { name: "dispatch_ref", what: "Single row: reference files (base64) + product link overrides" },
+        { name: "costing_snapshots (pm)", what: "PACT Product Master" },
+        { name: "pact_jobs", what: "Product Master sync requests" },
+      ],
+      troubleshoot: [
+        "Item shows as not an ERP item: sync the Product Master, then re-link it if the name differs.",
+        "Wrong voucher numbers in the import: check the starting voucher number in step 2.",
+        "Reference file looks old: Load a newer file, or check the date folder doesn't carry its own older copy.",
       ],
     },
   },
   salesorder: {
     title: "Sales Order (barcode scan)",
     mode: "Semi-automated",
-    schedule: "Inventory refreshed by the worker · scanning on demand",
-    tasks: ["Live inventory", "Barcode scan", "Order lines", "Push to PACT"],
+    schedule: "Inventory on schedule + Sync now · scanning on demand",
+    users: "Dispatch floor, with the Honeywell scanner",
+    tasks: ["Live inventory", "GS1 barcode scan", "Shared order", "PACT push (scanner app)"],
+    about:
+      "The scan-to-order screen. Packed goods carry GS1 barcodes; scanning one pulls its product, batch, manufacture and expiry dates, and the live PACT stock for that batch, so every order line carries the right batch and price without typing. The same order is shared live with the Android scanner app.",
     overview: [
-      { stage: "Live PACT inventory loads", detail: "Batch, warehouse, quantity, price and expiry for every item. Sync now pulls a fresh copy." },
-      { stage: "Scan each item with the Honeywell scanner", detail: "The barcode is matched to its batch in inventory, and the line is added to the order." },
-      { stage: "Check stock against open orders", detail: "Pending sales orders and outlet requisitions are taken into account so the same stock isn't promised twice." },
-      { stage: "Send to PACT", branches: ["B2B customer → Factory Sales Invoice", "NutrioBox outlet → Stock Outward to Outlet"], edge: "filled in PACT, then posted by the operator" },
+      { stage: "Live PACT inventory loads", detail: "Batch, warehouse, quantity, price and expiry for every item. Sync inventory from PACT fetches a fresh copy; Load last synced shows the latest saved one." },
+      { stage: "Scan each item", detail: "The barcode gives the product code, batch, manufacture and expiry dates. Plain product codes or names work too. The line is matched to that batch in inventory." },
+      { stage: "Order builds up", detail: "Each line shows product, HSN, warehouse, unit level, quantity, unit price, sales rate, GST type, batch and dates. Scans from the scanner app appear here within seconds, and the other way round." },
+      { stage: "Push to PACT from the scanner app", branches: ["B2B customer → Factory Sales Invoice", "NutrioBox outlet → Stock Outward to Outlet"], edge: "PACT document is filled, then posted by the operator" },
+    ],
+    notes: [
+      "If live inventory isn't available, import PACT's BatchWise Stock Analysis (.xls) instead.",
+      "Clear order empties the shared order for everyone, so use it only when the order is done.",
     ],
     tech: {
-      stack: "React (SalesOrderScan) · Supabase · EC2 PACT worker (Playwright)",
+      stack: "React (SalesOrderScan in Dashboard.tsx) · Supabase · EC2 PACT worker (Playwright)",
       nodes: [
-        { stage: "Supabase `inventory_snapshots`", detail: "Latest PACT batchwise report. Refreshed by the worker's inventory schedule; Sync now calls POST /api/sync-inventory." },
-        { stage: "/api/order", detail: "`sales_order_lines`, scoped per sales order; shared with the scanner app." },
-        { stage: "/api/order-stock", detail: "Joins inventory with `pending_sales_orders` and `pending_outlet_requisitions`." },
-        { stage: "/api/push-fsi · /api/push-stock-outward", detail: "Queue `pact_jobs`; the worker fills the PACT document and stops before Post by default (dryRun)." },
+        { stage: "Inventory", detail: "Reads the latest `inventory_snapshots` row. Sync now → POST /api/sync-inventory → `pact_jobs` (__sync: inventory) → worker runs scripts/sync-inventory.js. The worker also refreshes it on a timer when INVENTORY_CRON=1 (default every 15 min)." },
+        { stage: "parseScan", detail: "GS1-128 application identifiers: (01) GTIN, (11) manufacture date, (17) expiry, (10) batch; GS-separated. Falls back to a plain code or name." },
+        { stage: "/api/order", detail: "`sales_order_lines`, scoped per sales order (so / soNumber). The page polls every 3 s, which is how app and web stay in step." },
+        { stage: "Scanner app pushes", branches: ["POST /api/push-fsi → Factory Sales Invoice", "POST /api/push-stock-outward → Stock Outward to Outlet", "Both queue `pact_jobs`; the worker fills the PACT document and stops before Post by default (dryRun)"] },
+        { stage: "/api/order-stock", detail: "Combines inventory with `pending_sales_orders` and `pending_outlet_requisitions`, so stock already promised is visible." },
+      ],
+      data: [
+        { name: "inventory_snapshots", what: "PACT batch-wise stock" },
+        { name: "sales_order_lines", what: "Scanned lines, per sales order" },
+        { name: "pending_sales_orders / pending_outlet_requisitions", what: "Open demand from PACT" },
+        { name: "pact_jobs", what: "Inventory syncs and PACT pushes" },
+      ],
+      troubleshoot: [
+        "Scan not found: the batch isn't in the last snapshot; sync inventory and scan again.",
+        "Push didn't appear in PACT: check the `pact_jobs` row status and error; dryRun pushes stop before Post by design.",
       ],
     },
   },
@@ -119,65 +200,119 @@ const INFO: Record<TileKey, Info> = {
     title: "Factory Costing Dashboard",
     mode: "Automated",
     schedule: "Stock Inward every 3h · Process Flow 8 PM · Product Master + BOM 4 AM (IST)",
-    tasks: ["Product Master", "BOM", "Stock Inward", "Process Flow", "Balance Sheet"],
+    users: "Management, costing, production",
+    tasks: ["Rate Dashboard", "BOM Ideal", "Summary Ideal", "Batch Actual", "Excel export"],
+    about:
+      "What each product should cost against what it actually cost. Purchase rates, recipes and production records are pulled from PACT on a schedule, so the numbers stay current without anyone exporting reports by hand.",
     overview: [
-      { stage: "PACT reports are pulled on a schedule", branches: ["Stock Inward: purchase rates, every 3 hours", "Process Flow: what each batch actually used and produced, nightly", "Product Master + BOM: items and recipes, every morning"], edge: "or any time with the Sync buttons" },
-      { stage: "Rates", detail: "Latest purchase rate for every raw and packing material." },
-      { stage: "Ideal costing", detail: "Recipe (BOM) quantities × current rates = what each product should cost." },
-      { stage: "Actual batch costing", detail: "Real issues and yields from Process Flow, per batch and per day." },
-      { stage: "Compare and adjust", detail: "Spot the gap between ideal and actual; manual rate overrides are saved for everyone." },
+      { stage: "PACT reports are pulled automatically", branches: ["Stock Inward (purchase rates): every 3 hours", "Process Flow (what each batch used and produced): every night at 8 PM", "Product Master + BOM (items and recipes): every morning at 4 AM"], edge: "or any time with 🔄 Sync PACT Reports" },
+      { stage: "💰 Rate Dashboard", detail: "Latest purchase rate for every raw and packing material, with category rates and margin settings." },
+      { stage: "📋 BOM Ideal", detail: "Each recipe line × its current rate, including the PACT wastage % (which can be adjusted and reset)." },
+      { stage: "📊 Summary Ideal", detail: "Ideal cost per product. Costs can be approved; products can be marked inactive to keep the list clean." },
+      { stage: "🏷️ Batch Actual (PACT)", detail: "From Process Flow: for each production batch, what was issued and what came out (FG number, units and quantity), per batch and per day." },
+      { stage: "Compare and export", detail: "Gap between ideal and actual shows where cost is leaking. Download this sheet or all dashboards as Excel." },
+    ],
+    notes: [
+      "A sync replaces the dates it covers instead of adding to them, so re-syncing never double-counts a day.",
+      "Rate overrides and approvals are saved centrally and seen by everyone.",
+      "Schedule times shown are the worker's defaults.",
     ],
     tech: {
-      stack: "Static app (public/costing/index.html) · Supabase · EC2 worker (Windows service SukhnaWorker)",
+      stack: "Static app (public/costing/index.html) · Supabase · EC2 Windows worker (service SukhnaWorker, C:\\sukhna-worker)",
       nodes: [
-        { stage: "Worker scheduler (COSTING_CRON=1)", detail: "Queues `pact_jobs` with __sync: costing-si / pf / pm / bom on the schedule above; polls every 5 s, 5 min job cap." },
-        { stage: "scripts/sync-costing-*.js", detail: "Playwright opens the PACT report and captures the ReportDataSet response; lib/costing-report.js maps the hashed column ids to captions." },
-        { stage: "Supabase `costing_snapshots`", detail: "One snapshot per report, read through GET /api/costing/<report>." },
-        { stage: "On-demand sync", detail: "POST /api/sync-costing?report=… then the page polls /api/pact-job?id=… until done." },
-        { stage: "/api/costing-overrides", detail: "Manual rate overrides, shared across users." },
+        { stage: "Scheduler (COSTING_CRON=1)", detail: "Inside pact-worker/worker.js. Queues `pact_jobs` with __sync costing-si every COSTING_SI_HOURS (3), costing-pf at COSTING_PF_HOUR (20), costing-pm + costing-bom at COSTING_MASTER_HOUR (4)." },
+        { stage: "Job runner", detail: "Polls `pact_jobs` every 5 s and spawns the script for each job; 5-minute cap per job, 7-minute watchdog." },
+        { stage: "scripts/sync-costing-{pf,pm,bom,si,bs}.js", detail: "Playwright logs into PACT, opens the report and captures its ReportDataSet response. scripts/lib/costing-report.js maps PACT's hashed column ids to captions by position, skipping the hidden \"Ver\" columns." },
+        { stage: "Process Flow FG fields", detail: "_fgLeg takes FG No / Units / Qty from the FG section; it falls back to the Receipt section only for the old layout with no FG columns." },
+        { stage: "Supabase `costing_snapshots`", detail: "One snapshot per report, served by GET /api/costing/<report>. On-demand sync: POST /api/sync-costing?report=…, then the page polls /api/pact-job?id=… until done." },
+      ],
+      data: [
+        { name: "costing_snapshots", what: "pf, pm, bom, si and bs report snapshots" },
+        { name: "costing_overrides", what: "Manual rates, approvals, inactive flags" },
+        { name: "pact_jobs", what: "Scheduled and on-demand sync jobs" },
+      ],
+      troubleshoot: [
+        "Sync says no ReportDataSet captured: PACT returned only its init stub; run the sync again.",
+        "Batch figures look shifted: PACT changed the report's columns; check costing-report.js mapping.",
+        "Nothing syncing at all: on EC2 check the SukhnaWorker service is running and look at its log.",
       ],
     },
   },
   consumption: {
     title: "Outlet Consumption",
     mode: "Semi-automated",
-    schedule: "Outlet outward synced hourly · counts entered by outlets",
-    tasks: ["Product Master & BOM", "Opening inventory", "Ideal inventory", "Wastage", "Outlet sales"],
+    schedule: "Outlet outward hourly · counts entered by outlets",
+    users: "Ops / outlet managers, management",
+    tasks: ["Masters & BOM", "Sales", "Opening inventory", "Ideal inventory", "Wastage", "Variance"],
+    about:
+      "Tracks every NutrioBox outlet's raw-material use. It combines what the factory sent, what the outlet sold (broken down through the recipes) and the outlet's own stock counts, to show what should be on the shelf against what is, and where the difference went.",
     overview: [
-      { stage: "One shared Product Master", detail: "Browse and search the PACT master and recipes; Sync pulls the latest." },
-      { stage: "What each outlet received", detail: "Stock sent from the factory to each outlet, pulled from PACT every hour." },
-      { stage: "What each outlet sold", detail: "Outlet sales from the POS, broken down into ingredients through the recipes." },
-      { stage: "Counts from the outlet", branches: ["Opening inventory count", "Wastage, approved by OTP", "Loose denomination: which pack levels are sold loose"] },
-      { stage: "Ideal vs actual", detail: "Received + opening − ideal usage, compared with what's actually on the shelf." },
+      { stage: "Masters", branches: ["🥕 Raw Material Master and 📋 Item Master from PACT", "🧮 FG → RM: each finished item broken into raw materials", "Mismatch views: in PACT but not PetPooja and the other way round; in BOM but not in the RM Master and the other way round"] },
+      { stage: "What came in", detail: "📦 Purchase: stock sent from the factory to each outlet, synced from PACT every hour." },
+      { stage: "What was sold", detail: "🧾 Sales API and 🍳 Sales Summary: outlet sales from the POS, turned into 🥬 RM Consumption through the recipes." },
+      { stage: "Counts from the outlet", branches: ["📝 Opening Inventory count", "🗑 Wastage, approved with a one-time code emailed to the admin inbox", "📏 Loose denomination: which pack level (L1 / L2 / L3) is sold loose"] },
+      { stage: "📊 Ideal Inventory", detail: "Opening + received − ideal usage − wastage = what should be there. Each run can be saved per outlet." },
+      { stage: "📦 Closing Inventory and ⚖ Variance", detail: "Actual closing count against ideal, item by item." },
+    ],
+    notes: [
+      "Wastage only counts once it's approved with the OTP (valid 10 minutes).",
+      "Fix the mismatch lists first; an item missing from a recipe makes its usage look like variance.",
     ],
     tech: {
-      stack: "Static app (public/outlet-consumption/index.html) · Supabase · EC2 worker · NutrioBox POS data",
+      stack: "Static app (public/outlet-consumption/index.html) · Supabase · EC2 worker · NutrioBox AI Food Inspector database",
       nodes: [
-        { stage: "/api/sync-outlet-outward", detail: "Queues the outlet-outward sync; the worker also runs it hourly (OUTLET_OUTWARD_SYNC_MIN)." },
-        { stage: "/api/outlet-invoices", detail: "Reads orders × order_items × dishes × restaurants from the NutrioBox Food Inspector database (fed by the PetPooja webhook)." },
-        { stage: "/api/opening-inventory · /api/ideal-inventory", detail: "`opening_inventory_counts` and `ideal_inventory_snapshots`." },
-        { stage: "/api/outlet-wastage + /api/wastage-otp", detail: "`outlet_wastage_counts`; approvals via `wastage_approval_otps`." },
-        { stage: "/api/loose-denomination", detail: "Saves the loose L1/L2/L3 marks shown on the Opening Inventory sheet." },
+        { stage: "Masters", detail: "/api/product-master and /api/costing/bom (costing_snapshots); Sync uses /api/sync-costing and polls /api/pact-job." },
+        { stage: "Outlet outward", detail: "/api/sync-outlet-outward queues the sync; the worker also runs it every OUTLET_OUTWARD_SYNC_MIN (60) minutes." },
+        { stage: "/api/outlet-invoices", detail: "Reads orders × order_items × dishes × restaurants from the AI Food Inspector database, which the PetPooja webhook fills." },
+        { stage: "Counts", branches: ["/api/opening-inventory → `opening_inventory_counts`", "/api/ideal-inventory → `ideal_inventory_snapshots` (full computed table per save)", "/api/outlet-wastage → `outlet_wastage_counts`", "/api/loose-denomination → `loose_denomination_state`"] },
+        { stage: "Wastage OTP", detail: "POST /api/wastage-otp/send makes a 6-digit code, stores it hashed (one active per snapshot, 10-minute expiry) and emails it via Resend; verified by PATCH /api/ideal-inventory (stage wastage)." },
+      ],
+      data: [
+        { name: "opening_inventory_counts", what: "Outlet opening counts" },
+        { name: "ideal_inventory_snapshots", what: "Saved ideal-inventory runs per outlet" },
+        { name: "outlet_wastage_counts", what: "Wastage entries" },
+        { name: "wastage_approval_otps", what: "Hashed OTPs for wastage approval" },
+        { name: "loose_denomination_state", what: "Which pack levels are sold loose" },
+      ],
+      troubleshoot: [
+        "No sales for an outlet: check the PetPooja webhook is still reaching the AI Food Inspector.",
+        "OTP email not arriving: check RESEND_API_KEY / RESEND_FROM and the WASTAGE_OTP_TO inbox.",
       ],
     },
   },
   salary: {
     title: "Salary Structure",
     mode: "Manual",
-    schedule: "Monthly · password protected",
-    tasks: ["Build structure", "Import register", "Generate slips", "Cloud save"],
+    schedule: "Monthly payroll · password protected",
+    users: "HR / founder's office",
+    tasks: ["Employee list", "Calculator", "Import register", "Slips", "HRMS export", "Compliance"],
+    about:
+      "The Allsure salary structure in one place: each employee's CTC split into components, statutory PF and ESIC applied, and the monthly register and salary slips produced from it. Every change is saved centrally with a backup trail.",
     overview: [
-      { stage: "Unlock the tool", detail: "Salary data sits behind a password." },
-      { stage: "Build or import", branches: ["Build take-home pay for one employee", "Import last month's salary register"] },
-      { stage: "PF and ESIC applied", detail: "Statutory deductions are worked out automatically from the structure." },
-      { stage: "Generate salary slips" },
-      { stage: "Every change saved to the cloud", detail: "With versioned backups, so an earlier state can be restored." },
+      { stage: "Unlock", detail: "The salary data is hidden behind a password; nothing renders until it's entered." },
+      { stage: "Build or import", branches: ["Calculator: work out take-home pay for one employee and add them to the list", "Import last month's salary register", "Edit the employee list in place: add rows, move or delete selected"] },
+      { stage: "Statutory rules applied", detail: "PF and ESIC worked out from the structure, including the effect of a wage-ceiling revision." },
+      { stage: "Review", branches: ["Dashboard, headcount mix and cost centres", "Compliance calendar of statutory due dates"] },
+      { stage: "Finalise and export", branches: ["Finalise the sheet for the month", "Salary slips (preview or download)", "Export register, summary, salary ladder or HRMS format"] },
+    ],
+    notes: [
+      "Each save keeps a versioned backup, so an earlier state can be restored.",
+      "Download the template before a first import so the columns line up.",
     ],
     tech: {
       stack: "Static app (public/salary/index.html) · Supabase",
       nodes: [
-        { stage: "Client-side password gate", detail: "Rendered before any salary content; unlock is remembered for the browser session." },
-        { stage: "/api/salary-data", detail: "Stores the whole workbook as one blob in `salary_data` and writes a copy to `salary_data_backups` on each save." },
+        { stage: "Password gate", detail: "Rendered inline before any salary content; the unlock is remembered in this browser." },
+        { stage: "In-browser engine", detail: "All salary calculations and exports run in the page." },
+        { stage: "/api/salary-data", detail: "Saves the whole workbook as one JSON blob in `salary_data` and writes a copy to `salary_data_backups` on each save." },
+      ],
+      data: [
+        { name: "salary_data", what: "Current salary workbook" },
+        { name: "salary_data_backups", what: "Versioned copies of every save" },
+      ],
+      troubleshoot: [
+        "Changes not showing on another laptop: reload; the page reads the latest saved version on open.",
+        "Need an older version: restore from `salary_data_backups`.",
       ],
     },
   },
@@ -185,17 +320,30 @@ const INFO: Record<TileKey, Info> = {
     title: "Closing Stock",
     mode: "Semi-automated",
     schedule: "On demand",
-    tasks: ["PACT stock pull", "Filters", "Valuation"],
+    users: "Stores, accounts, management",
+    tasks: ["PACT stock pull", "Filters", "Valuation", "Excel"],
+    about:
+      "Batch-wise closing stock straight from PACT, for every location and warehouse, so a stock position can be checked or valued without exporting from PACT.",
     overview: [
-      { stage: "Pull batch-wise stock from PACT", detail: "Press Sync to fetch the latest closing stock." },
-      { stage: "Filter", detail: "By location, warehouse and date." },
-      { stage: "Value it", detail: "Each batch is valued with the same rates the costing dashboard uses." },
+      { stage: "⚡ Sync from PACT", detail: "Pulls the latest batch-wise closing stock." },
+      { stage: "Filter", detail: "By location, warehouse, type and date. Each row shows batch, doc number and date, product code and name, type, units, quantity, rate and value." },
+      { stage: "Value", detail: "Currently uses PACT's own rate and value. Valuation at the dashboard's rates (raw material from the rate master, finished goods from the approved summary cost, WIP at zero) will be switched on once checked against real data." },
+      { stage: "⬇ Excel", detail: "Download the filtered view." },
+    ],
+    notes: [
+      "Each row is tagged Raw Material, Packing, WIP or Finished Good (from the product code), and you can filter by type.",
     ],
     tech: {
       stack: "Static app (public/closing-stock/index.html) · Supabase · EC2 worker",
       nodes: [
-        { stage: "POST /api/sync-costing?report=bs", detail: "Queues the balance-stock sync; the worker runs sync-costing-bs.js." },
-        { stage: "Supabase `costing_snapshots` (bs)", detail: "Read through GET /api/costing/bs." },
+        { stage: "POST /api/sync-costing?report=bs", detail: "Queues a `pact_jobs` row; the worker runs scripts/sync-costing-bs.js and saves the snapshot." },
+        { stage: "GET /api/costing/bs", detail: "Serves the bs snapshot from `costing_snapshots`; columns are matched by caption (quantity, rate, value)." },
+      ],
+      data: [
+        { name: "costing_snapshots (bs)", what: "PACT batch-wise closing stock" },
+      ],
+      troubleshoot: [
+        "Old figures: run Sync from PACT and wait for the job to finish.",
       ],
     },
   },
@@ -203,22 +351,42 @@ const INFO: Record<TileKey, Info> = {
     title: "Dispatch Report",
     mode: "Automated",
     schedule: "Sources synced from PACT · report always live",
-    tasks: ["Factory sales invoices", "Outlet stock outward", "Scan orders", "Export"],
+    users: "Dispatch, accounts, management",
+    tasks: ["B2B invoices", "Outlet stock outward", "Scan orders", "CSV / Excel"],
+    about:
+      "Every dispatch out of the factory in one list, whether it went to a B2B customer, to a NutrioBox outlet, or was scanned out against an inventory order, so there's one place to answer what left, when and to whom.",
     overview: [
-      { stage: "Three sources in one list", branches: ["B2B factory sales invoices", "Stock outward to NutrioBox outlets", "Inventory orders scanned on the floor"] },
-      { stage: "Filter", detail: "By date, source, customer or outlet, and item." },
-      { stage: "Export", detail: "Download as CSV or Excel." },
+      { stage: "Three sources in one list", branches: ["B2B: PACT Detail Factory Sales Invoices", "NB: PACT Stock Outward to NutrioBox outlets", "Scan: inventory orders scanned out with the gun"] },
+      { stage: "One row per document", detail: "Date, type, doc / order number, outlet or customer, number of items and status." },
+      { stage: "Filter and search", detail: "Search by doc or outlet / customer, filter by type and date; page through with Prev / Next; Reset clears it." },
+      { stage: "Export", detail: "CSV or Excel of what's on screen." },
+    ],
+    notes: [
+      "The report shows when the B2B and NB data were last synced from PACT.",
     ],
     tech: {
       stack: "Next.js page (src/app/dispatch-report) · Supabase",
       nodes: [
-        { stage: "GET /api/dispatch-report", detail: "Merges `detail_fsi_snapshot`, `outlet_dispatch_snapshot` and `inventory_orders`." },
-        { stage: "Sources", branches: ["detail_fsi_snapshot ← /api/sync-detail-fsi (worker pulls PACT Detail FSI report)", "outlet_dispatch_snapshot ← outlet-outward sync (hourly)", "inventory_orders ← scanner app via /api/inventory-orders"] },
+        { stage: "GET /api/dispatch-report", detail: "Merges the three tables into rows { date, type, doc, party, items, status, source }, plus counts per source and last-synced times." },
+        { stage: "Sources", branches: ["detail_fsi_snapshot ← /api/sync-detail-fsi (worker pulls PACT's Detail FSI report for the business day, 4 AM to 4 AM IST)", "outlet_dispatch_snapshot ← outlet-outward sync (hourly on the worker)", "inventory_orders ← scanner app via /api/inventory-orders"] },
         { stage: "Export", detail: "exportCsv / exportXlsx in the browser." },
+      ],
+      data: [
+        { name: "detail_fsi_snapshot", what: "B2B factory sales invoices" },
+        { name: "outlet_dispatch_snapshot", what: "Outlet stock-outward invoices" },
+        { name: "inventory_orders", what: "Scan-to-dispatch orders" },
+      ],
+      troubleshoot: [
+        "B2B or NB rows missing for today: check the last-synced time and trigger that sync.",
       ],
     },
   },
 };
+
+// `name` in content strings renders as inline code (table, route or file names).
+function fmt(t: string) {
+  return t.split("`").map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part));
+}
 
 function Flow({ nodes }: { nodes: FlowNode[] }) {
   return (
@@ -226,12 +394,12 @@ function Flow({ nodes }: { nodes: FlowNode[] }) {
       {nodes.map((n, i) => (
         <div key={i} className="ti-step">
           <div className="ti-box">
-            <div className="ti-stage">{n.stage}</div>
-            {n.detail && <div className="ti-detail">{n.detail}</div>}
+            <div className="ti-stage">{fmt(n.stage)}</div>
+            {n.detail && <div className="ti-detail">{fmt(n.detail)}</div>}
             {n.branches && (
               <ul className="ti-branches">
                 {n.branches.map((b, j) => (
-                  <li key={j}><span className="ti-tree">{j === n.branches!.length - 1 ? "└──" : "├──"}</span>{b}</li>
+                  <li key={j}><span className="ti-tree">{j === n.branches!.length - 1 ? "└──" : "├──"}</span>{fmt(b)}</li>
                 ))}
               </ul>
             )}
@@ -275,8 +443,34 @@ function TileInfoModal({ k, onClose }: { k: TileKey; onClose: () => void }) {
           </div>
         </div>
         <div className="ti-body">
-          {tab === "tech" && <div className="ti-stack"><b>Stack</b> {info.tech.stack}</div>}
-          <Flow nodes={tab === "overview" ? info.overview : info.tech.nodes} />
+          {tab === "overview" ? (
+            <>
+              <div className="ti-about">
+                <p>{info.about}</p>
+                <div className="ti-users"><b>Used by</b> {info.users}</div>
+              </div>
+              <h3 className="ti-h">How it works</h3>
+              <Flow nodes={info.overview} />
+              {info.notes.length > 0 && (
+                <>
+                  <h3 className="ti-h">Good to know</h3>
+                  <ul className="ti-list">{info.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="ti-stack"><b>Stack</b> {info.tech.stack}</div>
+              <h3 className="ti-h">Flow</h3>
+              <Flow nodes={info.tech.nodes} />
+              <h3 className="ti-h">Where the data lives</h3>
+              <table className="ti-table">
+                <tbody>{info.tech.data.map((d) => <tr key={d.name}><td><code>{d.name}</code></td><td>{d.what}</td></tr>)}</tbody>
+              </table>
+              <h3 className="ti-h">When something goes wrong</h3>
+              <ul className="ti-list">{info.tech.troubleshoot.map((n, i) => <li key={i}>{fmt(n)}</li>)}</ul>
+            </>
+          )}
         </div>
       </div>
     </div>
