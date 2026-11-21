@@ -8,6 +8,7 @@ import { inr, inrShort } from "@/lib/format";
 import { supabase } from "@/lib/supabaseClient";
 import { rowToBill, billToRow } from "@/lib/data";
 import { Icon } from "./icons";
+import { TileInfoButton } from "./TileInfo";
 import { createPortal } from "react-dom";
 import PRICE_CHART from "@/lib/price-chart.json";
 import { matchSupplier, ALL_SUPPLIERS } from "@/lib/suppliers";
@@ -1727,6 +1728,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
       <div className="tiles">
         <button className="tile stock" onClick={() => onOpen("stock")}>
           <span className="tile-band" />
+          <TileInfoButton k="stock" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.bill}</span>
             <span className="tile-ttl">Stock Inward &amp; Bill Uploader</span>
@@ -1737,6 +1739,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </button>
         <button className="tile sales" onClick={() => onOpen("sales")}>
           <span className="tile-band" />
+          <TileInfoButton k="sales" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.clipboard}</span>
             <span className="tile-ttl">Sales Order Creation</span>
@@ -1747,6 +1750,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </button>
         <a className="tile dispatch" href="/outlet-dispatch/index.html">
           <span className="tile-band" />
+          <TileInfoButton k="dispatch" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.truck}</span>
             <span className="tile-ttl">Outlet Dispatch Tool</span>
@@ -1757,6 +1761,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </a>
         <button className="tile salesorder" onClick={() => onOpen("salesorder")}>
           <span className="tile-band" />
+          <TileInfoButton k="salesorder" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.barcode}</span>
             <span className="tile-ttl">Sales Order</span>
@@ -1767,6 +1772,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </button>
         <a className="tile costing" href="/costing/index.html">
           <span className="tile-band" />
+          <TileInfoButton k="costing" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.chart}</span>
             <span className="tile-ttl">Factory Costing Dashboard</span>
@@ -1777,6 +1783,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </a>
         <a className="tile consumption" href="/outlet-consumption/index.html">
           <span className="tile-band" />
+          <TileInfoButton k="consumption" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.boxes}</span>
             <span className="tile-ttl">Outlet Consumption</span>
@@ -1787,6 +1794,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </a>
         <a className="tile salary" href="/salary/index.html">
           <span className="tile-band" />
+          <TileInfoButton k="salary" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.salary}</span>
             <span className="tile-ttl">Salary Structure</span>
@@ -1797,6 +1805,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </a>
         <a className="tile closing" href="/closing-stock/index.html">
           <span className="tile-band" />
+          <TileInfoButton k="closing" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.boxes}</span>
             <span className="tile-ttl">Closing Stock</span>
@@ -1807,6 +1816,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </a>
         <a className="tile dispatch" href="/dispatch-report">
           <span className="tile-band" />
+          <TileInfoButton k="dispatchReport" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.chart}</span>
             <span className="tile-ttl">Dispatch Report</span>
