@@ -1816,6 +1816,7 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
         </a>
         <a className="tile pmr" href="/pmr/index.html">
           <span className="tile-band" />
+          <TileInfoButton k="pmr" />
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.clipboard}</span>
             <span className="tile-ttl">Sukhna PMR</span>

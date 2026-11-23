@@ -15,7 +15,7 @@ type FlowNode = { stage: string; detail?: string; branches?: string[]; edge?: st
 type Mode = "Automated" | "Semi-automated" | "Manual";
 export type TileKey =
   | "stock" | "sales" | "dispatch" | "salesorder" | "costing"
-  | "consumption" | "salary" | "closing" | "dispatchReport";
+  | "consumption" | "salary" | "closing" | "dispatchReport" | "pmr";
 
 type Info = {
   title: string;
@@ -344,6 +344,44 @@ const INFO: Record<TileKey, Info> = {
       ],
       troubleshoot: [
         "Old figures: run Sync from PACT and wait for the job to finish.",
+      ],
+    },
+  },
+  pmr: {
+    title: "Sukhna PMR",
+    mode: "Automated",
+    schedule: "On demand; the PACT robot posts within minutes",
+    users: "Production planning, factory supervisors",
+    tasks: ["Plan a day", "Live BOMs", "Sec Pack cartons", "Submit to PACT", "Track Job / PMR numbers"],
+    about:
+      "Plan a production day and let the PACT robot enter it. Each product becomes a Job and each batch a Production Material Request (PMR), with the BOM's Stage 1 and Stage 2 materials, so nobody types jobs or PMRs into PACT by hand. Same as the Sukhna PMR phone app; both send to the same queue.",
+    overview: [
+      { stage: "Pick the production date", detail: "Today, tomorrow or any date from the calendar." },
+      { stage: "Add products", detail: "From the live PACT BOM feed. Set S1 / S2 quantity, batches, and Sec Pack YES to add the carton BOM automatically." },
+      { stage: "Submit to PACT", detail: "The plan is queued; the same plan submitted twice is only queued once.", edge: "PACT robot on the PACT server" },
+      { stage: "Robot posts it", branches: ["Creates the day's group '<date> Created by AI' if it isn't there", "Creates each Job, named 'Created by AI - <product> <date> <N>BATCH'", "Posts one PMR per batch"] },
+      { stage: "Track on Submitted", detail: "Status, progress, Job No and PMR numbers per batch; refreshes itself while anything is running." },
+    ],
+    notes: [
+      "The robot only works while nobody is connected to the PACT server's remote desktop; while someone is, submissions wait as 'queued'.",
+      "An error on a submission shows PACT's reason; fix it in PACT, then re-queue it from the server.",
+    ],
+    tech: {
+      stack: "Static app (public/pmr/index.html) · Supabase · PACT robot on the EC2 Windows server",
+      nodes: [
+        { stage: "GET /api/costing/bom", detail: "PACT 'Stage wise BOM' snapshot from `costing_snapshots`; the page builds the BOM list (same code as the app's bom.ts)." },
+        { stage: "POST /api/pmr-inbox", detail: "Inserts a `production_jobs` row (queued) with the Jobs and batch PMRs; a dedupe key stops double submits." },
+        { stage: "pmr_watcher.py + pmr_agent.py", detail: "Claim the row, drive PACT (Jobs, then PMRs), and write the result and progress back." },
+        { stage: "GET /api/pmr-status", detail: "Latest 50 submissions with status, note and result for the Submitted tab." },
+      ],
+      data: [
+        { name: "production_jobs", what: "One row per submission: payload (jobs, pmrs), status, progress note, result (Job / PMR numbers)" },
+        { name: "costing_snapshots (bom)", what: "PACT stage-wise BOM feed" },
+      ],
+      troubleshoot: [
+        "Stuck on 'queued': someone is connected to the PACT server, the server is stopped, or the robot isn't running.",
+        "No BOMs listed: the BOM snapshot hasn't synced; sync it from the Costing dashboard.",
+        "Same plan says 'Already queued': it was submitted before; change it or check the Submitted tab.",
       ],
     },
   },
