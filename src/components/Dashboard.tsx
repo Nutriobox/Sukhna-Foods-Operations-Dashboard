@@ -1814,6 +1814,16 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
             <span className="tile-go">Open {TileSvg.arrow}</span>
           </span>
         </a>
+        <a className="tile pmr" href="/pmr/index.html">
+          <span className="tile-band" />
+          <span className="tile-body">
+            <span className="tile-ic">{TileSvg.clipboard}</span>
+            <span className="tile-ttl">Sukhna PMR</span>
+            <span className="tile-sub">Plan a production day &mdash; Jobs and batch Production Material Requests &mdash; and track what the PACT robot posted. Same as the Sukhna PMR phone app.</span>
+            <span className="tile-meta">Jobs &amp; PMRs · posts to PACT</span>
+            <span className="tile-go">Open {TileSvg.arrow}</span>
+          </span>
+        </a>
         <a className="tile dispatch" href="/dispatch-report">
           <span className="tile-band" />
           <TileInfoButton k="dispatchReport" />

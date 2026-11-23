@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sukhna PMR — Jobs &amp; Material Requests</title>
+<link rel="icon" href="/pmr/logo.png">
+<script src="/js/password-gate.js"></script>
+<style>
+  /* Web version of the Sukhna PMR phone app: plan a production day (Jobs + batch PMRs) and track what the
+     PACT robot posted. Same API as the app: /api/costing/bom (live BOM feed), /api/pmr-inbox (submit),
+     /api/pmr-status (submitted list). Keep the plan logic in sync with pact-pmr-mobile/app/src. */
+  :root{--brand:#0b7a3b;--brand-d:#075c2c;--accent:#f08a24;--orange:#e75424;--bg:#f5f6f5;--card:#fff;--ink:#161a17;--mut:#6b746d;--line:#e2e6e3;--danger:#c0392b;--ok:#0b7a3b}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px;line-height:1.45}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  header img{width:46px;height:46px}
+  header h1{font-size:20px;margin:0;font-weight:800}
+  header p{margin:2px 0 0;color:var(--mut);font-size:12.5px}
+  .hd-right{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mut)}
+  .linkbtn{background:none;border:none;color:var(--brand);font-weight:700;cursor:pointer;padding:0;font-size:13px}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+  .tab{padding:10px 16px;border:none;background:none;font-weight:700;color:var(--mut);cursor:pointer;border-bottom:3px solid transparent;font-size:14px}
+  .tab.on{color:var(--brand);border-color:var(--brand)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  label.l{display:block;font-size:12px;font-weight:700;color:var(--mut);margin-bottom:6px}
+  .daterow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .step{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--brand);font-size:20px;font-weight:800;cursor:pointer}
+  input[type=date],input[type=text],input[type=number]{padding:9px 11px;font-size:14px;border:1px solid #cdd5cf;border-radius:8px;background:#fff;outline:none}
+  input:focus{border-color:var(--brand)}
+  .quick{color:var(--brand);font-weight:700;cursor:pointer;background:none;border:none;font-size:13px}
+  .muted{color:var(--mut)}.err{color:var(--danger);margin-top:8px}
+  .btn{cursor:pointer;border-radius:10px;border:1px solid var(--line);padding:10px 16px;font-weight:700;background:#fff;font-size:14px}
+  .btn.prim{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.prim:disabled{opacity:.5;cursor:default}
+  .addbtn{width:100%;margin-top:14px;border:1.5px dashed var(--brand);border-radius:10px;padding:13px;background:none;color:var(--brand);font-weight:700;font-size:15px;cursor:pointer}
+  .addbtn:disabled{opacity:.5;cursor:default}
+  .empty{text-align:center;color:var(--mut);margin:22px 0;font-size:14px}
+  .tblwrap{overflow-x:auto;margin-top:12px}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:820px}
+  th{background:var(--brand);color:#fff;font-size:12px;text-align:center;padding:9px 6px;font-weight:700}
+  th:first-child{border-top-left-radius:8px}th:last-child{border-top-right-radius:8px}
+  td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:center;background:#fff;vertical-align:middle}
+  td.name{text-align:left;min-width:220px}
+  tr.auto td{background:#fff7ec}
+  .nm{font-weight:600}.code{font-size:11px;color:var(--mut)}
+  td input{width:80px;text-align:center;padding:6px}
+  .uom1{font-size:12px;color:var(--mut)}.uomd{font-size:11px;color:var(--brand);font-weight:700}
+  .pill{display:inline-block;font-weight:800;font-size:12px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);cursor:pointer;background:#fff;color:var(--mut)}
+  .pill.yes{background:var(--accent);border-color:var(--accent);color:#fff}
+  .bt{background:none;border:none;color:var(--brand);font-size:20px;font-weight:800;cursor:pointer;padding:0 6px}
+  .bn{display:inline-block;min-width:22px;font-weight:700}
+  .rm{background:none;border:none;color:var(--danger);font-weight:800;cursor:pointer;font-size:15px}
+  .summary{margin-top:12px;font-weight:600}
+  .bar{display:flex;gap:10px;margin-top:14px;justify-content:flex-end}
+  .banner{border:1px solid var(--ok);background:#0b7a3b12;border-radius:12px;padding:14px;margin-top:14px}
+  .banner b{font-size:16px}
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(15,23,20,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 12px;z-index:50}
+  .ov.on{display:flex}
+  .modal{background:#fff;border-radius:14px;width:100%;max-width:620px;max-height:calc(100vh - 80px);display:flex;flex-direction:column;overflow:hidden}
+  .mhead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .mhead b{font-size:17px}
+  .modal input{margin:12px;width:calc(100% - 24px)}
+  .plist{overflow-y:auto;padding:0 12px 12px}
+  .pick{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;background:#fff;width:100%;text-align:left;font:inherit}
+  .pick:hover{border-color:var(--brand)}.pick:disabled{opacity:.4;cursor:default}
+  .pick .pn{font-weight:600}.pick .pm{font-size:12px;color:var(--mut)}
+  .pick .pa{margin-left:auto;font-size:20px;color:var(--brand);font-weight:800}
+  /* submitted */
+  .grp{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .ghead{display:flex;align-items:center;gap:10px;padding:14px;cursor:pointer}
+  .gname{font-weight:800;font-size:16px}.gmeta{color:var(--mut);font-size:13px}
+  .st{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;border:1px solid}
+  .note{color:var(--danger);font-size:12.5px;margin-top:4px;word-break:break-word}
+  .track{height:6px;background:#e5ebe7;border-radius:4px;margin-top:6px;overflow:hidden;max-width:420px}
+  .fill{height:100%;background:var(--accent)}
+  .prog{font-size:12.5px;color:var(--mut);margin-top:4px}
+  .job{border-top:1px solid var(--line);padding:10px 14px 10px 24px}
+  .job .jn{font-weight:700}.job .jno{color:var(--brand);font-weight:700;font-size:13px;margin:2px 0 4px}
+  .pmr{display:flex;gap:14px;font-size:13px;padding:3px 0;border-top:1px dashed var(--line)}
+  .pmr span:last-child{margin-left:auto;color:var(--mut)}
+  .gate{max-width:420px;margin:60px auto;text-align:center}
+  .gate img{width:110px;height:110px}
+  .gate input{width:100%;margin:14px 0}
+  @media (max-width:640px){.hd-right{margin-left:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- operator sign-in (same as the app: a name/ID stored on this device, sent as createdBy) -->
+  <div id="gate" class="gate" style="display:none">
+    <img src="/pmr/logo.png" alt="Sukhna Foods">
+    <h1 style="margin:10px 0 4px">Sukhna PMR</h1>
+    <p class="muted">Enter your operator name to start logging jobs and material requisitions.</p>
+    <input id="opName" type="text" placeholder="Operator name / ID, e.g. R. Singh" onkeydown="if(event.key==='Enter')signIn()">
+    <button class="btn prim" style="width:100%" onclick="signIn()">Continue</button>
+  </div>
+
+  <div id="main" style="display:none">
+    <header>
+      <img src="/pmr/logo.png" alt="Sukhna Foods">
+      <div><h1>Sukhna PMR</h1><p>Plan production Jobs and batch PMRs; the PACT robot posts them. Part of the Sukhna Foods Operations Dashboard.</p></div>
+      <div class="hd-right"><span>Operator: <b id="opShow"></b></span><button class="linkbtn" onclick="signOut()">Change</button><a class="linkbtn" href="/" style="text-decoration:none">← Dashboard</a></div>
+    </header>
+    <div class="tabs">
+      <button class="tab on" id="tabPlan" onclick="showTab('plan')">Plan</button>
+      <button class="tab" id="tabSub" onclick="showTab('sub')">Submitted</button>
+    </div>
+
+    <!-- PLAN -->
+    <section id="plan">
+      <div class="card">
+        <label class="l">Production date</label>
+        <div class="daterow">
+          <button class="step" onclick="shiftDate(-1)">‹</button>
+          <input type="date" id="date" onchange="state.date=this.value">
+          <button class="step" onclick="shiftDate(1)">›</button>
+          <button class="quick" onclick="setDate(todayIso())">Today</button>
+          <button class="quick" onclick="setDate(addDays(todayIso(),1))">Tomorrow</button>
+          <span class="muted" id="bomCount" style="margin-left:auto;font-size:12.5px">Loading BOMs…</span>
+        </div>
+        <div class="err" id="planErr"></div>
+        <div id="planBody"></div>
+      </div>
+    </section>
+
+    <!-- SUBMITTED -->
+    <section id="sub" style="display:none">
+      <div style="display:flex;align-items:center;margin-bottom:10px;gap:10px">
+        <span class="muted" id="subInfo"></span>
+        <button class="btn" style="margin-left:auto" onclick="loadSubmitted()">↻ Refresh</button>
+      </div>
+      <div class="err" id="subErr"></div>
+      <div id="subList"><p class="empty">Loading…</p></div>
+    </section>
+  </div>
+</div>
+
+<!-- product picker -->
+<div class="ov" id="picker" onclick="if(event.target===this)closePicker()">
+  <div class="modal">
+    <div class="mhead"><b>Select product</b><button class="linkbtn" onclick="closePicker()">Done</button></div>
+    <input type="text" id="search" placeholder="Search name or BOM code" oninput="renderPicker()">
+    <div class="plist" id="plist"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const OP_KEY = 'pmr:operator';
+
+// ---------- dates (local calendar day, not UTC) ----------
+const pad2 = (n) => String(n).padStart(2, '0');
+function isoOf(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function todayIso() { return isoOf(new Date()); }
+function addDays(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return isoOf(d); }
+function ddmmyyyy(iso) { const d = new Date(iso + 'T00:00:00'); return pad2(d.getDate()) + '-' + pad2(d.getMonth() + 1) + '-' + d.getFullYear(); }
+
+// ---------- BOM feed -> Bom[]  (port of app/src/bom.ts; keep in sync) ----------
+const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+const num = (s) => { const n = parseFloat(String(s == null ? '' : s).replace(/[,₹%\s]/g, '')); return isFinite(n) ? n : 0; };
+const clean = (s) => String(s == null ? '' : s).trim().replace(/\s+/g, ' ').replace(/(WIP|Pack)\1+/g, '$1').replace(/\s*(WIP|Pack)\s*$/, '').trim();
+function findCol(header, ...pats) { for (let i = 0; i < header.length; i++) { const h = norm(header[i]); if (pats.some((p) => p.test(h))) return i; } return -1; }
+const MASS = /^(kg|kgs|g|gm|gms|grm|gram|grams)$/i, VOL = /^(l|ltr|litre|liter|ml)$/i;
+const wipDefault = (u) => (MASS.test(u) ? 'KG' : VOL.test(u) ? 'L' : u);
+
+function transformBomIdeal(rows) {
+  const hi = rows.findIndex((r) => Array.isArray(r) && r.some((c) => norm(c) === 'section') && r.some((c) => norm(c) === 'stage'));
+  if (hi < 0) return [];
+  const header = rows[hi];
+  const col = {
+    section: findCol(header, /^section$/), stage: findCol(header, /^stage$/),
+    bomcode: findCol(header, /^bomcode$/, /^bomid$/), bomlabel: findCol(header, /^bom$/, /^bomname$/),
+    status: findCol(header, /^bomstatus$/, /^status$/),
+    code: findCol(header, /^productcode$/, /^itemcode$/, /^materialcode$/), name: findCol(header, /^productname$/, /^itemname$/, /^materialname$/),
+    unit: findCol(header, /^unit$/, /^uom$/), usage: findCol(header, /usageqty/),
+    issue: findCol(header, /^rawqty$/, /^issueqty$/, /issueqty(?!.*yield)/), op: findCol(header, /^opqty$/, /outputqty/),
+  };
+  const get = (r, i) => (i >= 0 ? r[i] : '');
+  const key = (r) => clean(get(r, col.bomcode)) || clean(get(r, col.bomlabel));
+  const boms = [], byKey = {};
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!Array.isArray(r) || r.every((c) => String(c).trim() === '')) continue;
+    const section = clean(get(r, col.section)).toUpperCase();
+    if (section !== 'INPUT' && section !== 'OUTPUT') continue;
+    const k = key(r); if (!k) continue;
+    let cur = byKey[k];
+    if (!cur) {
+      const label = clean(get(r, col.bomlabel)) || k;
+      const name = label.split(/\(FP:/i)[0].trim() || label;
+      const m = String(get(r, col.bomlabel)).match(/Qty:\s*([\d.,]+)\s*Units?:\s*([A-Za-z]+)/i);
+      const uom = m ? m[2] : '';
+      cur = { bomCode: clean(get(r, col.bomcode)) || k, name, category: '', uom, sizeType: m ? m[2] : '', batchSize: m ? num(m[1]) : 0, batchUom: uom,
+              stage1: [], stage2: [], hasSecondaryPackaging: false, secondaryBomCode: undefined,
+              active: clean(get(r, col.status)).toLowerCase() !== 'inactive', _out: [], _labelQty: m ? num(m[1]) : 0, _labelUom: m ? m[2] : '' };
+      byKey[k] = cur; boms.push(cur);
+    }
+    const stage = clean(get(r, col.stage));
+    const unit = clean(get(r, col.unit));
+    if (section === 'INPUT') {
+      const line = { materialCode: clean(get(r, col.code)), materialName: clean(get(r, col.name)), qtyPerBatch: num(get(r, col.issue)) || num(get(r, col.usage)), uom: unit };
+      (/2/.test(stage) ? cur.stage2 : cur.stage1).push(line);
+    } else {
+      cur._out.push(clean(get(r, col.code)));
+      const op = num(get(r, col.op));
+      if (op && !cur.batchSize) { cur.batchSize = op; cur.batchUom = unit; cur.uom = unit; cur.sizeType = unit; }
+      if (op) { const out = { qty: op, uom: unit }; if (/2/.test(stage)) cur.stage2Out = out; else cur.stage1Out = out; }
+    }
+  }
+  for (const b of boms) {
+    const fin = b.stage2Out || b.stage1Out;
+    if (fin) {
+      const lab = b._labelUom;
+      if (lab && fin.qty === b._labelQty && (MASS.test(fin.uom) || VOL.test(fin.uom)) && !MASS.test(lab) && !VOL.test(lab)) fin.uom = lab;
+      fin.defUom = lab || wipDefault(fin.uom);
+    }
+    if (b.stage2Out && b.stage1Out) b.stage1Out.defUom = wipDefault(b.stage1Out.uom);
+  }
+  const outputOwner = {};
+  boms.forEach((b) => b._out.forEach((c) => { if (c) outputOwner[c] = b.bomCode; }));
+  const base = (n) => n.toLowerCase().split('(')[0].trim();
+  const same = (a, b) => { const x = base(a), y = base(b); return x.length >= 5 && y.length >= 5 && (x === y || x.startsWith(y) || y.startsWith(x)); };
+  for (const s of boms) {
+    if (s.stage2.length) continue;
+    for (const line of s.stage1) {
+      const owner = outputOwner[line.materialCode];
+      if (owner && owner !== s.bomCode) {
+        const parent = boms.find((x) => x.bomCode === owner);
+        if (parent && same(parent.name, s.name)) {
+          parent.hasSecondaryPackaging = true; parent.secondaryBomCode = s.bomCode;
+          parent.secondaryInputQty = line.qtyPerBatch; parent.secondaryInputUom = line.uom;
+        }
+      }
+    }
+  }
+  return boms.filter((b) => b.active).map((b) => { const { active, _out, _labelQty, _labelUom, ...rest } = b; return rest; });
+}
+
+// ---------- units + secondary pack rows  (port of app/src/preview.ts; keep in sync) ----------
+const FACTOR = { kg: ['g', 1000], kgs: ['g', 1000], g: ['g', 1], gm: ['g', 1], gms: ['g', 1], grm: ['g', 1], gram: ['g', 1], grams: ['g', 1],
+                 l: ['ml', 1000], ltr: ['ml', 1000], litre: ['ml', 1000], liter: ['ml', 1000], ml: ['ml', 1] };
+const dim = (u) => (FACTOR[String(u).toLowerCase()] || [])[0];
+function convertQty(qty, from, to) { const f = FACTOR[String(from).toLowerCase()], t = FACTOR[String(to).toLowerCase()]; if (!f || !t || f[0] !== t[0]) return qty; return (qty * f[1]) / t[1]; }
+function packSize(name) {
+  const s = String(name);
+  const toks = [...s.matchAll(/([\d.]+)\s*(KGS|KG|GMS|GM|GRM|GRAMS?|G|ML|LTR|L)\b/gi)];
+  const t = toks[toks.length - 1]; if (!t) return null;
+  const f = FACTOR[t[2].toLowerCase().replace(/^grams?$/, 'g')]; if (!f) return null;
+  const pcs = s.slice((t.index || 0) + t[0].length).match(/^\s*\/\s*([\d.]+)\s*(PCS|PC|PIECES?)\b/i);
+  return { qty: parseFloat(t[1]) * f[1] * (pcs ? parseFloat(pcs[1]) : 1), base: f[0] };
+}
+function toBase(qty, uom, name) { const ps = packSize(name); const d = dim(uom); if (d) return ps && d !== ps.base ? null : convertQty(qty, uom, d === 'g' ? 'g' : 'ml'); return ps ? qty * ps.qty : null; }
+function toDefault(qty, uom, defUom, name, perUnit) {
+  if (!defUom || String(defUom).toLowerCase() === String(uom).toLowerCase()) return null;
+  const du = dim(uom), dd = dim(defUom);
+  if (du && dd) return du === dd ? { qty: convertQty(qty, uom, defUom), uom: defUom } : null;
+  const ps = perUnit && dd ? { qty: perUnit, base: dd } : packSize(name);
+  if (!ps) return null;
+  if (du && !dd) return { qty: convertQty(qty, uom, ps.base) / ps.qty, uom: defUom };
+  if (!du && dd) return { qty: convertQty(qty * ps.qty, ps.base, defUom), uom: defUom };
+  return null;
+}
+const fmtQty = (n) => String(+(+n).toFixed(3));
+
+function expandSecondaryRows(rows, bomsByCode) {
+  const present = new Set(rows.map((r) => r.bomCode));
+  const out = [];
+  for (const row of rows) {
+    out.push(row);
+    const bom = bomsByCode[row.bomCode];
+    if (!row.secondaryPackaging || !bom || !bom.hasSecondaryPackaging || !bom.secondaryBomCode) continue;
+    if (present.has(bom.secondaryBomCode)) continue;
+    const sec = bomsByCode[bom.secondaryBomCode]; if (!sec) continue;
+    const batches = Math.max(1, Math.floor(row.batches || 1));
+    const fin = row.stage2Qty > 0 ? { qty: row.stage2Qty, uom: row.stage2Uom } : { qty: row.stage1Qty, uom: row.stage1Uom };
+    const primaryTotal = fin.qty * batches;
+    const ps = packSize(bom.name);
+    const q = bom.secondaryInputQty || 0, qu = bom.secondaryInputUom || fin.uom;
+    let ratio = 0, inBase = null;
+    if (q > 0) {
+      const primBase = toBase(primaryTotal, fin.uom, bom.name);
+      inBase = ps && q >= ps.qty ? q : toBase(q, qu, bom.name);
+      if (primBase != null && inBase) ratio = primBase / inBase / primaryTotal;
+      else if (String(qu).toLowerCase() === String(fin.uom).toLowerCase() || (dim(qu) && dim(qu) === dim(fin.uom))) ratio = 1 / convertQty(q, qu, fin.uom);
+    }
+    const secOutPerBatch = (sec.stage1Out && sec.stage1Out.qty) || 1;
+    const cartons = Math.floor(primaryTotal * ratio * secOutPerBatch + 1e-9);
+    const secUom = (sec.stage1Out && sec.stage1Out.uom) || sec.batchUom;
+    const perCarton = inBase && ps ? inBase / secOutPerBatch : undefined;
+    out.push({ bomCode: sec.bomCode, bomName: sec.name, category: sec.category, stage1Qty: cartons, stage1Uom: secUom,
+               stage1DefUom: perCarton && ps ? (ps.base === 'g' ? 'KG' : 'L') : undefined, stage1DefPer: perCarton,
+               stage2Qty: 0, stage2Uom: secUom, bomSizeType: sec.sizeType, batches, secondaryPackaging: false,
+               autoFromSecondaryOf: bom.bomCode, packInputQty: primaryTotal, packInputUom: fin.uom });
+    present.add(sec.bomCode);
+  }
+  return out;
+}
+function rowFromBom(bom) {
+  const s1 = bom.stage1Out || { qty: bom.batchSize, uom: bom.batchUom, defUom: bom.uom };
+  return { bomCode: bom.bomCode, bomName: bom.name, category: bom.category, stage1Qty: s1.qty, stage1Uom: s1.uom, stage1DefUom: s1.defUom,
+           stage2Qty: bom.stage2Out ? bom.stage2Out.qty : 0, stage2Uom: bom.stage2Out ? bom.stage2Out.uom : s1.uom,
+           stage2DefUom: bom.stage2Out ? bom.stage2Out.defUom : undefined, bomSizeType: bom.sizeType, batches: 1,
+           secondaryPackaging: false, secondaryBomCode: bom.secondaryBomCode };
+}
+
+// ---------- Job + batch PMR plan  (port of app/src/voucher.ts; keep in sync) ----------
+function buildVouchers(productionDate, rows, byCode) {
+  const expanded = expandSecondaryRows(rows, byCode);
+  const jobs = [], pmrs = [];
+  for (const row of expanded) {
+    const bom = byCode[row.bomCode];
+    const batches = Math.max(1, Math.floor(row.batches || 1));
+    jobs.push({ bomCode: row.bomCode, bomName: row.bomName, docName: row.bomName + ' ' + ddmmyyyy(productionDate) + ' ' + batches + 'BATCH', batches, isPack: !!row.autoFromSecondaryOf, parentBomCode: row.autoFromSecondaryOf });
+    const lines = [];
+    if (bom) {
+      for (const l of bom.stage1) lines.push({ materialCode: l.materialCode, materialName: l.materialName, qty: l.qtyPerBatch, uom: l.uom, stage: 1 });
+      if (row.autoFromSecondaryOf) {
+        const inQty = row.packInputQty || 0;
+        lines.unshift({ materialCode: row.autoFromSecondaryOf, materialName: row.bomName + ' output', qty: +(inQty / batches).toFixed(3), uom: row.packInputUom || row.stage1Uom, stage: 1 });
+      }
+      for (const l of bom.stage2) lines.push({ materialCode: l.materialCode, materialName: l.materialName, qty: l.qtyPerBatch, uom: l.uom, stage: 2 });
+    }
+    for (let b = 1; b <= batches; b++) pmrs.push({ jobBomCode: row.bomCode, batchNo: b, bomCode: row.bomCode, bomName: row.bomName, lines });
+  }
+  return { jobs, pmrs };
+}
+function dedupeKey(productionDate, rows) {
+  return productionDate + '#' + rows.map((r) => r.bomCode + ':' + r.batches + (r.secondaryPackaging ? ':S' : '')).sort().join('|');
+}
+
+// ---------- state ----------
+const state = { operator: '', date: addDays(todayIso(), 1), boms: [], byCode: {}, rows: [], loading: false, busy: false, result: null, items: [], open: {}, timer: null };
+function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+function lsSet(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} }
+
+function signIn() { const v = $('opName').value.trim(); if (!v) return; state.operator = v; lsSet(OP_KEY, v); boot(); }
+function signOut() { lsSet(OP_KEY, ''); state.operator = ''; $('main').style.display = 'none'; $('gate').style.display = ''; $('opName').value = ''; $('opName').focus(); }
+
+function showTab(t) {
+  $('plan').style.display = t === 'plan' ? '' : 'none';
+  $('sub').style.display = t === 'sub' ? '' : 'none';
+  $('tabPlan').classList.toggle('on', t === 'plan'); $('tabSub').classList.toggle('on', t === 'sub');
+  if (t === 'sub') loadSubmitted();
+}
+function setDate(iso) { state.date = iso; $('date').value = iso; }
+function shiftDate(n) { setDate(addDays(state.date, n)); }
+
+async function loadBoms() {
+  state.loading = true; $('planErr').textContent = ''; $('bomCount').textContent = 'Loading BOMs…'; renderPlan();
+  try {
+    const res = await fetch('/api/costing/bom', { cache: 'no-store' });
+    if (!res.ok) throw new Error('BOM feed ' + res.status);
+    const j = await res.json();
+    if (!j || !Array.isArray(j.data)) throw new Error('BOM feed returned no data');
+    state.boms = transformBomIdeal(j.data);
+    state.byCode = Object.fromEntries(state.boms.map((b) => [b.bomCode, b]));
+    $('bomCount').textContent = state.boms.length + ' BOMs';
+  } catch (e) { $('planErr').textContent = String(e.message || e); $('bomCount').textContent = ''; }
+  finally { state.loading = false; renderPlan(); }
+}
+
+// ---------- plan table ----------
+function uomCell(qty, uom, defUom, name, per) {
+  const d = qty ? toDefault(qty, uom, defUom, name, per) : null;
+  return '<td><div class="uom1">' + esc(uom) + '</div>' + (d ? '<div class="uomd">' + esc(fmtQty(d.qty) + ' ' + d.uom) + '</div>' : '') + '</td>';
+}
+function renderPlan() {
+  const body = $('planBody');
+  if (state.result) {
+    const r = state.result;
+    body.innerHTML = '<div class="banner"><b>✅ ' + (r.deduped ? 'Already queued' : 'Queued for PACT') + '</b><div class="muted" style="margin-top:4px">#' + r.id + ' — ' + r.jobs + ' job' + (r.jobs !== 1 ? 's' : '') + ' · ' + r.pmrs + ' PMR' + (r.pmrs !== 1 ? 's' : '') +
+      (r.deduped ? ' (this plan was already submitted)' : ' — the PACT robot will post them and fill in the voucher numbers.') + '</div>' +
+      '<div class="bar" style="justify-content:flex-start"><button class="btn prim" onclick="showTab(\'sub\')">Track on Submitted</button><button class="btn" onclick="state.result=null;renderPlan()">Plan another</button></div></div>';
+    return;
+  }
+  const rows = expandSecondaryRows(state.rows, state.byCode);
+  let h = '<button class="addbtn" onclick="openPicker()"' + (state.loading || !state.boms.length ? ' disabled' : '') + '>+ Add product (BOM)</button>';
+  if (!rows.length) {
+    h += '<p class="empty">No products yet. Live from your PACT BOM feed — click “Add product”.</p>';
+  } else {
+    h += '<div class="tblwrap"><table><thead><tr><th>#</th><th>BOM name</th><th>S1 Qty</th><th>UOM</th><th>S2 Qty</th><th>UOM</th><th>Sec Pack</th><th>Batches</th><th></th></tr></thead><tbody>';
+    rows.forEach((r, i) => {
+      const auto = !!r.autoFromSecondaryOf, c = esc(r.bomCode);
+      h += '<tr class="' + (auto ? 'auto' : '') + '"><td>' + (i + 1) + '</td>' +
+        '<td class="name"><div class="nm">' + esc(r.bomName) + '</div><div class="code">' + c + (auto ? ' · AUTO PACK' : '') + '</div></td>' +
+        (auto ? '<td>' + esc(r.stage1Qty) + '</td>' : '<td><input type="number" step="any" value="' + esc(r.stage1Qty) + '" onchange="patchRow(\'' + c + '\',{stage1Qty:Number(this.value)||0})"></td>') +
+        uomCell(r.stage1Qty, r.stage1Uom, r.stage1DefUom, r.bomName, r.stage1DefPer) +
+        (auto ? '<td>' + esc(r.stage2Qty) + '</td>' : '<td><input type="number" step="any" value="' + esc(r.stage2Qty) + '" onchange="patchRow(\'' + c + '\',{stage2Qty:Number(this.value)||0})"></td>') +
+        uomCell(r.stage2Qty, r.stage2Uom, r.stage2DefUom, r.bomName) +
+        (auto ? '<td class="muted">—</td>' : '<td><button class="pill' + (r.secondaryPackaging ? ' yes' : '') + '" onclick="toggleSec(\'' + c + '\')">' + (r.secondaryPackaging ? 'YES' : 'NO') + '</button></td>') +
+        (auto ? '<td>' + r.batches + '</td>' : '<td><button class="bt" onclick="patchRow(\'' + c + '\',{batches:Math.max(1,' + r.batches + '-1)})">−</button><span class="bn">' + r.batches + '</span><button class="bt" onclick="patchRow(\'' + c + '\',{batches:' + r.batches + '+1})">+</button></td>') +
+        '<td>' + (auto ? '' : '<button class="rm" title="Remove" onclick="removeRow(\'' + c + '\')">✕</button>') + '</td></tr>';
+    });
+    const pmrCount = rows.reduce((n, r) => n + Math.max(1, r.batches), 0);
+    h += '</tbody></table></div><div class="summary">Will create ' + rows.length + ' job' + (rows.length !== 1 ? 's' : '') + ' and ' + pmrCount + ' PMR' + (pmrCount !== 1 ? 's' : '') + '.</div>' +
+      '<div class="bar"><button class="btn" onclick="state.rows=[];renderPlan()">Clear</button><button class="btn prim" id="submitBtn" onclick="submitPlan()"' + (state.busy ? ' disabled' : '') + '>' + (state.busy ? 'Submitting…' : 'Submit to PACT') + '</button></div>';
+  }
+  body.innerHTML = h;
+}
+function patchRow(code, patch) { state.rows = state.rows.map((x) => (x.bomCode === code ? Object.assign({}, x, patch) : x)); renderPlan(); }
+function removeRow(code) { state.rows = state.rows.filter((x) => x.bomCode !== code); renderPlan(); }
+function toggleSec(code) {
+  const row = state.rows.find((x) => x.bomCode === code); if (!row) return;
+  if (!row.secondaryPackaging && !(state.byCode[code] && state.byCode[code].hasSecondaryPackaging)) { alert('This product has no secondary-pack BOM linked in PACT.'); return; }
+  patchRow(code, { secondaryPackaging: !row.secondaryPackaging });
+}
+async function submitPlan() {
+  if (!state.rows.length) { alert('Add at least one product.'); return; }
+  if (!state.date) { alert('Pick a production date.'); return; }
+  state.busy = true; $('planErr').textContent = ''; renderPlan();
+  try {
+    const { jobs, pmrs } = buildVouchers(state.date, state.rows, state.byCode);
+    const res = await fetch('/api/pmr-inbox', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ productionDate: state.date, createdBy: state.operator || 'web', jobs, pmrs, dedupeKey: dedupeKey(state.date, state.rows) }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.ok) throw new Error(j.error || ('HTTP ' + res.status));
+    state.result = { id: j.id, jobs: j.jobs, pmrs: j.pmrs, deduped: !!j.deduped };
+    state.rows = [];
+  } catch (e) { $('planErr').textContent = 'Submit failed: ' + String(e.message || e); alert('Submit failed: ' + String(e.message || e)); }
+  finally { state.busy = false; renderPlan(); }
+}
+
+// ---------- product picker ----------
+function openPicker() { $('search').value = ''; $('picker').classList.add('on'); renderPicker(); setTimeout(() => $('search').focus(), 30); }
+function closePicker() { $('picker').classList.remove('on'); }
+function renderPicker() {
+  const q = $('search').value.toLowerCase();
+  const list = state.boms.filter((b) => b.name.toLowerCase().includes(q) || b.bomCode.toLowerCase().includes(q)).slice(0, 300);
+  $('plist').innerHTML = list.length ? list.map((b) => {
+    const added = state.rows.some((r) => r.bomCode === b.bomCode);
+    return '<button class="pick"' + (added ? ' disabled' : '') + ' onclick="addBom(\'' + esc(b.bomCode) + '\')"><div><div class="pn">' + esc(b.name) + '</div><div class="pm">' + esc(b.bomCode) + ' · S1:' + b.stage1.length + ' S2:' + b.stage2.length + (b.hasSecondaryPackaging ? ' · sec-pack' : '') + '</div></div><span class="pa">' + (added ? '✓' : '+') + '</span></button>';
+  }).join('') : '<p class="empty">No matching BOM.</p>';
+}
+function addBom(code) {
+  const bom = state.byCode[code];
+  if (bom && !state.rows.some((r) => r.bomCode === code)) state.rows.push(rowFromBom(bom));
+  closePicker(); renderPlan();
+}
+
+// ---------- submitted ----------
+function parseProgress(note) { const m = /^progress:(\d+)\|(.*)$/.exec(note || ''); return m ? { pct: Math.min(100, Number(m[1])), label: m[2] } : null; }
+function stColor(s) { return s === 'posted' ? 'var(--ok)' : s === 'error' ? 'var(--danger)' : s === 'processing' ? 'var(--accent)' : 'var(--mut)'; }
+async function loadSubmitted() {
+  $('subErr').textContent = '';
+  try {
+    const res = await fetch('/api/pmr-status', { cache: 'no-store' });
+    if (!res.ok) throw new Error('pmr-status ' + res.status);
+    const j = await res.json();
+    state.items = j.items || [];
+    $('subInfo').textContent = 'Last updated ' + new Date().toLocaleTimeString();
+  } catch (e) { $('subErr').textContent = String(e.message || e); }
+  renderSubmitted();
+  // auto-refresh every 5 s while anything is queued / processing (like the app)
+  clearTimeout(state.timer);
+  if ($('sub').style.display !== 'none' && state.items.some((x) => x.status === 'queued' || x.status === 'processing')) state.timer = setTimeout(loadSubmitted, 5000);
+}
+function renderSubmitted() {
+  if (!state.items.length) { $('subList').innerHTML = '<p class="empty">Nothing submitted yet. Plan a production day and submit it.</p>'; return; }
+  $('subList').innerHTML = state.items.map((it) => {
+    const p = it.payload || {}, rs = it.result || {};
+    const jobs = p.jobs || [], allPmrs = p.pmrs || [];
+    const jobNo = Object.fromEntries((rs.jobs || []).map((j) => [j.bomCode, j.jobNo]));
+    const pmrNo = {}; (rs.pmrs || []).forEach((x) => { pmrNo[x.jobBomCode + '#' + x.batchNo] = x.pmrNo; });
+    const postedJobs = (rs.jobs || []).filter((j) => j.jobNo).length;
+    const postedPmrs = (rs.pmrs || []).filter((x) => x.pmrNo && !String(x.pmrNo).startsWith('unconfirmed')).length;
+    const prog = it.status === 'processing' ? parseProgress(it.note) : null;
+    const col = stColor(it.status), open = !!state.open[it.id];
+    let extra = '';
+    if (prog) extra = '<div class="track"><div class="fill" style="width:' + prog.pct + '%"></div></div><div class="prog">' + prog.pct + '% · ' + esc(prog.label) + '</div>';
+    else if (it.status === 'queued') extra = '<div class="prog">' + (it.note && !String(it.note).startsWith('progress:') ? esc(it.note) : 'Waiting for PACT…') + '</div>';
+    else if (it.note && !String(it.note).startsWith('progress:')) extra = '<div class="note">' + esc(it.note) + '</div>';
+    let h = '<div class="grp"><div class="ghead" onclick="state.open[' + it.id + ']=!state.open[' + it.id + '];renderSubmitted()"><div style="flex:1"><div class="gname">' + esc(it.group_name) + ' <span class="muted" style="font-size:12px;font-weight:500">#' + it.id + '</span></div>' +
+      '<div class="gmeta">Jobs ' + postedJobs + '/' + jobs.length + ' · PMRs ' + postedPmrs + '/' + allPmrs.length + ' posted · ' + esc(new Date(it.created_at).toLocaleString()) + '</div>' + extra + '</div>' +
+      '<span class="st" style="color:' + col + ';border-color:' + col + '">' + esc(String(it.status).toUpperCase()) + '</span><span class="muted">' + (open ? '▾' : '▸') + '</span></div>';
+    if (open) {
+      for (const j of jobs) {
+        const batches = allPmrs.filter((x) => x.jobBomCode === j.bomCode).sort((a, b) => a.batchNo - b.batchNo);
+        h += '<div class="job"><div class="jn">' + esc(j.docName) + (j.isPack ? ' · pack' : '') + '</div><div class="jno">' + (jobNo[j.bomCode] ? 'Job No: ' + esc(jobNo[j.bomCode]) : 'Job No: — (pending)') + '</div>' +
+          batches.map((b) => '<div class="pmr"><span>Batch ' + b.batchNo + '</span><span><b>' + esc(pmrNo[j.bomCode + '#' + b.batchNo] || '—') + '</b></span><span>' + (b.lines || []).length + ' materials</span></div>').join('') + '</div>';
+      }
+    }
+    return h + '</div>';
+  }).join('');
+}
+
+// ---------- boot ----------
+function boot() {
+  state.operator = lsGet(OP_KEY);
+  if (!state.operator) { $('gate').style.display = ''; $('main').style.display = 'none'; setTimeout(() => $('opName').focus(), 50); return; }
+  $('gate').style.display = 'none'; $('main').style.display = '';
+  $('opShow').textContent = state.operator;
+  setDate(state.date);
+  if (!state.boms.length) loadBoms(); else renderPlan();
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePicker(); });
+boot();
+</script>
+</body>
+</html>
