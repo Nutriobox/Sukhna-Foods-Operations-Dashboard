@@ -1809,8 +1809,8 @@ function HomeScreen({ onOpen, counts }: { onOpen: (v: "stock" | "sales" | "sales
           <span className="tile-body">
             <span className="tile-ic">{TileSvg.boxes}</span>
             <span className="tile-ttl">Closing Stock</span>
-            <span className="tile-sub">Batch-wise closing stock from PACT &mdash; filter by location, warehouse and date, with PACT&rsquo;s rate and value.</span>
-            <span className="tile-meta">Batch-wise · PACT stock</span>
+            <span className="tile-sub">Batch-wise closing stock from PACT with physical count, excess / shortage valuation and the PACT posting sheet.</span>
+            <span className="tile-meta">Stock count · PACT sync</span>
             <span className="tile-go">Open {TileSvg.arrow}</span>
           </span>
         </a>
