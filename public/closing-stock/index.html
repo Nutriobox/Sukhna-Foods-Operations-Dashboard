@@ -7,27 +7,31 @@
 <script src="/js/password-gate.js"></script>
 <style>
 :root{
-  --navy:#0b2545; --navy-2:#123a68; --navy-3:#1b4f8c;
-  --blue:#1a62c4; --blue-dk:#124a99; --blue-lt:#e8f0fb; --blue-lt2:#d6e5f7;
-  --surface:#ffffff; --plane:#eef2f7; --panel:#ffffff;
-  --ink-1:#0d1b2a; --ink-2:#4a5a6e; --ink-3:#8696a9;
-  --grid:#dfe6ef; --axis:#c2cedd; --ring:#d5deea;
-  --row-alt:#f7fafd; --hover:#e8f0fb; --head:#f2f7fd;
-  --good:#0b7a3b; --warn:#9a6700; --crit:#b3261e;
-  --warn-bg:#fdf3dd; --crit-bg:#fdeceb; --good-bg:#e7f5ec;
-  --shadow:0 1px 2px rgba(13,27,42,.06),0 6px 18px rgba(13,27,42,.07);
+  /* Mercury (5) rules trade and accounts: emerald carries the structure.
+     Jupiter (3) rules wealth: gold marks what is selected and what matters. */
+  --navy:#0a3a2c; --navy-2:#0f4d3a; --navy-3:#176a50;
+  --blue:#0f7b63; --blue-dk:#0b5f4c; --blue-lt:#e4f3ee; --blue-lt2:#cde8df;
+  --surface:#ffffff; --plane:#eef4f1; --panel:#ffffff;
+  --ink-1:#0f1f1a; --ink-2:#4a5e57; --ink-3:#83968f;
+  --grid:#dde8e3; --axis:#bfd2c9; --ring:#d3e2db;
+  --row-alt:#f6faf8; --hover:#e4f3ee; --head:#f0f7f4;
+  --good:#3b8b2e; --warn:#9a6700; --crit:#b3261e;
+  --warn-bg:#fdf3dd; --crit-bg:#fdeceb; --good-bg:#ecf6e8;
+  --gold:#c9a227; --gold-ink:#8a6d10; --gold-bg:#fbf4dc;
+  --shadow:0 1px 2px rgba(10,40,30,.06),0 6px 18px rgba(10,40,30,.08);
   --r:10px; --rowh:32px; --fs:13px;
   color-scheme:light;
 }
 html[data-theme="dark"]{
-  --navy:#06152a; --navy-2:#0c2847; --navy-3:#14396a;
-  --blue:#4b93ee; --blue-dk:#2d79d8; --blue-lt:#15283f; --blue-lt2:#1e3b5c;
-  --surface:#0f1b2b; --plane:#070e18; --panel:#13212f;
-  --ink-1:#e8eef6; --ink-2:#aebbcb; --ink-3:#7d8c9e;
-  --grid:#203245; --axis:#2c4056; --ring:#24374c;
-  --row-alt:#122032; --hover:#17304c; --head:#132538;
-  --good:#4ac97a; --warn:#e2b23c; --crit:#ef7b73;
-  --warn-bg:#32280f; --crit-bg:#331a18; --good-bg:#10301e;
+  --navy:#04170f; --navy-2:#0a2a1f; --navy-3:#123e2f;
+  --blue:#3fc4a0; --blue-dk:#26a383; --blue-lt:#0f2a22; --blue-lt2:#16392e;
+  --surface:#0e1c17; --plane:#06100c; --panel:#11211b;
+  --ink-1:#e6f2ed; --ink-2:#a9c0b7; --ink-3:#7a8f87;
+  --grid:#1d3129; --axis:#29443a; --ring:#223a31;
+  --row-alt:#11221c; --hover:#163a2f; --head:#132a22;
+  --good:#7fd36a; --warn:#e2b23c; --crit:#ef7b73;
+  --warn-bg:#32280f; --crit-bg:#331a18; --good-bg:#16301a;
+  --gold:#e0bd4f; --gold-ink:#e0bd4f; --gold-bg:#2b2410;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -47,12 +51,12 @@ button,input,select{font:inherit;color:inherit}
   overflow:hidden}
 .mast .act{flex:none}
 .mast .ttl{font-size:15px;font-weight:600;letter-spacing:.01em;white-space:nowrap}
-.mast .org{font-size:11.5px;color:#9fb6d4;white-space:nowrap;padding-left:14px;border-left:1px solid rgba(255,255,255,.18);
+.mast .org{font-size:11.5px;color:#a6cfc0;white-space:nowrap;padding-left:14px;border-left:1px solid rgba(255,255,255,.18);
   overflow:hidden;text-overflow:ellipsis;min-width:0}
 .mast .ttl{min-width:0}
 .spacer{flex:1 1 auto}
 .act{
-  border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#eaf1fa;
+  border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#e8f4ef;
   border-radius:6px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
   font-size:12.5px;white-space:nowrap;
 }
@@ -86,8 +90,9 @@ button,input,select{font:inherit;color:inherit}
   display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:650;
 }
 .rail button:hover{color:#fff;background:rgba(255,255,255,.05)}
-.rail button[aria-selected="true"]{color:#fff;border-bottom-color:var(--blue);font-weight:600;background:rgba(255,255,255,.07)}
-.rail button[aria-selected="true"] .no{background:var(--blue);color:#fff}
+.rail button[aria-selected="true"]{color:#fff;border-bottom-color:var(--gold);font-weight:600;background:rgba(255,255,255,.07)}
+.rail button[aria-selected="true"] .no{background:var(--gold);color:#1c1503}
+.rail button .no svg{display:block}
 
 /* ---------- filter strip ---------- */
 .filters{
@@ -170,7 +175,7 @@ main{flex:1;min-height:0;padding:12px 14px;display:flex;gap:12px;position:relati
   border-bottom:1px solid var(--grid);background:linear-gradient(180deg,var(--blue-lt) 0%,var(--surface) 100%);
   font-size:12.5px;font-weight:650;color:var(--navy);letter-spacing:-.005em;
 }
-html[data-theme="dark"] .sidehd{color:#dce8f7}
+html[data-theme="dark"] .sidehd{color:#d8eee5}
 .sidex{
   border:1px solid var(--ring);background:var(--panel);border-radius:6px;cursor:pointer;
   color:var(--ink-2);font-size:12px;line-height:1;padding:3px 7px;
@@ -197,7 +202,144 @@ html[data-theme="dark"] .sidehd{color:#dce8f7}
 .sideopen #sideCnt:not(:empty){
   background:var(--blue);color:#fff;border-radius:9px;padding:1px 6px;font-size:10.5px;
 }
+/* ---------- page change: every tab opens as its own page ---------- */
+.pageline{position:absolute;left:0;top:0;height:2px;width:0;background:var(--gold);z-index:6;pointer-events:none}
+.pageline.go{animation:sweep .55s ease-out}
+@keyframes sweep{0%{width:0;opacity:1}75%{width:100%;opacity:1}100%{width:100%;opacity:0}}
+@keyframes pagein{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.pagein{animation:pagein .34s cubic-bezier(.2,.7,.2,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.app.noside .side,.app.noside .sideopen{display:none !important}
+
+/* ---------- figures strip above each report ---------- */
+.kpis{display:flex;flex:none;border-bottom:1px solid var(--grid);background:var(--surface)}
+.kpi{flex:1;min-width:0;padding:9px 16px 8px;border-right:1px solid var(--grid);position:relative}
+.kpi:last-child{border-right:0}
+.kpi .l{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
+.kpi .v{font-size:19px;font-weight:650;color:var(--ink-1);font-variant-numeric:tabular-nums;line-height:1.2;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--axis)}
+.kpi.lead{background:linear-gradient(180deg,var(--gold-bg) 0%,var(--surface) 100%)}
+.kpi.lead::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold)}
+.kpi.crit .dot{background:var(--crit)} .kpi.warn .dot{background:var(--warn)} .kpi.good .dot{background:var(--good)}
+
+/* ---------- home ---------- */
+.home{flex:1;min-width:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:2px 2px 10px}
+.hero{position:relative;overflow:hidden;border-radius:14px;padding:22px 28px;color:#fff;flex:none;
+  background:linear-gradient(118deg,var(--navy) 0%,var(--navy-2) 58%,var(--navy-3) 100%);box-shadow:var(--shadow)}
+.hero h1{margin:0;font-size:23px;font-weight:650;letter-spacing:-.012em}
+.hero h1 b{color:var(--gold);font-weight:650}
+.hero p{margin:6px 0 0;color:#b5d6ca;font-size:13px}
+.hero p b{color:#fff;font-weight:600}
+.hero .chips{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.hero .chip{border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:4px 12px;font-size:12px;color:#d6ebe2;
+  background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
+.hero .emblem{position:absolute;right:30px;top:50%;width:132px;height:132px;margin-top:-66px;color:var(--gold);opacity:.55;
+  animation:spin 80s linear infinite}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;flex:none}
+@media(max-width:1150px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.card{position:relative;text-align:left;font:inherit;color:var(--ink-1);cursor:pointer;overflow:hidden;
+  background:var(--surface);border:1px solid var(--ring);border-radius:12px;box-shadow:var(--shadow);
+  padding:16px 18px 14px;display:flex;flex-direction:column;gap:4px;
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+  animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
+.card:nth-child(2){animation-delay:.06s}.card:nth-child(3){animation-delay:.12s}.card:nth-child(4){animation-delay:.18s}
+.card::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--gold);transform:scaleX(0);
+  transform-origin:left;transition:transform .25s ease}
+.card:hover,.card:focus-visible{transform:translateY(-3px);border-color:var(--blue);
+  box-shadow:0 2px 4px rgba(10,40,30,.08),0 14px 30px rgba(10,40,30,.13);outline:none}
+.card:hover::before,.card:focus-visible::before{transform:scaleX(1)}
+.card .top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.card .ic{width:36px;height:36px;border-radius:9px;background:var(--blue-lt);color:var(--blue);display:grid;place-items:center;flex:none}
+.card .ic svg{width:19px;height:19px}
+.card .step{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.06em}
+.card .nm{font-size:13.5px;font-weight:650;color:var(--navy)}
+html[data-theme="dark"] .card .nm{color:#d8eee5}
+.card .big{font-size:27px;font-weight:650;letter-spacing:-.015em;font-variant-numeric:tabular-nums;line-height:1.15}
+.card .unit{font-size:12px;color:var(--ink-2)}
+.card .sub{font-size:12px;color:var(--ink-2);min-height:17px}
+.card .go{margin-top:8px;font-size:12px;font-weight:650;color:var(--blue);display:flex;align-items:center;gap:5px}
+.card .go svg{width:13px;height:13px;transition:transform .18s ease}
+.card:hover .go svg{transform:translateX(4px)}
+.hgrid{display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:none}
+@media(max-width:1000px){.hgrid{grid-template-columns:1fr}}
+.hp{background:var(--surface);border:1px solid var(--ring);border-radius:12px;box-shadow:var(--shadow);padding:16px 18px;
+  animation:rise .5s cubic-bezier(.2,.7,.2,1) .2s both}
+.hp h3{margin:0;font-size:13.5px;font-weight:650;color:var(--navy)}
+html[data-theme="dark"] .hp h3{color:#d8eee5}
+.hp .cap{font-size:11.5px;color:var(--ink-3);margin:2px 0 12px}
+.brow{display:grid;grid-template-columns:minmax(90px,170px) 1fr 86px;gap:10px;align-items:center;padding:4px 0;border-radius:6px}
+.brow:hover{background:var(--hover)}
+.brow .n{font-size:12.5px;color:var(--ink-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:4px}
+.brow .trk{display:block;height:14px;border-radius:4px;background:var(--plane);overflow:hidden}
+.brow .fil{display:block;height:100%;width:0;border-radius:0 4px 4px 0;background:var(--blue);transition:width .8s cubic-bezier(.2,.7,.2,1)}
+.brow .val{font-size:12.5px;color:var(--ink-1);text-align:right;font-variant-numeric:tabular-nums;padding-right:4px}
+.stack{display:flex;gap:2px;height:16px;border-radius:5px;overflow:hidden;margin-bottom:12px}
+.stack i{display:block;height:100%;flex:0 0 0;transition:flex-basis .8s cubic-bezier(.2,.7,.2,1);min-width:0}
+.erow{display:flex;align-items:center;gap:10px;width:100%;font:inherit;text-align:left;cursor:pointer;color:var(--ink-1);
+  background:transparent;border:1px solid transparent;border-radius:8px;padding:7px 8px}
+.erow:hover,.erow:focus-visible{background:var(--hover);border-color:var(--ring);outline:none}
+.erow .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.erow .t{font-size:12.5px;flex:1}
+.erow .c{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.erow .pc{font-size:11.5px;color:var(--ink-3);width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.erow .ar{color:var(--ink-3);font-size:12px}
+/* ---------- interaction ---------- */
+button.act,button.lite,button.btn,.qbtn,.sidex,.sideopen,.erow,.card{transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease,border-color .15s ease}
+button.act:hover,button.lite:hover,button.btn:hover,.qbtn:hover{transform:translateY(-1px)}
+button.act:active,button.lite:active,button.btn:active,.qbtn:active,.card:active{transform:translateY(0) scale(.985)}
+button.lite:hover,button.btn:hover{box-shadow:0 3px 10px rgba(10,40,30,.10)}
+.rail button{transition:background-color .15s ease,color .15s ease}
+.rail button:hover{background:rgba(255,255,255,.06)}
+table.grid tbody tr td{transition:background-color .12s ease}
+table.grid tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+table.ptbl tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+.kpi.click{cursor:pointer;transition:background-color .15s ease}
+.kpi.click:hover{background:var(--hover)}
+.kpi.click .l::after{content:"filter";margin-left:auto;font-size:9px;letter-spacing:.04em;color:var(--blue);opacity:0;transition:opacity .15s}
+.kpi.click:hover .l::after{opacity:1}
+.kpi.on{background:var(--blue-lt);box-shadow:inset 0 -2px 0 var(--blue)}
+.kpi.on .l::after{content:"on \2715";opacity:1}
+.kpi.mini{flex:1.7}
+.kpi.mini .mr{display:grid;grid-template-columns:minmax(0,92px) 1fr 54px;gap:6px;align-items:center;font-size:10.5px;line-height:14px}
+.kpi.mini .mr .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2)}
+.kpi.mini .mr .t{display:block;height:7px;border-radius:0 3px 3px 0;background:var(--plane);overflow:hidden}
+.kpi.mini .mr .f{display:block;height:100%;width:0;background:var(--blue);border-radius:0 3px 3px 0;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+.kpi.mini .mr .x{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-1)}
+.kpi.mix .stk{display:flex;gap:2px;height:9px;border-radius:3px;overflow:hidden;margin:5px 0 4px}
+.kpi.mix .stk i{display:block;height:100%;flex:0 0 0;transition:flex-basis .7s cubic-bezier(.2,.7,.2,1)}
+.kpi.mix .lg{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--ink-2)}
+.kpi.mix .lg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.kpi.mix .lg b{display:inline-block;width:8px;height:8px;border-radius:2px}
+.kpi.mix .lg em{font-style:normal;color:var(--ink-1);font-variant-numeric:tabular-nums}
+
+/* ---------- production chart ---------- */
+.pchart{position:relative}
+.pchart svg{display:block;width:100%;height:auto;overflow:visible}
+.pchart .gl{stroke:var(--grid);stroke-width:1}
+.pchart .ax{fill:var(--ink-3);font-size:10px;font-family:inherit}
+.pchart .bar{fill:var(--blue);cursor:pointer;transition:fill .12s ease}
+.pchart .bar.today{fill:var(--gold)}
+.pchart .hit{fill:transparent;cursor:pointer}
+.pchart g.col:hover .bar{fill:var(--blue-dk)}
+.pchart g.col:hover .bar.today{fill:var(--gold-ink)}
+.pchart .bar{transform-box:fill-box;transform-origin:bottom;animation:grow .6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.tip{position:fixed;z-index:50;pointer-events:none;background:var(--navy);color:#fff;border-radius:8px;padding:7px 10px;
+  font-size:12px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transform:translateY(4px);transition:opacity .1s,transform .1s;white-space:nowrap}
+.tip.show{opacity:1;transform:none}
+.tip b{color:var(--gold);font-weight:650}
+.tip .s{color:#b5d6ca;font-size:11px}
+.legend{display:flex;gap:14px;font-size:11.5px;color:var(--ink-2);margin-top:6px;align-items:center}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+}
 @media print{
+  .kpis,.home,.pageline{display:none !important}
   .mast,.rail,.side,.sideopen,.actionbar,.modal,.toast{display:none !important}
   .app{height:auto}
   main{padding:0;display:block}
@@ -213,7 +355,7 @@ html[data-theme="dark"] .sidehd{color:#dce8f7}
 .ptitle{padding:12px 16px;border-bottom:1px solid var(--grid);display:flex;align-items:center;gap:12px;flex:none;
   background:linear-gradient(180deg,var(--blue-lt) 0%,var(--surface) 100%)}
 .ptitle h2{margin:0;font-size:14px;font-weight:650;color:var(--navy);letter-spacing:-.005em}
-html[data-theme="dark"] .ptitle h2{color:#dce8f7}
+html[data-theme="dark"] .ptitle h2{color:#d8eee5}
 .ptitle .cnt{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .tablewrap{flex:1;min-height:0;overflow:auto}
 table.grid{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-variant-numeric:tabular-nums}
@@ -228,7 +370,7 @@ table.grid thead th{
   color:var(--navy);cursor:pointer;user-select:none;border-bottom:2px solid var(--blue);
   text-transform:uppercase;letter-spacing:.04em;
 }
-html[data-theme="dark"] table.grid thead th{color:#bdd4f0}
+html[data-theme="dark"] table.grid thead th{color:#bfe3d6}
 table.grid thead th:hover{background:var(--blue-lt2)}
 html[data-theme="dark"] table.grid thead th:hover{background:var(--hover)}
 table.grid thead th .hd{display:flex;align-items:center;gap:4px;height:100%}
@@ -255,7 +397,7 @@ table.grid tfoot td{
 table.grid tfoot td:last-child{border-right:none}
 table.grid tfoot td.num{text-align:right}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:10.5px;font-weight:650;line-height:1.6;border:1px solid transparent}
-.pill.ok{background:var(--good-bg);color:var(--good);border-color:rgba(11,122,59,.22)}
+.pill.ok{background:var(--good-bg);color:var(--good);border-color:rgba(59,139,46,.22)}
 .pill.soon{background:var(--warn-bg);color:var(--warn);border-color:rgba(154,103,0,.28)}
 .pill.exp{background:var(--crit-bg);color:var(--crit);border-color:rgba(179,38,30,.25)}
 .empty{padding:52px 16px;text-align:center;color:var(--ink-3)}
@@ -294,7 +436,7 @@ html[data-theme="dark"] .cmenu button:hover{background:var(--hover);color:#fff}
 .psec{margin-bottom:22px}
 .phead{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .phead h3{margin:0;font-size:13.5px;font-weight:650;color:var(--navy)}
-html[data-theme="dark"] .phead h3{color:#dce8f7}
+html[data-theme="dark"] .phead h3{color:#d8eee5}
 /* ---------- ruled report tables ---------- */
 table.ptbl{
   width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;
@@ -306,7 +448,7 @@ table.ptbl th{
   border:1px solid var(--axis);border-bottom:2px solid var(--blue);
   position:sticky;top:0;z-index:2;
 }
-html[data-theme="dark"] table.ptbl th{color:#bdd4f0}
+html[data-theme="dark"] table.ptbl th{color:#bfe3d6}
 table.ptbl td{padding:7px 10px;border:1px solid var(--grid);white-space:nowrap;vertical-align:middle}
 table.ptbl th.num,table.ptbl td.num{text-align:right}
 table.ptbl tbody tr:nth-child(even) td{background:var(--row-alt)}
@@ -321,7 +463,7 @@ table.ptbl td.mono{letter-spacing:.01em}
 .vhdr{font-size:12.5px;font-weight:650;color:var(--navy);margin:16px 0 0;padding:8px 11px;
   border:1px solid var(--axis);border-bottom:none;border-radius:8px 8px 0 0;background:var(--blue-lt)}
 .vhdr + .ptblwrap{border-radius:0 0 8px 8px;border-top:none}
-html[data-theme="dark"] .vhdr{color:#dce8f7}
+html[data-theme="dark"] .vhdr{color:#d8eee5}
 .vhdr.warn{border-left-color:var(--warn)}
 
 /* ---------- action bar ---------- */
@@ -372,7 +514,7 @@ tr.prow:hover td,tr.irow:hover td{background:var(--blue-lt)!important}
   background:var(--blue-lt);border:1px solid var(--axis);border-radius:8px;flex-wrap:wrap}
 .vrange span{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700}
 .vrange b{font-size:17px;font-variant-numeric:tabular-nums;color:var(--navy)}
-html[data-theme="dark"] .vrange b{color:#dce8f7}
+html[data-theme="dark"] .vrange b{color:#d8eee5}
 
 /* ---------- voucher sub-tabs ---------- */
 .vtabs{display:flex;gap:4px;border-bottom:1px solid var(--grid);margin-bottom:14px}
@@ -394,7 +536,7 @@ html[data-theme="dark"] .vrange b{color:#dce8f7}
 .pager button:disabled{opacity:.4;cursor:default}
 
 /* modal */
-.modal{position:fixed;inset:0;background:rgba(11,37,69,.5);display:none;align-items:center;justify-content:center;z-index:300;padding:18px}
+.modal{position:fixed;inset:0;background:rgba(10,58,44,.5);display:none;align-items:center;justify-content:center;z-index:300;padding:18px}
 .modal.open{display:flex}
 .modal.wide .box{max-width:1180px}
 .modal .box{background:var(--panel);border-radius:11px;box-shadow:0 20px 50px rgba(0,0,0,.3);max-width:620px;width:100%;max-height:86vh;overflow:auto;border:1px solid var(--ring)}
@@ -446,15 +588,19 @@ html[data-theme="dark"] .vrange b{color:#dce8f7}
 </header>
 
 <nav class="rail" role="tablist">
-  <button role="tab" data-tab="detail" aria-selected="true"><span class="no">1</span>Stock Detail</button>
+  <button role="tab" data-tab="home" aria-selected="true"><span class="no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" width="11" height="11"><path d="M2.5 7.5 8 3l5.5 4.5V13h-3.6V9.6H6.1V13H2.5z"/></svg></span>Home</button>
+  <button role="tab" data-tab="detail" aria-selected="false"><span class="no">1</span>Stock Detail</button>
   <button role="tab" data-tab="batch" aria-selected="false"><span class="no">2</span>Batch-wise Stock</button>
   <button role="tab" data-tab="value" aria-selected="false"><span class="no">3</span>Stock Valuation</button>
   <button role="tab" data-tab="post" aria-selected="false"><span class="no">4</span>PACT Posting</button>
 </nav>
 
 <main>
+<div class="pageline" id="pageLine"></div>
 <div class="work">
+  <section class="home" id="panelHome" hidden></section>
   <section class="panel" id="panelGrid">
+    <div class="kpis" id="kpis"></div>
     <div class="ptitle">
       <h2 id="rptTitle"></h2>
       <span class="spacer"></span>
@@ -746,7 +892,7 @@ html[data-theme="dark"] .vrange b{color:#dce8f7}
 var DATA = JSON.parse(document.getElementById("payload").textContent);
 var FLAG_T = DATA.flagThreshold || 1e9;
 var S = {
-  tab: "detail",
+  tab: "home",
   q: "",
   wh: [], loc: [], cat: [], grp: [], prod: [], uom: [], uomd: [], exp: [],
   mfgFrom: "", mfgTo: "",          /* production date window, ISO yyyy-mm-dd */
@@ -759,7 +905,7 @@ var S = {
   basis: "def", keepFilters: false
 };
 var LS = "closingStockDash.v1";
-var BUILD = "24-11 12:47";
+var BUILD = "24-11 21:12";
 var LSC = "closingStockDash.counts.v2";
 var LSC_OLD = "closingStockDash.counts.v1";
 var VDEF = {date:"", location:"Factory", credit:"Production Wip", batchAlloc:"Batch 1", damageType:"Sorting",
@@ -1283,6 +1429,7 @@ var VSTATE = {first:0, last:0};
 function rowHeight(){ return S.density || 32; }
 var PRINTALL = false;        /* printing needs every row in the DOM, not just the visible window */
 function renderBody(force){
+  if(!REPORTS[S.tab]) return;            /* home and posting pages have no grid */
   var cols = visCols(), total = VIEW.length, rh = rowHeight();
   var wrap = el("tw"), tb = el("tb");
   var vh = wrap.clientHeight || 600;
@@ -3569,6 +3716,304 @@ function downloadBothZip(){
     syncToast("Could not build the files", err.message, "err");
   });
 }
+/* ============================ home page, figures strip, page change ============================ */
+var PAGEIN = false;
+var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function inrShort(v){                       /* 34,23,07,085 reads as 34.23 Cr */
+  var a = Math.abs(v);
+  if(a >= 1e7) return (v/1e7).toFixed(2) + " Cr";
+  if(a >= 1e5) return (v/1e5).toFixed(2) + " L";
+  return nfI.format(Math.round(v));
+}
+function countUp(node, target, fmt, animate){
+  fmt = fmt || function(x){ return nfI.format(Math.round(x)); };
+  if(!animate || REDUCED || !isFinite(target) || target === 0){ node.textContent = fmt(target); return; }
+  var t0 = null, dur = 650;
+  function step(ts){
+    if(t0 === null) t0 = ts;
+    var k = Math.min(1, (ts - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    node.textContent = fmt(target * e);
+    if(k < 1) requestAnimationFrame(step); else node.textContent = fmt(target);
+  }
+  requestAnimationFrame(step);
+}
+
+/* whole-stock figures for the home page: every filter set aside, nil lines left out */
+function homeStats(){
+  var keep = {tab:S.tab,q:S.q,wh:S.wh,loc:S.loc,cat:S.cat,grp:S.grp,prod:S.prod,uom:S.uom,uomd:S.uomd,exp:S.exp,
+              mf:S.mfgFrom,mt:S.mfgTo,hz:S.hideZero};
+  var r = {detail:0,batch:0,value:0,products:0,whCount:0,exp:{exp:0,soon:0,ok:0,none:0},wh:[]};
+  try{
+    S.q="";S.wh=[];S.loc=[];S.cat=[];S.grp=[];S.prod=[];S.uom=[];S.uomd=[];S.exp=[];S.mfgFrom="";S.mfgTo="";S.hideZero=true;
+    S.tab="detail"; r.detail = aggregate().length;
+    S.tab="batch";
+    var b = aggregate(), pr = Object.create(null);
+    r.batch = b.length;
+    var end = (DATA.src && DATA.src.docDateMax) || isoToday(0), dEnd = new Date(end + "T00:00:00");
+    var dStart = new Date(dEnd); dStart.setDate(dStart.getDate() - 29);
+    var z = function(n){ return String(n).padStart(2,"0"); };
+    var days = Object.create(null);
+    for(var d = new Date(dStart); d <= dEnd; d.setDate(d.getDate()+1))
+      days[d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())] = {lines:0, val:0, prods:Object.create(null)};
+    b.forEach(function(g){
+      r.exp[expStatus(g.exp).k || "none"]++; pr[g.code] = 1;
+      if(g.mfg && days[g.mfg] && g.qty > 0){
+        var dd = days[g.mfg]; dd.lines++; dd.prods[g.code] = 1;
+        dd.val += g.qty * (g.rate || (DATA.prods[g.code] ? +DATA.prods[g.code][5] || 0 : 0));
+      }
+    });
+    r.prodDays = Object.keys(days).sort().map(function(k){ return {d:k, lines:days[k].lines, val:days[k].val,
+                                                                    prods:Object.keys(days[k].prods).length}; });
+    r.prodEnd = end;
+    r.products = Object.keys(pr).length;
+    S.tab="value";
+    var wv = Object.create(null);
+    var cv = Object.create(null);
+    aggregate().forEach(function(g){ var x = isFinite(g.val) ? (g.val||0) : 0; r.value += x; wv[g.wh] = (wv[g.wh]||0) + x;
+                                     cv[g.cat || "-"] = (cv[g.cat || "-"]||0) + x; });
+    r.cat = Object.keys(cv).map(function(k){ return {k:(k && k !== "-") ? k : "Uncategorised", raw:k, v:cv[k]}; })
+              .sort(function(a,b){ return b.v - a.v; });
+    r.wh = Object.keys(wv).map(function(k){ return {k:(k && k !== "-") ? k : "No warehouse on the product", v:wv[k]}; }).sort(function(a,b){ return b.v - a.v; });
+    r.whCount = r.wh.length;
+  } finally {
+    S.tab=keep.tab;S.q=keep.q;S.wh=keep.wh;S.loc=keep.loc;S.cat=keep.cat;S.grp=keep.grp;S.prod=keep.prod;S.uom=keep.uom;
+    S.uomd=keep.uomd;S.exp=keep.exp;S.mfgFrom=keep.mf;S.mfgTo=keep.mt;S.hideZero=keep.hz;
+  }
+  r.final = Object.keys(COUNT.final || {}).length + (COUNT.imports || []).length;
+  return r;
+}
+
+function openPage(tab, pre){
+  if(S.tab === tab && !pre) return;
+  S.tab = tab;
+  if(!S.keepFilters) clearFilters();
+  if(pre){ pre(); refreshFilters(); }
+  PAGEIN = true;
+  draw();
+  ["panelHome","panelGrid","panelPost"].forEach(function(id){
+    var e = el(id); e.classList.remove("pagein"); void e.offsetWidth; if(!e.hidden) e.classList.add("pagein");
+  });
+  var pl = el("pageLine"); pl.classList.remove("go"); void pl.offsetWidth; pl.classList.add("go");
+  PAGEIN = false;
+}
+
+var HOME_IC = {
+  detail:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M3 8h14M8 8v8.5"/></svg>',
+  batch:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2.8 17 6.4v7.2L10 17.2 3 13.6V6.4z"/><path d="M3 6.4 10 10l7-3.6M10 10v7.2"/></svg>',
+  value:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h8M6 7.5h8M11 4c0 5-5 3.5-5 3.5L12 16"/></svg>',
+  post:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 13V3.5M10 3.5 6.5 7M10 3.5 13.5 7M4 12.5v3.5h12v-3.5"/></svg>'
+};
+function renderHome(){
+  var st = homeStats(), src = DATA.src || {}, an = PAGEIN;
+  var emblem = '<svg class="emblem" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">' +
+    '<circle cx="60" cy="60" r="56"/><circle cx="60" cy="60" r="40"/><circle cx="60" cy="60" r="6"/>' +
+    '<rect x="20.4" y="20.4" width="79.2" height="79.2"/><rect x="20.4" y="20.4" width="79.2" height="79.2" transform="rotate(45 60 60)"/></svg>';
+  var h = '<div class="hero">' + emblem +
+    '<h1>Closing Stock <b>Dashboard</b></h1>' +
+    '<p>Sukhna Foods · NutrioBox — stock position as at <b>' + esc(dmy(src.docDateMax) || "—") + '</b></p>' +
+    '<div class="chips"><span class="chip">' + nfI.format(N) + ' stock rows</span>' +
+    '<span class="chip">' + nfI.format(st.products) + ' products in stock</span>' +
+    '<span class="chip">' + nfI.format(st.whCount) + ' warehouses</span>' +
+    '<span class="chip">' + nfI.format(st.batch) + ' batch lines</span></div></div>';
+
+  var arrow = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 7h9M8 3.5 11.5 7 8 10.5"/></svg>';
+  function card(tab, step, name, n, fmtKey, unit, sub){
+    return '<button class="card" data-go="' + tab + '">' +
+      '<div class="top"><span class="ic">' + HOME_IC[tab] + '</span><span class="nm">' + name + '</span><span class="step">' + step + '</span></div>' +
+      '<div><span class="big" data-n="' + n + '" data-f="' + fmtKey + '">0</span> <span class="unit">' + unit + '</span></div>' +
+      '<div class="sub">' + sub + '</div>' +
+      '<div class="go">Open ' + arrow + '</div></button>';
+  }
+  h += '<div class="cards">' +
+    card("detail","01","Stock Detail", st.detail, "i", "stock lines", "Product, warehouse and location wise quantity in hand") +
+    card("batch","02","Batch-wise Stock", st.batch, "i", "batch lines",
+         nfI.format(st.exp.exp) + " expired · " + nfI.format(st.exp.soon) + " within 30 days") +
+    card("value","03","Stock Valuation", st.value, "c", "", "₹ " + nfQ.format(st.value) + " at product master rate") +
+    card("post","04","PACT Posting", st.final, "i", st.final === 1 ? "submission" : "submissions", "Scrap and excess vouchers for PACT") +
+    '</div>';
+
+  /* value by warehouse: one measure, one hue, biggest first */
+  var top = st.wh.slice(0,7), rest = st.wh.slice(7).reduce(function(s,o){ return s + o.v; }, 0);
+  if(rest > 0) top.push({k:"Other warehouses", v:rest});
+  var mx = top.reduce(function(m,o){ return Math.max(m,o.v); }, 0) || 1;
+  h += '<div class="hgrid"><div class="hp"><h3>Stock value by warehouse</h3>' +
+       '<div class="cap">₹, at product master rate · total ₹ ' + inrShort(st.value) + '</div>';
+  top.forEach(function(o){
+    h += '<div class="brow" title="' + esc(o.k) + ': ₹ ' + nfQ.format(o.v) + '">' +
+         '<span class="n">' + esc(o.k) + '</span><span class="trk"><span class="fil" data-w="' + (o.v/mx*100).toFixed(2) + '"></span></span>' +
+         '<span class="val">₹ ' + inrShort(o.v) + '</span></div>';
+  });
+  h += '</div>';
+
+  /* expiry: status colours, each with its label and count */
+  var ex = st.exp, tot = (ex.exp + ex.soon + ex.ok + ex.none) || 1;
+  var parts = [["exp","Expired","var(--crit)"],["soon","Expiring within 30 days","var(--warn)"],
+               ["ok","More than 30 days left","var(--good)"],["none","No expiry date","var(--axis)"]];
+  h += '<div class="hp"><h3>Batch expiry</h3><div class="cap">' + nfI.format(tot) + ' batch lines in stock · click a row to open it</div><div class="stack">';
+  parts.forEach(function(p){ if(ex[p[0]]) h += '<i style="background:' + p[2] + '" data-b="' + (ex[p[0]]/tot*100).toFixed(2) + '" title="' + p[1] + ': ' + nfI.format(ex[p[0]]) + '"></i>'; });
+  h += '</div>';
+  parts.forEach(function(p){
+    h += '<button class="erow" data-exp="' + p[0] + '"><span class="sw" style="background:' + p[2] + '"></span>' +
+         '<span class="t">' + p[1] + '</span><span class="c">' + nfI.format(ex[p[0]]) + '</span>' +
+         '<span class="pc">' + (ex[p[0]]/tot*100).toFixed(1) + '%</span><span class="ar">›</span></button>';
+  });
+  h += '</div></div>';
+
+  h += '<div class="hgrid"><div class="hp"><h3>Stock in hand by production date</h3>' +
+       '<div class="cap">Last 30 days to ' + esc(dmy(st.prodEnd)) + ' · ₹ at product master rate · click a day to open its batches</div>' +
+       prodChart(st.prodDays, st.prodEnd) +
+       '<div class="legend"><span><i style="background:var(--blue)"></i>Stock still in hand from that day’s production</span>' +
+       '<span><i style="background:var(--gold)"></i>Latest day</span></div></div>';
+  var cats = st.cat.slice(0,6), crest = st.cat.slice(6).reduce(function(s,o){ return s + o.v; }, 0);
+  if(crest > 0) cats.push({k:"Other categories", v:crest});
+  var cmx = cats.reduce(function(m,o){ return Math.max(m,o.v); }, 0) || 1;
+  h += '<div class="hp"><h3>Stock value by category</h3><div class="cap">₹, at product master rate · click a row to open it</div>';
+  cats.forEach(function(o){
+    h += '<div class="brow"' + (o.raw !== undefined ? ' style="cursor:pointer" data-cat="' + esc(o.raw) + '"' : '') +
+         ' title="' + esc(o.k) + ': ₹ ' + nfQ.format(o.v) + '">' +
+         '<span class="n">' + esc(o.k) + '</span><span class="trk"><span class="fil" data-w="' + (o.v/cmx*100).toFixed(2) + '"></span></span>' +
+         '<span class="val">₹ ' + inrShort(o.v) + '</span></div>';
+  });
+  h += '</div></div>';
+
+  var host = el("panelHome");
+  host.innerHTML = h;
+  wireProdChart(host);
+  host.querySelectorAll("[data-cat]").forEach(function(r){
+    var k = r.dataset.cat;
+    r.onclick = function(){ openPage("value", function(){ S.cat = [k]; }); };
+  });
+  host.querySelectorAll("[data-go]").forEach(function(b){ b.onclick = function(){ openPage(b.dataset.go); }; });
+  host.querySelectorAll("[data-exp]").forEach(function(b){
+    b.onclick = function(){ var k = b.dataset.exp; openPage("batch", function(){ S.exp = [k]; }); };
+  });
+  host.querySelectorAll("[data-n]").forEach(function(n){
+    var f = n.dataset.f === "c" ? function(x){ return "₹ " + inrShort(x); } : null;
+    countUp(n, parseFloat(n.dataset.n), f, true);
+  });
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){
+    host.querySelectorAll(".fil").forEach(function(f){ f.style.width = f.dataset.w + "%"; });
+    host.querySelectorAll(".stack i").forEach(function(f){ f.style.flexBasis = f.dataset.b + "%"; });
+  }); });
+}
+
+/* the strip of figures above a report: what the list below adds up to */
+function renderKpis(animate){
+  var host = el("kpis"), t = S.tab, pr = Object.create(null), wh = Object.create(null), lc = Object.create(null);
+  var exp = 0, soon = 0, counted = 0, val = 0;
+  for(var i=0;i<VIEW.length;i++){
+    var g = VIEW[i]; pr[g.code] = 1; wh[g.wh] = 1; if(g.loc) lc[g.loc] = 1;
+    if(t === "batch"){ var k = expStatus(g.exp).k; if(k === "exp") exp++; else if(k === "soon") soon++; if(actualOf(g) !== null) counted++; }
+    if(t === "value" && isFinite(g.val)) val += g.val || 0;
+  }
+  var np = Object.keys(pr).length, nw = Object.keys(wh).length, k = [];
+  if(t === "detail") k = [["Stock lines",VIEW.length,"lead"],["Products",np],["Warehouses",nw],["Locations",Object.keys(lc).length]];
+  else if(t === "batch") k = [["Batch lines",VIEW.length,"lead"],["Products",np],
+                              ["Expired",exp,(exp?"crit ":"")+"click"+(S.exp.length===1&&S.exp[0]==="exp"?" on":""),"dot","i","exp"],
+                              ["Within 30 days",soon,(soon?"warn ":"")+"click"+(S.exp.length===1&&S.exp[0]==="soon"?" on":""),"dot","i","soon"],
+                              ["Counted",counted,counted?"good":"","dot"]];
+  else k = [["Stock value",val,"lead","","c"],["Lines",VIEW.length],["Products",np],["Warehouses",nw]];
+  host.innerHTML = k.map(function(x){
+    return '<div class="kpi ' + (x[2]||"") + '"' + (x[5] ? ' data-flt="' + x[5] + '"' : '') + '><div class="l">' + (x[3]==="dot" ? '<span class="dot"></span>' : "") + x[0] + '</div>' +
+           '<div class="v" data-n="' + x[1] + '" data-f="' + (x[4]||"i") + '"' + (x[4]==="c" ? ' title="₹ ' + nfQ.format(x[1]) + '"' : "") + '>0</div></div>';
+  }).join("") + miniTile(t);
+  host.querySelectorAll("[data-n]").forEach(function(n){
+    countUp(n, parseFloat(n.dataset.n), n.dataset.f === "c" ? function(x){ return "₹ " + inrShort(x); } : null, animate);
+  });
+  host.querySelectorAll("[data-flt]").forEach(function(tile){
+    tile.title = "Show only these lines — click again to clear";
+    tile.onclick = function(){
+      var f = tile.dataset.flt;
+      S.exp = (S.exp.length === 1 && S.exp[0] === f) ? [] : [f];
+      savePrefs(); refreshFilters(); draw();
+    };
+  });
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){
+    host.querySelectorAll(".mr .f").forEach(function(f){ f.style.width = f.dataset.w + "%"; });
+    host.querySelectorAll(".stk i").forEach(function(f){ f.style.flexBasis = f.dataset.b + "%"; });
+  }); });
+}
+/* the last tile of the strip is a small chart of the rows below */
+function miniTile(t){
+  if(t === "batch"){
+    var c = {exp:0,soon:0,ok:0,none:0};
+    VIEW.forEach(function(g){ c[expStatus(g.exp).k || "none"]++; });
+    var tot = VIEW.length || 1;
+    var parts = [["exp","Expired","var(--crit)"],["soon","≤ 30 days","var(--warn)"],["ok","> 30 days","var(--good)"],["none","No date","var(--axis)"]];
+    return '<div class="kpi mix"><div class="l">Expiry mix</div><div class="stk">' +
+      parts.map(function(p){ return c[p[0]] ? '<i style="background:' + p[2] + '" data-b="' + (c[p[0]]/tot*100).toFixed(2) +
+                                              '" title="' + p[1] + ': ' + nfI.format(c[p[0]]) + '"></i>' : ''; }).join("") +
+      '</div><div class="lg">' + parts.filter(function(p){ return c[p[0]]; }).map(function(p){
+        return '<span><b style="background:' + p[2] + '"></b>' + p[1] + ' <em>' + (c[p[0]]/tot*100).toFixed(0) + '%</em></span>'; }).join("") +
+      '</div></div>';
+  }
+  var key = t === "value" ? "cat" : "wh", m = Object.create(null);
+  VIEW.forEach(function(g){ var k = g[key] || "-"; m[k] = (m[k]||0) + (t === "value" ? (isFinite(g.val) ? g.val||0 : 0) : 1); });
+  var top = Object.keys(m).map(function(k){ return {k:k, v:m[k]}; }).sort(function(a,b){ return b.v - a.v; }).slice(0,3);
+  var mx = top.length ? top[0].v || 1 : 1;
+  return '<div class="kpi mini"><div class="l">' + (t === "value" ? "Top categories by value" : "Top warehouses by lines") + '</div>' +
+    top.map(function(o){
+      return '<div class="mr" title="' + esc(o.k) + '"><span class="n">' + esc(o.k === "-" ? (t === "value" ? "Uncategorised" : "No warehouse") : o.k) + '</span>' +
+             '<span class="t"><span class="f" data-w="' + (o.v/mx*100).toFixed(1) + '"></span></span>' +
+             '<span class="x">' + (t === "value" ? "₹" + inrShort(o.v) : nfI.format(o.v)) + '</span></div>';
+    }).join("") + '</div>';
+}
+
+/* ---------- column chart: one bar per production day ---------- */
+function niceMax(v){
+  if(v <= 0) return 1;
+  var p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+}
+var PRODDAYS = [];
+function prodChart(days, end){
+  var W = 900, H = 230, L = 58, R = 6, T = 8, B = 24, cw = (W - L - R) / days.length;
+  var top = niceMax(days.reduce(function(m,d){ return Math.max(m, d.val); }, 0));
+  var y = function(v){ return T + (H - T - B) * (1 - v / top); };
+  var g = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Stock value by production day">';
+  for(var k=0;k<=4;k++){
+    var v = top * k / 4, yy = y(v).toFixed(1);
+    g += '<line class="gl" x1="' + L + '" x2="' + (W-R) + '" y1="' + yy + '" y2="' + yy + '"/>' +
+         '<text class="ax" x="' + (L-6) + '" y="' + (+yy+3.5) + '" text-anchor="end">' + (v ? "₹" + inrShort(v) : "0") + '</text>';
+  }
+  days.forEach(function(d,i){
+    var x = L + i*cw, bw = Math.max(2, cw - 4), h = Math.max(0, (H - B) - y(d.val)), last = d.d === end;
+    g += '<g class="col" data-i="' + i + '">' +
+         (d.val > 0 ? '<rect class="bar' + (last ? ' today' : '') + '" x="' + (x+2).toFixed(1) + '" y="' + y(d.val).toFixed(1) +
+                      '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" style="animation-delay:' + (i*12) + 'ms"/>' : '') +
+         '<rect class="hit" x="' + x.toFixed(1) + '" y="' + T + '" width="' + cw.toFixed(1) + '" height="' + (H-T-B) + '"/></g>';
+    if(i % 5 === 0 || last)
+      g += '<text class="ax" x="' + (x + cw/2).toFixed(1) + '" y="' + (H-7) + '" text-anchor="middle">' + d.d.slice(8) + "-" + d.d.slice(5,7) + '</text>';
+  });
+  PRODDAYS = days;
+  return '<div class="pchart">' + g + '</svg></div>';
+}
+function tipEl(){
+  var t = el("chartTip");
+  if(!t){ t = document.createElement("div"); t.id = "chartTip"; t.className = "tip"; document.body.appendChild(t); }
+  return t;
+}
+function wireProdChart(host){
+  var tip = tipEl();
+  host.querySelectorAll(".pchart g.col").forEach(function(c){
+    var d = PRODDAYS[+c.dataset.i];
+    c.onmousemove = function(e){
+      tip.innerHTML = '<b>' + dmy(d.d) + '</b><br>' + (d.lines ? '₹ ' + nfQ.format(d.val) +
+        '<br><span class="s">' + nfI.format(d.lines) + ' batch line' + (d.lines===1?"":"s") + ' · ' +
+        nfI.format(d.prods) + ' product' + (d.prods===1?"":"s") + '</span>' : '<span class="s">Nothing from this day in hand</span>');
+      var x = e.clientX + 14;
+      if(x + 210 > window.innerWidth) x = e.clientX - 214;
+      tip.style.left = x + "px"; tip.style.top = (e.clientY - 12) + "px"; tip.classList.add("show");
+    };
+    c.onmouseleave = function(){ tip.classList.remove("show"); };
+    c.onclick = function(){
+      if(!d.lines) return;
+      tip.classList.remove("show");
+      openPage("batch", function(){ S.mfgFrom = d.d; S.mfgTo = d.d; syncMfg(); });
+    };
+  });
+}
 
 /* ============================ flags ============================ */
 var FLAGS = [];
@@ -3627,14 +4072,17 @@ function renderColList(){
 
 /* ============================ draw ============================ */
 function draw(keepScroll){
-  var isPost = S.tab === "post";
+  var isPost = S.tab === "post", isHome = S.tab === "home";
   document.querySelectorAll("nav.rail button").forEach(function(b){
     b.setAttribute("aria-selected", b.dataset.tab === S.tab ? "true" : "false");
   });
-  el("panelGrid").hidden = isPost;
+  el("panelHome").hidden = !isHome;
+  el("panelGrid").hidden = isPost || isHome;
   el("panelPost").hidden = !isPost;
-  document.querySelector(".filters").hidden = isPost;
-  ["btnCols","btnFit","density","btnExport"].forEach(function(id){ el(id).hidden = isPost; });
+  document.querySelector(".filters").hidden = isPost || isHome;
+  document.querySelector(".app").classList.toggle("noside", isPost || isHome);   /* no filters on these pages */
+  ["btnCols","btnFit","density","btnExport","btnBasis"].forEach(function(id){ el(id).hidden = (id==="btnBasis") ? isHome : (isPost || isHome); });
+  if(isHome){ renderHome(); return; }
   if(isPost){ renderPost(); return; }
 
   el("rptTitle").textContent = REPORTS[S.tab].title;
@@ -3642,6 +4090,7 @@ function draw(keepScroll){
   el("actionBar").hidden = S.tab !== "batch";
   VIEW = sortRows(aggregate());
   if(!keepScroll) el("tw").scrollTop = 0;
+  renderKpis(PAGEIN);
   renderHead(); renderBody(true);
   if(S.tab === "batch") updateBar();
   [["fWh",S.wh],["fLoc",S.loc],["fCat",S.cat],["fGrp",S.grp],["fProd",S.prod],["fUom",S.uom],["fUomD",S.uomd],["fExp",S.exp]]
@@ -3713,12 +4162,7 @@ function init(){
   build(); flagInit(); refreshFilters(); setSrc(); draw();
 
   document.querySelectorAll("nav.rail button").forEach(function(b){
-    b.onclick = function(){
-      if(S.tab === b.dataset.tab) return;
-      S.tab = b.dataset.tab;
-      if(!S.keepFilters) clearFilters();
-      draw();
-    };
+    b.onclick = function(){ openPage(b.dataset.tab); };
   });
   var t;
   el("q").oninput = function(){ clearTimeout(t); var v = this.value; t = setTimeout(function(){ S.q = v; draw(); }, 180); };
