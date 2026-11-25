@@ -321,11 +321,12 @@ const INFO: Record<TileKey, Info> = {
     mode: "Semi-automated",
     schedule: "Sync on demand · physical count at closing",
     users: "Stores, accounts, management",
-    tasks: ["Stock Detail", "Batch-wise Stock", "Stock Valuation", "Physical count", "PACT Posting"],
+    tasks: ["Home overview", "Stock Detail", "Batch-wise Stock", "Stock Valuation", "Physical count", "PACT Posting"],
     about:
       "The closing stock dashboard and physical stock count in one place. It loads PACT's batch-wise stock, lets the team enter what is actually on the shelf batch by batch, shows the excess or shortage and its value, and prepares the adjustment for PACT.",
     overview: [
       { stage: "Load PACT stock", branches: ["Opens with the latest PACT sync from the website (or the data built into the page if that is newer)", "⟳ Sync PACT pulls a fresh BatchWise StockAnalysis through the PACT worker", "Or drop an export, a product master or a handheld count file in Refresh data"] },
+      { stage: "Home", detail: "Headline numbers for the current filters: stock lines, products, warehouses, locations, expired and expiring within 30 days, how much has been counted, and stock value, with the top categories and warehouses. Click a number to show only those lines." },
       { stage: "1 · Stock Detail and 2 · Batch-wise Stock", detail: "Every product, batch, warehouse and location with system quantity, UOM, manufacture and expiry dates. Filter by warehouse, location, category, group, product, UOM and expiry; search with Ctrl+F; switch between default UOM and base unit." },
       { stage: "Physical count", branches: ["Enter the actual quantity per batch, or fill selected lines in one go", "Add a batch found on the floor that PACT shows as nil", "Submit a product when its count is done; reopen it to recount"], edge: "difference = actual − system" },
       { stage: "3 · Stock Valuation", detail: "Quantities valued at the batch rate, with excess and shortage values. Records with an out-of-range quantity can be left out." },
@@ -338,7 +339,7 @@ const INFO: Record<TileKey, Info> = {
       "Product groups and HSN come from the product master built into the page; drop a newer master in Refresh data if they change.",
     ],
     tech: {
-      stack: "Static app (public/closing-stock/index.html, Closing Stock Dashboard v11) · Supabase · EC2 PACT worker",
+      stack: "Static app (public/closing-stock/index.html, Closing Stock Dashboard v13) · Supabase · EC2 PACT worker",
       nodes: [
         { stage: "Embedded payload", detail: "The page carries a full BatchWise StockAnalysis + product master snapshot (script#payload), so it works even with no connection." },
         { stage: "On open: GET /api/costing/bs", detail: "If the website snapshot is newer than the embedded one, rebuild() swaps it in. Header row is the same BatchWise StockAnalysis layout (Batch Number, Doc No, Location, Warehouse, Doc Date, Product Code, Product Name, Units, Quantity, Rate, Value, Exp. Date, Mfg. Date)." },
