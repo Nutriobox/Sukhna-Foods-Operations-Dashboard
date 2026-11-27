@@ -160,6 +160,10 @@ function addDays(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.ge
 function ddmmyyyy(iso) { const d = new Date(iso + 'T00:00:00'); return pad2(d.getDate()) + '-' + pad2(d.getMonth() + 1) + '-' + d.getFullYear(); }
 
 // ---------- BOM feed -> Bom[]  (port of app/src/bom.ts; keep in sync) ----------
+// 2026-11-27: PACT writes the status as "In Active" (with a space), so the old
+// toLowerCase() !== 'inactive' test let 16 inactive BOMs into the Job / PMR picker.
+// norm() strips spaces and punctuation, so "In Active", "In-Active" and "Inactive"
+// are all dropped. "Un-Approved" BOMs are deliberately left as they were.
 const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
 const num = (s) => { const n = parseFloat(String(s == null ? '' : s).replace(/[,₹%\s]/g, '')); return isFinite(n) ? n : 0; };
 const clean = (s) => String(s == null ? '' : s).trim().replace(/\s+/g, ' ').replace(/(WIP|Pack)\1+/g, '$1').replace(/\s*(WIP|Pack)\s*$/, '').trim();
@@ -196,7 +200,7 @@ function transformBomIdeal(rows) {
       const uom = m ? m[2] : '';
       cur = { bomCode: clean(get(r, col.bomcode)) || k, name, category: '', uom, sizeType: m ? m[2] : '', batchSize: m ? num(m[1]) : 0, batchUom: uom,
               stage1: [], stage2: [], hasSecondaryPackaging: false, secondaryBomCode: undefined,
-              active: clean(get(r, col.status)).toLowerCase() !== 'inactive', _out: [], _labelQty: m ? num(m[1]) : 0, _labelUom: m ? m[2] : '' };
+              active: norm(get(r, col.status)) !== 'inactive', _out: [], _labelQty: m ? num(m[1]) : 0, _labelUom: m ? m[2] : '' };
       byKey[k] = cur; boms.push(cur);
     }
     const stage = clean(get(r, col.stage));
