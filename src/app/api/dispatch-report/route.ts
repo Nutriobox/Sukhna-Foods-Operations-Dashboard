@@ -58,16 +58,32 @@ function mapSnapshot(snap: Record<string, unknown> | null, type: string, source:
 export async function GET() {
   if (!SB_URL || !SB_KEY) return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500, headers: CORS });
   try {
-    const [b2bArr, nbArr, scans] = await Promise.all([
+    const [b2bArr, nbDocs, scans] = await Promise.all([
       sb("detail_fsi_snapshot?id=eq.1&select=*").catch(() => []),
-      sb("outlet_dispatch_snapshot?id=eq.1&select=*").catch(() => []),
+      // Outlet (NB): read the LIVE per-doc view (same table the Purchase tab
+      // uses), not the frozen outlet_dispatch_snapshot. Gives current outlet
+      // dispatches with real Doc Dates.
+      sb("pact_stock_outlet_outward_docs?select=doc_no,doc_date,outlet_name,transfer_location,line_count,scraped_at&order=doc_date.desc&limit=20000").catch(() => []),
       sb("inventory_orders?select=order_no,item_count,status,created_at&order=created_at.desc").catch(() => []),
     ]);
     const b2bSnap = (Array.isArray(b2bArr) && b2bArr[0]) || null;
-    const nbSnap = (Array.isArray(nbArr) && nbArr[0]) || null;
 
     const b2bRows = mapSnapshot(b2bSnap, "B2B", "detail_fsi_snapshot");
-    const nbRows = mapSnapshot(nbSnap, "Outlet (NB)", "outlet_dispatch_snapshot");
+    const nbDocsArr = (Array.isArray(nbDocs) ? nbDocs : []) as Record<string, unknown>[];
+    const nbRows: Row[] = nbDocsArr.map((o) => ({
+      date: dateOnly(o.doc_date),
+      type: "Outlet (NB)",
+      doc: String(o.doc_no ?? ""),
+      party: String((o.outlet_name as string) || (o.transfer_location as string) || ""),
+      items: num(o.line_count),
+      status: "Posted",
+      source: "pact_stock_outlet_outward_docs",
+    }));
+    const nbSyncedAt = nbDocsArr.reduce<string | null>((acc, o) => {
+      const s = o.scraped_at ? String(o.scraped_at) : null;
+      if (!s) return acc;
+      return (!acc || s > acc) ? s : acc;
+    }, null);
     const scanRows: Row[] = (Array.isArray(scans) ? scans : []).map((o: Record<string, unknown>) => ({
       date: dateOnly(o.created_at),
       type: "Scan",
@@ -82,7 +98,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      synced: { b2b: (b2bSnap as Record<string, unknown> | null)?.synced_at ?? null, nb: (nbSnap as Record<string, unknown> | null)?.synced_at ?? null },
+      synced: { b2b: (b2bSnap as Record<string, unknown> | null)?.synced_at ?? null, nb: nbSyncedAt },
       counts: { b2b: b2bRows.length, nb: nbRows.length, scan: scanRows.length, total: rows.length },
       rows,
     }, { headers: CORS });
