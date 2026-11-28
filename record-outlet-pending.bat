@@ -24,7 +24,8 @@ echo ============================================================
 echo.
 echo Preparing recorder (first run may take a minute)...
 call npx playwright install chromium
-call npx playwright codegen --ignore-https-errors --target=javascript --save-har="..\pact-outlet-pending.har" --save-har-glob="**" --output="..\pact-outlet-pending-steps.js" "http://140.245.255.130:8443/PACTALLUSUREWEB/#/login"
+if not exist "%USERPROFILE%\Downloads\pact-recordings" mkdir "%USERPROFILE%\Downloads\pact-recordings"
+call npx playwright codegen --ignore-https-errors --target=javascript --save-har="%USERPROFILE%\Downloads\pact-recordings\pact-outlet-pending.har" --save-har-glob="**" --output="%USERPROFILE%\Downloads\pact-recordings\pact-outlet-pending-steps.js" "http://140.245.255.130:8443/PACTALLUSUREWEB/#/login"
 echo.
 echo Done. Saved in the dashboard folder:
 echo    pact-outlet-pending.har         (network recording)
