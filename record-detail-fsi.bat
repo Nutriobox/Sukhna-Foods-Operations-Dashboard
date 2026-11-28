@@ -19,7 +19,8 @@ echo ============================================================
 echo.
 echo Preparing recorder (first run may take a minute)...
 call npx playwright install chromium
-call npx playwright codegen --ignore-https-errors --target=javascript --save-har="..\pact-detail-fsi.har" --save-har-glob="**" --output="..\pact-detail-fsi-steps.js" "http://140.245.255.130:8443/PACTALLUSUREWEB/#/login"
+if not exist "%USERPROFILE%\Downloads\pact-recordings" mkdir "%USERPROFILE%\Downloads\pact-recordings"
+call npx playwright codegen --ignore-https-errors --target=javascript --save-har="%USERPROFILE%\Downloads\pact-recordings\pact-detail-fsi.har" --save-har-glob="**" --output="%USERPROFILE%\Downloads\pact-recordings\pact-detail-fsi-steps.js" "http://140.245.255.130:8443/PACTALLUSUREWEB/#/login"
 echo.
 echo Done. Saved in the dashboard folder:
 echo    pact-detail-fsi.har         (network recording)

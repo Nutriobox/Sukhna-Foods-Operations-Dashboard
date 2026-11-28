@@ -16,12 +16,13 @@ echo ============================================================
 echo.
 echo Preparing recorder (first run may take a minute)...
 call npx playwright install chromium
-call npx playwright codegen --ignore-https-errors --target=javascript --save-har="..\pact-inventory.har" --save-har-glob="**" --output="..\pact-inventory-steps.js" "http://140.245.255.130:8443/PACTALLUSUREWEB/#/login"
+if not exist "%USERPROFILE%\Downloads\pact-recordings" mkdir "%USERPROFILE%\Downloads\pact-recordings"
+call npx playwright codegen --ignore-https-errors --target=javascript --save-har="%USERPROFILE%\Downloads\pact-recordings\pact-inventory.har" --save-har-glob="**" --output="%USERPROFILE%\Downloads\pact-recordings\pact-inventory-steps.js" "http://140.245.255.130:8443/PACTALLUSUREWEB/#/login"
 echo.
-echo Done. These two files were saved in the dashboard folder:
+echo Done. These two files were saved in your Downloads\pact-recordings folder (NOT the code folder):
 echo    pact-inventory.har         (network recording)
 echo    pact-inventory-steps.js    (recorded clicks)
 echo.
-echo You can tell Claude "done" now - it will read them from the folder.
+echo You can tell Claude "done" now - and where they are - never commit them.
 echo.
 pause

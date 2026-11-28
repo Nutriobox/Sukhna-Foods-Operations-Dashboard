@@ -40,3 +40,10 @@ pact-salesorders.har
 pact-salesorders-steps.js
 pact-costing-*.har
 pact-costing-*-steps.js
+
+# 2026-11-28 security: PACT recordings hold the PACT login, live session tokens and full ERP data.
+# Recorders now save to %USERPROFILE%\Downloads\..., never into this folder. Never commit these.
+*.har
+pact-recording.js
+pact-*-steps.js
+*-steps.js
